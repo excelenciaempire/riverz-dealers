@@ -29,6 +29,11 @@ import {
   esActivadorDeTienda,
   triggerStorePlatform,
 } from './plataforma-tienda';
+import {
+  TRIGGER_OPTIONS,
+  activadorSoportado,
+  triggerLabel,
+} from './activador';
 import Image from 'next/image';
 import Link from '@/components/i18n/locale-link';
 import { useLocalizedRouter } from '@/hooks/use-localized-router';
@@ -586,80 +591,6 @@ function stepTitleKey(step: BuilderStep): string {
   return step.step_type === 'send_message' && step.step_config.voice_only
     ? 'automations.stepSendVoiceNote'
     : STEP_META[step.step_type].label;
-}
-
-// Selectable triggers are intentionally limited to Shopify events +
-// "tag added". The other trigger types still exist in the engine/types
-// (so any legacy automation keeps firing and renders its label via
-// TRIGGER_META), they're just not offered when building a new one.
-// `label` holds an i18n key, resolved with t() inside the trigger card.
-const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] = [
-  // Conversación / contacto (los despacha el webhook de entrada). Antes solo
-  // vivían en el fallback y no se ofrecían al crear — ahora seleccionables.
-  { value: 'new_contact_created', label: 'automations.triggerNewContact' },
-  { value: 'first_inbound_message', label: 'automations.triggerFirstInbound' },
-  { value: 'new_message_received', label: 'automations.triggerNewMessage' },
-  { value: 'keyword_match', label: 'automations.triggerKeywordMatch' },
-  {
-    value: 'conversation_assigned',
-    label: 'automations.triggerConversationAssigned',
-  },
-  { value: 'tag_added', label: 'automations.triggerTagAdded' },
-  {
-    value: 'shopify_order_created',
-    label: 'automations.triggerShopifyOrderCreated',
-  },
-  { value: 'shopify_order_paid', label: 'automations.triggerShopifyOrderPaid' },
-  { value: 'shopify_order_confirmed', label: 'automations.triggerShopifyOrderConfirmed' },
-  {
-    value: 'shopify_order_fulfilled',
-    label: 'automations.triggerShopifyOrderFulfilled',
-  },
-  {
-    value: 'shopify_order_delivered',
-    label: 'automations.triggerShopifyOrderDelivered',
-  },
-  {
-    value: 'shopify_order_cancelled',
-    label: 'automations.triggerShopifyOrderCancelled',
-  },
-  {
-    value: 'shopify_order_refunded',
-    label: 'automations.triggerShopifyOrderRefunded',
-  },
-  {
-    value: 'shopify_abandoned_checkout',
-    label: 'automations.triggerShopifyAbandonedCheckout',
-  },
-  { value: 'payment_rejected', label: 'automations.triggerPaymentRejected' },
-  {
-    value: 'voice_call_completed',
-    label: 'automations.triggerVoiceCallCompleted',
-  },
-];
-
-// Friendly labels for trigger types NOT in the selectable list (legacy /
-// cron-driven). Without these, editing an existing automation with such a
-// trigger showed the raw enum in the header and the dropdown fell back to the
-// first option ("Tag added"), which read like the trigger had silently
-// changed.
-const TRIGGER_LABEL_FALLBACK: Record<string, string> = {
-  post_delivery_feedback: 'automations.triggerPostDeliveryFeedback',
-  customer_inactive: 'automations.triggerCustomerInactive',
-  keyword_match: 'automations.triggerKeywordMatch',
-  time_based: 'automations.triggerTimeBased',
-  new_message_received: 'automations.triggerNewMessage',
-  first_inbound_message: 'automations.triggerFirstInbound',
-  new_contact_created: 'automations.triggerNewContact',
-  conversation_assigned: 'automations.triggerConversationAssigned',
-};
-
-/** Friendly label for any trigger type, incl. legacy/non-selectable ones. */
-function triggerLabel(type: AutomationTriggerType, t: TFn): string {
-  const opt = TRIGGER_OPTIONS.find((o) => o.value === type);
-  if (opt) return t(opt.label);
-  const fb = TRIGGER_LABEL_FALLBACK[type];
-  return fb ? t(fb) : type;
 }
 
 /**
@@ -2419,6 +2350,16 @@ function TriggerCard({
                   })}
                 </div>
               </div>
+            )}
+            {/* El activador está en la lista pero la tienda elegida no emite
+                ese evento. Sin decirlo, la automatización se guarda, se
+                prende y no se dispara nunca. */}
+            {!activadorSoportado(type, plataforma) && (
+              <p className="rounded-md bg-amber-500/10 px-2.5 py-2 text-xs text-amber-700 dark:text-amber-300">
+                {t('automations.triggerUnsupportedOnPlatform', {
+                  platform: PLATFORM_LABEL[plataforma!] ?? plataforma!,
+                })}
+              </p>
             )}
             {type === 'keyword_match' && (
               <KeywordMatchConfig

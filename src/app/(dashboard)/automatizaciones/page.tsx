@@ -317,6 +317,15 @@ export default function AutomationsPage() {
                 // steps). "View stats" goes to the stats/detail page.
                 onOpen={() => router.push(`/automatizaciones/${toShortId(a.id)}/editar`)}
                 onEdit={() => router.push(`/automatizaciones/${toShortId(a.id)}/editar`)}
+                // El editor es el bulto más grande de la aplicación y esta
+                // lista navega con `push`, que —a diferencia de un <Link>— no
+                // precarga nada: el chunk recién empezaba a bajar al hacer
+                // click, y abrir una automatización se sentía trabado la
+                // primera vez y después de cada despliegue. Con el puntero
+                // encima ya está bajando.
+                onPrefetch={() =>
+                  router.prefetch(`/automatizaciones/${toShortId(a.id)}/editar`)
+                }
                 onDuplicate={() => duplicate(a)}
                 onStats={() => router.push(`/automatizaciones/${toShortId(a.id)}`)}
                 onDelete={() => setPendingDelete(a)}
@@ -438,6 +447,7 @@ function AutomationCard({
   onToggle,
   onOpen,
   onEdit,
+  onPrefetch,
   onDuplicate,
   onStats,
   onDelete,
@@ -447,6 +457,8 @@ function AutomationCard({
   /** Card body click → open the canvas editor. */
   onOpen: () => void
   onEdit: () => void
+  /** Empieza a bajar el editor antes del click. */
+  onPrefetch?: () => void
   onDuplicate: () => void
   /** "View stats" → the stats/detail page. */
   onStats: () => void
@@ -463,7 +475,11 @@ function AutomationCard({
         ? t('automations.pendingTemplate')
         : isArmed ? t('automations.armedWaitingMeta') : t('automations.paused')
   return (
-    <li className="group relative flex h-full flex-col rounded-xl border border-border bg-card p-4 transition-colors hover:border-foreground/30">
+    <li
+      className="group relative flex h-full flex-col rounded-xl border border-border bg-card p-4 transition-colors hover:border-foreground/30"
+      onMouseEnter={onPrefetch}
+      onFocusCapture={onPrefetch}
+    >
       <div className="flex items-start justify-between gap-3">
         <button
           type="button"

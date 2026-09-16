@@ -192,6 +192,12 @@ export const automations = {
     es: "¿De qué tienda? Si no eliges ninguna, vale para todas.",
     en: "Which store? If you pick none, it applies to all.",
   },
+  // El activador está en la lista pero la tienda elegida no emite ese evento:
+  // sin este aviso la automatización queda muda y nada lo explica.
+  triggerUnsupportedOnPlatform: {
+    es: "{platform} no emite este evento: la automatización nunca se va a disparar. Solo funciona con Shopify.",
+    en: "{platform} never emits this event, so this automation will never fire. It only works with Shopify.",
+  },
   triggerTagAdded: { es: "Etiqueta añadida", en: "Tag added" },
   triggerShopifyOrderCreated: { es: "Nuevo pedido", en: "New order" },
   triggerShopifyOrderConfirmed: { es: 'Pedido confirmado', en: 'Order confirmed' },

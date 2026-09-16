@@ -708,10 +708,16 @@ async function cancelarEspera(ctx: CapabilityContext, args: Record<string, unkno
  */
 function vistaVer(ctx: CapabilityContext, r: Awaited<ReturnType<typeof ver>>): Artefacto | null {
   if (!tieneCampos(r, 'nombre', 'pasos')) return null
+  const plataformas = (r as { plataformas?: unknown }).plataformas
   return {
     kind: 'automatizacion',
     nombre: String(r.nombre),
     cuando: String(r.cuando ?? r.disparador ?? ''),
+    // El activador crudo: con él la tarjeta se pinta igual que en el editor.
+    disparador: r.disparador ? String(r.disparador) : undefined,
+    plataformas: Array.isArray(plataformas)
+      ? plataformas.map((p) => String(p))
+      : undefined,
     pasos: lista<{ resumen?: string; tipo?: string }>(r, 'pasos').map((p) => ({
       tipo: String(p.tipo ?? ''),
       resumen: String(p.resumen ?? ''),

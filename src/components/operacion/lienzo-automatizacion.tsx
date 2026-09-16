@@ -1,7 +1,8 @@
 'use client'
 
-import { Fragment } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import Image from 'next/image'
+import { Store, Zap } from 'lucide-react'
 import {
   BranchFan,
   HEAD_H,
@@ -9,6 +10,13 @@ import {
   STEP_META,
 } from '@/components/automations/lienzo-piezas'
 import type { BuilderStepType } from '@/components/automations/automation-builder'
+import {
+  PLATFORM_ICON,
+  PLATFORM_LABEL,
+  esActivadorDeTienda,
+  triggerStorePlatform,
+} from '@/components/automations/plataforma-tienda'
+import { triggerLabel } from '@/components/automations/activador'
 import { useT } from '@/hooks/use-locale'
 import { cn } from '@/lib/utils'
 import type { PasoArtefacto } from '@/lib/operator/artifacts'
@@ -30,37 +38,118 @@ import type { PasoArtefacto } from '@/lib/operator/artifacts'
  */
 export function LienzoAutomatizacion({
   cuando,
+  disparador,
+  plataformas,
   pasos,
 }: {
-  /** Cuándo se dispara, en palabras. */
+  /** Cuándo se dispara, en palabras. Sólo se usa si no vino `disparador`. */
   cuando: string
+  /** El activador real. Con esto la tarjeta se pinta igual que en el editor. */
+  disparador?: string
+  /** El filtro de tiendas del activador, para nombrar la que dispara. */
+  plataformas?: string[]
   pasos: PasoArtefacto[]
 }) {
   return (
     <div className="flex w-max items-start gap-0 px-8 py-10">
-      <Disparador cuando={cuando} />
+      <Disparador
+        cuando={cuando}
+        disparador={disparador}
+        plataformas={plataformas}
+      />
       <Tramo pasos={pasos} />
     </div>
   )
 }
 
-/** La tarjeta del disparador, con la misma cabecera que las demás. */
-function Disparador({ cuando }: { cuando: string }) {
+/**
+ * La tarjeta del disparador, con la misma cabecera que las demás.
+ *
+ * Pinta lo mismo que la del editor: el logo de la tienda que realmente
+ * dispara y el nombre del activador. Antes ponía el logo de Shopify fijo y la
+ * frase del modelo («entró un pedido nuevo»), así que la misma automatización
+ * se leía distinta de los dos lados.
+ */
+function Disparador({
+  cuando,
+  disparador,
+  plataformas,
+}: {
+  cuando: string
+  disparador?: string
+  plataformas?: string[]
+}) {
   const t = useT()
+  const [tiendas, setTiendas] = useState<string[]>([])
+  useEffect(() => {
+    let vivo = true
+    void (async () => {
+      try {
+        const res = await fetch('/api/stores/platforms', { cache: 'no-store' })
+        if (!res.ok) return
+        const json = (await res.json()) as { platforms?: string[] }
+        if (vivo && Array.isArray(json.platforms)) setTiendas(json.platforms)
+      } catch {
+        /* silencioso: sin la lista se cae al icono genérico */
+      }
+    })()
+    return () => {
+      vivo = false
+    }
+  }, [])
+
+  const esTienda = disparador ? esActivadorDeTienda(disparador) : false
+  const plataforma = disparador
+    ? triggerStorePlatform(disparador, { platforms: plataformas }, tiendas)
+    : null
+  const icono = plataforma ? PLATFORM_ICON[plataforma] : null
+  const titulo = disparador ? triggerLabel(disparador, t) : cuando
+
   return (
     <div className="z-10 w-full max-w-[320px] sm:w-80">
-      <div className="rounded-lg border border-border border-l-4 border-l-emerald-500 bg-card shadow-lg">
+      <div
+        className={cn(
+          'rounded-lg border border-border border-l-4 bg-card shadow-lg',
+          esTienda || !disparador ? 'border-l-emerald-500' : 'border-l-blue-500'
+        )}
+      >
         <div className="flex h-[78px] w-full items-center gap-3 px-4 py-3 text-left">
-          {/* Blanco en los dos modos: el logo de Shopify es de colores sobre
-              fondo transparente y en oscuro se pierde. */}
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white">
-            <Image src="/channels/shopify.svg" alt="" width={22} height={22} />
+          {/* Blanco en los dos modos: los logos de tienda son de colores sobre
+              fondo transparente y en oscuro se pierden. */}
+          <div
+            className={cn(
+              'flex h-9 w-9 items-center justify-center rounded-lg',
+              icono
+                ? 'bg-white'
+                : esTienda || !disparador
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+            )}
+          >
+            {icono ? (
+              <Image src={icono} alt="" width={22} height={22} />
+            ) : esTienda || !disparador ? (
+              <Store className="h-4 w-4" />
+            ) : (
+              <Zap className="h-4 w-4" />
+            )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] tracking-wide text-emerald-700 uppercase dark:text-emerald-300">
-              {t('automations.triggerEyebrow')}
+            <div
+              className={cn(
+                'text-[11px] tracking-wide uppercase',
+                esTienda || !disparador
+                  ? 'text-emerald-700 dark:text-emerald-300'
+                  : 'text-blue-700 dark:text-blue-300'
+              )}
+            >
+              {esTienda
+                ? plataforma
+                  ? `${t('automations.triggerEyebrow')} · ${PLATFORM_LABEL[plataforma] ?? plataforma}`
+                  : t('automations.triggerEyebrowShopify')
+                : t('automations.triggerEyebrow')}
             </div>
-            <div className="truncate text-sm font-medium text-foreground">{cuando}</div>
+            <div className="truncate text-sm font-medium text-foreground">{titulo}</div>
           </div>
         </div>
       </div>

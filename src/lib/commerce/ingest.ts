@@ -4,6 +4,7 @@ import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
 import { applyCategoryTags } from '@/lib/contacts/tags'
 import { linkOrphanPurchases, recordPurchases } from '@/lib/contacts/purchases'
 import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
+import { resolveOfferChosen } from '@/lib/shopify/offers'
 import {
   normalizeToWhatsApp,
   sanitizePhoneForMeta,
@@ -316,6 +317,34 @@ export async function ingestOrder(
   }
 
   const vars = buildOrderVars(trigger, order, platform)
+
+  // Qué oferta compró, por unidades. Lo resuelve el MISMO código que el
+  // webhook de Shopify, contra las ofertas configuradas del producto. Sin
+  // esto, `offer_units` no existía fuera de Shopify y cualquier condición que
+  // ramifique por unidades —«recompra por unidades»— tomaba siempre el camino
+  // del NO en Tiendanube y WooCommerce, sin nada que lo explicara.
+  try {
+    const offer = await resolveOfferChosen(admin, workspaceId, {
+      line_items: order.lineItems.map((li) => ({
+        quantity: li.quantity,
+        product_id: li.productId,
+      })),
+    })
+    vars.offer_chosen = offer.label
+    vars.offer_units = offer.units > 0 ? String(offer.units) : ''
+    if (trigger === 'shopify_order_created' && offer.label) {
+      await admin
+        .from('contacts')
+        .update({
+          last_offer_chosen: offer.label,
+          last_offer_units: offer.units,
+          last_offer_at: new Date().toISOString(),
+        })
+        .eq('id', contactId)
+    }
+  } catch (err) {
+    console.error(`[${platform}] resolver la oferta falló:`, err)
+  }
 
   runAutomationsForTrigger({
     workspaceId,

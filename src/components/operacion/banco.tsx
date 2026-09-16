@@ -223,7 +223,12 @@ function Lienzo({ pieza }: { pieza: Artefacto }) {
   if (pieza.kind !== 'automatizacion') return null
   return (
     <CanvasViewport className="h-full" initialFit="fit">
-      <LienzoAutomatizacion cuando={pieza.cuando} pasos={pieza.pasos} />
+      <LienzoAutomatizacion
+        cuando={pieza.cuando}
+        disparador={pieza.disparador}
+        plataformas={pieza.plataformas}
+        pasos={pieza.pasos}
+      />
     </CanvasViewport>
   )
 }

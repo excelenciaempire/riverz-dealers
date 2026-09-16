@@ -49,8 +49,19 @@ export type Artefacto =
   | {
       kind: 'automatizacion'
       nombre: string
-      /** Cuándo se dispara, en palabras. */
+      /** Cuándo se dispara, en palabras. Respaldo de `disparador`. */
       cuando: string
+      /**
+       * El activador, tal como lo guarda el motor (`shopify_order_created`…).
+       *
+       * Con esto el lienzo del chat pinta la MISMA tarjeta que el editor —el
+       * logo de la tienda que dispara y el nombre del activador— en vez de la
+       * frase del modelo con el logo de Shopify fijo. Opcional: los artefactos
+       * ya guardados en conversaciones viejas no lo traen y caen en `cuando`.
+       */
+      disparador?: string
+      /** El filtro de tiendas del activador, para nombrar la que dispara. */
+      plataformas?: string[]
       pasos: PasoArtefacto[]
       base?: BaseArtefacto
     }

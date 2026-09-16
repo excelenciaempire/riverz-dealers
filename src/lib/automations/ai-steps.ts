@@ -802,6 +802,9 @@ export function artefactoDePlan(entrada: {
     kind: 'automatizacion',
     nombre,
     cuando,
+    // El activador crudo, para que el lienzo dibuje la misma tarjeta que el
+    // editor en vez de la frase de arriba con un logo fijo.
+    disparador: entrada.disparador,
     pasos: entrada.pasos.map(resumirPaso),
   }
 }
