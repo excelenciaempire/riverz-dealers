@@ -13,7 +13,7 @@ import { translate } from '@/lib/i18n/translate';
  * POST /api/auth/login
  *
  * Server-side wrapper around supabase.auth.signInWithPassword. Exists
- * so we can apply per-IP + per-email rate limiting (5/5min) before the
+ * so we can apply per-IP + per-email rate limiting (10 cada 3 min) before the
  * call reaches Supabase. The browser sets the auth cookies on the
  * response automatically via the SSR cookie adapter.
  *
@@ -73,11 +73,11 @@ export async function POST(req: Request) {
   }
 
   const ip = clientIp(req);
-  const ipCheck = checkRateLimit(`auth-login:ip:${ip}`, RATE_LIMITS.auth);
+  const ipCheck = checkRateLimit(`auth-login:ip:${ip}`, RATE_LIMITS.login);
   if (!ipCheck.success) return rateLimitResponse(ipCheck);
   const emailCheck = checkRateLimit(
     `auth-login:email:${email}`,
-    RATE_LIMITS.auth
+    RATE_LIMITS.login
   );
   if (!emailCheck.success) return rateLimitResponse(emailCheck);
 

@@ -225,6 +225,14 @@ export const RATE_LIMITS = {
   broadcast: { limit: 5, windowMs: 60_000 },
   react: { limit: 120, windowMs: 60_000 },
   auth: { limit: 5, windowMs: 5 * 60_000 },
+  // Iniciar sesión tiene su propio presupuesto, más holgado que el de
+  // registro y recuperación (decidido por el dueño el 2026-09-16): con 5 cada
+  // 5 minutos, un comercio que se equivocaba la contraseña un par de veces —o
+  // dos personas del mismo local detrás de la misma IP— veía "vuelve a probar
+  // en 156 segundos" y se quedaba afuera. Diez cada tres minutos sigue
+  // frenando un ataque de fuerza bruta (Supabase Auth además limita por IP
+  // del lado suyo) y casi ninguna persona real lo ve.
+  login: { limit: 10, windowMs: 3 * 60_000 },
 } as const;
 
 /** Best-effort client IP from common proxy headers, falling back to
