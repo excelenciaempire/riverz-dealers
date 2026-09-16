@@ -62,7 +62,7 @@ describe('integridad de precios', () => {
 
   it('recupera una pregunta de precio sin producto sin inventar un importe', () => {
     const reply = replyForUnidentifiedPrice('es', ['https://rasmiaw.shop/products/bolirasmiaw'])
-    expect(reply).toContain('cuál rascador')
+    expect(reply).toContain('cuál modelo')
     expect(reply).toContain('https://rasmiaw.shop')
     expect(reply).not.toMatch(/\d{3,}/)
   })

@@ -224,6 +224,9 @@ export async function ingestMetaAttachments(input: {
         : undefined,
       hintedKind: hinted,
       accessToken: input.accessToken,
+      // Para pedirle a Graph una URL nueva si la del webhook devuelve HTML.
+      mid: input.externalMessageId,
+      attachmentIndex: slot,
     });
     slot++;
     if (!ingested) return false;

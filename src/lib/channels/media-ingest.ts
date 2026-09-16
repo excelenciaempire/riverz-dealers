@@ -25,6 +25,7 @@ import { getMediaUrl } from "@/lib/whatsapp/meta-api";
 import { downloadMedia } from "@/lib/whatsapp/media-download";
 import { supabaseAdmin } from "./admin-client";
 import { appMediaUrl, resolveMediaFetchUrl } from "./media-url";
+import { appsecretProof } from "./meta-graph";
 import { downloadPublicMedia } from '@/lib/security/download-public-media';
 
 /** Tope de bytes por adjunto. El contenido lo controla el remitente del
@@ -291,11 +292,34 @@ export async function ingestMetaAttachment(opts: {
    *  el audio de `lookaside.fbsbx.com/ig_messaging_cdn`) responden 403 sin
    *  credencial; sólo se reintenta con token cuando la baja anónima falla. */
   accessToken?: string;
+  /** `mid` del mensaje de Messenger/Instagram y posición del adjunto en él.
+   *  Con los dos y el token, cuando la URL del webhook no sirve se le pide a
+   *  Graph una fresca (ver `refetchMetaAttachmentUrl`). */
+  mid?: string;
+  attachmentIndex?: number;
 }): Promise<IngestedMedia | null> {
   try {
+    // LA URL DEL WEBHOOK PUEDE DEVOLVER UNA PÁGINA, NO EL ARCHIVO.
+    //
+    // El 2026-09-15 el CDN de Instagram (`lookaside.fbsbx.com/ig_messaging_cdn`)
+    // respondió 200 con un HTML de Facebook de ~48 KB para TODAS las fotos
+    // que mandaron los clientes de un comercio: comprobantes de pago,
+    // capturas de un anuncio, una mención en historia. Con el 200 nadie
+    // reintentaba: el HTML se guardaba como `.bin`, la bandeja lo mostraba
+    // como "Archivo" y la IA le decía a la clienta que su comprobante "no
+    // llegó" mientras ella lo mandaba por tercera vez. El mismo `mid`,
+    // preguntado a Graph, devolvía una URL nueva que sí bajaba el JPEG.
+    //
+    // Así que un HTML nunca es un adjunto: se tira y se pasa al siguiente
+    // camino —con token, y después Graph por `mid`—. Si ninguno da un
+    // archivo real, se devuelve null y el mensaje queda como no disponible,
+    // que al menos es verdad.
     const fetched =
-      (await fetchCapped(opts.attachmentUrl)) ??
-      (await fetchMetaCdnAuthenticated(opts.attachmentUrl, opts.accessToken));
+      esArchivoReal(await fetchCapped(opts.attachmentUrl)) ??
+      esArchivoReal(
+        await fetchMetaCdnAuthenticated(opts.attachmentUrl, opts.accessToken),
+      ) ??
+      (await fetchViaGraph(opts));
     if (!fetched) return null;
     const { buffer } = fetched;
     const mime = resolveMime(fetched.mime, buffer, opts.hintedKind);
@@ -357,6 +381,79 @@ async function fetchMetaCdnAuthenticated(
     u.searchParams.set("access_token", accessToken);
     return await fetchCapped(u.toString());
   } catch {
+    return null;
+  }
+}
+
+/** Una respuesta que es una página web no es un adjunto: el CDN de Meta
+ *  contesta 200 con HTML cuando la URL firmada no le sirve (ver
+ *  `ingestMetaAttachment`). Se mira el Content-Type y, por si viene como
+ *  octet-stream, también los primeros bytes. */
+export function esArchivoReal(
+  fetched: { buffer: Buffer; mime: string } | null,
+): { buffer: Buffer; mime: string } | null {
+  if (!fetched) return null;
+  const mime = fetched.mime.toLowerCase().split(";")[0].trim();
+  if (mime === "text/html" || mime === "application/xhtml+xml") return null;
+  const head = fetched.buffer
+    .subarray(0, 512)
+    .toString("latin1")
+    .trimStart()
+    .toLowerCase();
+  if (head.startsWith("<!doctype html") || head.startsWith("<html")) return null;
+  return fetched;
+}
+
+/**
+ * Graph conoce el adjunto por el `mid` aunque la URL del webhook ya no
+ * sirva: `GET /{mid}?fields=attachments{image_data,video_data,file_url}`
+ * devuelve una URL firmada nueva. Se pide sólo cuando las otras dos
+ * descargas no dieron un archivo real; sin `mid` o sin token no hay nada
+ * que pedir.
+ */
+async function fetchViaGraph(opts: {
+  mid?: string;
+  attachmentIndex?: number;
+  accessToken?: string;
+}): Promise<{ buffer: Buffer; mime: string } | null> {
+  const fresh = await refetchMetaAttachmentUrl(opts);
+  if (!fresh) return null;
+  return (
+    esArchivoReal(await fetchCapped(fresh)) ??
+    esArchivoReal(await fetchMetaCdnAuthenticated(fresh, opts.accessToken))
+  );
+}
+
+/** URL fresca del adjunto número `attachmentIndex` del mensaje `mid`, o null. */
+export async function refetchMetaAttachmentUrl(opts: {
+  mid?: string;
+  attachmentIndex?: number;
+  accessToken?: string;
+}): Promise<string | null> {
+  if (!opts.mid || !opts.accessToken) return null;
+  try {
+    const url = new URL(`https://graph.facebook.com/v22.0/${encodeURIComponent(opts.mid)}`);
+    url.searchParams.set("fields", "attachments{image_data,video_data,file_url}");
+    url.searchParams.set("access_token", opts.accessToken);
+    const proof = appsecretProof(opts.accessToken);
+    if (proof) url.searchParams.set("appsecret_proof", proof);
+    const res = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(ATTACHMENT_FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      attachments?: { data?: Array<Record<string, unknown>> };
+    };
+    const list = json.attachments?.data ?? [];
+    const a = (list[opts.attachmentIndex ?? 0] ?? list[0] ?? {}) as Record<string, unknown>;
+    const image = (a.image_data ?? {}) as { url?: unknown };
+    const video = (a.video_data ?? {}) as { url?: unknown };
+    const candidate = [image.url, video.url, a.file_url].find(
+      (v) => typeof v === "string" && v.trim(),
+    );
+    return typeof candidate === "string" ? candidate.trim() : null;
+  } catch (err) {
+    console.warn("[media-ingest] graph refetch failed:", err);
     return null;
   }
 }

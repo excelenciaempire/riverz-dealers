@@ -6,6 +6,7 @@ import {
   recoveryButtonReply,
   recoveryCheckoutAllowed,
   recoveryHasExistingOrder,
+  preciosDelPedidoEnRecuperacion,
 } from './recovery-policy';
 import { señalDura } from './escalada';
 import { publicReplyFrom } from '@/lib/instagram-agent/realtime';
@@ -182,5 +183,35 @@ describe('escenarios sintéticos de Rasmiaw', () => {
     expect(
       publicReplyFrom('El rascador mide 42 cm.', false, { reason: 'ninguna' })
     ).toContain('42 cm');
+  });
+});
+
+describe('preciosDelPedidoEnRecuperacion', () => {
+  // 2026-09-15: "aplicando el 5%, el valor a pagar sería $94.905" era la
+  // respuesta correcta a RECIBIR BENEFICIO sobre un pedido de 99.900, y la
+  // guarda de precios la tiró cuatro veces porque 94.905 no está en el
+  // catálogo. El total del pedido y el total con beneficio son de la tienda.
+  it('autoriza el total del pedido y el total con el beneficio anunciado', () => {
+    const precios = preciosDelPedidoEnRecuperacion({
+      order_id: '7769482756394',
+      total_price: '99900.00',
+      subtotal_price: '99900.00',
+      benefit_percent: 5,
+    });
+    expect(precios).toContain(99900);
+    expect(precios).toContain(94905);
+  });
+
+  it('sin beneficio sólo autoriza los importes del pedido', () => {
+    const precios = preciosDelPedidoEnRecuperacion({
+      order_id: '1',
+      total_price: '129900.00',
+    });
+    expect(precios).toEqual([129900]);
+  });
+
+  it('sin pedido no autoriza nada', () => {
+    expect(preciosDelPedidoEnRecuperacion({ benefit_percent: 5, total_price: '99900' })).toEqual([]);
+    expect(preciosDelPedidoEnRecuperacion(null)).toEqual([]);
   });
 });

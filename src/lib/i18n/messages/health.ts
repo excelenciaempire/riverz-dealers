@@ -344,6 +344,10 @@ export const health: Namespace = {
     es: "era la nota de la encuesta",
     en: "it was the survey rating",
   },
+  skip_respuesta_automatica_del_cliente: {
+    es: "era el contestador automático del cliente",
+    en: "it was the customer's auto-reply",
+  },
   skip_sin_agente: {
     es: "no hay ningún asistente para ese canal",
     en: "there's no assistant for that channel",

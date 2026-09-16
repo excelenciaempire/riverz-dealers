@@ -135,10 +135,10 @@ export function replyForUnidentifiedPrice(
 
   const lang = (language ?? 'es').toLowerCase().slice(0, 2)
   if (lang === 'en') {
-    return `We have several models with different prices. Tell me which scratcher you mean and I’ll share the exact current price.${catalogUrl ? ` You can also browse the catalog here: ${catalogUrl}` : ''}`
+    return `We have several models with different prices. Tell me which model you mean and I’ll share the exact current price.${catalogUrl ? ` You can also browse the catalog here: ${catalogUrl}` : ''}`
   }
   if (lang === 'pt') {
-    return `Temos vários modelos com preços diferentes. Diga qual arranhador você quer e eu confirmo o preço atual exato.${catalogUrl ? ` Você também pode ver o catálogo aqui: ${catalogUrl}` : ''}`
+    return `Temos vários modelos com preços diferentes. Diga qual modelo você quer e eu confirmo o preço atual exato.${catalogUrl ? ` Você também pode ver o catálogo aqui: ${catalogUrl}` : ''}`
   }
-  return `Tenemos varios modelos con precios diferentes. Dime cuál rascador te interesa y te comparto el precio vigente exacto.${catalogUrl ? ` También puedes ver el catálogo aquí: ${catalogUrl}` : ''}`
+  return `Tenemos varios modelos con precios diferentes. Dime cuál modelo te interesa y te comparto el precio vigente exacto.${catalogUrl ? ` También puedes ver el catálogo aquí: ${catalogUrl}` : ''}`
 }

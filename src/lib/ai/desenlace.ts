@@ -91,6 +91,7 @@ export const POLITICA = {
   sin_saldo: NO_ESCALA('sin saldo: lo dice el cartel de arriba, no cada hilo'),
   suscripcion_vencida: NO_ESCALA('la suscripción venció'),
   csat_capturada: NO_ESCALA('era la nota de la encuesta, no una consulta'),
+  respuesta_automatica_del_cliente: NO_ESCALA('era el contestador automático del cliente, no una persona'),
   // Éste sí es configuración que falta: no hay ningún agente para ese canal.
   // Tampoco escala —no hay nada que una persona tenga que atender en ESE
   // hilo— pero deja de ser invisible.

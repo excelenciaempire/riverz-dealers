@@ -102,3 +102,31 @@ export function recoveryHasExistingOrder(
 export function recoveryCheckoutAllowed(action: RecoveryAction): boolean {
   return action === 'benefit';
 }
+
+/**
+ * Importes que el agente puede citar en una recuperación con pedido: el
+ * total y el subtotal tal como vienen de la tienda, y cada uno con el
+ * beneficio anunciado aplicado (5% ó 10%), en las tres formas de redondear
+ * que puede elegir el modelo. Sin pedido o sin importe, nada.
+ */
+export function preciosDelPedidoEnRecuperacion(
+  context: Record<string, unknown> | null | undefined
+): number[] {
+  if (!context || !recoveryHasExistingOrder(context)) return [];
+  const importes = new Set<number>();
+  for (const clave of ['total_price', 'subtotal_price']) {
+    const n = Number(String(context[clave] ?? '').replace(/[^\d.]/g, ''));
+    if (Number.isFinite(n) && n > 0) importes.add(n);
+  }
+  const beneficio = Number(context.benefit_percent ?? 0);
+  if (beneficio > 0 && beneficio < 100) {
+    for (const base of [...importes]) {
+      const conDescuento = base * (1 - beneficio / 100);
+      importes.add(Math.round(conDescuento));
+      importes.add(Math.floor(conDescuento));
+      importes.add(Math.ceil(conDescuento));
+      importes.add(Math.round(conDescuento * 100) / 100);
+    }
+  }
+  return [...importes];
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mimeToCategory, resolveMime, sniffMime } from "./media-ingest";
+import { esArchivoReal, mimeToCategory, resolveMime, sniffMime } from "./media-ingest";
 
 /** Arma un buffer con una firma en texto plano en el offset pedido. */
 function bytes(sig: string, at = 0, size = 64): Buffer {
@@ -106,5 +106,30 @@ describe("mimeToCategory", () => {
   it("trata como nota de voz el ogg/opus con parámetros de codec", () => {
     expect(mimeToCategory("audio/ogg; codecs=opus")).toBe("voice");
     expect(mimeToCategory("audio/mp4")).toBe("audio");
+  });
+});
+
+describe("esArchivoReal", () => {
+  // El 2026-09-15 el CDN de Instagram devolvió 200 con una página de Facebook
+  // para cada foto de los clientes de un comercio; se guardó como "Archivo" y
+  // la IA dijo que el comprobante "no llegó". Una página no es un adjunto.
+  it("descarta una página HTML aunque venga con 200", () => {
+    const html = Buffer.from('<!DOCTYPE html>\n<html lang="en" id="facebook">', "utf8");
+    expect(esArchivoReal({ buffer: html, mime: 'text/html; charset="utf-8"' })).toBeNull();
+  });
+
+  it("descarta el HTML también cuando el Content-Type miente", () => {
+    const html = Buffer.from("  <html><head></head><body></body></html>", "utf8");
+    expect(esArchivoReal({ buffer: html, mime: "application/octet-stream" })).toBeNull();
+  });
+
+  it("deja pasar una imagen real", () => {
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(32)]);
+    const fetched = { buffer: jpeg, mime: "image/jpeg" };
+    expect(esArchivoReal(fetched)).toBe(fetched);
+  });
+
+  it("propaga el null de una descarga fallida", () => {
+    expect(esArchivoReal(null)).toBeNull();
   });
 });

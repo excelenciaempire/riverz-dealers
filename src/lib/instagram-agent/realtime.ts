@@ -25,6 +25,7 @@ import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { loadCommentConversation } from '@/lib/comments/hilo';
 import {
   asksForPrice,
+  replyForUnidentifiedPrice,
   unauthorizedQuotedPrices,
 } from '@/lib/products/price-integrity';
 import { limitByKey } from '@/lib/rate-limit';
@@ -1140,26 +1141,18 @@ async function decidirComentario(
   ]);
 
   // No se usa el cache como oráculo de precios. Si la página no respondió o
-  // no pudimos identificar el producto del post, una persona lo revisa: una
-  // respuesta tardía se corrige; un precio equivocado queda publicado.
-  if (priceQuestion && (!product || !product.pricingVerified)) {
-    // En una revisión histórica se publica una orientación segura después de
-    // este retorno. No hay un dato comercial que revisar ni un caso privado:
-    // convertirlo en "Revisar ya" sería una escalación falsa y, peor, abriría
-    // un DM que ese modo prometió no abrir.
-    if (!opts.publicOnly) {
-      await marcarParaUnaPersona(
-        db,
-        opts.workspaceId,
-        commentChannel,
-        opts.contact.id,
-        engagement,
-        'answer_gap',
-        `No se pudo verificar el precio vigente antes de responder: "${engagement.slice(0, 160)}".`
-      );
-    }
-    return 'comment_precio_no_verificado';
-  }
+  // no pudimos identificar el producto del post, no se publica NINGÚN importe.
+  //
+  // Antes esto escalaba y se callaba: el 2026-09-15 un "¿dónde se consigue y
+  // precio?" quedó marcado para una persona a las 5:55 y nadie lo contestó en
+  // todo el día. Callarse en público tiene el mismo costo que equivocarse:
+  // quien pregunta se va. Ahora sale la misma orientación segura que se usa
+  // en el privado —hay varios modelos, ¿cuál te interesa?— sin cifra alguna, y
+  // la conversación sigue con la respuesta de la persona. No se escala: la
+  // pregunta de vuelta ya resuelve el hueco, y marcar el hilo apagaría la IA
+  // justo cuando la clienta va a decir qué modelo quiere.
+  const precioSinVerificar =
+    priceQuestion && (!product || !product.pricingVerified);
 
   // Freno anti-bucle: en un mismo hilo no insistimos más de tres veces. Si da
   // para más, ya no es un comentario — es una conversación, y sigue en la
@@ -1191,7 +1184,12 @@ async function decidirComentario(
   // Va aquí, DESPUÉS de todas las guardas —limitador de ráfaga, spam/intención,
   // igAgentCanAutoReply, proactiveGate, candado por comentario, anti-bucle de
   // 3— y solo COMPONE: el envío de abajo no cambia.
-  let text: string | null = agent.id
+  let text: string | null = precioSinVerificar
+    ? replyForUnidentifiedPrice(
+        brand?.language,
+        links.products.map((p) => p.url)
+      )
+    : agent.id
     ? await composeSuperAgentReply(db, {
         workspaceId: opts.workspaceId,
         agentId: agent.id,

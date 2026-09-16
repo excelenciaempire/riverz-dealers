@@ -39,7 +39,12 @@ export function getAnthropic(
           throw new Error('wallet_billing_context_required');
         },
     timeout: techoMs(),
-    maxRetries: 0,
+    // Un reintento, como dice el comentario de arriba. Estaba en cero: el
+    // 2026-09-15 tres "Connection error." —la conexión se cayó antes de que
+    // la API contestara nada— salieron al cliente como "en un momento te
+    // responde una persona", a un "Hola buenas tardes" y a un sticker de
+    // agradecimiento. Reintentar una llamada que no llegó no duplica nada.
+    maxRetries: 1,
   });
 }
 

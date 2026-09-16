@@ -107,7 +107,9 @@ import {
   recoveryButtonReply,
   recoveryCheckoutAllowed,
   recoveryHasExistingOrder,
+  preciosDelPedidoEnRecuperacion,
 } from './recovery-policy';
+import { esRespuestaAutomatica } from './respuesta-automatica';
 import {
   resolverRegistro,
   RIOPLATENSE_TEXTO,
@@ -319,6 +321,22 @@ export async function runAiAgent(
     }
 
     const textoEntrante = args.inboundMessage.content_text ?? '';
+
+    // AL CONTESTADOR DEL CLIENTE NO SE LE CONTESTA.
+    //
+    // Cuando escribimos primero a un número con WhatsApp Business, lo que
+    // vuelve muchas veces es su mensaje de ausencia ("Gracias por comunicarte
+    // con X, horarios de atención…"). No lo escribió nadie y nadie va a leer
+    // la respuesta; contestarlo abre un ping-pong entre dos robots. Se deja
+    // en la bandeja tal cual y no se escala: no hay ninguna persona esperando.
+    if (args.channel !== 'webchat' && esRespuestaAutomatica(textoEntrante)) {
+      await logReply(db, agent, args, {
+        status: 'skipped',
+        skip_reason: 'respuesta_automatica_del_cliente',
+      });
+      return;
+    }
+
     const existingOrderRecovery = !automationContext?.retention_handoff && recoveryHasExistingOrder(automationContext);
     const recoveryIntent = recoveryAction({
       assignedOnly: !automationContext?.retention_handoff && Boolean(agent.assigned_only),
@@ -2344,7 +2362,14 @@ async function toClaudeMessage(
   const isPdf = mime.toLowerCase() === 'application/pdf';
 
   const blocks: Anthropic.ContentBlockParam[] = [];
-  switch (media.mediaType) {
+  // Una foto mandada "como archivo" (WhatsApp lo permite, y así llega el
+  // comprobante que la persona tenía guardado en el celular) entra con
+  // media_type = document y mime image/*. Es una imagen: se mira como tal.
+  const tipo =
+    media.mediaType === 'document' && /^image\/(jpeg|png|gif|webp)$/i.test(mime)
+      ? 'image'
+      : media.mediaType;
+  switch (tipo) {
     case 'image':
     case 'sticker': {
       blocks.push({
@@ -3040,6 +3065,17 @@ async function generateReply(
   if (typeof transferDiscount === 'number' && transferDiscount > 0) {
     trustedPrices.push(transferDiscount);
   }
+  // EL IMPORTE DEL PEDIDO QUE YA EXISTE TAMBIÉN ES UN PRECIO AUTORIZADO.
+  //
+  // En una recuperación con pedido, la instrucción le pide al modelo que
+  // presente las opciones de pago "con el importe y el beneficio conocidos".
+  // Lo hacía bien: "aplicando el 5%, el valor a pagar sería $94.905". Y esta
+  // guarda lo tiraba, porque 94.905 no es un precio del catálogo: cuatro veces
+  // el 2026-09-15 la respuesta correcta se convirtió en "en un momento te
+  // responde una persona", y la persona contestó doce horas después con el
+  // mismo número. El total del pedido, y ese total con el beneficio anunciado,
+  // salen del contexto de la automatización, no del modelo.
+  trustedPrices.push(...preciosDelPedidoEnRecuperacion(handoffContext));
   const invalidPrices = unauthorizedQuotedPrices(limpio, trustedPrices, {
     priceQuestion: priceIntegrity.priceQuestion,
   });
@@ -3301,6 +3337,17 @@ export function buildSystemPrompt(
   // Que el mensaje no huela a modelo: sin markdown y sin la raya larga. Ver
   // `ai/estilo-humano.ts`, que además limpia lo que el modelo escriba igual.
   lines.push(estiloHumano(agent.language));
+  // UNA PREGUNTA POR MENSAJE, Y LOS DATOS DE ENVÍO TODOS JUNTOS.
+  //
+  // El 2026-09-15 el agente preguntó "¿prefieres link de pago o que te llame
+  // una persona? Las opciones son… ¿cuál te viene mejor?" y la clienta
+  // contestó una sola cosa: "Transferencia". Dos preguntas en un mensaje
+  // valen una. Y al revés con los datos de envío: pedirlos "de a poco" son
+  // seis idas y vueltas; la persona del equipo los pide en una lista con un
+  // campo por línea y la clienta la devuelve completa en un solo mensaje.
+  lines.push(
+    'Una sola pregunta por mensaje: si haces dos, la persona contesta una. La excepción son los datos de envío: cuando toque pedirlos, pídelos todos juntos, en una lista con un campo por línea (Nombre, Apellidos, Dirección, Ciudad, Departamento o provincia, Teléfono, Correo electrónico) para que la persona la complete de una vez; después pregunta sólo por lo que faltó. Si le das datos para transferir o pagar por fuera de la caja, en ese mismo mensaje pídele el comprobante y esa lista de datos de envío, así no queda esperando otro mensaje para saber qué falta.'
+  );
   // Qué decir de un mensaje que NO nos llegó.
   //
   // "[No compatible]" en el historial no es un archivo roto ni un adjunto que
@@ -3515,7 +3562,7 @@ export function buildSystemPrompt(
     );
   } else if (shopify?.canCreateOrders) {
     lines.push(
-      `Cierre de pedidos: puedes crear el pedido tú cuando la clienta quiera comprar. Flujo: (1) confirma qué quiere (producto y cantidad u oferta); (2) reúne los datos necesarios, nombre, y si es un producto físico la dirección de envío completa (calle y número, ciudad, provincia, código postal) y el método de pago; (3) si falta algo, preguntáselo con naturalidad, de a poco; (4) muéstrale un resumen con el total y pídele que confirme; (5) SÓLO cuando confirme explícitamente, llama create_order con confirmed=true. No llames create_order si todavía falta info o no confirmó. Tras crearlo, dale el número de pedido y los próximos pasos. Si la tool devuelve un error, NO digas que el pedido se creó: explica con cortesía${channel === 'webchat' ? ' y permite que lo intente nuevamente.' : ' y ofrece ayuda de una persona del equipo.'} Ten 100% de certeza de lo que quiere antes de crear el pedido.`
+      `Cierre de pedidos: puedes crear el pedido tú cuando la clienta quiera comprar. Flujo: (1) confirma qué quiere (producto y cantidad u oferta); (2) reúne los datos necesarios, nombre, y si es un producto físico la dirección de envío completa (calle y número, ciudad, provincia, código postal) y el método de pago; (3) si falta algo, pídelo todo junto en una lista con un campo por línea, y después sólo lo que quedó vacío; (4) muéstrale un resumen con el total y pídele que confirme; (5) SÓLO cuando confirme explícitamente, llama create_order con confirmed=true. No llames create_order si todavía falta info o no confirmó. Tras crearlo, dale el número de pedido y los próximos pasos. Si la tool devuelve un error, NO digas que el pedido se creó: explica con cortesía${channel === 'webchat' ? ' y permite que lo intente nuevamente.' : ' y ofrece ayuda de una persona del equipo.'} Ten 100% de certeza de lo que quiere antes de crear el pedido.`
     );
   } else if (shopify) {
     lines.push(
