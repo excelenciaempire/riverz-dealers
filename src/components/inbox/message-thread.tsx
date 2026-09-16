@@ -24,9 +24,7 @@ import {
   Check,
   Clock,
   ArrowLeft,
-  RefreshCw,
   ChevronUp,
-  PanelRight,
   Bot,
   UserRound,
   WifiOff,
@@ -194,12 +192,6 @@ const NEEDS_HUMAN_REASON_KEY: Record<NeedsHumanReason, string> = {
   ia_caida: "inbox.needsHumanIaCaida",
 };
 
-const STATUS_OPTIONS: { labelKey: string; value: ConversationStatus; color: string }[] = [
-  { labelKey: "inbox.statusOpen", value: "open", color: "text-accent-ink" },
-  { labelKey: "inbox.statusPending", value: "pending", color: "text-amber-600 dark:text-amber-400" },
-  { labelKey: "inbox.statusClosed", value: "closed", color: "text-muted-foreground" },
-];
-
 /**
  * WhatsApp-style doodle background applied to the chat area (both the
  * active thread and the empty state). The SVG tile lives at
@@ -220,12 +212,9 @@ export function MessageThread({
   onNewMessage,
   onUpdateMessage,
   onDeleteMessage,
-  onStatusChange,
   onAssignChange,
   onBack,
   resyncToken = 0,
-  onRefresh,
-  contactPanelOpen = false,
   onToggleContactPanel,
   anclarEn = null,
 }: MessageThreadProps) {
@@ -430,28 +419,6 @@ export function MessageThread({
   const [commentCount, setCommentCount] = useState<number | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
-  // Purely visual spin state for the manual-refresh button. The actual
-  // refetch is fire-and-forget through `onRefresh` (which bumps the
-  // parent's resyncToken); the 700ms spin is just feedback so the click
-  // doesn't feel like a no-op. Cleared via the timer ref on unmount.
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    return () => {
-      if (refreshTimerRef.current !== null) {
-        clearTimeout(refreshTimerRef.current);
-      }
-    };
-  }, []);
-  const handleRefreshClick = useCallback(() => {
-    if (isRefreshing || !onRefresh) return;
-    setIsRefreshing(true);
-    onRefresh();
-    refreshTimerRef.current = setTimeout(() => {
-      setIsRefreshing(false);
-      refreshTimerRef.current = null;
-    }, 700);
-  }, [isRefreshing, onRefresh]);
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
 
   // Profiles are bounded by RLS to rows the current user is allowed to
@@ -1025,58 +992,6 @@ export function MessageThread({
     [conversation, onNewMessage, onUpdateMessage, fetchWithCsrf, t],
   );
 
-  const handleStatusChange = useCallback(
-    async (status: ConversationStatus) => {
-      if (!conversation) return;
-
-      const supabase = createClient();
-      // closed_at gates the "Resueltas hoy" dashboard metric. We stamp
-      // it on transitions into 'closed' and clear it when the user
-      // re-opens a previously-closed thread so the count stays honest.
-      const patch: {
-        status: ConversationStatus;
-        closed_at: string | null;
-        needs_human_reason?: null;
-        needs_human_at?: null;
-        ai_enabled?: true;
-      } = {
-        status,
-        closed_at: status === "closed" ? new Date().toISOString() : null,
-      };
-      // Sacarla de 'pendiente' significa que alguien ya la atendió: se cierra
-      // el escalamiento para que el contador de la bandeja no quede inflado.
-      //
-      // Y se le devuelve la palabra al agente. Escalar apaga `ai_enabled`, pero
-      // nada lo volvía a prender: una consulta escalada una vez dejaba a ese
-      // cliente sin IA para siempre —también en las conversaciones siguientes,
-      // porque el hilo se reutiliza— aunque el equipo ya hubiera resuelto el
-      // tema hacía semanas. Quien quiera dejarla apagada tiene el interruptor
-      // del hilo, que es explícito y se ve.
-      if (status !== "pending") {
-        patch.needs_human_reason = null;
-        patch.needs_human_at = null;
-        patch.ai_enabled = true;
-      }
-      await supabase
-        .from("conversations")
-        .update(patch)
-        .eq("id", conversation.id);
-
-      // Al cerrar, preguntarle si sirvió — sólo si el comercio lo encendió
-      // (migración 202). Sin esperar: quien cerró ya está en la siguiente, y el
-      // servidor decide solo si corresponde preguntar en este canal, dentro de
-      // la ventana y sin haberle preguntado hace poco a esta persona.
-      if (status === "closed") {
-        void fetchWithCsrf(`/api/conversations/${conversation.id}/opinion`, {
-          method: "POST",
-        }).catch(() => {});
-      }
-
-      onStatusChange(conversation.id, status);
-    },
-    [conversation, onStatusChange, fetchWithCsrf]
-  );
-
   /**
    * "Ya me hice cargo": cierra el escalamiento sin tocar el estado del hilo.
    *
@@ -1487,9 +1402,6 @@ export function MessageThread({
     contact.external_id ||
     t("inbox.contactFallback");
   const messageGroups = groupMessagesByDate(messages, tz);
-  const currentStatus = STATUS_OPTIONS.find(
-    (s) => s.value === conversation.status
-  );
   const assignedAgentId = conversation.assigned_agent_id ?? null;
   const currentAssignee = profiles.find((p) => p.user_id === assignedAgentId);
   const assignLabel = assignedAgentId
@@ -1572,75 +1484,10 @@ export function MessageThread({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Contact-panel toggle — desktop only. The right-hand panel is
-              collapsed by default; this reveals/hides it on demand. */}
-          {onToggleContactPanel && (
-            <button
-              type="button"
-              onClick={onToggleContactPanel}
-              aria-label={
-                contactPanelOpen
-                  ? t("inbox.hideContactInfo")
-                  : t("inbox.showContactInfo")
-              }
-              aria-pressed={contactPanelOpen}
-              className={cn(
-                "hidden h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-accent lg:inline-flex",
-                contactPanelOpen
-                  ? "bg-accent text-accent-ink"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <PanelRight className="h-3.5 w-3.5" />
-            </button>
-          )}
-
-          {/* Manual refresh — forces a refetch of the messages + the
-              conversation list (the parent bumps its resyncToken). Useful
-              when realtime missed an event or the agent just wants to be
-              sure nothing's stale. Only rendered when the parent wires
-              up `onRefresh`. */}
-          {onRefresh && (
-            <button
-              type="button"
-              onClick={handleRefreshClick}
-              disabled={isRefreshing}
-              aria-label={t("inbox.refresh")}
-              className={cn(
-                "inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60",
-              )}
-            >
-              <RefreshCw
-                className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")}
-              />
-            </button>
-          )}
-
-          {/* Status dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger className={cn(
-                  "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-accent",
-                  currentStatus?.color ?? "text-muted-foreground"
-                )}>
-                {currentStatus ? t(currentStatus.labelKey) : t("inbox.status")}
-                <ChevronDown className="h-3 w-3" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="border-border bg-card"
-            >
-              {STATUS_OPTIONS.map((opt) => (
-                <DropdownMenuItem
-                  key={opt.value}
-                  onClick={() => handleStatusChange(opt.value)}
-                  className={cn("text-sm", opt.color)}
-                >
-                  {t(opt.labelKey)}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
+          {/* Sin conmutador de panel, sin "actualizar" y sin el menú de
+              estado: los tres se sacaron de la cabecera el 2026-09-16. El
+              panel se abre tocando el nombre; el estado se cambia desde la
+              lista y los atajos; la lista se refresca sola en tiempo real. */}
           {/* Toggle de IA por chat — prende/apaga al asistente en esta
               conversación. Verde cuando responde, gris cuando está en
               pausa (un humano toma el control). Solo se muestra si hay un
