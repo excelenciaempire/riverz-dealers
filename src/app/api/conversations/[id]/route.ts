@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { serverError } from "@/lib/api/errors";
 import { setIaConversacion } from "@/lib/inbox/conversaciones";
+import { retomarConLaIa } from "@/lib/inbox/retomar-ia";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 
@@ -88,6 +89,15 @@ export async function PATCH(
     activa: body.ai_enabled,
   });
   if (error) return serverError(error);
+  // Al prender la IA, si el cliente quedó esperando respuesta, se la da ahora
+  // (ver `retomar-ia`). En segundo plano: el interruptor responde al instante y
+  // la respuesta entra por el hilo como cualquier otra.
+  if (body.ai_enabled) {
+    void retomarConLaIa(admin, {
+      workspaceId: conv.workspace_id,
+      conversationId: id,
+    }).catch((err) => console.error("[ai] retomar falló:", err));
+  }
   return NextResponse.json({ ok: true, ai_enabled: body.ai_enabled });
 }
 
