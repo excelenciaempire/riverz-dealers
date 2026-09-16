@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { channelLabel, mlThreadKind } from "@/lib/channels/display";
 import { formatPhoneDisplay } from "@/lib/whatsapp/phone-utils";
 import type {
@@ -345,9 +346,9 @@ export function MessageThread({
     return texto === clave ? null : texto;
   }, [ultimoSalto, messages, t]);
 
-  const toggleAi = useCallback(async () => {
+  const [aiMenuOpen, setAiMenuOpen] = useState(false);
+  const setAi = useCallback(async (next: boolean) => {
     if (!conversation || aiToggling) return;
-    const next = !aiEnabled;
     setAiToggling(true);
     setAiEnabled(next); // optimista
     try {
@@ -362,7 +363,7 @@ export function MessageThread({
     } finally {
       setAiToggling(false);
     }
-  }, [conversation, aiEnabled, aiToggling, fetchWithCsrf]);
+  }, [conversation, aiToggling, fetchWithCsrf]);
   // Pagination cursor — created_at of the oldest message currently loaded.
   // The "Cargar más antiguos" button reads from this to fetch the next
   // page (created_at < oldestLoadedAt). Reset whenever the conversation
@@ -1457,33 +1458,72 @@ export function MessageThread({
               agente IA que cubra este canal — sin agente no hay nada que
               activar/pausar. */}
           {hasAgentForChannel && (
-            <button
-              type="button"
-              onClick={toggleAi}
-              disabled={aiToggling}
-              title={
-                aiEnabled
-                  ? t("inbox.aiActiveTooltip")
-                  : t("inbox.aiPausedTooltip")
-              }
-              aria-label={
-                aiEnabled
-                  ? t("inbox.aiActiveTooltip")
-                  : t("inbox.aiPausedTooltip")
-              }
-              aria-pressed={aiEnabled}
-              className={cn(
-                "inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs transition-colors hover:bg-accent disabled:opacity-60",
-                aiEnabled
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-muted-foreground",
-              )}
-            >
-              <Bot className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">
-                {aiEnabled ? t("inbox.aiActive") : t("inbox.aiPaused")}
-              </span>
-            </button>
+            <Popover open={aiMenuOpen} onOpenChange={setAiMenuOpen}>
+              <PopoverTrigger
+                disabled={aiToggling}
+                title={
+                  aiEnabled
+                    ? t("inbox.aiActiveTooltip")
+                    : t("inbox.aiPausedTooltip")
+                }
+                aria-label={t("inbox.aiWhoReplies")}
+                className={cn(
+                  "inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs transition-colors hover:bg-accent disabled:opacity-60",
+                  aiEnabled
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-muted-foreground",
+                )}
+              >
+                {aiEnabled ? (
+                  <Bot className="h-3.5 w-3.5" />
+                ) : (
+                  <UserRound className="h-3.5 w-3.5" />
+                )}
+                <span className="hidden sm:inline">
+                  {aiEnabled ? t("inbox.aiActive") : t("inbox.aiPaused")}
+                </span>
+              </PopoverTrigger>
+              {/* Mismo diseño que el filtro de plataforma del activador en
+                  Automatizaciones: dos pastillas, la elegida marcada. Un
+                  solo botón que alternaba no decía qué iba a pasar al
+                  tocarlo; acá se elige y se ve. */}
+              <PopoverContent align="end" className="w-auto">
+                <div className="text-muted-foreground text-[11px]">
+                  {t("inbox.aiWhoReplies")}
+                </div>
+                <div className="flex gap-1.5">
+                  {(
+                    [
+                      { ia: true, labelKey: "inbox.aiActive", Icon: Bot },
+                      { ia: false, labelKey: "inbox.aiPaused", Icon: UserRound },
+                    ] as const
+                  ).map(({ ia, labelKey, Icon }) => {
+                    const activa = aiEnabled === ia;
+                    return (
+                      <button
+                        key={labelKey}
+                        type="button"
+                        disabled={aiToggling}
+                        aria-pressed={activa}
+                        onClick={() => {
+                          setAiMenuOpen(false);
+                          if (!activa) void setAi(ia);
+                        }}
+                        className={cn(
+                          "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors disabled:opacity-60",
+                          activa
+                            ? "border-primary bg-primary/10 text-foreground"
+                            : "border-border text-muted-foreground hover:bg-muted",
+                        )}
+                      >
+                        <Icon className={cn("h-3.5 w-3.5", !activa && "opacity-50")} />
+                        {t(labelKey)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
 
           {/* Por qué no contestó. Una línea, y sólo cuando hay algo que

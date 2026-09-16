@@ -516,6 +516,7 @@ export const inbox = {
   // Message thread — AI toggle
   aiActive: { es: "Responde la IA", en: "AI is replying" },
   aiPaused: { es: "Respondes tú", en: "You reply" },
+  aiWhoReplies: { es: "¿Quién responde en este chat?", en: "Who replies in this chat?" },
   aiActiveTooltip: {
     es: "En este chat contesta la IA. Toca para pausarla y responder tú.",
     en: "The AI answers this chat. Tap to pause it and reply yourself.",
