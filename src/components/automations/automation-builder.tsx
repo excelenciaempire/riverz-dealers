@@ -23,6 +23,12 @@ import {
   type ParentScope,
   type StepPath,
 } from './step-tree';
+import {
+  PLATFORM_ICON,
+  PLATFORM_LABEL,
+  esActivadorDeTienda,
+  triggerStorePlatform,
+} from './plataforma-tienda';
 import Image from 'next/image';
 import Link from '@/components/i18n/locale-link';
 import { useLocalizedRouter } from '@/hooks/use-localized-router';
@@ -46,6 +52,7 @@ import {
   ZoomOut,
   Maximize2,
   BarChart3,
+  Store,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -146,12 +153,6 @@ const ProductsContext = createContext<string[]>([]);
 
 /** The automation's trigger type, so each step can filter data points to what
  *  that trigger actually exposes (e.g. tracking_* only after fulfillment). */
-const PLATFORM_LABEL: Record<string, string> = {
-  shopify: 'Shopify',
-  tiendanube: 'Tiendanube',
-  woocommerce: 'WooCommerce',
-};
-
 const TriggerContext = createContext<AutomationTriggerType>(
   'shopify_order_created'
 );
@@ -2229,6 +2230,9 @@ function TriggerCard({
   const invalid = useContext(InvalidStepContext) === '__trigger__';
   const [manuallyOpen, setManuallyOpen] = useState(false);
   const open = invalid || manuallyOpen;
+  const esTienda = esActivadorDeTienda(type);
+  const plataforma = triggerStorePlatform(type, config, storePlatforms);
+  const iconoTienda = plataforma ? PLATFORM_ICON[plataforma] : null;
   return (
     // Card width: full on mobile, fixed 320px on sm+. The canvas wrapper
     // (max-w-2xl + px-4) keeps this tidy on tablet/desktop.
@@ -2241,9 +2245,7 @@ function TriggerCard({
           'border-border bg-card rounded-lg border border-l-4 shadow-lg',
           invalid &&
             'outline outline-1 outline-amber-500/70',
-          type.startsWith('shopify_')
-            ? 'border-l-emerald-500'
-            : 'border-l-blue-500'
+          esTienda ? 'border-l-emerald-500' : 'border-l-blue-500'
         )}
       >
         <button
@@ -2255,18 +2257,19 @@ function TriggerCard({
           <div
             className={cn(
               'flex h-9 w-9 items-center justify-center rounded-lg',
-              type.startsWith('shopify_')
-                ? 'bg-white'
+              esTienda
+                ? iconoTienda
+                  ? 'bg-white'
+                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                 : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
             )}
           >
-            {type.startsWith('shopify_') ? (
-              <Image
-                src="/channels/shopify.svg"
-                alt=""
-                width={22}
-                height={22}
-              />
+            {esTienda ? (
+              iconoTienda ? (
+                <Image src={iconoTienda} alt="" width={22} height={22} />
+              ) : (
+                <Store className="h-4 w-4" />
+              )
             ) : (
               <Zap className="h-4 w-4" />
             )}
@@ -2275,13 +2278,18 @@ function TriggerCard({
             <div
               className={cn(
                 'text-[11px] tracking-wide uppercase',
-                type.startsWith('shopify_')
+                esTienda
                   ? 'text-emerald-700 dark:text-emerald-300'
                   : 'text-blue-700 dark:text-blue-300'
               )}
             >
-              {type.startsWith('shopify_')
-                ? t('automations.triggerEyebrowShopify')
+              {/* Con la tienda resuelta se nombra ("Activador · Tiendanube"):
+                  es el único lugar del lienzo donde se ve de qué tienda
+                  depende la automatización. */}
+              {esTienda
+                ? plataforma
+                  ? `${t('automations.triggerEyebrow')} · ${PLATFORM_LABEL[plataforma] ?? plataforma}`
+                  : t('automations.triggerEyebrowShopify')
                 : t('automations.triggerEyebrow')}
             </div>
             <div className="text-foreground truncate text-sm font-medium">
@@ -2354,7 +2362,7 @@ function TriggerCard({
                 muestra si el comercio tiene más de una conectada: con una
                 sola, elegir es una decisión que no existe. Sin marcar
                 ninguna = todas, que es como se comportaban antes. */}
-            {type.startsWith('shopify_') && storePlatforms.length > 1 && (
+            {esTienda && storePlatforms.length > 1 && (
               <div>
                 <div className="text-muted-foreground mb-1.5 text-[11px]">
                   {t('automations.triggerPlatformLabel')}
@@ -2390,12 +2398,21 @@ function TriggerCard({
                           });
                         }}
                         className={cn(
-                          'rounded-full border px-2.5 py-1 text-xs transition-colors',
+                          'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors',
                           activa
                             ? 'border-primary bg-primary/10 text-foreground'
                             : 'border-border text-muted-foreground hover:bg-muted'
                         )}
                       >
+                        {PLATFORM_ICON[plat] && (
+                          <Image
+                            src={PLATFORM_ICON[plat]}
+                            alt=""
+                            width={14}
+                            height={14}
+                            className={cn(!activa && 'opacity-50')}
+                          />
+                        )}
                         {PLATFORM_LABEL[plat] ?? plat}
                       </button>
                     );
