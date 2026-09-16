@@ -244,6 +244,16 @@ export function OperatorChat({
   const compositorRef = useRef<HTMLInputElement | null>(null)
   /** Lo que se está por cambiar, desde que se tocó «Editar» hasta que se manda. */
   const cambiando = useRef<string[] | null>(null)
+  /**
+   * Lo mismo, pero para pintar.
+   *
+   * El ref lo lee `enviar` en el mismo tick y por eso se queda; pero mientras
+   * fue SÓLO un ref, tocar «Editar» no cambiaba nada en pantalla: la tarjeta
+   * seguía igual, con sus botones, y el siguiente mensaje la descartaba dijera
+   * lo que dijera. Quien escribía cualquier otra cosa perdía el cambio sin
+   * enterarse.
+   */
+  const [cambiandoIds, setCambiandoIds] = useState<string[] | null>(null)
   /** Cuándo arrancó lo que está corriendo, para contar los segundos. */
   const [arrancoEn, setArrancoEn] = useState<number | null>(null)
 
@@ -510,6 +520,7 @@ export function OperatorChat({
        */
       const cambiar = cambiando.current
       cambiando.current = null
+      setCambiandoIds(null)
       const congelar = cambiar
         ? acciones.filter((a) => cambiar.includes(a.id) && a.status === 'propuesto')
         : []
@@ -774,8 +785,10 @@ export function OperatorChat({
     (acciones: Accion[]) => {
       compositorRef.current?.focus()
       // Lo que se manda después de tocar «Editar» es un pedido de cambio, y eso
-      // deja sin efecto lo que estaba propuesto.
+      // deja sin efecto lo que estaba propuesto. La tarjeta lo dice desde acá
+      // hasta que se manda, con la salida para volver atrás.
       cambiando.current = acciones.map((a) => a.id)
+      setCambiandoIds(acciones.map((a) => a.id))
 
       /**
        * Con varias, no se fija ninguna.
@@ -1221,6 +1234,11 @@ export function OperatorChat({
             acciones={esperandoDecision}
             onResolver={resolver}
             onEditar={() => pedirCambio(esperandoDecision)}
+            pidiendoCambio={!!cambiandoIds}
+            onCancelarCambio={() => {
+              cambiando.current = null
+              setCambiandoIds(null)
+            }}
           />
         )}
 
@@ -1847,12 +1865,17 @@ function TarjetaDecision({
   onResolver,
   onEditar,
   congelada = false,
+  pidiendoCambio = false,
+  onCancelarCambio,
 }: {
   acciones: Accion[]
   onResolver?: (decisiones: { id: string; aprobar: boolean }[]) => void
   onEditar?: () => void
   /** Ya pasó: se lee lo que se propuso, y no hay nada que decidir. */
   congelada?: boolean
+  /** Se tocó «Editar»: el próximo mensaje la reemplaza, diga lo que diga. */
+  pidiendoCambio?: boolean
+  onCancelarCambio?: () => void
 }) {
   const t = useT()
   /**
@@ -1972,8 +1995,33 @@ function TarjetaDecision({
       {/* Congelada: nada que decidir.
           Se pidió un cambio, así que aprobar esto sería aprobar exactamente lo
           que se acaba de pedir que cambie. Queda como registro de lo que se
-          había propuesto, arriba del pedido que lo reemplazó. */}
-      {congelada ? null : (
+          había propuesto, arriba del pedido que lo reemplazó. Y lo dice: sin
+          esta línea era una tarjeta sin botones, que se lee como rota. */}
+      {congelada ? (
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          {t('operation.decisionReemplazada')}
+        </p>
+      ) : (
+      <>
+      {/* Tocaste «Editar»: el próximo mensaje descarta esto, diga lo que diga.
+          Decirlo acá es la diferencia entre pedir un cambio y perder el
+          cambio por escribir «excelente». */}
+      {pidiendoCambio && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-amber-500/10 px-2.5 py-2">
+          <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-300">
+            {t('operation.decisionCambioArmado')}
+          </p>
+          {onCancelarCambio && (
+            <button
+              type="button"
+              onClick={onCancelarCambio}
+              className="rounded-md px-2 py-1 text-[11px] font-medium text-amber-800 underline transition-colors hover:bg-amber-500/10 dark:text-amber-200"
+            >
+              {t('operation.decisionCambioCancelar')}
+            </button>
+          )}
+        </div>
+      )}
       <div className="mt-3.5 flex items-center gap-2">
         <button
           type="button"
@@ -2015,6 +2063,7 @@ function TarjetaDecision({
           </span>
         )}
       </div>
+      </>
       )}
     </div>
   )

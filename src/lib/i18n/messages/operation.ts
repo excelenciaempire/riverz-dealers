@@ -427,6 +427,21 @@ export const operation = {
   decisionNadaElegido: { es: "Elige al menos una", en: "Pick at least one" },
   decisionEditar: { es: "Editar", en: "Edit" },
   /**
+   * Tocar «Editar» deja la propuesta condenada: el siguiente mensaje la
+   * descarta, diga lo que diga. Sin avisarlo, quien escribía cualquier otra
+   * cosa —un «excelente»— perdía el cambio y se quedaba mirando una tarjeta
+   * sin botones, sin nada que explicara por qué.
+   */
+  decisionCambioArmado: {
+    es: "Tu próximo mensaje reemplaza esta propuesta. Para aprobarla tal como está, cancela el cambio.",
+    en: "Your next message replaces this proposal. To approve it as is, cancel the change.",
+  },
+  decisionCambioCancelar: { es: "Cancelar el cambio", en: "Cancel change" },
+  decisionReemplazada: {
+    es: "Reemplazada por tu pedido de cambio.",
+    en: "Replaced by your change request.",
+  },
+  /**
    * Qué está haciendo, por dominio y en una frase.
    *
    * Antes se armaba pegándole un gerundio al nombre del dominio —«Armando las
