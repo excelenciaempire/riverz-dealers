@@ -19,9 +19,6 @@ import type {
 } from "@/types";
 import {
   MessageSquare,
-  ChevronDown,
-  UserPlus,
-  Check,
   Clock,
   ArrowLeft,
   ChevronUp,
@@ -38,13 +35,6 @@ import type { Locale } from "@/lib/i18n/config";
 import { dateFnsLocale } from "@/lib/i18n/format";
 import { Badge } from "@/components/ui/badge";
 import { MlKindBadge } from "@/components/inbox/ml-kind-badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./message-bubble";
 import { MessageActions } from "./message-actions";
@@ -212,7 +202,6 @@ export function MessageThread({
   onNewMessage,
   onUpdateMessage,
   onDeleteMessage,
-  onAssignChange,
   onBack,
   resyncToken = 0,
   onToggleContactPanel,
@@ -1346,27 +1335,6 @@ export function MessageThread({
     return () => clearTimeout(id);
   }, [anclado]);
 
-  const handleAssignChange = useCallback(
-    async (agentId: string | null) => {
-      if (!conversation) return;
-
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("conversations")
-        .update({ assigned_agent_id: agentId })
-        .eq("id", conversation.id);
-
-      if (error) {
-        console.error("Failed to update assignment:", error);
-        toast.error(t("inbox.assignFailed"));
-        return;
-      }
-
-      onAssignChange(conversation.id, agentId);
-    },
-    [conversation, onAssignChange, t],
-  );
-
   // Empty state — same WhatsApp-style doodle background as the active
   // thread below, so swapping between empty/selected doesn't change the
   // pattern under the user's eye. Pitched as a quick orientation card
@@ -1402,11 +1370,6 @@ export function MessageThread({
     contact.external_id ||
     t("inbox.contactFallback");
   const messageGroups = groupMessagesByDate(messages, tz);
-  const assignedAgentId = conversation.assigned_agent_id ?? null;
-  const currentAssignee = profiles.find((p) => p.user_id === assignedAgentId);
-  const assignLabel = assignedAgentId
-    ? (currentAssignee?.full_name ?? t("inbox.assigned"))
-    : t("inbox.assign");
 
   return (
     <div className={cn("flex min-w-0 flex-1 flex-col", DOODLE_BG_CLASSES)}>
@@ -1535,65 +1498,7 @@ export function MessageThread({
             </span>
           )}
 
-          {/* Assign dropdown — only render when there's more than one
-              workspace member (or someone already assigned that we'd
-              need to unassign). A solo merchant sees an "Asignar" chip
-              with only themselves in it, which is noise. */}
-          {(profiles.length > 1 || assignedAgentId) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                className={cn(
-                  "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-accent",
-                  assignedAgentId ? "text-accent-ink" : "text-muted-foreground"
-                )}
-              >
-                <UserPlus className="h-3 w-3" />
-                <span className="hidden sm:inline">{assignLabel}</span>
-                <ChevronDown className="h-3 w-3" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="border-border bg-card"
-              >
-                {profiles.length === 0 ? (
-                  <DropdownMenuItem disabled className="text-sm text-muted-foreground">
-                    {t("inbox.noTeammates")}
-                  </DropdownMenuItem>
-                ) : (
-                  profiles.map((p) => {
-                    const isSelected = p.user_id === assignedAgentId;
-                    return (
-                      <DropdownMenuItem
-                        key={p.id}
-                        onClick={() => handleAssignChange(p.user_id)}
-                        className={cn(
-                          "text-sm",
-                          isSelected ? "text-accent-ink" : "text-foreground"
-                        )}
-                      >
-                        <span className="flex-1">
-                          {p.full_name}
-                          {p.user_id === user?.id ? t("inbox.youSuffix") : ""}
-                        </span>
-                        {isSelected && <Check className="ml-2 h-3 w-3" />}
-                      </DropdownMenuItem>
-                    );
-                  })
-                )}
-                {assignedAgentId && (
-                  <>
-                    <DropdownMenuSeparator className="bg-border" />
-                    <DropdownMenuItem
-                      onClick={() => handleAssignChange(null)}
-                      className="text-sm text-muted-foreground"
-                    >
-                      {t("inbox.removeAssignment")}
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          {/* El menú "Asignar" también se sacó de la cabecera (2026-09-16). */}
         </div>
       </div>
 
