@@ -142,20 +142,27 @@ async function purgeOperationalLogs(
   return out
 }
 
-/** Cuánto se borra como mucho por corrida. */
+/** Cuánto se borra como mucho por lote. */
 const PURGE_BATCH = 5_000
 /** Cuántos lotes por corrida, para no comerse el timeout del cron. */
 const PURGE_MAX_BATCHES = 20
 
 /**
- * Borra en lotes lo más viejo que el corte.
+ * Borra en lotes lo más viejo que el corte, del lado de la base.
  *
- * En lotes y no de una: al momento de escribir esto `cron_runs` tenía 444.489
- * filas, o sea que el primer borrado se lleva unos seis meses de historia. Un
- * `DELETE` suelto sobre eso corre el riesgo de pasarse del corte del cron, y
- * pedirle `select('id')` encima traería CIENTOS DE MILES de ids de vuelta a
- * Node para contarlos. Se borra de a 5.000, hasta 20 lotes por corrida: lo que
- * sobre se lleva la corrida de mañana, que para una limpieza diaria alcanza.
+ * Cada lote es una llamada al RPC `purge_rows_older_than` (migración 263), que
+ * elige y borra las filas adentro de Postgres y devuelve cuántas fueron. Ni un
+ * id viaja por la red.
+ *
+ * Antes se pedían 5.000 ids con `select('id')` y se mandaban de vuelta en
+ * `.in('id', ids)`: PostgREST los pone en la URL, que mide ~190 KB, y
+ * Cloudflare la rechaza con 414 antes de que llegue. El fallo se logueaba como
+ * warn y la corrida terminaba en `ok`, así que `cron_runs` nunca se vació:
+ * el 2026-09-17 tenía 924.630 filas (241 MB) y la base se quedó sin memoria.
+ *
+ * En lotes y no de una: `cron_runs` suma unas diez mil filas por día, y un
+ * DELETE de meses enteros corre el riesgo de pasarse del timeout. Lo que sobre
+ * se lleva la corrida de mañana, que para una limpieza diaria alcanza.
  */
 async function deleteOlderThan(
   admin: SupabaseClient,
@@ -164,26 +171,20 @@ async function deleteOlderThan(
   let total = 0
   try {
     for (let i = 0; i < PURGE_MAX_BATCHES; i++) {
-      let pick = admin
-        .from(opts.table)
-        .select('id')
-        .lt(opts.column, opts.cutoff)
-        .order(opts.column, { ascending: true })
-        .limit(PURGE_BATCH)
-      if (opts.onlyProcessed) pick = pick.not('processed_at', 'is', null)
-
-      const { data, error } = await pick
+      const { data, error } = await admin.rpc('purge_rows_older_than', {
+        p_table: opts.table,
+        p_column: opts.column,
+        p_cutoff: opts.cutoff,
+        p_batch: PURGE_BATCH,
+        p_only_processed: opts.onlyProcessed ?? false,
+      })
       if (error) throw new Error(error.message)
-      const ids = ((data ?? []) as Array<{ id: string | number }>).map((r) => r.id)
-      if (ids.length === 0) break
-
-      const { error: delErr } = await admin.from(opts.table).delete().in('id', ids)
-      if (delErr) throw new Error(delErr.message)
-      total += ids.length
-      if (ids.length < PURGE_BATCH) break
+      const deleted = typeof data === 'number' ? data : Number(data ?? 0)
+      total += deleted
+      if (deleted < PURGE_BATCH) break
     }
   } catch (err) {
-    log.warn(`${opts.table} purge failed`, {
+    log.error(`${opts.table} purge failed`, {
       deleted: total,
       error: err instanceof Error ? err.message : String(err),
     })

@@ -1,0 +1,101 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Heterogeneous in-memory Supabase rows and its fluent thenable test double. */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const state = vi.hoisted(() => ({ tables: {} as Record<string, any[]> }))
+vi.mock('./admin-client', () => ({ supabaseAdmin: () => ({ from: (table: string) => {
+  const filters: Array<(row: any) => boolean> = []
+  let operation = 'select', payload: any, count = false, single = false
+  const query: any = {
+    select: (_?: string, options?: any) => { count = !!options?.count; return query },
+    in: (key: string, value: any[]) => { filters.push(r => value.includes(r[key])); return query },
+    eq: (key: string, value: any) => { filters.push(r => r[key] === value); return query },
+    neq: (key: string, value: any) => { filters.push(r => r[key] !== value); return query },
+    is: (key: string, value: any) => { filters.push(r => (r[key] ?? null) === value); return query },
+    gte: (key: string, value: number) => { filters.push(r => r[key] >= value); return query },
+    order: () => query,
+    limit: () => query,
+    single: () => { single = true; return query },
+    maybeSingle: () => { single = true; return query },
+    update: (value: any) => { operation = 'update'; payload = value; return query },
+    insert: (value: any) => { operation = 'insert'; payload = value; return query },
+    then: (resolve: any, reject: any) => Promise.resolve().then(() => {
+      const rows = state.tables[table]
+      if (!rows) throw Error(`Unexpected table ${table}`)
+      if (operation === 'insert') rows.push({ id: `new-${rows.length}`, ...payload })
+      const found = rows.filter(r => filters.every(f => f(r)))
+      if (operation === 'update') found.forEach(r => Object.assign(r, payload))
+      return { data: single ? found[0] ?? null : found, error: null, count: count ? found.length : null }
+    }).then(resolve, reject),
+  }
+  return query
+} }) }))
+vi.mock('@/lib/workspaces/owner', () => ({ resolveWorkspaceOwnerUserId: async () => 'owner' }))
+vi.mock('./template-ab-attribution', () => ({ assignedTemplateVariant: async () => null, recordExperimentExposure: vi.fn() }))
+vi.mock('./riverzoficial-template-context', () => ({ requireRiverzoficialTemplateItems: async () => undefined }))
+vi.mock('./riverzoficial-context-gate', () => ({ riverzFlowSkipReason: async () => null }))
+const sendTemplate = vi.hoisted(() => vi.fn(async () => ({ whatsapp_message_id: 'wamid.1' })))
+vi.mock('./meta-send', () => ({ engineSendText: vi.fn(), engineSendTemplate: sendTemplate }))
+
+import { resumePendingExecution } from './engine'
+
+const envio = {
+  id: 'envio', automation_id: 'a', parent_step_id: null, branch: null, position: 0, step_type: 'send_template',
+  step_config: { template_name: 'rasmiaw_envio_tracking', language: 'es', variables: { '1': '{{vars.tracking_number}}' } },
+}
+const pendingCon = (vars: Record<string, string>) => ({
+  id: 'pending', automation_id: 'a', workspace_id: 'w', contact_id: 'c', log_id: 'log',
+  parent_step_id: null, branch: null, next_step_position: 0, context: { vars },
+})
+
+beforeEach(() => {
+  sendTemplate.mockClear()
+  state.tables = {
+    automations: [{ id: 'a', workspace_id: 'w', name: 'Rasmiaw · Envío', trigger_type: 'shopify_order_fulfilled', is_active: true, activation_state: 'active', trigger_config: { handoff_ai_agent_id: 'agente' } }],
+    automation_pending_executions: [{ ...pendingCon({}), status: 'running', run_at: '2026-09-17T15:00:00Z' }],
+    automation_logs: [{ id: 'log', status: 'partial', steps_executed: [] }],
+    automation_steps: [envio],
+    contacts: [{ id: 'c', name: 'Ana Pérez', email: '', phone: '573000000000', last_product: '' }],
+    conversations: [{ id: 'conv', workspace_id: 'w', contact_id: 'c', channel: 'whatsapp', deleted_at: null, assigned_ai_agent_id: null }],
+    message_templates: [{ workspace_id: 'w', name: 'rasmiaw_envio_tracking', language: 'es', buttons: null }],
+  }
+})
+
+describe('send_template con una variable vacía', () => {
+  it('no llama a Meta, no reasigna la conversación y deja el motivo con la variable', async () => {
+    // Rasmiaw cumple en Shopify sin guía: el pedido llega con tracking_number = ''.
+    await resumePendingExecution(pendingCon({ tracking_number: '' }))
+    expect(sendTemplate).not.toHaveBeenCalled()
+    expect(state.tables.conversations[0].assigned_ai_agent_id).toBeNull()
+    const log = state.tables.automation_logs[0]
+    expect(log.status).toBe('failed')
+    expect(log.error_message).toContain('rasmiaw_envio_tracking')
+    expect(log.error_message).toContain('{{1}} ← {{vars.tracking_number}}')
+  })
+
+  it('con la variable cargada la plantilla sale como siempre', async () => {
+    await resumePendingExecution(pendingCon({ tracking_number: 'RA123456789CO' }))
+    expect(sendTemplate).toHaveBeenCalledTimes(1)
+    expect(sendTemplate.mock.calls[0][0]).toMatchObject({ params: ['RA123456789CO'], templateName: 'rasmiaw_envio_tracking' })
+    expect(state.tables.automation_logs[0].status).toBe('success')
+  })
+
+  it('la condición «guía vacía» de Rasmiaw deja la corrida en éxito sin enviar nada', async () => {
+    // Estructura que quedó en producción el 2026-09-17: la plantilla cuelga
+    // del camino "no" de una condición tracking_number == ''.
+    state.tables.automation_steps = [
+      { id: 'cond', automation_id: 'a', parent_step_id: null, branch: null, position: 0, step_type: 'condition',
+        step_config: { subject: 'context_var', operand: 'tracking_number', op: 'eq', value: '' } },
+      { ...envio, parent_step_id: 'cond', branch: 'no' },
+    ]
+    await resumePendingExecution(pendingCon({ tracking_number: '' }))
+    expect(sendTemplate).not.toHaveBeenCalled()
+    expect(state.tables.automation_logs[0].status).toBe('success')
+    expect(state.tables.automation_logs[0].steps_executed.map((s: any) => s.detail)).toEqual(['branch=yes'])
+
+    state.tables.automation_logs[0] = { id: 'log', status: 'partial', steps_executed: [] }
+    state.tables.automation_pending_executions[0].status = 'running'
+    await resumePendingExecution(pendingCon({ tracking_number: 'RA123456789CO' }))
+    expect(sendTemplate).toHaveBeenCalledTimes(1)
+    expect(state.tables.automation_logs[0].status).toBe('success')
+  })
+})

@@ -932,26 +932,42 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       // we MUST emit params in strict numeric order. Lexicographic sort
       // of "1", "2", …, "10" yields "1", "10", "2", … which silently
       // scrambles every template with ≥10 variables.
-      const params = cfg.variables
-        ? Object.keys(cfg.variables)
-            .sort((a, b) => {
-              const na = Number(a)
-              const nb = Number(b)
-              const aNum = Number.isFinite(na)
-              const bNum = Number.isFinite(nb)
-              if (aNum && bNum) return na - nb
-              if (aNum) return -1
-              if (bNum) return 1
-              return a.localeCompare(b)
-            })
-            // Each variable value may itself contain {{vars.x}} /
-            // {{message.text}} placeholders (e.g. a "Nuevo pedido"
-            // template mapping {{1}} → "{{vars.customer_name}}"). Run it
-            // through interpolate() — same as send_message's text — so the
-            // Shopify/cron context vars actually land in the Meta params
-            // instead of the literal "{{vars.customer_name}}" string.
-            .map((k) => interpolate(String(cfg.variables![k]), args))
+      const variableKeys = cfg.variables
+        ? Object.keys(cfg.variables).sort((a, b) => {
+            const na = Number(a)
+            const nb = Number(b)
+            const aNum = Number.isFinite(na)
+            const bNum = Number.isFinite(nb)
+            if (aNum && bNum) return na - nb
+            if (aNum) return -1
+            if (bNum) return 1
+            return a.localeCompare(b)
+          })
         : []
+      // Each variable value may itself contain {{vars.x}} /
+      // {{message.text}} placeholders (e.g. a "Nuevo pedido"
+      // template mapping {{1}} → "{{vars.customer_name}}"). Run it
+      // through interpolate() — same as send_message's text — so the
+      // Shopify/cron context vars actually land in the Meta params
+      // instead of the literal "{{vars.customer_name}}" string.
+      const params = variableKeys.map((k) => interpolate(String(cfg.variables![k]), args))
+
+      // Una variable vacía no es un envío a medias: Meta rechaza la plantilla
+      // ENTERA con "(#131008) Required parameter is missing", que no dice cuál.
+      // Rasmiaw lo sufrió 55 veces seguidas: su "Envío" manda {{1}} =
+      // número de guía y la tienda cumple los pedidos en Shopify sin guía.
+      // Se corta acá, antes de llamar a Meta y antes de reasignar la
+      // conversación al asistente (que quedaba asignado a un mensaje que
+      // nunca salió), y el registro nombra la variable y de dónde salía.
+      const vacias = variableKeys.filter((k, i) => params[i].trim() === '')
+      if (vacias.length > 0) {
+        const detalle = vacias
+          .map((k) => `{{${k}}} ← ${String(cfg.variables![k])}`)
+          .join(', ')
+        throw new Error(
+          `send_template: la plantilla ${cfg.template_name} no se envió porque una variable llegó vacía (${detalle}); WhatsApp rechaza el mensaje completo`,
+        )
+      }
 
       // Botón URL DINÁMICO: si la plantilla tiene un botón con `url_variable`,
       // resolvemos el link real de ESTE cliente desde el contexto del disparador
