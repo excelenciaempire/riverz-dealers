@@ -2272,8 +2272,8 @@ export function AgentEditor({
                       className={cn(
                         'px-1 text-[10px] font-semibold',
                         turn.role === 'user'
-                          ? 'text-[#1d7a45] dark:text-[#06cf9c]'
-                          : 'text-[#0a6ebd] dark:text-[#53bdeb]'
+                          ? 'text-[#146034] dark:text-[#06cf9c]'
+                          : 'text-[#0a5c9e] dark:text-[#53bdeb]'
                       )}
                     >
                       {turn.role === 'user'
@@ -2314,7 +2314,17 @@ export function AgentEditor({
                           >
                             <p className="pr-10 whitespace-pre-wrap">{chunk}</p>
                             {isLast && (
-                              <div className="flex items-center justify-end gap-1 text-[10px] text-[#667781] dark:text-[#8696a0]">
+                              <div
+                                className={cn(
+                                  'flex items-center justify-end gap-1 text-[10px]',
+                                  // Sobre el verde de la burbuja del cliente el
+                                  // gris de WhatsApp no se lee (2.6:1 en
+                                  // oscuro), asi que cada lado lleva el suyo.
+                                  turn.role === 'user'
+                                    ? 'text-[#4f5b63] dark:text-[#cfe0da]'
+                                    : 'text-[#667781] dark:text-[#8696a0]'
+                                )}
+                              >
                                 <span>{turn.stamp}</span>
                                 {turn.role === 'user' && (
                                   <CheckCheck className="size-3 text-[#53bdeb]" />
