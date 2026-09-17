@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useFormat } from '@/hooks/use-format';
 import { useT } from '@/hooks/use-locale';
-import Link from '@/components/i18n/locale-link';
 import { Rise } from './bits';
 import { PRICING_TIERS } from './pricing-tiers';
 
@@ -21,8 +20,13 @@ export function Pricing() {
   const t = useT();
   const fmt = useFormat();
   const [tierIndex, setTierIndex] = useState(1);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const tier = PRICING_TIERS[tierIndex];
+  // El precio dividido por el cupo: es la cifra con la que el comercio compara
+  // contra un vendedor o contra lo que cobra otro software por conversación.
+  const perContact =
+    tier.monthly !== null && tier.customers !== null
+      ? tier.monthly / tier.customers
+      : null;
   const progress = (tierIndex / (PRICING_TIERS.length - 1)) * 100;
   const customerLabel =
     tier.customers === null
@@ -101,63 +105,51 @@ export function Pricing() {
             {tier.monthly === null ? (
               <p className="sn-h2 mt-3">{t('landingV4.pricingCustomPrice')}</p>
             ) : (
-              <div className="mt-2 flex flex-col items-center justify-center sm:flex-row sm:items-end sm:gap-x-2">
-                <span className="sn-pricing-amount font-[family-name:var(--font-editorial)] leading-none tracking-[-0.04em]">
-                  {fmt.money(tier.monthly, 'USD')}
-                </span>
-                <span className="mt-1 text-[15px] text-[var(--sn-ink-2)] sm:mb-2 sm:mt-0">
-                  {t('landingV4.pricingPerMonth')}
-                </span>
-              </div>
+              <>
+                <div className="mt-2 flex flex-col items-center justify-center sm:flex-row sm:items-end sm:gap-x-2">
+                  <span className="sn-pricing-amount font-[family-name:var(--font-editorial)] leading-none tracking-[-0.04em]">
+                    {fmt.money(tier.monthly, 'USD')}
+                  </span>
+                  <span className="mt-1 text-[15px] text-[var(--sn-ink-2)] sm:mb-2 sm:mt-0">
+                    {t('landingV4.pricingPerMonth')}
+                  </span>
+                </div>
+                {perContact !== null && (
+                  <p className="mt-3 text-[15px] text-[var(--sn-ink-2)]">
+                    {t('landingV4.pricingPerContact', {
+                      amount: fmt.currency(perContact, 'USD', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      }),
+                    })}
+                  </p>
+                )}
+              </>
             )}
 
-            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-              <a href="#acceso" className="sn-pill group">
-                {t('landingV4.pricingCta')}
-                <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-              </a>
-              <button
-                type="button"
-                onClick={() => setDetailsOpen((open) => !open)}
-                aria-expanded={detailsOpen}
-                aria-controls="pricing-details"
-                className="inline-flex items-center justify-center rounded-full px-6 py-3.5 text-[15px] font-medium transition-colors"
-                style={{ background: 'var(--sn-sand)', color: 'var(--sn-ink)' }}
-              >
-                {detailsOpen
-                  ? t('landingV4.pricingHideDetails')
-                  : t('landingV4.pricingShowDetails')}
-              </button>
+            <div
+              id="pricing-details"
+              className="mx-auto mt-8 max-w-3xl border-t pt-7 text-left"
+              style={{ borderColor: 'var(--sn-line)' }}
+            >
+              <p className="sn-label text-center">
+                {t('landingV4.pricingEverythingIncluded')}
+              </p>
+              <ul className="mt-5 grid gap-x-8 gap-y-3 sm:grid-cols-2">
+                {INCLUDED.map((key) => (
+                  <li
+                    key={key}
+                    className="flex items-start gap-3 text-[15px] leading-6"
+                  >
+                    <Check className="mt-1 size-4 shrink-0" aria-hidden />
+                    <span>{t(`landingV4.${key}`)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-6 text-center text-[13px] leading-5 text-[var(--sn-ink-2)]">
+                {t('landingV4.pricingDetailsNote')}
+              </p>
             </div>
-            <Link href="/calculadora" className="mt-5 inline-block text-[14px] font-medium underline underline-offset-4">
-              {t('landingV4.pricingCalculatorLink')}
-            </Link>
-
-            {detailsOpen && (
-              <div
-                id="pricing-details"
-                className="mx-auto mt-8 max-w-3xl border-t pt-7 text-left"
-                style={{ borderColor: 'var(--sn-line)' }}
-              >
-                <p className="sn-label text-center">
-                  {t('landingV4.pricingEverythingIncluded')}
-                </p>
-                <ul className="mt-5 grid gap-x-8 gap-y-3 sm:grid-cols-2">
-                  {INCLUDED.map((key) => (
-                    <li
-                      key={key}
-                      className="flex items-start gap-3 text-[15px] leading-6"
-                    >
-                      <Check className="mt-1 size-4 shrink-0" aria-hidden />
-                      <span>{t(`landingV4.${key}`)}</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-6 text-center text-[13px] leading-5 text-[var(--sn-ink-2)]">
-                  {t('landingV4.pricingDetailsNote')}
-                </p>
-              </div>
-            )}
           </div>
         </Rise>
       </div>

@@ -40,10 +40,17 @@ function Field({
 export function RoiCalculator({ monthlyPrice }: { monthlyPrice: number | null }) {
   const t = useT();
   const fmt = useFormat();
-  const [orders, setOrders] = useState("2000");
-  const [ticket, setTicket] = useState("70");
-  const [margin, setMargin] = useState("30");
-  const [uplift, setUplift] = useState("3");
+  // Valores de partida de una tienda DTC promedio de la región, no un caso
+  // ideal: unos 800 pedidos al mes (lo que suele traer un plan de 2.000
+  // contactos), ticket de US$45, margen bruto del 50% (cosmética, suplementos
+  // y moda DTC rondan el 45-60%) y un 12% más de pedidos, que es el piso de lo
+  // que se reporta para venta asistida por chat (recuperación de carritos y
+  // cierre en la conversación). El número grande tiene que salir creíble a la
+  // primera; el visitante después lo ajusta a lo suyo.
+  const [orders, setOrders] = useState("800");
+  const [ticket, setTicket] = useState("45");
+  const [margin, setMargin] = useState("50");
+  const [uplift, setUplift] = useState("12");
   const [customPrice, setCustomPrice] = useState("");
 
   const monthlyOrders = bounded(orders, 1_000_000);

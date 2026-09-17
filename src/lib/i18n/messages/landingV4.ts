@@ -395,10 +395,7 @@ export const landingV4 = {
   pricingTierMore: { es: '10k+', en: '10k+' },
   pricingPerMonth: { es: 'al mes', en: 'per month' },
   pricingCustomPrice: { es: 'Hablemos', en: "Let's talk" },
-  pricingCta: { es: 'Solicitar instalación', en: 'Request setup' },
-  pricingCalculatorLink: { es: 'Calcular retorno posible', en: 'Estimate potential return' },
-  pricingShowDetails: { es: 'Ver lo incluido', en: "See what's included" },
-  pricingHideDetails: { es: 'Ocultar detalles', en: 'Hide details' },
+  pricingPerContact: { es: '{amount} por contacto atendido', en: '{amount} per contact served' },
   pricingEverythingIncluded: { es: 'Todo incluido', en: 'Everything included' },
   pricingIncludedAgents: {
     es: 'Todos los agentes y consumo de IA',
