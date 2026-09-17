@@ -104,10 +104,16 @@ export function LandingV4() {
 
 function Nav() {
   const t = useT();
+  // Sin menú de secciones y sin pegarse arriba. La barra que se queda fija es
+  // la de la oferta (ver `oferta.tsx`): es lo que responde la objeción más
+  // grande y lo único que vale la pena tener a la vista mientras se baja. Un
+  // menú de cuatro anclas encima de eso, en el teléfono, era media pantalla
+  // de barras antes del contenido. Quedan la marca, el idioma y el acceso, y
+  // se van con el scroll.
   return (
-    <header className="sticky top-2 z-30 px-3 pt-2">
+    <header className="px-3 pt-2">
       <nav
-        className="mx-auto flex max-w-6xl items-center justify-between gap-6 rounded-full px-5 py-3 backdrop-blur"
+        className="mx-auto flex max-w-6xl items-center justify-between gap-6 rounded-full px-5 py-3"
         style={{ background: "rgba(250,247,241,0.82)" }}
       >
         <span
@@ -117,28 +123,8 @@ function Nav() {
           riverz
         </span>
 
-        <div className="hidden items-center gap-8 text-[15px] md:flex">
-          {/* El menú sigue el orden real de la página. */}
-          <a href="#loop" className="transition-opacity hover:opacity-60">
-            {t("landingV4.navLoop")}
-          </a>
-          <a href="#operator" className="transition-opacity hover:opacity-60">
-            {t("landingV4.navOperator")}
-          </a>
-          <a href="#capacidades" className="transition-opacity hover:opacity-60">
-            {t("landingV4.navCapabilities")}
-          </a>
-          <a href="#precios" className="transition-opacity hover:opacity-60">
-            {t("landingV4.navPricing")}
-          </a>
-        </div>
-
         <div className="flex items-center gap-4">
           <LocaleSwitch />
-          {/* En el teléfono esta píldora se va. Debajo del aviso de la oferta
-              quedaban dos llamadas a la acción a cuatro dedos de distancia —la
-              de la barra y la del hero— y la de arriba solo empujaba el
-              contenido hacia abajo. En escritorio no estorba y se queda. */}
           <span className="hidden sm:block">
             <a href="#acceso" className="sn-pill sn-pill-sm">
               {t("landingV4.navCta")}

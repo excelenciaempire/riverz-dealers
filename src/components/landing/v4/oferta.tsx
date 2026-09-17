@@ -52,7 +52,10 @@ export function Oferta() {
 
   return (
     <>
-      <div className="px-3 pt-3">
+      {/* Pegada arriba, en todos los anchos: es la única barra fija de la
+          página. Antes lo era el menú; la oferta vale más a la vista que
+          cuatro anclas, y una sola barra fija deja el teléfono respirar. */}
+      <div className="sticky top-0 z-30 px-3 pt-3">
         {/* En el teléfono el aviso es UNA sola línea: la promesa y el enlace.
             La frase larga se cae en pantalla chica —a 390 px ocupaba tres
             renglones y el bloque negro se comía media portada antes de que se

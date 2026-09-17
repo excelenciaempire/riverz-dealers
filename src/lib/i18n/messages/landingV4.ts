@@ -61,11 +61,7 @@ export const landingV4 = {
   // ── Navegación ──
   // El enlace dice lo mismo que la etiqueta de la sección a la que lleva: si
   // no coinciden, quien hace clic cree que aterrizó en otro lado.
-  navLoop: { es: 'La diferencia', en: 'The difference' },
-  navCapabilities: { es: 'Qué hace', en: 'What it does' },
-  navOperator: { es: 'Operator', en: 'Operator' },
   navChannels: { es: 'Canales', en: 'Channels' },
-  navPricing: { es: 'Precios', en: 'Pricing' },
   navCta: { es: 'Solicitar acceso', en: 'Request access' },
   skipToContent: { es: 'Ir al contenido', en: 'Skip to content' },
 
