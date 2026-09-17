@@ -7,14 +7,19 @@ import { Rise } from "./bits";
 const QUESTIONS = [
   ["faqIncludedQuestion", "faqIncludedAnswer"],
   ["faqWhyQuestion", "faqWhyAnswer"],
+  ["faqSellsQuestion", "faqSellsAnswer"],
+  ["faqSetupQuestion", "faqSetupAnswer"],
   ["faqCountingQuestion", "faqCountingAnswer"],
   ["faqGrowthQuestion", "faqGrowthAnswer"],
   ["faqTeamQuestion", "faqTeamAnswer"],
   ["faqMistakesQuestion", "faqMistakesAnswer"],
+  ["faqVoiceQuestion", "faqVoiceAnswer"],
   ["faqChangeQuestion", "faqChangeAnswer"],
   ["faqControlQuestion", "faqControlAnswer"],
   ["faqMeasureQuestion", "faqMeasureAnswer"],
+  ["faqModelQuestion", "faqModelAnswer"],
   ["faqCallsQuestion", "faqCallsAnswer"],
+  ["faqCommitmentQuestion", "faqCommitmentAnswer"],
 ] as const;
 
 export function Faq() {
