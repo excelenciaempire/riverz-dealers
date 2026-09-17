@@ -326,6 +326,7 @@ export function ChatApp() {
     const data = (await res.json()) as {
       messages: WireMessage[];
       edits?: Array<{ id: string; text: string }>;
+      deleted?: string[];
       now?: string;
       cursor: string | null;
       status?: string;
@@ -342,6 +343,11 @@ export function ChatApp() {
       setMessages((prev) =>
         prev.map((m) => (porId.has(m.id) ? { ...m, text: porId.get(m.id) as string } : m)),
       );
+    }
+    // El comercio borró algo que el visitante ya tenía en pantalla.
+    if (data.deleted?.length) {
+      const fuera = new Set(data.deleted);
+      setMessages((prev) => (prev.some((m) => fuera.has(m.id)) ? prev.filter((m) => !fuera.has(m.id)) : prev));
     }
     if (data.now) editCursor.current = data.now;
     // El servidor manda el estado de la conversación en cada sondeo y el chat

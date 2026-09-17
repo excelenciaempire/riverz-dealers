@@ -566,6 +566,12 @@ export interface Message {
   /** Cuándo se reescribió el mensaje ya enviado (migración 208). Sólo el chat
    *  web y el comentario de Facebook pueden editarse; ver lib/inbox/editable. */
   edited_at?: string | null;
+  /** Borrado desde la bandeja (migración 264). La interfaz y el chat web no lo
+   *  muestran; la IA lo sigue leyendo como parte de la conversación. */
+  deleted_at?: string | null;
+  /** 'me' = sólo la bandeja; 'everyone' = también del lado del cliente. */
+  deleted_scope?: 'me' | 'everyone' | null;
+  deleted_by_user_id?: string | null;
 }
 
 /** Un botón resuelto de un mensaje saliente (plantilla/interactivo) tal como

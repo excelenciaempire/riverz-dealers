@@ -290,7 +290,11 @@ export async function GET(request: Request) {
     .select(
       'id, sender_type, content_text, created_at, origin_name, status, media_url, media_type, media_mime, attachments',
     )
-    .eq('conversation_id', conversation.id);
+    .eq('conversation_id', conversation.id)
+    // El chat web es nuestro de punta a punta: lo que el comercio borró "para
+    // todos" (migración 264) deja de verse también del lado del visitante. Lo
+    // borrado "sólo para mí" el visitante lo sigue viendo, como en WhatsApp.
+    .or('deleted_at.is.null,deleted_scope.eq.me');
 
   if (cursor) {
     query = query
@@ -372,23 +376,36 @@ export async function GET(request: Request) {
   const editadoDesde =
     crudo && !Number.isNaN(Date.parse(crudo)) ? new Date(crudo).toISOString() : null;
   let edits: Array<{ id: string; text: string }> = [];
+  // Lo BORRADO tampoco vuelve por el cursor: se avisa aparte por id para que
+  // el visitante deje de verlo ("borrar para todos" del chat web).
+  let deleted: string[] = [];
   if (editadoDesde) {
     const { data: reescritos } = await admin
       .from('messages')
       .select('id, content_text, status')
       .eq('conversation_id', conversation.id)
+      .or('deleted_at.is.null,deleted_scope.eq.me')
       .gt('edited_at', editadoDesde)
       .limit(50);
     edits = ((reescritos ?? []) as Array<{ id: string; content_text: string | null; status: string | null }>)
       // Lo que nunca se entregó tampoco se corrige del lado del visitante.
       .filter((m) => m.status !== 'failed')
       .map((m) => ({ id: m.id, text: m.content_text ?? '' }));
+    const { data: borrados } = await admin
+      .from('messages')
+      .select('id')
+      .eq('conversation_id', conversation.id)
+      .eq('deleted_scope', 'everyone')
+      .gt('deleted_at', editadoDesde)
+      .limit(50);
+    deleted = ((borrados ?? []) as Array<{ id: string }>).map((m) => m.id);
   }
 
   const last = ordered[ordered.length - 1];
   return NextResponse.json({
     messages,
     edits,
+    deleted,
     // Reloj del servidor: el visitante lo devuelve tal cual en el sondeo
     // siguiente, así no dependemos de que su reloj esté en hora.
     now: new Date().toISOString(),

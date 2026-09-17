@@ -22,6 +22,10 @@ import type { ChannelConnection, Conversation, Message } from "@/types";
  * place: a delete usually means the agent misclicked, not that the
  * whole thread should disappear.
  *
+ * Es un borrado SUAVE (`deleted_at`, migración 264): la fila sigue para que
+ * el agente de IA no pierda ese tramo de la conversación. Sólo la interfaz
+ * y el chat web dejan de mostrarlo.
+ *
  * RLS already enforces workspace membership for the messages table,
  * so we don't have to re-check workspace here — the admin client
  * call below would fail otherwise. We still verify the caller is
@@ -90,7 +94,23 @@ export async function DELETE(
     );
   }
 
-  const { error } = await admin.from("messages").delete().eq("id", id);
+  // Borrado suave (migración 264): la fila queda, marcada. El agente de IA
+  // arma su contexto leyendo `messages` y un DELETE de verdad le recortaba la
+  // conversación; lo que el comercio saca de la vista tiene que seguir en la
+  // memoria del agente. La bandeja y el chat web filtran `deleted_at`.
+  // `?scope=everyone` lo manda la bandeja cuando el canal deja borrar del lado
+  // del cliente (comentarios, chat web); si no viene, es sólo de la bandeja.
+  const scope =
+    new URL(req.url).searchParams.get("scope") === "everyone" ? "everyone" : "me";
+  const { error } = await admin
+    .from("messages")
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_scope: scope,
+      deleted_by_user_id: user.id,
+    })
+    .eq("id", id)
+    .is("deleted_at", null);
   if (error) {
     return serverError(error);
   }
@@ -112,6 +132,7 @@ export async function DELETE(
       "content_text, content_type, subject, media_type, created_at, sender_type, status, is_hidden",
     )
     .eq("conversation_id", deleted.conversation_id)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(1)
@@ -297,6 +318,7 @@ export async function PATCH(
     .from("messages")
     .select("id")
     .eq("conversation_id", message.conversation_id)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

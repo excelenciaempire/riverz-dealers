@@ -14,6 +14,7 @@ import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useT } from "@/hooks/use-locale";
 import {
   DeleteMessageDialog,
+  deleteForEveryoneNeedsNetwork,
   type DeleteScope,
 } from "./delete-message-dialog";
 import { EditMessageDialog } from "./edit-message-dialog";
@@ -156,7 +157,9 @@ export function MessageActions({
   const runDelete = async (scope: DeleteScope) => {
     if (!onDelete) return;
     try {
-      if (scope === "everyone") {
+      // En el chat web no hay red a la que pedirle nada: el borrado suave de
+      // abajo ya lo saca de la pantalla del visitante.
+      if (scope === "everyone" && deleteForEveryoneNeedsNetwork(message.channel)) {
         const res = await fetchWithCsrf("/api/messages/moderate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -168,7 +171,7 @@ export function MessageActions({
           return;
         }
       }
-      const res = await fetchWithCsrf(`/api/messages/${message.id}`, {
+      const res = await fetchWithCsrf(`/api/messages/${message.id}?scope=${scope}`, {
         method: "DELETE",
       });
       if (!res.ok) {

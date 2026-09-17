@@ -19,18 +19,28 @@ export type DeleteScope = "me" | "everyone";
 /**
  * ¿Este canal deja borrar el mensaje del lado del cliente?
  *
- * Sólo los comentarios. Un comentario vive en el post de la marca y la API de
- * la red deja borrarlo de verdad (es lo mismo que hace el botón de la barra de
- * moderación). Un mensaje directo no: ni WhatsApp, ni Instagram, ni Messenger,
- * ni Mercado Libre, ni el correo exponen un "deshacer envío" para terceros.
- * Prometerlo con un botón que después no borra nada sería peor que no tenerlo.
+ * Los comentarios y el chat web. Un comentario vive en el post de la marca y
+ * la API de la red deja borrarlo de verdad (es lo mismo que hace el botón de
+ * la barra de moderación). El chat web es nuestro de punta a punta: el
+ * visitante lee de la misma tabla, así que lo borrado deja de verse en su
+ * pantalla en el siguiente sondeo. Un mensaje directo no: ni WhatsApp, ni
+ * Instagram, ni Messenger, ni Mercado Libre, ni el correo exponen un
+ * "deshacer envío" para terceros (la referencia oficial de la Cloud API de
+ * WhatsApp sólo documenta POST /messages; revisada el 2026-09-17). Prometerlo
+ * con un botón que después no borra nada sería peor que no tenerlo.
  */
 export function canDeleteForEveryone(channel: Channel): boolean {
   return (
     channel === "fb_comment" ||
     channel === "ig_comment" ||
-    channel === "tiktok_comment"
+    channel === "tiktok_comment" ||
+    channel === "webchat"
   );
+}
+
+/** ¿Hay que pedirle a la red que lo borre, o alcanza con marcarlo acá? */
+export function deleteForEveryoneNeedsNetwork(channel: Channel): boolean {
+  return canDeleteForEveryone(channel) && channel !== "webchat";
 }
 
 /**

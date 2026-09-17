@@ -325,6 +325,12 @@ export default function InboxPage() {
       }
 
       if (event.eventType === "UPDATE") {
+        // Un borrado desde la bandeja es un UPDATE que fija `deleted_at`
+        // (migración 264): la burbuja se va de esta pestaña y de las demás.
+        if (newMsg.deleted_at) {
+          setMessages((prev) => prev.filter((m) => m.id !== newMsg.id));
+          return;
+        }
         // Update message status
         setMessages((prev) =>
           prev.map((m) => (m.id === newMsg.id ? { ...m, ...newMsg } : m))

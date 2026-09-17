@@ -646,6 +646,8 @@ export function MessageThread({
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
+        // Lo borrado desde la bandeja no se muestra; la IA sí lo lee (mig. 264).
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(PAGE_SIZE);
 
@@ -1237,6 +1239,7 @@ export function MessageThread({
         .from("messages")
         .select("*")
         .eq("conversation_id", conversation.id)
+        .is("deleted_at", null)
         .lt("created_at", oldestLoadedAt)
         .order("created_at", { ascending: false })
         .limit(PAGE_SIZE);

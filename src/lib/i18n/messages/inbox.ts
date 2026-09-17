@@ -259,8 +259,8 @@ export const inbox = {
   // Diálogo de borrado (reemplaza al confirm del navegador)
   deleteMessageTitle: { es: "¿Eliminar mensaje?", en: "Delete message?" },
   deleteMessageBothDesc: {
-    es: "Puedes quitarlo solo de tu bandeja o borrarlo también de la red.",
-    en: "You can remove it just from your inbox, or delete it from the network too.",
+    es: "Puedes quitarlo solo de tu bandeja o borrarlo también del lado del cliente.",
+    en: "You can remove it just from your inbox, or delete it on the customer's side too.",
   },
   deleteMessageOnlyMineDesc: {
     es: "Se quita de tu bandeja. Este canal no permite borrarlo del lado del cliente.",
