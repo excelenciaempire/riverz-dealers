@@ -12,7 +12,7 @@
  * borra una conversación vieja. La acumulación es el registro.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { costForModel } from '@/lib/admin/cost'
+import { costForModel, ttlDeCacheDelAsistente } from '@/lib/admin/cost'
 import type { Suscripcion } from './plan'
 
 export interface UsoDelPeriodo {
@@ -176,6 +176,9 @@ export async function acumularDia(
     const usd = costForModel(r.model, r.prompt_tokens ?? 0, r.completion_tokens ?? 0, {
       read: r.cache_read_tokens ?? 0,
       write: r.cache_write_tokens ?? 0,
+      // El asistente escribe la caché de una hora desde 2026-09-17; antes, la
+      // de cinco minutos. Se decide por el día que se está acumulando.
+      ttl: ttlDeCacheDelAsistente(desde),
     })
     acc.usd += usd
 

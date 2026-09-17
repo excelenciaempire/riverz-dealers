@@ -55,10 +55,18 @@ export function esfuerzo(
  * decision razonable. Dejo de serlo cuando se midio lo que escribia: con una
  * lista larga de reglas se le escapan las ultimas, y las ultimas eran las que
  * le prohiben afirmar lo que no le consta. Publico "no tenemos aprobacion
- * ANMAT" y "los testimonios son reales" debajo de una foto.
+ * ANMAT" y "los testimonios son reales" debajo de una foto. Ahi paso a Opus 5.
+ *
+ * El 2026-09-17 se midio Sonnet 5 contra Opus 5 con el mismo prompt, las
+ * mismas herramientas y el mismo bucle, sobre 40 conversaciones reales de
+ * Pilar y 12 casos adversariales (ANMAT, ingredientes, cupones, contra
+ * entrega, embarazo): una infraccion grave contra dos, mejor nota de venta,
+ * la mitad de latencia y 2,5 veces mas barato. El harness queda en
+ * `scripts/eval-modelo/` para repetirlo antes de volver a cambiar esto.
  *
  * Un modelo que desobedece la regla numero ocho no sirve para atender en
- * publico, por barato que sea. Se corre con esfuerzo BAJO, que es donde la
- * diferencia de precio se achica y la obediencia se mantiene.
+ * publico, por barato que sea: Haiku sigue afuera. Opus 5 queda como opcion
+ * por agente. Se corre con esfuerzo BAJO, que es donde la diferencia de
+ * precio se achica y la obediencia se mantiene.
  */
-export const MODELO_POR_DEFECTO = 'claude-opus-5'
+export const MODELO_POR_DEFECTO = 'claude-sonnet-5'

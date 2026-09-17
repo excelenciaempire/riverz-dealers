@@ -30,7 +30,7 @@ export type LlmTier = 'triage' | 'premium';
 /** Anthropic models per tier (triage = fast/cheap, premium = top quality). */
 const ANTHROPIC_MODELS: Record<LlmTier, string> = {
   triage: 'claude-haiku-4-5-20251001',
-  premium: 'claude-opus-4-8',
+  premium: 'claude-sonnet-5',
 };
 
 interface OpenAICompatProvider {

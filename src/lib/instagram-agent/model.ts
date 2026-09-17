@@ -11,7 +11,7 @@ export const MODELS = {
   /** Triage en volumen: lead scoring, clasificación de spam. */
   triage: 'claude-haiku-4-5-20251001',
   /** Alto valor: planificación de campaña, cierre de conversación. */
-  premium: 'claude-opus-4-8',
+  premium: 'claude-sonnet-5',
 } as const;
 
 export type AgentTask = 'plan' | 'lead_score' | 'spam' | 'close';

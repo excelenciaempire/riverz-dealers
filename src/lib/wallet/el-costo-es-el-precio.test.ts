@@ -78,8 +78,18 @@ describe('el precio de cada proveedor', () => {
     const soloPrompt = costForModel('claude-opus-5', 1_000_000, 0)
     const soloLectura = costForModel('claude-opus-5', 0, 0, { read: 1_000_000 })
     const soloEscritura = costForModel('claude-opus-5', 0, 0, { write: 1_000_000 })
+    // La de una hora, que es la que escribe el asistente, sale el doble.
+    const escrituraLarga = costForModel('claude-opus-5', 0, 0, { write: 1_000_000, ttl: '1h' })
     expect(soloLectura).toBeCloseTo(soloPrompt * 0.1, 6)
     expect(soloEscritura).toBeCloseTo(soloPrompt * 1.25, 6)
+    expect(escrituraLarga).toBeCloseTo(soloPrompt * 2, 6)
+  })
+
+  it('Sonnet 5 se tarifa a lo que cobra Anthropic, no a lo de Sonnet 4.6', () => {
+    // Estaba en 3/15 (la tarifa de 4.6) cuando es 2/10: al comercio con
+    // Sonnet 5 se le cobraba un 50% de más justo al pasarlo al modelo barato.
+    expect(costForModel('claude-sonnet-5', 1_000_000, 0)).toBeCloseTo(2, 6)
+    expect(costForModel('claude-sonnet-5', 0, 1_000_000)).toBeCloseTo(10, 6)
   })
 
   it('un modelo caro cuesta más que uno barato, y el cobro lo refleja', () => {

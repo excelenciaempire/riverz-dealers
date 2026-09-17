@@ -110,7 +110,7 @@ export async function POST(request: Request) {
       .join('\n');
 
     const response = await client.messages.create({
-      model: 'claude-opus-4-8',
+      model: 'claude-sonnet-5',
       max_tokens: 1024,
       // Quick copy task — no thinking, lowest effort. The system prompt forbids
       // reasoning leaking into the visible response (a 4.8 quirk when thinking

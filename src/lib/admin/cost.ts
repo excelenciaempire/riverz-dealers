@@ -19,16 +19,35 @@ interface Rate {
 /**
  * Lo que cuesta la caché, en proporción al token de entrada.
  *
- * Leer de la caché sale una décima parte; escribirla, un 25% más. Son los
- * multiplicadores de Anthropic para la caché de 5 minutos, que es la que usa el
- * agente (`cache_control: { type: 'ephemeral' }`).
+ * Leer de la caché sale una décima parte, con cualquier TTL. Escribirla
+ * depende de cuánto dura: un 25% más con la caché de 5 minutos, el doble con
+ * la de 1 hora. El asistente usa la de 1 hora desde 2026-09-17 (ver
+ * `runWithTools`): con tráfico de una respuesta por hora, la de 5 minutos se
+ * reescribía en el 40% de las respuestas y era el 78% de la factura.
  */
 const CACHE_READ = 0.1;
-const CACHE_WRITE = 1.25;
+const CACHE_WRITE_5M = 1.25;
+const CACHE_WRITE_1H = 2;
+export type CacheTtl = '5m' | '1h';
+
+/**
+ * Con qué caché se escribió una respuesta del asistente, según cuándo salió.
+ *
+ * `ai_replies` guarda un solo número de escritura y no dice de qué TTL era.
+ * Antes del cambio era la de cinco minutos; tarifar esas filas viejas al doble
+ * inflaría un 60% la parte de escritura de todo lo anterior. La fecha es la
+ * del despliegue de `ttl: '1h'` en `runWithTools`.
+ */
+const CACHE_1H_DESDE = Date.UTC(2026, 8, 17);
+export function ttlDeCacheDelAsistente(createdAt: string | Date | null | undefined): CacheTtl {
+  if (!createdAt) return '5m';
+  const t = createdAt instanceof Date ? createdAt.getTime() : Date.parse(createdAt);
+  return Number.isFinite(t) && t >= CACHE_1H_DESDE ? '1h' : '5m';
+}
 
 const RATES: Record<string, Rate> = {
   'claude-haiku-4-5': { input: 1, output: 5 },
-  'claude-sonnet-5': { input: 3, output: 15 },
+  'claude-sonnet-5': { input: 2, output: 10 },
   'claude-sonnet-4-6': { input: 3, output: 15 },
   'claude-sonnet-4-5': { input: 3, output: 15 },
   'claude-opus-5': { input: 5, output: 25 },
@@ -90,13 +109,14 @@ export function costForModel(
    * porque las filas anteriores a la migración 215 no los tienen y no se pueden
    * inventar.
    */
-  cache?: { read?: number; write?: number }
+  cache?: { read?: number; write?: number; ttl?: CacheTtl }
 ): number {
   const rate = rateFor(model);
+  const cacheWrite = cache?.ttl === '1h' ? CACHE_WRITE_1H : CACHE_WRITE_5M;
   return (
     (promptTokens / 1_000_000) * rate.input +
     (completionTokens / 1_000_000) * rate.output +
     ((cache?.read ?? 0) / 1_000_000) * rate.input * CACHE_READ +
-    ((cache?.write ?? 0) / 1_000_000) * rate.input * CACHE_WRITE
+    ((cache?.write ?? 0) / 1_000_000) * rate.input * cacheWrite
   );
 }

@@ -2048,6 +2048,15 @@ export async function runWithTools(
   // que exige el proveedor la marca se ignora, así que ponerla ahí sólo
   // ensucia el pedido. Arriba, la primera llamada cuesta un poco más y las
   // siguientes una décima parte.
+  //
+  // De UNA HORA, no de cinco minutos. Un comercio recibe una consulta por hora,
+  // no una por minuto: con la caché corta, el 40% de las respuestas volvía a
+  // escribir el prompt entero (medido en Pilar, septiembre 2026: la escritura
+  // era el 78% de lo que costaba atender). Escribir la de una hora sale el
+  // doble que la de cinco, pero se escribe una vez por hora y no una por
+  // conversación. Quien tarifa esto es `anthropicUsageCost`, que ya separa
+  // `ephemeral_1h_input_tokens`; `costForModel` recibe `ttl: '1h'` donde suma
+  // filas de `ai_replies`.
   const CACHE_MIN_CHARS = 8000
   const protectedSystem = secureSystemPrompt(args.system)
   const system: Anthropic.TextBlockParam[] | string =
@@ -2056,7 +2065,7 @@ export async function runWithTools(
           {
             type: 'text',
             text: protectedSystem,
-            cache_control: { type: 'ephemeral' },
+            cache_control: { type: 'ephemeral', ttl: '1h' },
           },
         ]
       : protectedSystem

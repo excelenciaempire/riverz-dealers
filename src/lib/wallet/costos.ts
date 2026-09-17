@@ -18,7 +18,7 @@
  * ("¿esto a quién se lo estoy pagando?") y contestarla de antemano es la
  * diferencia entre una factura y una caja negra.
  */
-import { costForModel } from '@/lib/admin/cost';
+import { costForModel, ttlDeCacheDelAsistente } from '@/lib/admin/cost';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
@@ -87,15 +87,14 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     cobro: 'por_uso',
   },
   {
-    // 6,05 ¢ medido en producción sobre 25 respuestas (2026-08-30), con el
-    // modelo por defecto, que es Opus 5. El número viejo —1,44— era el de
-    // Haiku, y ningún agente nace en Haiku: le mostraba al comercio la cuarta
-    // parte de lo que iba a pagar. Es sólo la semilla: en cuanto la cuenta
-    // tiene historia se le muestra SU costo medido.
+    // ~2,5 ¢ con el modelo por defecto desde 2026-09-17 (Sonnet 5 con caché
+    // de una hora); con Opus 5 y caché de cinco minutos eran 6,05 ¢ medidos
+    // en producción (2026-08-30), y con Haiku 1,44. Es sólo la semilla: en
+    // cuanto la cuenta tiene historia se le muestra SU costo medido.
     concepto: 'ia_respuesta',
     nombreEs: 'Respuestas de la IA',
     nombreEn: 'AI replies',
-    centavos: 6,
+    centavos: 2.5,
     unidad: 'respuesta',
     proveedor: 'Anthropic',
     cobro: 'por_uso',
@@ -133,7 +132,7 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     concepto: 'ia_seguimiento',
     nombreEs: 'Seguimientos cuando el cliente se calla',
     nombreEn: 'Follow-ups when the customer goes quiet',
-    centavos: 6,
+    centavos: 2.5,
     unidad: 'seguimiento',
     proveedor: 'Anthropic',
     cobro: 'por_uso',
@@ -275,13 +274,14 @@ async function costoPorRespuesta(
   const { data } = await db
     .from('ai_replies')
     .select(
-      'prompt_tokens, completion_tokens, cache_read_tokens, cache_write_tokens, model'
+      'prompt_tokens, completion_tokens, cache_read_tokens, cache_write_tokens, model, created_at'
     )
     .eq('workspace_id', workspaceId)
     .eq('status', 'sent')
     .gte('created_at', desde())
     .limit(2000);
   const filas = (data ?? []) as {
+    created_at: string | null;
     prompt_tokens: number | null;
     completion_tokens: number | null;
     cache_read_tokens: number | null;
@@ -295,6 +295,8 @@ async function costoPorRespuesta(
       costForModel(r.model, r.prompt_tokens ?? 0, r.completion_tokens ?? 0, {
         read: r.cache_read_tokens ?? 0,
         write: r.cache_write_tokens ?? 0,
+        // La de una hora desde 2026-09-17; las filas anteriores, la de cinco.
+        ttl: ttlDeCacheDelAsistente(r.created_at),
       }),
     0
   );

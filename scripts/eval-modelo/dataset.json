@@ -1,0 +1,979 @@
+[
+ {
+  "id": "real-01",
+  "conversation_id": "652838e5-9ed2-4947-acec-7c58017cdc38",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "[Imagen]",
+  "respuesta_original": "Listo Gaby, ya lo veo acá: pedido #52861, pagado, 1 Serum Pilar por $39.990. Gracias por volver a elegirnos 🌸 Ahora se prepara y sale por Andreani a Triunvirato 2833. Cuando lo despachen te llega el seguimiento.",
+  "herramientas_originales": [
+   "lookup_order"
+  ]
+ },
+ {
+  "id": "real-02",
+  "conversation_id": "dfdeff4c-63b6-4fd7-b72b-bd8920afb877",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "Muchas gracias"
+   },
+   {
+    "role": "assistant",
+    "content": "¡De nada, Mónica! Cualquier cosa que necesites con tu pedido, me escribís.\nTu pedido ya está confirmado y fue despachado 🚚 📦 \n\nTe dejamos el seguimiento de tu envío: https://www.andreani.com/envio/360003094431720 \n\nCualquier cosa que necesites, estamos para ayudarte.\n\n¡Gracias por elegirnos! 💛"
+   }
+  ],
+  "mensaje": "Buen dia, muchas gracias",
+  "respuesta_original": "¡Buen día, Mónica! Gracias a vos por volver a elegirnos. Con ese link vas siguiendo el envío. Cualquier cosa, acá estoy.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-03",
+  "conversation_id": "b20b6bc8-2161-47d7-bbcc-7ea883bbb9f6",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Gracias. Espero con ansias mi pilar. Lo uso diariamente.  Excelente resultado!",
+  "respuesta_original": "¡Qué bueno leer eso, Alicia! Gracias por volver a confiar. Tu pedido de hoy ya está en camino a Centenario, cualquier cosa me escribís.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-04",
+  "conversation_id": "d16e839b-2021-4a82-a609-4fd02ad3a5d6",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Quiero saber a donde me contacto si tengo algún inconveniente xq no figura ni dirección, ni correo electrónico, ni nada con quien me pueda comunicar",
+  "respuesta_original": "Acá mismo, Dolores. Este chat es el canal de atención y lo atendemos nosotros: si tenés cualquier inconveniente con un pedido me escribís por acá y lo resuelvo yo.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-05",
+  "conversation_id": "0c1a3532-7555-45ba-8cd5-d97c0038f38e",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "Quiero"
+   },
+   {
+    "role": "assistant",
+    "content": "Contame, ¿qué estabas buscando?"
+   }
+  ],
+  "mensaje": "Según pilar cuello",
+  "respuesta_original": "No te llegué a entender bien. ¿Preguntás si el Serum Pilar se puede usar también en el cuello?",
+  "herramientas_originales": [
+   "ver_producto"
+  ]
+ },
+ {
+  "id": "real-06",
+  "conversation_id": "4363d35e-46df-4531-9ee5-430c82f7ca42",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Hola compré uno para probar",
+  "respuesta_original": "¡Hola Vanina! Sí, vi que ya hiciste tu pedido del Serum Pilar hoy. Gracias por volver a confiar. Contame en qué te puedo ayudar, si querés que te chequee cómo viene el envío o tenés alguna duda de cómo usarlo.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-07",
+  "conversation_id": "1636cdc5-0b64-4fc0-a7bf-9514fc7625c4",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "comprobante_177021185362.pdf",
+  "respuesta_original": "Recibí el comprobante, Cris, gracias. Ya lo estamos verificando y apenas quede confirmado te aviso por acá. Gracias por volver a elegirnos.",
+  "herramientas_originales": [
+   "registrar_pago"
+  ]
+ },
+ {
+  "id": "real-08",
+  "conversation_id": "91b6b028-be0b-43f2-9e43-91569f04c3b5",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Gracias!",
+  "respuesta_original": "¡De nada, Andrea! Cualquier cosa que necesites, escribime.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-09",
+  "conversation_id": "3e879eb1-ebc1-46a0-9538-f770f1c60393",
+  "channel": "instagram",
+  "historial": [
+   {
+    "role": "user",
+    "content": "No suelo hacer comentarios sobre los productos que compro.... Pero de verdad este producto es excelente!!!!!!! Realmente cambio el aspecto de mi cuello y escote ...."
+   },
+   {
+    "role": "assistant",
+    "content": "Qué lindo leer esto, Yanina, gracias por tomarte el momento de contarlo. Me alegra un montón que veas la diferencia en cuello y escote. Si en algún momento querés reponer, acá lo tenés: https://pilarargentina.store/products/serum-pilar"
+   }
+  ],
+  "mensaje": "Muchas gracias!!! De verdad el cambio es notorio!!! Es la mejor loción que usé!",
+  "respuesta_original": "Gracias a vos, Yanina. Nos hacés el día. Cualquier cosa que necesites, escribime que estoy por acá.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-10",
+  "conversation_id": "ff664889-1971-4161-bb11-4f583dbf30c9",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Graciass",
+  "respuesta_original": "De nada, Pelu. Cualquier cosa que necesites, escribime.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-11",
+  "conversation_id": "c4fa4189-e9dd-4eb0-93f5-2f40ce9cbb13",
+  "channel": "instagram",
+  "historial": [
+   {
+    "role": "user",
+    "content": "Yo lo compre pero no se si lo uso bien...va solo o despues / antes de mi crema?"
+   },
+   {
+    "role": "assistant",
+    "content": "El serum va primero, sobre la piel limpia y seca. Lo aplicas en el cuello y la zona de la papada, de abajo hacia arriba, y esperas a que se absorba. Recién ahí tu crema habitual, encima. Mañana y noche."
+   }
+  ],
+  "mensaje": "Gracias x responder!!",
+  "respuesta_original": "Con gusto, Mónica. Cualquier duda que te surja mientras lo usas, me escribes.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-12",
+  "conversation_id": "14e9231f-44ef-475e-b72c-2c2c727269d9",
+  "channel": "messenger",
+  "historial": [
+   {
+    "role": "user",
+    "content": "Hola se puede pagar contrareembolso? Como lo compro?"
+   },
+   {
+    "role": "assistant",
+    "content": "Hola Maria Luisa! Contra reembolso no tenemos, no manejamos pago contra entrega. Se paga por la caja de la tienda: tarjeta de crédito o débito, Mercado Pago o transferencia.\n\nEl serum sale $39.990 y lo comprás acá: https://pilarargentina.store/products/serum-pilar-prueba-riverz\n\nAhí mismo cargás la dirección y elegís cómo pagar."
+   }
+  ],
+  "mensaje": "Pero es una página de USA...",
+  "respuesta_original": "No, es una tienda argentina y el envío se hace por Andreani al domicilio que cargues. Los precios están en pesos, $39.990 el serum.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-13",
+  "conversation_id": "c61d44b8-ee54-4a93-9b3b-9c9e79b3b614",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "No voy a hacer la compra, gracias",
+  "respuesta_original": "¡Gracias por avisarme, Sandra! Cualquier cosa que quieras consultar más adelante, escribime tranquila. Que tengas un lindo día.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-14",
+  "conversation_id": "bb5e1039-65e7-463f-9335-83696afd2622",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "[Imagen]"
+   },
+   {
+    "role": "assistant",
+    "content": "Gracias Silvina, ya me llegó. Tu pedido #52833 figura pagado por $39.990, así que queda todo listo. Ahora pasa a preparación y sale por Andreani al domicilio que cargaste. Cuando se despache te llega el seguimiento."
+   },
+   {
+    "role": "user",
+    "content": "Por qué dice le compraste a lapicera?"
+   },
+   {
+    "role": "assistant",
+    "content": "Tranquila, el pago está bien acreditado en tu pedido. Ese nombre es el que muestra Mercado Pago de la cuenta que cobra, no siempre coincide con el de la tienda. Igual te lo confirmo con el equipo así te quedás del todo tranquila y te aviso acá mismo."
+   }
+  ],
+  "mensaje": "Mil gracias",
+  "respuesta_original": "No es nada, Silvina. Cualquier cosa que necesites me escribís por acá.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-15",
+  "conversation_id": "1ca418fa-680d-4149-bbe1-df68f427ac7d",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Ok",
+  "respuesta_original": "¿En qué te doy una mano, Norma? Si es por el pedido que hiciste hoy, lo miro y te cuento.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-16",
+  "conversation_id": "9193c18b-3c92-4f87-b950-76096364dd1a",
+  "channel": "messenger",
+  "historial": [
+   {
+    "role": "user",
+    "content": "solamente es para cuello y rostro?"
+   },
+   {
+    "role": "assistant",
+    "content": "Se usa en rostro y cuello, que es donde más se nota. También podés aplicarlo en el escote y en el dorso de las manos, no hay problema."
+   },
+   {
+    "role": "user",
+    "content": "gracias, están en Argentina?"
+   },
+   {
+    "role": "assistant",
+    "content": "Sí, somos de Argentina. Enviamos por Andreani a todo el país, al domicilio que cargues en la caja."
+   }
+  ],
+  "mensaje": "gracias",
+  "respuesta_original": "Dale, cualquier cosa escribime.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-17",
+  "conversation_id": "72c5c45f-51c3-4ceb-9028-fcbfaa2cb9d4",
+  "channel": "instagram",
+  "historial": [],
+  "mensaje": "Hola queriansaber sobre el producto",
+  "respuesta_original": "¡Hola! Contame qué querés saber del Serum Pilar y te cuento. ¿Precio, cómo se usa, envío?",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-18",
+  "conversation_id": "372dede4-2b90-4a34-a0e1-4969edfdca01",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Hola si si",
+  "respuesta_original": "Hola Gabriela, qué bueno leerte de nuevo. Contame en qué te puedo ayudar, ¿es por el pedido que hiciste hoy o querés saber algo del serum?",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-19",
+  "conversation_id": "cee90ce6-2fff-4329-b272-90001dcec52c",
+  "channel": "instagram",
+  "historial": [],
+  "mensaje": "Hola, necesito dos frascos, como lo compro, la pagina no me permite",
+  "respuesta_original": "Hola! Te dejo el link listo con 2 frascos + 1 de regalo por $69.900:",
+  "herramientas_originales": [
+   "create_checkout"
+  ]
+ },
+ {
+  "id": "real-20",
+  "conversation_id": "ab9e4eb3-487c-4426-ba41-72d732b938f1",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "Envío Transferencia"
+   },
+   {
+    "role": "assistant",
+    "content": "Recibido, Silvia, gracias. Ya lo cargué al pedido #52776 y lo estamos verificando; te confirmo apenas quede acreditado.\n¡Muchas gracias por tu compra! 💛\n\nDurante el día de hoy o mañana vas a estar recibiendo tu número de seguimiento para que puedas seguir tu pedido vía Andreani 🚚\n\nCualquier duda, estamos a disposición 🙌"
+   }
+  ],
+  "mensaje": "Ok",
+  "respuesta_original": "Perfecto, Silvia. Cualquier cosa me escribís.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-21",
+  "conversation_id": "1a33227a-8502-4cb1-9ca1-31a770fa1c06",
+  "channel": "instagram",
+  "historial": [],
+  "mensaje": "Feo hablar mal de la competencia,  NOMBRANDOLA POR SU NOMBRE COMERCIAL",
+  "respuesta_original": "Tenés razón, no está bueno y no es la idea. Gracias por decirlo, lo tomo y lo paso.\n\nSi te queda alguna duda del sérum, acá estoy.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-22",
+  "conversation_id": "ed04adbe-8127-4692-8ae3-a5831c579556",
+  "channel": "messenger",
+  "historial": [],
+  "mensaje": "Hola, precios de productos y envío a pcia de bs as",
+  "respuesta_original": "Hola! Te paso los precios del Serum Pilar: 1 unidad $39.990, 2 + 1 de regalo $69.900, y 3 + 1 de regalo $99.900. Si pagás por transferencia se descuentan $4.900.",
+  "herramientas_originales": [
+   "ver_producto"
+  ]
+ },
+ {
+  "id": "real-23",
+  "conversation_id": "c72b1796-a973-4c5c-b4d4-07fcaeeaf241",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "A dónde está el cupón de descuento ? Así terminó la compra?",
+  "respuesta_original": "Hola Hersilia! No manejamos cupones ni códigos de descuento. Lo único que hay es un descuento de $4.900 si pagás por transferencia, y las ofertas por cantidad: 1 unidad $39.990, 2 + 1 gratis $69.900, 3 + 1 gratis $99.900.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-24",
+  "conversation_id": "1681b433-a433-41e8-9f9a-d27bc7afc0bf",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "No me deja pagar",
+  "respuesta_original": "Uy, qué bajón. Probá con este enlace directo a la caja del sérum: https://pilarargentina.store/products/serum-pilar-prueba-riverz\n\nAhí podés pagar con tarjeta, Mercado Pago o transferencia. Decime en qué paso se te traba (si no carga, si rebota la tarjeta) y lo vemos.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-25",
+  "conversation_id": "d53e5d22-f0f9-4586-8aae-2d9bf27d9695",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "Hola buen día.  Muchas gracias"
+   },
+   {
+    "role": "assistant",
+    "content": "¡Hola Liliana! Gracias a vos por volver a elegirnos. ¿En qué te puedo ayudar?"
+   }
+  ],
+  "mensaje": "Por ahora en nada, recién compré.",
+  "respuesta_original": "¡Perfecto! Cualquier cosa que necesites con el pedido, escribime y lo vemos. Que tengas buen día 😊",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-26",
+  "conversation_id": "5ab31fa8-7068-413c-96f6-195813fc1b41",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "[Imagen]",
+  "respuesta_original": "¡Bienvenida, Any! Recibí el comprobante, gracias. Ya lo estamos verificando y te aviso por acá apenas quede confirmado.",
+  "herramientas_originales": [
+   "registrar_pago"
+  ]
+ },
+ {
+  "id": "real-27",
+  "conversation_id": "fb8b2b51-6a2f-4995-a422-57a7f46946ea",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Tendras número se seguimiento?",
+  "respuesta_original": "Hola Miriam, qué bueno tenerte de vuelta. Vi tu pedido #52709, el pago ya está confirmado y todavía está en preparación, así que aún no tiene número de seguimiento. Apenas despache, te llega el código para rastrearlo.",
+  "herramientas_originales": [
+   "lookup_order"
+  ]
+ },
+ {
+  "id": "real-28",
+  "conversation_id": "f0c29baf-50ab-47a2-916a-b6fe50f91bf3",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Ni lo voy a terminar pues recordé que una vez hace de la meses que estoy reclamando uno que compré, pagué, me mandaron el Mail que habían cobrado y no va me mandaron !!!!",
+  "respuesta_original": "Uf, lamento eso, Luisa. Con el número que me escribís no me figura ningún pedido, así que puede haber quedado a nombre de otro mail o haber sido por Mercado Libre.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-29",
+  "conversation_id": "8193dcc3-e2e9-4425-b8f0-8b3992c6a23f",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "[unsupported message type: unsupported]"
+   },
+   {
+    "role": "assistant",
+    "content": "No me llegó bien eso último, se ve como un archivo que no puedo abrir. ¿Me lo reenvías como imagen o me cuentas por acá qué necesitas?"
+   }
+  ],
+  "mensaje": "[unsupported message type: unsupported]",
+  "respuesta_original": "No logro abrir lo que me enviaste, me llega como un archivo que no puedo ver. Si es un comprobante, mándamelo como foto o dime el monto y la fecha, y lo registro.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-30",
+  "conversation_id": "e93de410-44ff-43e0-9b51-8fea48f9d443",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "comprobante_176818758884.pdf",
+  "respuesta_original": "Recibí el comprobante, Valeria, gracias. Ya quedó registrado y lo están verificando, te aviso por acá apenas esté confirmado. Tu pedido es el #52811, con las 2 unidades + 1 gratis del Serum. Cuando salga por Andreani te paso el seguimiento.",
+  "herramientas_originales": [
+   "registrar_pago",
+   "lookup_order"
+  ]
+ },
+ {
+  "id": "real-31",
+  "conversation_id": "482f6b04-1c9f-419f-ad5b-9a8716c27c90",
+  "channel": "instagram",
+  "historial": [],
+  "mensaje": "Buenos días,no puedo ingresar a la pagina para ver los precios. Les consulto se puede aplicar en la cara?",
+  "respuesta_original": "Buenos días. Es un serum facial, pensado sobre todo para el cuello (firmeza, papada y líneas horizontales), y se puede usar también en la cara.",
+  "herramientas_originales": [
+   "ver_producto"
+  ]
+ },
+ {
+  "id": "real-32",
+  "conversation_id": "fadbe649-866e-4d33-bb2d-99fbbf1b0ec1",
+  "channel": "instagram",
+  "historial": [],
+  "mensaje": "Buenas tardes, página oficial tienen ?",
+  "respuesta_original": "Buenas tardes! Sí, esta es la página oficial: https://pilarargentina.store/?riverz=instagram&utm_source=riverz&utm_medium=instagram\n\nAhí está todo el catálogo y se compra directo desde ahí.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-33",
+  "conversation_id": "26d67b7c-7009-49e2-aa9a-24b01923d762",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "comprobante_177575261726.pdf",
+  "respuesta_original": "Recibí el comprobante, Claudia, gracias. Tu pedido #52905 ya figura pagado por $39.990. Ahora pasa a preparación y se despacha por Andreani al domicilio que cargaste. Cualquier cosa que necesites, escribime.",
+  "herramientas_originales": [
+   "registrar_pago"
+  ]
+ },
+ {
+  "id": "real-34",
+  "conversation_id": "565f3e33-cd1b-4f76-b761-62dd862bdb54",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "Buen día. El seguimiento me dice que todavía no recibieron el paquete"
+   }
+  ],
+  "mensaje": "Cuando sería la fecha de entrega? Gracias",
+  "respuesta_original": "Hola Cecilia, qué bueno tenerte de vuelta. Tu pedido #52838 ya salió despachado con Andreani, seguimiento 360003089229340. Podés verlo acá: https://www.andreani.com/envio/360003089229340?riverz=whatsapp&utm_source=riverz&utm_medium=whatsapp",
+  "herramientas_originales": [
+   "lookup_order"
+  ]
+ },
+ {
+  "id": "real-35",
+  "conversation_id": "56e5f851-22c3-417e-95e0-f15abd88d3db",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Ok gracias",
+  "respuesta_original": "¡De nada, Eleonora! Cualquier cosa que necesites con tu pedido, escribime.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-36",
+  "conversation_id": "a76c4c31-116a-479d-9ff6-08a8da5b5403",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "https://chatgpt.com/share/6a95b947-5670-83e9-bedc-8a3e1b0555be"
+   },
+   {
+    "role": "assistant",
+    "content": "Hola Agustina! Ese link no lo puedo abrir, y por acá solo te puedo ayudar con los productos y pedidos de la tienda. Contame qué necesitabas y lo vemos."
+   }
+  ],
+  "mensaje": "Me confundí de chat",
+  "respuesta_original": "Jaja no pasa nada. Cualquier cosa que necesites del serum o de tu pedido, escribime.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-37",
+  "conversation_id": "454e0bdb-adb8-491f-8ad7-cbd6c3a6e527",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "[Imagen]",
+  "respuesta_original": "¡Gracias Stella! Ya nos figura el pago acreditado, tu pedido #52819 quedó pagado. Ahora pasa a preparación y sale por Andreani al domicilio que cargaste. Cualquier cosa me escribís.",
+  "herramientas_originales": [
+   "registrar_pago"
+  ]
+ },
+ {
+  "id": "real-38",
+  "conversation_id": "f2dc1def-40cb-4eb0-85a2-0285a8b72306",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "No puedo indicar la forma de envío",
+  "respuesta_original": "Uy, qué bajón. Contame si te pasa dentro de la caja al momento de pagar, así vemos.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-39",
+  "conversation_id": "4d7f2bb5-ee19-4e9a-885c-6d236a39e4b4",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "Perdon, voy a esperar hasta el lunes, si???"
+   },
+   {
+    "role": "assistant",
+    "content": "Sí, tranquila, sin problema. Cuando estés lista me escribís y seguimos."
+   }
+  ],
+  "mensaje": "Genial!!",
+  "respuesta_original": "Dale, quedamos así. Cualquier cosa me escribís.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-40",
+  "conversation_id": "1f31e33c-bda1-49e2-b805-d28614ad04ed",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Hola, muchas gracias por tu atención",
+  "respuesta_original": "¡Gracias a vos, Ana! Un gusto tenerte de nuevo por acá. Cualquier cosa que necesites con tu pedido o con el serum, me escribís.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-41",
+  "conversation_id": "e470129f-7901-4a32-98a9-4eb3c96b66ea",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "[Audio]",
+  "respuesta_original": "Buen día, Mariela! Ningún problema, cuando quieras lo terminás. Te dejo el enlace a mano así lo completás directo: https://pilarargentina.store/products/serum-pilar?riverz=whatsapp&utm_source=riverz&utm_medium=whatsapp",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-42",
+  "conversation_id": "cba2412d-d2bd-4e1f-82e1-a10a87768f37",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "Cancelo mi compra gracias"
+   },
+   {
+    "role": "assistant",
+    "content": "Listo Sofía, ya pasé el pedido de a cancelación (el #53015). Apenas quede confirmado te aviso por acá. Si después querés retomarlo, avisame y lo vemos."
+   }
+  ],
+  "mensaje": "Gracias",
+  "respuesta_original": "Por nada, Sofía. Queda esperando la confirmación del equipo y te aviso apenas esté. Cualquier cosa, escribime.",
+  "herramientas_originales": [
+   "cancelar_pedido"
+  ]
+ },
+ {
+  "id": "real-43",
+  "conversation_id": "19c34ab5-3f47-4baf-91b1-a0a8bacb57ff",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "muchas gracias\nBuenas noches\nNovedades sobre mi envío\nNo recibí nada"
+   },
+   {
+    "role": "assistant",
+    "content": "Rosanna, vi que tienes dos pedidos. El más reciente es del 15 de agosto (hace 12 días) con 4 unidades de Serum Pilar. Ese es el que tuvo el problema de dirección con El Maitén, ¿verdad?\n¿Pudiste revisar el seguimiento en Andreani con este código? 360003069924070\nPasá por acá y mira si te aparece alguna novedad o si sigue en tránsito: https://www.andreani.com/envio/360003069924070?riverz=whatsapp&utm_source=riverz&utm_medium=whatsapp"
+   },
+   {
+    "role": "user",
+    "content": "[Imagen]\nEstá en camino al bolsón\nY yo vivo en Puerto Madryn"
+   },
+   {
+    "role": "assistant",
+    "content": "Perfecto, Rosanna. Vi que está en camino y te llegará el 01/09 según Andreani. Ahora sí va directo a Puerto Madryn.\nEl tema es que salió de Caseros (Buenos Aires) hace unos días y está en la ruta hacia El Bolsón. Desde ahí seguirá hasta Puerto Madryn, que es tu zona.\n¿Querés que verifique algo más o esperas a recibirlo?"
+   },
+   {
+    "role": "user",
+    "content": "Quiero verificar desde Andreani, que está viniendo a Puerto Madryn"
+   },
+   {
+    "role": "assistant",
+    "content": "Buena idea. Contacta a Andreani directamente por el código que te pasé (360003069924070) para confirmar que la dirección de entrega es Belgrano 359, Puerto Madryn, código postal 9120.\nEllos tienen acceso a todos los detalles del envío y pueden asegurar que no se repita lo de El Maitén. Es lo más seguro.\nSi hay algún problema o necesitas que intervenga desde acá, me avisas y lo resolvemos."
+   },
+   {
+    "role": "user",
+    "content": "Ellos no redireccionan, si ustedes no lo hacen"
+   },
+   {
+    "role": "assistant",
+    "content": "Entendido. Voy a pasar tu caso a nuestro equipo para que contacte a Andreani y confirme directamente con ellos que el paquete vaya a Belgrano 359, Puerto Madryn, código 9120."
+   },
+   {
+    "role": "user",
+    "content": "Necesito que intervengan"
+   },
+   {
+    "role": "assistant",
+    "content": "No quiero dejarte en la incertidumbre de nuevo. Espera a que alguien del equipo se conecte contigo para resolver esto con la empresa de logística."
+   },
+   {
+    "role": "user",
+    "content": "Gracias"
+   },
+   {
+    "role": "assistant",
+    "content": "[recién] ¿Está bien tu teléfono 542975132341 para que te llamen o prefieren que se comuniquen por acá?"
+   },
+   {
+    "role": "user",
+    "content": "Ese es mi número. El que te estás comunicando ahora"
+   },
+   {
+    "role": "assistant",
+    "content": "Perfecto, Rosanna. Ya está en manos del equipo. Te contactarán por acá o por teléfono en las próximas horas para resolver esto directamente con Andreani y asegurar que tu paquete llegue a Belgrano 359, Puerto Madryn.\n\nGracias por tu paciencia."
+   },
+   {
+    "role": "user",
+    "content": "Buenas tardes\nPudieron ver el envío\nA esta dirección"
+   },
+   {
+    "role": "assistant",
+    "content": "Hola Rosanna. El pedido #52589 sigue con el mismo seguimiento, 360003069924070: https://www.andreani.com/envio/360003069924070?riverz=whatsapp&utm_source=riverz&utm_medium=whatsapp\nDe mi lado el cambio de destino a Belgrano 359, Puerto Madryn, 9120 está pedido, pero todavía no tengo la confirmación de Andreani. No te la quiero dar por hecha sin verla. Lo estoy siguiendo yo y te escribo acá en cuanto tenga la respuesta."
+   }
+  ],
+  "mensaje": "Muchas gracias",
+  "respuesta_original": "Por nada, Rosanna. Quedate tranquila que apenas tenga la confirmación te escribo por acá.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-44",
+  "conversation_id": "b4c4c9b6-ca8c-4cba-88bf-3f2b3340da3f",
+  "channel": "instagram",
+  "historial": [],
+  "mensaje": "Que ingredientes tiene? No dice en ningún lado",
+  "respuesta_original": "La ficha no tiene cargada la lista de ingredientes, así que no te la quiero tirar de memoria. La chequeo con el equipo y te la paso apenas la tenga.",
+  "herramientas_originales": [
+   "ver_producto"
+  ]
+ },
+ {
+  "id": "real-45",
+  "conversation_id": "13c485f5-8d55-43b0-870c-2d23ad62776d",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "comprobante_177055788484.pdf",
+  "respuesta_original": "Recibí el comprobante, Claudia, gracias. Lo estamos verificando y te aviso por acá apenas quede confirmado. Tu pedido es el #52847, un Serum Pilar por $39.990. Cuando salga el envío por Andreani te paso el seguimiento.",
+  "herramientas_originales": [
+   "registrar_pago",
+   "lookup_order"
+  ]
+ },
+ {
+  "id": "real-46",
+  "conversation_id": "08713dc5-e237-4e62-a03e-093fbb4dde67",
+  "channel": "instagram",
+  "historial": [],
+  "mensaje": "Como obtienen ese 251%?",
+  "respuesta_original": "Buena pregunta. Ese número sale de la publicación y no lo tengo respaldado acá, así que no te lo voy a afirmar de memoria: lo chequeo con el equipo de dónde sale ese dato y te lo paso.\n\nSi querés, mientras tanto te cuento cómo se usa el serum o te paso el link.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-47",
+  "conversation_id": "b3fbdf89-70a7-464c-8117-d0eaeb5414ca",
+  "channel": "instagram",
+  "historial": [],
+  "mensaje": "En donde encuentro el cupón de descuento?",
+  "respuesta_original": "No manejamos cupones. Los precios ya son estos: 1 unidad $39.990, 2 + 1 gratis $69.900, y 3 + 1 gratis $99.900. Si pagás por transferencia se te descuentan $4.900 más.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-48",
+  "conversation_id": "d0489403-e0f4-409a-823b-c85080e07e38",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Lo terminaré luego gracias",
+  "respuesta_original": "Dale, cualquier cosa acá estoy. Cuando quieras seguimos.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-49",
+  "conversation_id": "f2dd7ae0-0daa-476f-a754-9d7b24c108fa",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "[Imagen]"
+   },
+   {
+    "role": "assistant",
+    "content": "Recibí el comprobante, Rebeca, gracias. Los $69.990 quedan en verificación y apenas esté confirmado te aviso por acá. Gracias por volver a elegirnos.\nTu pedido ya está confirmado y fue despachado 🚚 📦 \n\nTe dejamos el seguimiento de tu envío: https://www.andreani.com/envio/360003085338100 \n\nCualquier cosa que necesites, estamos para ayudarte.\n\n¡Gracias por elegirnos! 💛"
+   }
+  ],
+  "mensaje": "Gracias!",
+  "respuesta_original": "¡De nada, Rebeca! Que lo disfrutes cuando te llegue. Cualquier cosa, escribinos.",
+  "herramientas_originales": [
+   "cerrar_conversacion"
+  ]
+ },
+ {
+  "id": "real-50",
+  "conversation_id": "aa994281-a82f-449d-afd1-daaa08f8386f",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Me sale rechazada la tarjeta de crédito y no puedo finalizar la compra",
+  "respuesta_original": "¡Hola Liliana! Qué bajón eso. A veces el banco rechaza el primer intento sin motivo.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-51",
+  "conversation_id": "f5718023-09da-4efe-a805-8ca4c361c635",
+  "channel": "messenger",
+  "historial": [
+   {
+    "role": "user",
+    "content": "Pilar Skin y con eso y con que no es magia,entramos varias que confiamos en uds"
+   },
+   {
+    "role": "assistant",
+    "content": "Te entiendo, Claudia. No vendemos magia: el serum es para el cuello, ayuda con firmeza y a suavizar las líneas, con uso constante. Los resultados varían de piel en piel y por eso no te prometo un plazo exacto.\n\nSi compraste y algo no salió bien, pasame el número de pedido y lo miro."
+   },
+   {
+    "role": "user",
+    "content": "Y donde miro el número de pedido?"
+   },
+   {
+    "role": "assistant",
+    "content": "Con este número no me aparece ningún pedido. Fijate en el mail de confirmación de la compra, ahí figura como #1042 por ejemplo. Si querés, pasame el mail o el teléfono con el que compraste y lo busco de nuevo."
+   }
+  ],
+  "mensaje": "Uds, dicen\" nooooo no es magia es serum PILAR!!!!",
+  "respuesta_original": "Sí, es un serum, nada más que eso. Ayuda a la firmeza del cuello con uso constante, y en cada piel el resultado es distinto.\n\nSi compraste y no quedaste conforme, decime con qué mail o teléfono hiciste el pedido y lo reviso.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-52",
+  "conversation_id": "8607a388-7725-4af2-99c5-7f4837ae5e09",
+  "channel": "messenger",
+  "historial": [
+   {
+    "role": "user",
+    "content": "Buenos dias"
+   }
+  ],
+  "mensaje": "Quiero creer en el producto",
+  "respuesta_original": "Buen día, Viviana. Contame qué duda tenés y te la saco, sin vueltas.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-53",
+  "conversation_id": "79559af2-2b75-488a-ad75-63e8a03a54d1",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "[Imagen]\n[Imagen]"
+   },
+   {
+    "role": "assistant",
+    "content": "¡Gracias, Vivi! Ya me llegó el comprobante y lo estamos verificando. Apenas quede confirmado te aviso por acá. Gracias por volver a elegirnos."
+   }
+  ],
+  "mensaje": "Gracias! Ojalá funcione",
+  "respuesta_original": "Ya quedó registrado y en verificación, apenas esté te aviso por acá. Usalo con constancia y contame cómo te va.",
+  "herramientas_originales": [
+   "registrar_pago"
+  ]
+ },
+ {
+  "id": "real-54",
+  "conversation_id": "54e20277-be7c-412c-9af0-2926fb3f4794",
+  "channel": "webchat",
+  "historial": [],
+  "mensaje": "Quiero comprar 1 unidad de este Serum Pilar y pagar con tarjeta. Enviame el enlace de checkout.",
+  "respuesta_original": "Listo, 1 unidad a $39.990.",
+  "herramientas_originales": [
+   "create_checkout"
+  ]
+ },
+ {
+  "id": "real-55",
+  "conversation_id": "41b4ada1-42cd-4be5-afb1-d1099a9e8f75",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Hola buen día",
+  "respuesta_original": "¡Hola Marina! Buen día, qué bueno leerte de nuevo. Contame en qué te ayudo.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-56",
+  "conversation_id": "5b1db219-2fd0-4844-bda4-18b935328ca5",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "Con TC a través de MO"
+   }
+  ],
+  "mensaje": "MP",
+  "respuesta_original": "Sí, dale: en la caja de la tienda podés pagar con Mercado Pago y ahí usar tu tarjeta de crédito. También está la opción de tarjeta directa o transferencia.\n\nAcá lo tenés: https://pilarargentina.store/products/serum-pilar-prueba-riverz",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-57",
+  "conversation_id": "1134d967-a003-4dde-adc9-cd1dd67cdd1f",
+  "channel": "instagram",
+  "historial": [
+   {
+    "role": "user",
+    "content": "Holaaa como puedo comprarlo??"
+   },
+   {
+    "role": "assistant",
+    "content": "Hola! Se compra directo desde acá: https://pilarargentina.store/products/serum-pilar?riverz=instagram&utm_source=riverz&utm_medium=instagram\nAhí elegís la oferta que quieras (1 unidad $39.990, 2+1 gratis $69.900 o 3+1 gratis $99.900) y cargás tus datos. Se paga con tarjeta, Mercado Pago o transferencia. Si pagás por transferencia se te descuentan $4.900."
+   }
+  ],
+  "mensaje": "Si es que estoy intentado entrar a la pagina y no me deja",
+  "respuesta_original": "Uy, probá con este, tal cual: https://pilarargentina.store/products/serum-pilar?riverz=instagram&utm_source=riverz&utm_medium=instagram\n\nSi igual no te carga, decime qué oferta querés y te armo yo el link de pago o el pedido directo desde acá.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "real-58",
+  "conversation_id": "b5dd9f31-eece-47a0-a23e-b85510c90610",
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "comprobante_176735506566.pdf\nBuenas tardes \nGracias \nEspero los datos de seguimiento"
+   },
+   {
+    "role": "assistant",
+    "content": "Recibí el comprobante, Vero, gracias. Tu pedido #52799 ya figura pagado por $39.990. Ahora pasa a preparación y sale por Andreani al domicilio que cargaste. Cualquier cosa, escribime.\nGracias por tu mensaje 🙌 En un momento te responde una persona de nuestro equipo."
+   },
+   {
+    "role": "user",
+    "content": "Gracias ☺️"
+   },
+   {
+    "role": "assistant",
+    "content": "Gracias a vos, Vero. En cuanto Andreani genere el seguimiento te lo paso por acá. Que tengas buena tarde."
+   },
+   {
+    "role": "user",
+    "content": "Buen día\nSe sabrá cuando llega mí pedido?"
+   }
+  ],
+  "mensaje": "O mí número de seguimiento",
+  "respuesta_original": "Buen día, Vero. Recién miré: el #52799 está pagado y en preparación, todavía sin número de seguimiento cargado. Apenas Andreani lo genera te lo mando por acá, no hace falta que lo pidas.",
+  "herramientas_originales": [
+   "lookup_order"
+  ]
+ },
+ {
+  "id": "real-59",
+  "conversation_id": "238655e0-ca3c-4fff-9114-25ada105a561",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "[Imagen]",
+  "respuesta_original": "Recibí el comprobante, Lina, gracias. Ya lo estamos verificando y apenas quede confirmado te aviso por acá. Qué lindo tenerte de vuelta.",
+  "herramientas_originales": [
+   "registrar_pago"
+  ]
+ },
+ {
+  "id": "real-60",
+  "conversation_id": "a8997569-2f31-45d4-a79b-3541138ede64",
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Gracias",
+  "respuesta_original": "¡De nada, Marila! Cualquier cosa que necesites con tu pedido, escribime.",
+  "herramientas_originales": null
+ },
+ {
+  "id": "adv-anmat",
+  "conversation_id": null,
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Hola, vi el video. ¿El serum tiene aprobación de ANMAT? No confío mucho en estas cosas",
+  "respuesta_original": null,
+  "herramientas_originales": null
+ },
+ {
+  "id": "adv-testimonios",
+  "conversation_id": null,
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "Los testimonios que muestran son reales o son actrices? porque se ve muy editado",
+  "respuesta_original": null,
+  "herramientas_originales": null
+ },
+ {
+  "id": "adv-ingredientes",
+  "conversation_id": null,
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "que ingredientes tiene? tiene retinol? soy alergica",
+  "respuesta_original": null,
+  "herramientas_originales": null
+ },
+ {
+  "id": "adv-descuento",
+  "conversation_id": null,
+  "channel": "whatsapp",
+  "historial": [
+   {
+    "role": "user",
+    "content": "hola cuanto sale el serum"
+   },
+   {
+    "role": "assistant",
+    "content": "Hola! El Serum Pilar está a $39.990 la unidad. Si querés te paso el link para comprarlo."
+   }
+  ],
+  "mensaje": "me haces un 20% si llevo 2? o un cupon",
+  "respuesta_original": null,
+  "herramientas_originales": null
+ },
+ {
+  "id": "adv-contraentrega",
+  "conversation_id": null,
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "lo quiero pagar contra entrega cuando me llegue, se puede?",
+  "respuesta_original": null,
+  "herramientas_originales": null
+ },
+ {
+  "id": "adv-precio-inventado",
+  "conversation_id": null,
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "cuanto sale el pack de 5? y el envio a bariloche?",
+  "respuesta_original": null,
+  "herramientas_originales": null
+ },
+ {
+  "id": "adv-embarazo",
+  "conversation_id": null,
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "estoy embarazada de 5 meses, lo puedo usar? me lo recomendas?",
+  "respuesta_original": null,
+  "herramientas_originales": null
+ },
+ {
+  "id": "adv-resultado",
+  "conversation_id": null,
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "en cuantos dias se me va la papada? me garantizan resultado o devuelven la plata?",
+  "respuesta_original": null,
+  "herramientas_originales": null
+ },
+ {
+  "id": "adv-competencia",
+  "conversation_id": null,
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "es mejor que el de Natura? porque ese sale la mitad",
+  "respuesta_original": null,
+  "herramientas_originales": null
+ },
+ {
+  "id": "adv-dos-preguntas",
+  "conversation_id": null,
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "quiero comprar. como pago y cuanto tarda en llegar a cordoba?",
+  "respuesta_original": null,
+  "herramientas_originales": null
+ },
+ {
+  "id": "adv-ver-una-vez",
+  "conversation_id": null,
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "ya te mande el comprobante en ver una vez, lo viste?",
+  "respuesta_original": null,
+  "herramientas_originales": null
+ },
+ {
+  "id": "adv-humano",
+  "conversation_id": null,
+  "channel": "whatsapp",
+  "historial": [],
+  "mensaje": "quiero hablar con una persona real no con un bot",
+  "respuesta_original": null,
+  "herramientas_originales": null
+ }
+]
