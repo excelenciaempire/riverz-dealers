@@ -102,6 +102,10 @@ export async function DELETE(
     conversation_id: string;
     created_at: string;
   };
+  // Marca de "ahora" tomada ANTES de leer el último mensaje que queda: el
+  // guard de abajo la usa para no pisar un resumen que una llegada más nueva
+  // haya escrito mientras tanto.
+  const marca = new Date().toISOString();
   const { data: latest, error: latestError } = await admin
     .from("messages")
     .select(
@@ -115,7 +119,13 @@ export async function DELETE(
   if (latestError) return serverError(latestError);
 
   // El guard evita que una llegada concurrente más nueva sea pisada por este
-  // rebobinado. Si el borrado fue de un mensaje viejo, tampoco toca el preview.
+  // rebobinado. Se compara contra la marca de arriba y no contra
+  // `deleted.created_at`: la IA inserta su mensaje y recién DESPUÉS pone
+  // `last_message_at = ahora`, unos ms más tarde que el `created_at` de la
+  // fila. Con el guard viejo ese caso nunca pasaba y la lista seguía mostrando
+  // el texto del mensaje borrado (visto en Rasmiaw el 2026-09-17). Si lo
+  // borrado era un mensaje viejo, `latest` es el mismo último de siempre y el
+  // resumen queda igual.
   const preview = conversationPreviewFromMessage(
     (latest as Message | null) ?? null,
   );
@@ -123,7 +133,7 @@ export async function DELETE(
     .from("conversations")
     .update(preview)
     .eq("id", deleted.conversation_id)
-    .lte("last_message_at", deleted.created_at);
+    .lte("last_message_at", marca);
   if (previewError) return serverError(previewError);
 
   return NextResponse.json({ ok: true, preview });

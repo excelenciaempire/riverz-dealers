@@ -14,6 +14,7 @@ import { resolveAssignmentForConversation } from "@/lib/inbox/assignment-rules";
 import { mimeToCategory } from "./media-ingest";
 import { mediaPreviewToken } from "./display";
 import { isStoryMentionOrShareOnly } from "./meta-attachments";
+import { esRespuestaAutomatica } from "./respuesta-automatica";
 import {
   maybeRunCloser,
   markCampaignReply,
@@ -571,10 +572,29 @@ export async function ingestInboundEvent(
       Boolean(event.attachments && event.attachments.length)
     ) ||
       isStoryMentionOrShareOnly(event.text));
+  // El contestador del cliente ("Gracias por comunicarte con X, ¿cómo podemos
+  // ayudarte?") no es una persona: se guarda, pero no despierta a la IA ni a
+  // las automatizaciones. `conversation` todavía trae el resumen ANTERIOR a
+  // este entrante, que es justo lo que hace falta: quién habló último y cuándo.
+  const contestador =
+    !event.outbound &&
+    !event.historical &&
+    esRespuestaAutomatica({
+      texto: event.text,
+      ultimoRemitente: conversation.last_sender_type ?? null,
+      ultimoMensajeAt: conversation.last_message_at ?? null,
+      recibidoAt: event.receivedAt,
+    });
+  if (contestador) {
+    console.info(
+      `[inbox] respuesta automática del contacto ${contact.id} por ${channel}: no se responde sola`,
+    );
+  }
   if (
     !event.outbound &&
     !event.historical &&
     !event.suppressAutoReply &&
+    !contestador &&
     !igEmptyDm &&
     // Los tres canales de comentarios los atiende `routeComment`, arriba.
     // `tiktok_comment` faltaba en esta lista, así que cumplía las DOS ramas: el
