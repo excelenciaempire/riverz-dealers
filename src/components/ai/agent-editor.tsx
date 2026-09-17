@@ -2232,23 +2232,26 @@ export function AgentEditor({
                   </button>
                 )}
               </div>
-              {/* De acá para abajo los hex sueltos (#ece5dd, #111b21, #dcf8c6,
-                #54656f…) y los `bg-white` son el cromo REAL de WhatsApp, no
-                un descuido del sistema de temas: la prueba tiene que verse
-                como el teléfono del cliente, así que no siguen el modo
-                claro/oscuro ni se cambian por tokens. */}
+              {/* De acá para abajo los hex sueltos son el cromo REAL de
+                WhatsApp, no un descuido del sistema de temas: la prueba tiene
+                que verse como el teléfono del cliente, así que no usan los
+                tokens de la app.
+                Pero WhatsApp TAMBIÉN tiene modo oscuro, así que cada color
+                lleva su par (`dark:`): en claro va el cromo claro (#ece5dd,
+                #dcf8c6, blanco) y en oscuro el suyo (#0b141a, #005c4b,
+                #202c33). Antes el panel se quedaba crema sobre una app en
+                oscuro y el texto del compositor no se leía. */}
               <div
                 ref={testScrollRef}
-                className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3"
+                className="flex-1 space-y-1.5 overflow-y-auto bg-[#ece5dd] px-3 py-3 dark:bg-[#0b141a]"
                 style={{
-                  backgroundColor: '#ece5dd',
                   backgroundImage:
                     'radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
                   backgroundSize: '12px 12px',
                 }}
               >
                 {testHistory.length === 0 && !testing && (
-                  <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-[#54656f]">
+                  <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-[#54656f] dark:text-[#8696a0]">
                     <Sparkles className="size-6" />
                     <p className="text-xs leading-snug">
                       {t('assistant.testEmptyPrompt')}
@@ -2269,8 +2272,8 @@ export function AgentEditor({
                       className={cn(
                         'px-1 text-[10px] font-semibold',
                         turn.role === 'user'
-                          ? 'text-[#1d7a45]'
-                          : 'text-[#0a6ebd]'
+                          ? 'text-[#1d7a45] dark:text-[#06cf9c]'
+                          : 'text-[#0a6ebd] dark:text-[#53bdeb]'
                       )}
                     >
                       {turn.role === 'user'
@@ -2282,11 +2285,11 @@ export function AgentEditor({
                         className={cn(
                           'relative max-w-[85%] rounded-lg px-2 py-1.5 text-[13px] leading-snug shadow-sm',
                           turn.role === 'user'
-                            ? 'rounded-br-none bg-[#dcf8c6] text-[#111b21]'
-                            : 'border-border rounded-bl-none border bg-white text-[#111b21]'
+                            ? 'rounded-br-none bg-[#dcf8c6] text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef]'
+                            : 'border-border rounded-bl-none border bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]'
                         )}
                       >
-                        <span className="text-[#6b7280] italic">
+                        <span className="text-[#6b7280] italic dark:text-[#8696a0]">
                           {t('assistant.noReply')}
                         </span>
                       </div>
@@ -2300,18 +2303,18 @@ export function AgentEditor({
                               'relative max-w-[85%] rounded-lg px-2 py-1.5 text-[13px] leading-snug shadow-sm',
                               turn.role === 'user'
                                 ? cn(
-                                    'bg-[#dcf8c6] text-[#111b21]',
+                                    'bg-[#dcf8c6] text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef]',
                                     isLast ? 'rounded-br-none' : ''
                                   )
                                 : cn(
-                                    'border-border border bg-white text-[#111b21]',
+                                    'border-border border bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]',
                                     isLast ? 'rounded-bl-none' : ''
                                   )
                             )}
                           >
                             <p className="pr-10 whitespace-pre-wrap">{chunk}</p>
                             {isLast && (
-                              <div className="flex items-center justify-end gap-1 text-[10px] text-[#667781]">
+                              <div className="flex items-center justify-end gap-1 text-[10px] text-[#667781] dark:text-[#8696a0]">
                                 <span>{turn.stamp}</span>
                                 {turn.role === 'user' && (
                                   <CheckCheck className="size-3 text-[#53bdeb]" />
@@ -2331,7 +2334,7 @@ export function AgentEditor({
                           {turn.herramientas!.map((h, hi) => (
                             <span
                               key={`${h}-${hi}`}
-                              className="rounded bg-white/70 px-1.5 py-px font-mono text-[9px] text-[#54656f]"
+                              className="rounded bg-white/70 px-1.5 py-px font-mono text-[9px] text-[#54656f] dark:bg-[#111b21]/70 dark:text-[#8696a0]"
                             >
                               {h}
                             </span>
@@ -2342,15 +2345,15 @@ export function AgentEditor({
                 ))}
                 {testing && (
                   <div className="flex items-start">
-                    <div className="border-border rounded-lg rounded-bl-none border bg-white px-3 py-2 text-[13px] leading-snug text-[#111b21] shadow-sm">
+                    <div className="border-border rounded-lg rounded-bl-none border bg-white px-3 py-2 text-[13px] leading-snug text-[#111b21] shadow-sm dark:bg-[#202c33] dark:text-[#e9edef]">
                       <span className="inline-flex gap-0.5">
-                        <span className="size-1.5 animate-pulse rounded-full bg-[#54656f]" />
+                        <span className="size-1.5 animate-pulse rounded-full bg-[#54656f] dark:bg-[#8696a0]" />
                         <span
-                          className="size-1.5 animate-pulse rounded-full bg-[#54656f]"
+                          className="size-1.5 animate-pulse rounded-full bg-[#54656f] dark:bg-[#8696a0]"
                           style={{ animationDelay: '150ms' }}
                         />
                         <span
-                          className="size-1.5 animate-pulse rounded-full bg-[#54656f]"
+                          className="size-1.5 animate-pulse rounded-full bg-[#54656f] dark:bg-[#8696a0]"
                           style={{ animationDelay: '300ms' }}
                         />
                       </span>
@@ -2358,12 +2361,12 @@ export function AgentEditor({
                   </div>
                 )}
                 {!editing && (
-                  <p className="rounded-md border border-dashed border-[#b4b4a8] bg-white/60 px-3 py-2 text-[11px] text-[#54656f]">
+                  <p className="rounded-md border border-dashed border-[#b4b4a8] bg-white/60 px-3 py-2 text-[11px] text-[#54656f] dark:border-[#3b4a54] dark:bg-[#111b21]/60 dark:text-[#8696a0]">
                     {t('assistant.saveBeforeTestHint')}
                   </p>
                 )}
               </div>
-              <div className="border-border border-t bg-[#f0f0f0] p-2">
+              <div className="border-border border-t bg-[#f0f0f0] p-2 dark:bg-[#111b21]">
                 <div className="flex items-end gap-2">
                   <Textarea
                     value={testMessage}
@@ -2376,13 +2379,13 @@ export function AgentEditor({
                     }}
                     rows={2}
                     placeholder={t('assistant.testInputPlaceholder')}
-                    className="min-h-[44px] resize-none rounded-2xl border border-[#dcdcdc] bg-white text-sm text-[#111b21]"
+                    className="min-h-[44px] resize-none rounded-2xl border border-[#dcdcdc] bg-white text-sm text-[#111b21] placeholder:text-[#667781] dark:border-[#2a3942] dark:bg-[#2a3942] dark:text-[#e9edef] dark:placeholder:text-[#8696a0]"
                     disabled={testing || !editing}
                   />
                   <Button
                     onClick={runTest}
                     disabled={testing || !editing || !testMessage.trim()}
-                    className="size-10 shrink-0 rounded-full bg-[#25d366] p-0 text-white hover:bg-[#1ebe5a]"
+                    className="size-10 shrink-0 rounded-full bg-[#25d366] p-0 text-white hover:bg-[#1ebe5a] dark:bg-[#00a884] dark:hover:bg-[#029b78]"
                     aria-label={t('assistant.send')}
                   >
                     <Send className="size-4" />
@@ -2660,7 +2663,7 @@ function VoiceAgentLink({
       ) : agents.length === 0 ? (
         <Link
           href="/voz"
-          className="border-border bg-background hover:bg-muted inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium text-foreground transition-colors"
+          className="border-border bg-background hover:bg-muted text-foreground inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors"
         >
           <Plus className="size-4" />
           {t('voice.linkCreate')}
