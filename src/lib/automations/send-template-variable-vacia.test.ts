@@ -75,7 +75,7 @@ describe('send_template con una variable vacía', () => {
   it('con la variable cargada la plantilla sale como siempre', async () => {
     await resumePendingExecution(pendingCon({ tracking_number: 'RA123456789CO' }))
     expect(sendTemplate).toHaveBeenCalledTimes(1)
-    expect(sendTemplate.mock.calls[0][0]).toMatchObject({ params: ['RA123456789CO'], templateName: 'rasmiaw_envio_tracking' })
+    expect(sendTemplate).toHaveBeenCalledWith(expect.objectContaining({ params: ['RA123456789CO'], templateName: 'rasmiaw_envio_tracking' }))
     expect(state.tables.automation_logs[0].status).toBe('success')
   })
 
