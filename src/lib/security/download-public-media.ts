@@ -99,6 +99,12 @@ export async function downloadPublicMedia(
     let url = new URL(rawUrl);
     const headers = new Headers(initialHeaders);
     headers.set('accept-encoding', 'identity');
+    // `https.request` no manda User-Agent (fetch sí, "node"). Sin uno, el CDN
+    // de Meta (lookaside.fbsbx.com) contesta 302 a facebook.com/unsupportedbrowser
+    // y de ahí vuelve un HTML con 200: eso fue "el CDN devuelve una página en
+    // vez de la foto" del 11 al 18 de septiembre de 2026, desde que las
+    // descargas dejaron de usar fetch. Un UA propio y honesto lo arregla.
+    if (!headers.has('user-agent')) headers.set('user-agent', 'Riverz/1.0 (+https://riverz.co)');
     for (let hop = 0; hop <= 5; hop++) {
       const pinned = await Promise.race([
         publicMediaLookup(url),
