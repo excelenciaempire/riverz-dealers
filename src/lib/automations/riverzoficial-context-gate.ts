@@ -3,7 +3,8 @@ import { RIVERZOFICIAL_WORKSPACE } from './riverzoficial-template-context';
 import { resolveShopifyAdmin } from '@/lib/shopify/order-tags';
 import { confirmationSummary } from '@/lib/shopify/confirmation-summary';
 import { orderConfirmationReason } from './order-confirmation';
-const flows: Record<string, string> = {
+/** Automatización → qué verifica en Shopify antes de cada mensaje. Lo usa también la prueba como cliente. */
+export const RIVERZ_FLOWS: Record<string, string> = {
   'f29f3d74-f10f-42a5-946a-15b254a70106': 'confirmation',
   'f1784d9c-3c26-4328-83af-9454efb0864d': 'cart',
   '7aebb961-1207-4ad2-be03-11580e1de813': 'shipped',
@@ -33,8 +34,8 @@ export async function riverzFlowSkipReason(db: SupabaseClient, input: {
   workspaceId: string; automationId: string; contactId: string|null;
   logId: string|null; resumed: boolean; vars: Record<string,unknown>;
 }, fetcher: typeof fetch = fetch): Promise<string|null> {
-  if(input.workspaceId!==RIVERZOFICIAL_WORKSPACE || !flows[input.automationId]) return null;
-  const kind=flows[input.automationId];
+  if(input.workspaceId!==RIVERZOFICIAL_WORKSPACE || !RIVERZ_FLOWS[input.automationId]) return null;
+  const kind=RIVERZ_FLOWS[input.automationId];
   if((kind==='confirmation'||kind==='cart') && input.resumed) {
     if(!input.contactId||!input.logId)return 'missing_conversation_context';
     const {data:log,error:le}=await db.from('automation_logs').select('created_at').eq('id',input.logId).eq('workspace_id',input.workspaceId).maybeSingle();

@@ -80,4 +80,17 @@ describe('simularDisparo', () => {
       botones: [{ text: 'Rastrear', type: 'URL' }], vacias: [],
     })
   })
+
+  it('en DeUNA un pedido pagado con Mercado Pago no recibe la confirmación de contra entrega', async () => {
+    const deuna = dbConTablas({
+      automations: [
+        { id: 'f29f3d74-f10f-42a5-946a-15b254a70106', workspace_id: '36f81b96-41b9-4d29-b72e-11be3d3070a3', name: 'Confirmación', trigger_type: 'shopify_order_created', is_active: true, deleted_at: null, trigger_config: {} },
+      ],
+      automation_steps: [], message_templates: [], ai_agents: [],
+    })
+    const pagado = await simularDisparo(deuna, '36f81b96-41b9-4d29-b72e-11be3d3070a3', 'shopify_order_created', { ...pedidoCod, pago: 'mercadopago' })
+    expect(pagado.automatizaciones[0].omitida).toBe('order_already_confirmed_or_paid')
+    const cod = await simularDisparo(deuna, '36f81b96-41b9-4d29-b72e-11be3d3070a3', 'shopify_order_created', pedidoCod)
+    expect(cod.automatizaciones[0].omitida).toBeNull()
+  })
 })

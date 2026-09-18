@@ -9,6 +9,8 @@ import type {
 import { confirmationDisplayVars } from './confirmation-copy';
 import { confirmationSummary } from '@/lib/shopify/confirmation-summary';
 import { TEMPLATE_VAR_SAMPLES } from './data-points';
+import { RIVERZ_FLOWS, riverzOrderSkipReason } from './riverzoficial-context-gate';
+import { RIVERZOFICIAL_WORKSPACE } from './riverzoficial-template-context';
 
 /**
  * ¿Qué le llegaría al cliente si pasara X? Sin mandar nada.
@@ -51,8 +53,8 @@ export interface ProductoDePrueba {
 export interface PedidoDePrueba {
   producto: ProductoDePrueba;
   currency: string;
-  /** 'cod' = contra entrega (pendiente de pago); 'paid' = pagado. */
-  pago: 'cod' | 'paid';
+  /** Contra entrega (pendiente de pago), o pagado con Mercado Pago o tarjeta. */
+  pago: 'cod' | 'mercadopago' | 'tarjeta';
   cliente: { nombre: string; telefono: string };
   /** Para "despachado": vacío simula una tienda que cumple sin guía. */
   guia?: string;
@@ -82,6 +84,13 @@ export interface AutomacionSimulada {
   ventana: string | null;
   se_detiene_si_responde: boolean;
   pasos: PasoSimulado[];
+  /**
+   * Por qué esta automatización NO correría para este pedido, cuando el
+   * comercio tiene una barrera propia (DeUNA verifica el pedido en Shopify
+   * antes de cada mensaje: un pedido ya pagado no recibe la confirmación de
+   * contra entrega). null = corre.
+   */
+  omitida: string | null;
   /**
    * Lo que quedaría en `conversations.automation_context` al entregar la
    * conversación: las variables del pedido más lo que fijó `set_context` por
@@ -130,8 +139,10 @@ export function varsDePedido(
     first_item: pedido.producto.title,
     last_product: pedido.producto.title,
     is_repeat_customer: 'false',
-    payment_gateway: pedido.pago === 'cod' ? 'Contra entrega' : 'Tarjeta',
-    payment_method: pedido.pago === 'cod' ? 'cod' : 'card',
+    // Los nombres que Shopify pone en `gateway` / `payment_gateway_names`.
+    payment_gateway:
+      pedido.pago === 'cod' ? 'Cash on Delivery' : pedido.pago === 'mercadopago' ? 'Mercado Pago' : 'Tarjeta',
+    payment_method: pedido.pago === 'cod' ? 'cod' : pedido.pago,
     financial_status: pedido.pago === 'cod' ? 'pending' : 'paid',
     fulfillment_status:
       trigger === 'shopify_order_fulfilled' || trigger === 'shopify_order_delivered'
@@ -228,6 +239,21 @@ export async function simularDisparo(
     const ctx: Record<string, string> = { ...vars };
     const propios = steps.filter((s) => s.automation_id === a.id);
     const pasos = recorrer(propios, null, null, ctx, templates, agentes);
+    // La barrera propia de DeUNA, con el mismo criterio que en vivo pero
+    // sobre el pedido de mentira.
+    const omitida =
+      workspaceId === RIVERZOFICIAL_WORKSPACE && RIVERZ_FLOWS[a.id]
+        ? riverzOrderSkipReason(RIVERZ_FLOWS[a.id], {
+            financial_status: vars.financial_status,
+            payment_gateway_names: [vars.payment_gateway],
+            fulfillment_status: vars.fulfillment_status || null,
+            fulfillments: vars.tracking_number
+              ? [{ status: 'success', tracking_number: vars.tracking_number, shipment_status: trigger === 'shopify_order_delivered' ? 'delivered' : null }]
+              : [],
+            tags: '',
+            cancelled_at: trigger === 'shopify_order_cancelled' ? new Date().toISOString() : null,
+          })
+        : null;
     return {
       id: a.id,
       nombre: a.name,
@@ -238,6 +264,7 @@ export async function simularDisparo(
           : null,
       se_detiene_si_responde: cfg.stop_on_inbound === true,
       pasos,
+      omitida,
       contexto: ctx,
     };
   });

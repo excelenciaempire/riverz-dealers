@@ -495,8 +495,25 @@ export const assistant = {
   // Probar el comercio entero como cliente: escenario + canal, sin elegir agente.
   probarTitle: { es: "Probar como cliente", en: "Test as a customer" },
   probarHint: {
-    es: "Elige qué pasa y chatea como si fueras el cliente. Ves qué plantillas saldrían y qué contesta el asistente. No se manda ni se guarda nada; los tokens sí se cobran.",
-    en: "Pick what happens and chat as if you were the customer. See which templates would go out and what the assistant replies. Nothing is sent or saved; tokens are charged.",
+    es: "Elige una situación y conversa como el cliente. Verás los mensajes que recibiría y cómo responde el asistente.",
+    en: "Pick a situation and chat as the customer. You'll see the messages they'd receive and how the assistant replies.",
+  },
+  probarVacio: {
+    es: "Configura la situación arriba y pulsa Empezar.",
+    en: "Set the situation above and press Start.",
+  },
+  probarHoy: { es: "Hoy", en: "Today" },
+  probarNota: {
+    es: "Simulación: no se envía ni se guarda ningún mensaje. Cada respuesta del asistente consume tokens como una conversación real.",
+    en: "Simulation: no message is sent or stored. Each assistant reply uses tokens like a real conversation.",
+  },
+  probarEscenario: { es: "Situación", en: "Situation" },
+  probarCanal: { es: "Canal", en: "Channel" },
+  probarPago: { es: "Pago", en: "Payment" },
+  probarPagoTarjeta: { es: "Tarjeta", en: "Card" },
+  probarOmitida: {
+    es: "«{nombre}» no corre para este pedido: {motivo}.",
+    en: "“{nombre}” does not run for this order: {motivo}.",
   },
   probarEscMensaje: { es: "El cliente escribe primero", en: "The customer writes first" },
   probarEscPedido: { es: "Compra en la tienda", en: "Buys in the store" },
@@ -572,7 +589,7 @@ export const assistant = {
     es: "El asistente ya contestó {n} veces en este hilo: se calla y deja el caso a una persona.",
     en: "The assistant already replied {n} times in this thread: it steps back for a person.",
   },
-  probarEnLinea: { es: "en línea · simulación", en: "online · simulation" },
+  probarEnLinea: { es: "en línea", en: "online" },
   probarSiNoRespondes: {
     es: "Si no respondes, en {n} {unit} sigue…",
     en: "If you don't reply, in {n} {unit} it continues…",

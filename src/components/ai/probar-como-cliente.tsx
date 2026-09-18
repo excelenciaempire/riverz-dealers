@@ -1,8 +1,18 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Check, CheckCheck, FastForward, Loader2, Phone, RotateCcw, Send, Timer, UserRound } from 'lucide-react';
+import {
+  Check,
+  CheckCheck,
+  FastForward,
+  Loader2,
+  MessageSquareText,
+  Phone,
+  RotateCcw,
+  Send,
+  UserRound,
+} from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { Button } from '@/components/ui/button';
@@ -48,10 +58,10 @@ const ESCENARIOS: Array<{ id: Escenario; key: string }> = [
   { id: 'mensaje', key: 'assistant.probarEscMensaje' },
   { id: 'shopify_order_created', key: 'assistant.probarEscPedido' },
   { id: 'shopify_abandoned_checkout', key: 'assistant.probarEscCarrito' },
+  { id: 'payment_rejected', key: 'assistant.probarEscPagoRechazado' },
   { id: 'shopify_order_fulfilled', key: 'assistant.probarEscDespachado' },
   { id: 'shopify_order_delivered', key: 'assistant.probarEscEntregado' },
   { id: 'shopify_order_cancelled', key: 'assistant.probarEscCancelado' },
-  { id: 'payment_rejected', key: 'assistant.probarEscPagoRechazado' },
 ];
 
 const CANALES: Array<{ id: Channel; label: string }> = [
@@ -60,6 +70,8 @@ const CANALES: Array<{ id: Channel; label: string }> = [
   { id: 'messenger', label: 'Messenger' },
   { id: 'webchat', label: 'Chat web' },
 ];
+
+type Pago = 'cod' | 'mercadopago' | 'tarjeta';
 
 type Agente = { id: string; nombre: string; role?: string } | null;
 
@@ -77,14 +89,14 @@ interface Pendiente {
   resto: PasoSimulado[];
 }
 
-export function ProbarComoCliente() {
+export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string | null }) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [escenario, setEscenario] = useState<Escenario>('shopify_order_created');
   const [canal, setCanal] = useState<Channel>('whatsapp');
   const [productos, setProductos] = useState<Array<{ id: string; title: string }>>([]);
   const [productoId, setProductoId] = useState('');
-  const [pago, setPago] = useState<'cod' | 'paid'>('cod');
+  const [pago, setPago] = useState<Pago>('cod');
   const [guia, setGuia] = useState('');
   const [telefono, setTelefono] = useState('');
 
@@ -117,6 +129,20 @@ export function ProbarComoCliente() {
   }, [items]);
 
   const esEvento = escenario !== 'mensaje';
+  const etiquetasEscenario = useMemo(
+    () => Object.fromEntries(ESCENARIOS.map((e) => [e.id, t(e.key)])),
+    [t]
+  );
+  const etiquetasCanal = useMemo(() => Object.fromEntries(CANALES.map((c) => [c.id, c.label])), []);
+  const etiquetasProducto = useMemo(
+    () => Object.fromEntries(productos.map((p) => [p.id, p.title])),
+    [productos]
+  );
+  const etiquetasPago: Record<Pago, string> = {
+    cod: t('assistant.probarPagoCod'),
+    mercadopago: 'Mercado Pago',
+    tarjeta: t('assistant.probarPagoTarjeta'),
+  };
 
   function reiniciar() {
     setIniciado(false);
@@ -192,7 +218,7 @@ export function ProbarComoCliente() {
       setAgenteAsignado(json.agente_asignado ?? null);
       // En vivo `automation_context` sólo queda cuando la automatización
       // entrega la conversación a un asistente.
-      const conEntrega = autos.find((a) => a.agente);
+      const conEntrega = autos.find((a) => a.agente && !a.omitida);
       setContexto(conEntrega?.contexto ?? null);
       if (autos.length === 0) {
         setItems([{ k: 'sys', texto: t('assistant.probarSinAutomatizaciones') }]);
@@ -201,6 +227,10 @@ export function ProbarComoCliente() {
       const nuevos: Item[] = [];
       const pend: Pendiente[] = [];
       for (const auto of autos) {
+        if (auto.omitida) {
+          nuevos.push({ k: 'sys', texto: t('assistant.probarOmitida', { nombre: auto.nombre, motivo: auto.omitida }) });
+          continue;
+        }
         const cabecera = [
           auto.nombre,
           auto.ventana ? t('assistant.probarVentana', { ventana: auto.ventana }) : null,
@@ -323,95 +353,115 @@ export function ProbarComoCliente() {
     }
   }
 
+  const inicial = (nombreComercio ?? 'R').trim().charAt(0).toUpperCase() || 'R';
+
   return (
-    <div className="space-y-3">
-      {/* ── Qué pasa: una fila compacta ── */}
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <Select value={escenario} onValueChange={(v) => { if (v) { setEscenario(v as Escenario); reiniciar(); } }}>
-          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {ESCENARIOS.map((e) => <SelectItem key={e.id} value={e.id}>{t(e.key)}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        {esEvento ? (
-          <Input value="WhatsApp" readOnly title={t('assistant.probarSoloWhatsapp')} />
-        ) : (
-          <Select value={canal} onValueChange={(v) => { if (v) { setCanal(v as Channel); reiniciar(); } }}>
-            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+    <div className="space-y-4">
+      {/* ── Qué pasa ── */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <Campo label={t('assistant.probarEscenario')}>
+          <Select value={escenario} onValueChange={(v) => { if (v) { setEscenario(v as Escenario); reiniciar(); } }}>
+            <SelectTrigger className="w-full"><SelectValue labels={etiquetasEscenario} /></SelectTrigger>
+            <SelectContent>
+              {ESCENARIOS.map((e) => <SelectItem key={e.id} value={e.id}>{t(e.key)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Campo>
+        <Campo label={t('assistant.probarCanal')} hint={esEvento ? t('assistant.probarSoloWhatsapp') : undefined}>
+          <Select value={esEvento ? 'whatsapp' : canal} disabled={esEvento} onValueChange={(v) => { if (v) { setCanal(v as Channel); reiniciar(); } }}>
+            <SelectTrigger className="w-full"><SelectValue labels={etiquetasCanal} /></SelectTrigger>
             <SelectContent>
               {CANALES.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
             </SelectContent>
           </Select>
-        )}
-        {esEvento && productos.length > 0 ? (
-          <Select value={productoId} onValueChange={(v) => setProductoId(v ?? '')}>
-            <SelectTrigger className="w-full"><SelectValue placeholder={t('assistant.probarProducto')} /></SelectTrigger>
-            <SelectContent>
-              {productos.map((p) => <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        </Campo>
+        {esEvento ? (
+          <Campo label={t('assistant.probarProducto')}>
+            <Select value={productoId} disabled={productos.length === 0} onValueChange={(v) => setProductoId(v ?? '')}>
+              <SelectTrigger className="w-full"><SelectValue labels={etiquetasProducto} placeholder="—" /></SelectTrigger>
+              <SelectContent>
+                {productos.map((p) => <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Campo>
         ) : null}
         {escenario === 'shopify_order_created' ? (
-          <Select value={pago} onValueChange={(v) => { if (v) setPago(v as 'cod' | 'paid'); }}>
-            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="cod">{t('assistant.probarPagoCod')}</SelectItem>
-              <SelectItem value="paid">{t('assistant.probarPagoPagado')}</SelectItem>
-            </SelectContent>
-          </Select>
+          <Campo label={t('assistant.probarPago')}>
+            <Select value={pago} onValueChange={(v) => { if (v) setPago(v as Pago); }}>
+              <SelectTrigger className="w-full"><SelectValue labels={etiquetasPago} /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(etiquetasPago) as Pago[]).map((p) => <SelectItem key={p} value={p}>{etiquetasPago[p]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Campo>
         ) : null}
         {escenario === 'shopify_order_fulfilled' ? (
-          <Input value={guia} onChange={(e) => setGuia(e.target.value)} placeholder={`${t('assistant.probarGuia')} · ${t('assistant.probarGuiaHint')}`} />
+          <Campo label={t('assistant.probarGuia')} hint={t('assistant.probarGuiaHint')}>
+            <Input value={guia} onChange={(e) => setGuia(e.target.value)} placeholder="RA123456789CO" />
+          </Campo>
         ) : null}
-        <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder={t('assistant.probarTelefono')} title={t('assistant.probarTelefonoHint')} />
+        <Campo label={t('assistant.probarTelefono')} hint={t('assistant.probarTelefonoHint')}>
+          <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="+57 300 000 0000" inputMode="tel" />
+        </Campo>
       </div>
 
       {/* ── El chat ── */}
-      <div className="border-border flex h-[60vh] min-h-[420px] flex-col overflow-hidden rounded-xl border bg-[#efeae2] dark:bg-[#0b141a]">
-        <div className="flex items-center gap-2 bg-[#f0f2f5] px-3 py-2 text-sm dark:bg-[#202c33]">
-          <div className="bg-primary/20 text-primary grid size-8 place-items-center rounded-full text-xs font-semibold">R</div>
+      <div className="border-border flex h-[60vh] min-h-[440px] flex-col overflow-hidden rounded-xl border bg-[#efeae2] shadow-sm dark:bg-[#0b141a]">
+        <div className="flex items-center gap-3 border-b border-black/5 bg-[#f0f2f5] px-4 py-2.5 dark:border-white/5 dark:bg-[#202c33]">
+          <div className="grid size-9 place-items-center rounded-full bg-[#00a884] text-sm font-semibold text-white">
+            {inicial}
+          </div>
           <div className="min-w-0 flex-1">
-            <p className="text-foreground truncate font-medium">{t('assistant.probarTitle')}</p>
-            <p className="text-muted-foreground truncate text-[11px]">
+            <p className="truncate text-sm font-medium text-[#111b21] dark:text-[#e9edef]">
+              {nombreComercio || t('assistant.probarTitle')}
+            </p>
+            <p className="truncate text-xs text-[#667781] dark:text-[#8696a0]">
               {agenteActual ? agenteActual.nombre : t('assistant.probarEnLinea')}
             </p>
           </div>
           {iniciado ? (
-            <Button size="sm" variant="ghost" onClick={reiniciar}>
+            <Button size="sm" variant="ghost" onClick={reiniciar} className="text-[#54656f] dark:text-[#aebac1]">
               <RotateCcw className="size-4" />
               {t('assistant.probarReiniciar')}
             </Button>
           ) : null}
         </div>
 
-        <div className="flex-1 space-y-2 overflow-y-auto px-3 py-3">
+        <div className="flex-1 space-y-1.5 overflow-y-auto px-4 py-3">
           {!iniciado ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <p className="text-muted-foreground max-w-sm text-sm">{t('assistant.probarHint')}</p>
-              <Button onClick={empezar} disabled={cargando}>
+            <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+              <div className="grid size-12 place-items-center rounded-full bg-white/70 text-[#54656f] dark:bg-[#202c33] dark:text-[#aebac1]">
+                <MessageSquareText className="size-5" />
+              </div>
+              <p className="max-w-xs text-sm text-[#54656f] dark:text-[#aebac1]">{t('assistant.probarVacio')}</p>
+              <Button onClick={empezar} disabled={cargando} className="bg-[#00a884] text-white hover:bg-[#029b78]">
                 {cargando ? <Loader2 className="size-4 animate-spin" /> : null}
                 {t('assistant.probarEmpezar')}
               </Button>
             </div>
           ) : null}
+          {iniciado && !cargando ? <Chip texto={t('assistant.probarHoy')} /> : null}
           {cargando ? (
-            <div className="flex justify-center py-6"><Loader2 className="text-muted-foreground size-5 animate-spin" /></div>
+            <div className="flex justify-center py-6"><Loader2 className="size-5 animate-spin text-[#54656f]" /></div>
           ) : null}
           {items.map((it, i) => (
             <Linea key={i} it={it} onBoton={(texto) => void enviar(texto)} />
           ))}
-          {pendientes.map((p, i) => (
-            <div key={`p${i}`} className="flex justify-center">
-              <Button size="sm" variant="secondary" onClick={() => avanzar(p)} disabled={enviando}>
-                <FastForward className="size-4" />
-                {t('assistant.probarPasaron', { n: p.espera.amount, unit: unidad(p.espera.unit, p.espera.amount) })}
-              </Button>
-            </div>
-          ))}
           <div ref={finRef} />
         </div>
 
-        <div className="flex items-center gap-2 bg-[#f0f2f5] p-2 dark:bg-[#202c33]">
+        {pendientes.length > 0 ? (
+          <div className="flex flex-wrap items-center justify-center gap-2 border-t border-black/5 bg-[#f0f2f5]/80 px-3 py-2 dark:border-white/5 dark:bg-[#202c33]/80">
+            {pendientes.map((p, i) => (
+              <Button key={i} size="sm" variant="outline" onClick={() => avanzar(p)} disabled={enviando} className="rounded-full">
+                <FastForward className="size-3.5" />
+                {t('assistant.probarPasaron', { n: p.espera.amount, unit: unidad(p.espera.unit, p.espera.amount) })}
+              </Button>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="flex items-center gap-2 border-t border-black/5 bg-[#f0f2f5] p-2 dark:border-white/5 dark:bg-[#202c33]">
           <Input
             value={mensaje}
             onChange={(e) => setMensaje(e.target.value)}
@@ -423,35 +473,54 @@ export function ProbarComoCliente() {
             }}
             placeholder={t('assistant.probarEscribi')}
             disabled={enviando || cargando}
-            className="rounded-full bg-white dark:bg-[#2a3942]"
+            className="rounded-full border-transparent bg-white dark:bg-[#2a3942]"
           />
-          <Button size="icon" className="rounded-full" onClick={() => void enviar()} disabled={enviando || cargando || !mensaje.trim()} aria-label={t('assistant.probarEmpezar')}>
+          <Button
+            size="icon"
+            className="rounded-full bg-[#00a884] text-white hover:bg-[#029b78]"
+            onClick={() => void enviar()}
+            disabled={enviando || cargando || !mensaje.trim()}
+            aria-label={t('assistant.probarEmpezar')}
+          >
             <Send className="size-4" />
           </Button>
         </div>
       </div>
+      <p className="text-muted-foreground text-xs">{t('assistant.probarNota')}</p>
+    </div>
+  );
+}
+
+function Campo({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <label className="block space-y-1">
+      <span className="text-muted-foreground block text-[11px] font-medium tracking-wide uppercase">{label}</span>
+      {children}
+      {hint ? <span className="text-muted-foreground block text-[11px]">{hint}</span> : null}
+    </label>
+  );
+}
+
+function Chip({ texto, icono }: { texto: string; icono?: 'espera' | 'llamada' | 'persona' }) {
+  return (
+    <div className="flex justify-center py-1">
+      <span className="inline-flex max-w-[92%] items-center gap-1.5 rounded-lg bg-white/80 px-2.5 py-1 text-center text-[11px] text-[#54656f] shadow-sm dark:bg-[#182229] dark:text-[#aebac1]">
+        {icono === 'espera' ? <FastForward className="size-3 shrink-0" /> : null}
+        {icono === 'llamada' ? <Phone className="size-3 shrink-0" /> : null}
+        {icono === 'persona' ? <UserRound className="size-3 shrink-0" /> : null}
+        {texto}
+      </span>
     </div>
   );
 }
 
 function Linea({ it, onBoton }: { it: Item; onBoton: (texto: string) => void }) {
-  if (it.k === 'sys') {
-    return (
-      <div className="flex justify-center">
-        <span className="text-muted-foreground inline-flex max-w-[90%] items-center gap-1 rounded-lg bg-white/70 px-2 py-1 text-center text-[11px] dark:bg-[#182229]">
-          {it.icono === 'espera' ? <Timer className="size-3 shrink-0" /> : null}
-          {it.icono === 'llamada' ? <Phone className="size-3 shrink-0" /> : null}
-          {it.icono === 'persona' ? <UserRound className="size-3 shrink-0" /> : null}
-          {it.texto}
-        </span>
-      </div>
-    );
-  }
+  if (it.k === 'sys') return <Chip texto={it.texto} icono={it.icono} />;
   if (it.k === 'typing') {
     return (
       <div className="flex justify-start">
-        <div className="rounded-lg rounded-tl-none bg-white px-3 py-2 text-sm dark:bg-[#202c33]">
-          <span className="text-muted-foreground animate-pulse">•••</span>
+        <div className="rounded-lg rounded-tl-none bg-white px-3 py-2 text-sm shadow-sm dark:bg-[#202c33]">
+          <span className="animate-pulse text-[#8696a0]">•••</span>
         </div>
       </div>
     );
@@ -459,10 +528,10 @@ function Linea({ it, onBoton }: { it: Item; onBoton: (texto: string) => void }) 
   if (it.k === 'me') {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[80%] rounded-lg rounded-tr-none bg-[#d9fdd3] px-3 py-1.5 text-sm text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef]">
+        <div className="max-w-[78%] rounded-lg rounded-tr-none bg-[#d9fdd3] px-3 py-1.5 text-sm text-[#111b21] shadow-sm dark:bg-[#005c4b] dark:text-[#e9edef]">
           <p className="whitespace-pre-wrap">{it.texto}</p>
-          <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-60">
-            {it.hora} <CheckCheck className="size-3" />
+          <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-[#667781] dark:text-[#8696a0]">
+            {it.hora} <CheckCheck className="size-3 text-[#53bdeb]" />
           </p>
         </div>
       </div>
@@ -470,22 +539,24 @@ function Linea({ it, onBoton }: { it: Item; onBoton: (texto: string) => void }) 
   }
   return (
     <div className="flex flex-col items-start">
-      <div className="max-w-[80%] rounded-lg rounded-tl-none bg-white px-3 py-1.5 text-sm text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]">
-        <p className="whitespace-pre-wrap">{it.texto}</p>
-        <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-60">
-          {it.hora} <Check className="size-3" />
-        </p>
+      <div className="max-w-[78%] rounded-lg rounded-tl-none bg-white text-sm text-[#111b21] shadow-sm dark:bg-[#202c33] dark:text-[#e9edef]">
+        <div className="px-3 py-1.5">
+          <p className="whitespace-pre-wrap">{it.texto}</p>
+          <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-[#667781] dark:text-[#8696a0]">
+            {it.hora} <Check className="size-3" />
+          </p>
+        </div>
         {it.botones.length > 0 ? (
-          <div className="border-border/50 -mx-3 mt-1 border-t">
+          <div className="border-t border-black/5 dark:border-white/10">
             {it.botones.map((b, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => (b.type === 'QUICK_REPLY' ? onBoton(b.text) : undefined)}
                 className={cn(
-                  'block w-full py-1.5 text-center text-[13px] font-medium text-[#027eb5]',
-                  i > 0 && 'border-border/50 border-t',
-                  b.type !== 'QUICK_REPLY' && 'cursor-default'
+                  'block w-full py-2 text-center text-[13px] font-medium text-[#027eb5] dark:text-[#53bdeb]',
+                  i > 0 && 'border-t border-black/5 dark:border-white/10',
+                  b.type === 'QUICK_REPLY' ? 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]' : 'cursor-default'
                 )}
               >
                 {b.text}
@@ -494,8 +565,8 @@ function Linea({ it, onBoton }: { it: Item; onBoton: (texto: string) => void }) 
           </div>
         ) : null}
       </div>
-      {it.nota ? <p className="text-muted-foreground mt-0.5 text-[10px]">{it.nota}</p> : null}
-      {it.alerta ? <p className="text-destructive mt-0.5 text-[10px]">{it.alerta}</p> : null}
+      {it.nota ? <p className="mt-0.5 pl-1 text-[10px] text-[#667781] dark:text-[#8696a0]">{it.nota}</p> : null}
+      {it.alerta ? <p className="text-destructive mt-0.5 pl-1 text-[10px]">{it.alerta}</p> : null}
     </div>
   );
 }

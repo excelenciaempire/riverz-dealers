@@ -123,7 +123,8 @@ export async function POST(request: Request) {
     const { vars, automatizaciones } = await simularDisparo(admin, workspaceId, escenario, {
       producto,
       currency,
-      pago: body?.pago === 'paid' ? 'paid' : 'cod',
+      pago:
+        body?.pago === 'mercadopago' || body?.pago === 'tarjeta' ? body.pago : 'cod',
       cliente: { nombre: 'Ana Prueba', telefono: simulatedPhone || '+573000000000' },
       guia: typeof body?.guia === 'string' ? body.guia.trim() : '',
     });

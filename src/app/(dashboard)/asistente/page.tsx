@@ -241,7 +241,7 @@ export default function AiAgentsPage() {
               {t('assistant.probarHint')}
             </DialogDescription>
           </DialogHeader>
-          {probando ? <ProbarComoCliente /> : null}
+          {probando ? <ProbarComoCliente nombreComercio={workspace?.name ?? null} /> : null}
         </DialogContent>
       </Dialog>
 
