@@ -192,8 +192,10 @@ export async function crearPlantilla(
   }
 
   let metaResult: { id: string; status: string } | null = null
+  let wabaDeLaFila: string | null = null
   if (enviarAMeta) {
     const { wabaId, accessToken } = await resolverWabaYToken(db, workspaceId, entrada.userId)
+    wabaDeLaFila = wabaId
     if (!accessToken) {
       return { ok: false, status: 400, claveI18n: 'whatsappNotConnected' }
     }
@@ -249,6 +251,12 @@ export async function crearPlantilla(
     buttons: dbButtons.length > 0 ? dbButtons : null,
     status: estado,
     meta_template_id: metaResult?.id ?? null,
+    // Sin esto la fila quedaba sin cuenta de WhatsApp y el conciliador de
+    // estados (`reconcile-template-status`, cada 15 min) —que filtra por
+    // waba_id— nunca la tocaba: una plantilla enviada a Meta desde acá se
+    // quedaba en "Pending" para siempre si el webhook de estado no llegaba.
+    // Visto el 2026-09-18 con deuna_compra_pagada_producto_v1.
+    waba_id: wabaDeLaFila,
     variable_samples: form.bodySamples ?? null,
     variable_fields:
       entrada.variableFields && Object.keys(entrada.variableFields).length > 0
