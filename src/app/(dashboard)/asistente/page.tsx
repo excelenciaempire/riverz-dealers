@@ -27,6 +27,7 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { AgentEditor } from '@/components/ai/agent-editor';
 import { limpiarPersona } from '@/lib/ai/persona-limpia';
 import { AnswerGapsPanel } from '@/components/ai/answer-gaps-panel';
+import { ProbarComoCliente } from '@/components/ai/probar-como-cliente';
 import { EscalacionesPanel } from '@/components/ai/escalaciones-panel';
 import { SupportModeSwitcher } from '@/components/support/mode-switcher';
 import type { AiAgent } from '@/lib/ai/types';
@@ -239,6 +240,21 @@ export default function AiAgentsPage() {
           ))}
         </div>
       )}
+
+      {/* Probar el comercio entero como cliente: qué plantillas salen y quién
+          contesta, sin elegir asistente. Va primero porque es lo que uno hace
+          apenas termina de configurar: "a ver cómo queda". */}
+      {!loading && agents.length > 0 ? (
+        <section className="border-border bg-card rounded-2xl border p-4">
+          <h2 className="text-foreground text-sm font-semibold">
+            {t('assistant.probarTitle')}
+          </h2>
+          <p className="text-muted-foreground mt-0.5 mb-3 text-xs">
+            {t('assistant.probarHint')}
+          </p>
+          <ProbarComoCliente />
+        </section>
+      ) : null}
 
       {/* Los casos que dejó en manos de una persona. Van antes que los huecos
           porque tienen a alguien esperando del otro lado: un hueco se puede

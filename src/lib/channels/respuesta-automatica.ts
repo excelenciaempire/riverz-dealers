@@ -2,30 +2,36 @@
  * ¿Este entrante lo escribió una persona o lo disparó el contestador del
  * cliente?
  *
- * Un cliente que también es negocio (una consultora, una clínica) tiene su
- * propio WhatsApp Business con saludo automático: cada plantilla nuestra le
- * arranca un "Gracias por comunicarte con X. ¿Cómo podemos ayudarte?". Meta
- * no lo marca como automático, así que llega igual que un mensaje real y el
- * agente de IA le contestaba como a una persona ("¡Hola Sayra! Qué gusto
- * verte de vuelta…"), a nadie. Visto en Rasmiaw el 2026-09-17.
+ * Muchos clientes usan WhatsApp Business con mensaje de ausencia o de
+ * bienvenida. Cuando les escribimos primero (una plantilla de pedido, un
+ * seguimiento), lo que vuelve es "Gracias por comunicarte con X. Horarios de
+ * atención: …" o "Gracias por comunicarte con X. ¿Cómo podemos ayudarte?". Meta
+ * no lo marca como automático, así que llega igual que un mensaje real.
  *
- * Mismo criterio que `detectAutomatedSender` para el correo: el mensaje se
- * guarda y se ve en la bandeja, pero no despierta a la IA ni a las
- * automatizaciones.
+ * Dos veces le contestó la IA a uno de esos como si fuera una persona: el
+ * 2026-09-15 (y encima le recordó su compra) y el 2026-09-17 en Rasmiaw
+ * ("¡Hola Sayra! Qué gusto verte de vuelta…" a una consultora contable).
  *
- * Dos señales, y con una fuerte alcanza:
- *   - El TEXTO es de contestador: fórmulas que un comprador no escribe.
- *   - El MOMENTO: llegó a los pocos minutos de un mensaje nuestro. Sola no
- *     dice nada (la gente contesta rápido); combinada con una fórmula débil
- *     ("¿en qué podemos ayudarte?") sí.
+ * Es la ÚNICA implementación: la usa `inbox-writer` (para no despertar ni a
+ * la IA ni a las automatizaciones) y el runner de IA (segunda barrera, por
+ * los caminos que no pasan por el writer). Mismo criterio que
+ * `detectAutomatedSender` para el correo: el mensaje se guarda y se ve en la
+ * bandeja, pero nadie le contesta.
+ *
+ * Tres niveles de señal:
+ *   - FUERTES: fórmulas que sólo escribe un contestador; valen solas.
+ *   - SEÑALES: rasgos de contestador que una persona a veces también usa;
+ *     hacen falta dos.
+ *   - DEBILES: saludos de negocio ("¿en qué podemos ayudarte?"); sólo cuentan
+ *     si llegaron a los minutos de un mensaje nuestro, porque solos no dicen
+ *     nada (la gente contesta rápido y saluda).
  */
 
-/** Fórmulas que sólo escribe un contestador; valen sin mirar el reloj. */
 const FUERTES: RegExp[] = [
-  /\b(mensaje|respuesta|contestaci[oó]n)\s+autom[aá]tic[oa]\b/i,
-  /\bauto(?:-|\s)?(?:reply|response|responder)\b/i,
+  /\b(?:este es un|es un|un)?\s*(?:mensaje|respuesta|contestaci[oó]n)\s+autom[aá]tic[oa]\b/i,
+  /\bauto(?:matic)?(?:-|\s)?(?:reply|response|responder)\b/i,
   /\bgracias por (?:comunicarte|comunicarse|contactarnos|contactarte|escribirnos|escribir a|ponerte en contacto|ponerse en contacto)\b/i,
-  /\bthank(?:s| you) for (?:contacting|reaching out|getting in touch|your message)\b/i,
+  /\bthank(?:s| you) for (?:contacting|reaching out|getting in touch)\b/i,
   /\bfuera de (?:nuestro |el )?horario\b/i,
   /\bout of (?:the )?office\b/i,
   /\ben (?:este momento|estos momentos) no (?:podemos|estamos|nos encontramos)\b/i,
@@ -35,13 +41,25 @@ const FUERTES: RegExp[] = [
   /\bnuestro horario de atenci[oó]n\b/i,
 ];
 
-/** Fórmulas de saludo de negocio: sólo cuentan si llegan justo después de un mensaje nuestro. */
+const SEÑALES: RegExp[] = [
+  /\bhorarios? de atenci[oó]n\b/i,
+  /\b(?:quedamos|estamos) atentos? a (?:tu|su) mensaje\b/i,
+  /\b(?:en breve|pronto|a la brevedad) (?:te|le) (?:responderemos|contestaremos|atenderemos)\b/i,
+  /\bno (?:contestamos|atendemos|respondemos) llamadas\b/i,
+  /\blunes a (?:viernes|s[aá]bado)\b[^\n]{0,40}\d{1,2}(?::\d{2})?\s*(?:a\.?\s?m\.?|p\.?\s?m\.?|hs|h)/i,
+  /\bthanks for (?:contacting|reaching out|your message)\b.*\b(?:business hours|get back to you)\b/i,
+  /\bgracias por (?:tu|su) mensaje\b/i,
+];
+
 const DEBILES: RegExp[] = [
   /\b(?:en qu[eé]|c[oó]mo) (?:podemos|te podemos|le podemos|puedo) ayudar(?:te|le|lo|la)?\b/i,
   /\bhow (?:can|may) (?:we|i) help(?: you)?\b/i,
   /\bbienvenid[oa]s? a\b/i,
   /\bgracias por (?:tu|su) mensaje\b/i,
 ];
+
+/** Por debajo de esto no hay contestador: "Horarios de atención?" es una pregunta. */
+const LARGO_MINIMO = 40;
 
 /** Ventana en la que un saludo de negocio se considera reacción a lo nuestro. */
 const VENTANA_MS = 10 * 60_000;
@@ -52,18 +70,21 @@ export interface SenalesDeEntrante {
   ultimoRemitente?: string | null;
   /** Cuándo, ISO. */
   ultimoMensajeAt?: string | null;
-  /** Cuándo llegó este entrante, ISO. */
-  recibidoAt: string;
+  /** Cuándo llegó este entrante, ISO. Sin él no se evalúan los saludos débiles. */
+  recibidoAt?: string | null;
 }
 
-export function esRespuestaAutomatica(s: SenalesDeEntrante): boolean {
-  const texto = (s.texto ?? "").trim();
-  if (!texto) return false;
+export function esRespuestaAutomatica(s: SenalesDeEntrante | string | null | undefined): boolean {
+  const señales: SenalesDeEntrante =
+    typeof s === 'string' || s == null ? { texto: s ?? null } : s;
+  const texto = (señales.texto ?? '').trim();
+  if (texto.length < LARGO_MINIMO) return false;
   if (FUERTES.some((re) => re.test(texto))) return true;
+  if (SEÑALES.filter((re) => re.test(texto)).length >= 2) return true;
   if (!DEBILES.some((re) => re.test(texto))) return false;
 
-  const nuestro = s.ultimoRemitente === "agent" || s.ultimoRemitente === "bot";
-  if (!nuestro || !s.ultimoMensajeAt) return false;
-  const desde = Date.parse(s.recibidoAt) - Date.parse(s.ultimoMensajeAt);
+  const nuestro = señales.ultimoRemitente === 'agent' || señales.ultimoRemitente === 'bot';
+  if (!nuestro || !señales.ultimoMensajeAt || !señales.recibidoAt) return false;
+  const desde = Date.parse(señales.recibidoAt) - Date.parse(señales.ultimoMensajeAt);
   return Number.isFinite(desde) && desde >= 0 && desde <= VENTANA_MS;
 }
