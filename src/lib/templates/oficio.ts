@@ -15,6 +15,54 @@
  * escribe Riverz pasa por ahí antes de guardarse. Un párrafo compacto que se
  * cuela no llega a Meta, porque una plantilla aprobada ya no se corrige gratis.
  */
+/**
+ * Lo que Meta hace con una plantilla según su categoría. No es estilo: decide
+ * si el mensaje LLEGA.
+ *
+ * Aprendido con clientes reales el 2026-09-18: Rasmiaw mandaba tres plantillas
+ * de MARKETING en 27 horas a cada pedido contra entrega y Meta topaba el 2.º y
+ * el 3.º (código 131049, "healthy ecosystem engagement": a quien no contesta
+ * le limita el marketing que recibe). Los mismos mensajes escritos como
+ * UTILIDAD —sin descuento en el texto— no tienen ese tope. Lo lee el redactor
+ * del editor, el especialista de plantillas del Operador y el de
+ * automatizaciones, para que los tres decidan lo mismo.
+ */
+export const REGLAS_META_CATEGORIA = `LA CATEGORÍA DECIDE SI EL MENSAJE LLEGA
+
+Meta clasifica cada plantilla y la trata distinto según la categoría:
+
+- **UTILIDAD**: habla de algo que la persona ya hizo o ya tiene —un pedido, un
+  pago, un envío, una cita, una cuenta— y le pide o le informa algo sobre ESO:
+  confirmar los datos, avisar que salió, recordar un pago pendiente, pedir que
+  elija forma de pago. No tiene tope por persona, cuesta menos, y si la
+  conversación ya está abierta (la persona escribió hace menos de 24 h) sale
+  gratis.
+- **MARKETING**: invita a comprar algo nuevo o a volver: descuentos, ofertas,
+  novedades, carritos abandonados, "última oportunidad", cupones. Meta LIMITA
+  cuántos mensajes de marketing recibe cada persona y baja ese tope a quien no
+  contesta: el segundo o el tercero en pocas horas se rechaza (código 131049,
+  "no entregado para mantener un ecosistema sano"). No se entrega a números de
+  Estados Unidos. Necesita consentimiento previo.
+
+Reglas que salen de ahí:
+
+1. **Un descuento en el texto vuelve marketing la plantilla**, elija lo que
+   elija quien la crea: Meta la recategoriza o la rechaza. Si el objetivo es
+   confirmar o recordar un pedido, se escribe como UTILIDAD, sin oferta, y el
+   beneficio se lo cuenta el asistente cuando la persona responde (ya con la
+   conversación abierta, sin plantilla y sin tope).
+2. **En una secuencia, nunca dos marketing seguidas a la misma persona en 48
+   horas.** Lo que persuade puede ir en la primera; los recordatorios van como
+   utilidad ("tu pedido sigue pendiente de confirmación", "¿mantienes tu pago
+   contra entrega?").
+3. **Si Meta topó el marketing a una persona hoy, no se insiste:** el sistema
+   pausa 24 horas las de marketing a esa persona; las de utilidad siguen.
+4. **Los botones de respuesta rápida son el camino de vuelta.** El texto dice
+   con claridad qué hace cada botón ("Responde MANTENER CONTRAENTREGA para
+   confirmar"), porque el asistente reconoce esas palabras.
+5. Una plantilla aprobada no se edita: cada cambio es una plantilla nueva con
+   otro nombre y otra aprobación. Se piensa antes de mandar.`
+
 export const OFICIO_PLANTILLA = `CÓMO SE ESCRIBE UN MENSAJE QUE SE LEE
 
 Esto no es un email ni un cartel: es un chat, y del otro lado hay alguien que ya
@@ -88,4 +136,6 @@ lo pides al de productos.
 
 Palabras del comercio que el cliente no usa y no van en el mensaje: reposición,
 recompra, retención, carrito abandonado, ticket. Se dicen como las diría quien
-compra: "pedir otro", "volver a pedir", "lo que dejaste sin comprar".`
+compra: "pedir otro", "volver a pedir", "lo que dejaste sin comprar".
+
+${REGLAS_META_CATEGORIA}`

@@ -8,12 +8,20 @@ export const templates = {
   categoryUtility: { es: "Utilidad", en: "Utility" },
   categoryAuthentication: { es: "Autenticación", en: "Authentication" },
   categoryMarketingHint: {
-    es: "Promociones, novedades, ofertas y campañas. Requiere consentimiento del contacto.",
-    en: "Promotions, news, offers and campaigns. Requires the contact's consent.",
+    es: "Promociones, ofertas, carritos, novedades. Requiere consentimiento. Meta limita cuántos mensajes de marketing recibe cada persona y baja el tope a quien no contesta: el segundo en pocas horas suele rechazarse.",
+    en: "Promotions, offers, carts, news. Requires consent. Meta caps how many marketing messages each person receives and lowers it for people who don't reply: a second one within hours is often rejected.",
   },
   categoryUtilityHint: {
-    es: "Mensajes operativos en respuesta a una acción: confirmaciones, envíos, recordatorios, recibos.",
-    en: "Operational messages in response to an action: confirmations, shipping, reminders, receipts.",
+    es: "Sobre un pedido, pago o envío que ya existe: confirmar datos, avisar que salió, recordar un pago, pedir que elija cómo pagar. Sin tope por persona, más barata y gratis con la conversación abierta. Sin descuentos en el texto: con uno adentro, Meta la trata como marketing.",
+    en: "About an existing order, payment or shipment: confirm details, notify shipping, remind a payment, ask how they'll pay. No per-person cap, cheaper, free while the conversation is open. No discounts in the text: with one inside, Meta treats it as marketing.",
+  },
+  tplValidate_utility_with_promo: {
+    es: "Hay una oferta o descuento en el texto: Meta la va a tratar como marketing (o la rechaza). Si es un recordatorio de pedido o pago, quita la oferta; el asistente se la cuenta al cliente cuando responda.",
+    en: "There's an offer or discount in the text: Meta will treat it as marketing (or reject it). If it's an order or payment reminder, remove the offer; the assistant can bring it up when the customer replies.",
+  },
+  tplValidate_marketing_could_be_utility: {
+    es: "Habla de un pedido, pago o envío que ya existe y no tiene oferta: como utilidad llega siempre (sin tope por persona) y cuesta menos.",
+    en: "It's about an existing order, payment or shipment and has no offer: as a utility template it always arrives (no per-person cap) and costs less.",
   },
   categoryAuthenticationHint: {
     es: "Códigos de verificación de un solo uso (OTP) para iniciar sesión o validar la identidad.",

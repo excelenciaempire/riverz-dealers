@@ -335,7 +335,28 @@ export function validateTemplate(input: TemplateInput, t: TFn): TemplateIssue[] 
     }
   });
 
-  // Reglas por categoría
+  // Reglas por categoría. La categoría decide si el mensaje LLEGA: Meta
+  // limita el marketing por persona (131049) y recategoriza una utilidad con
+  // oferta adentro. Ver REGLAS_META_CATEGORIA en lib/templates/oficio.ts.
+  const textoCompleto = [input.headerText, input.bodyText, input.footerText, ...(input.buttons ?? []).map((b) => b.text)]
+    .filter(Boolean)
+    .join('\n');
+  if (input.category === 'UTILITY' && PROMOCION.test(textoCompleto)) {
+    issues.push({
+      field: 'body',
+      severity: 'warning',
+      code: 'utility_with_promo',
+      message: t('templates.tplValidate_utility_with_promo'),
+    });
+  }
+  if (input.category === 'MARKETING' && PARECE_UTILIDAD.test(input.bodyText) && !PROMOCION.test(textoCompleto)) {
+    issues.push({
+      field: 'body',
+      severity: 'warning',
+      code: 'marketing_could_be_utility',
+      message: t('templates.tplValidate_marketing_could_be_utility'),
+    });
+  }
   if (
     input.category === 'AUTHENTICATION' &&
     !/[0-9]{3,}/.test(input.bodyText)
@@ -350,6 +371,14 @@ export function validateTemplate(input: TemplateInput, t: TFn): TemplateIssue[] 
 
   return issues;
 }
+
+/** Lo que Meta lee como promoción: con esto adentro, una «utilidad» es marketing. */
+const PROMOCION =
+  /(\d+\s?%|descuento|oferta|promo|promoci[oó]n|cup[oó]n|gratis|regalo|beneficio|rebaja|última oportunidad|ultima oportunidad|liquidaci[oó]n|discount|offer|coupon|free|sale|last chance)/i;
+
+/** Un mensaje sobre un pedido, pago o envío que ya existe: candidato a utilidad. */
+const PARECE_UTILIDAD =
+  /(tu pedido|tu compra|tu pago|tu env[ií]o|tu gu[ií]a|confirm|contra ?entrega|pendiente de pago|your order|your payment|your shipment|tracking)/i;
 
 function countVars(s: string): number {
   const m = s.match(/\{\{\d+\}\}/g);

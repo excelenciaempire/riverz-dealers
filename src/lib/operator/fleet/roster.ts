@@ -59,6 +59,9 @@ export const ROSTER: SubagentSpec[] = [
       'Una automatización nace pausada, siempre. NO la prendas tú después de crearla: al cerrar, la pantalla le pregunta a la persona si la prende. Llama a `automatizaciones.activar` sólo si te lo piden explícitamente sobre una que ya existía.',
       'Para `send_template` hace falta el nombre exacto de una plantilla aprobada. Para un borrador seguro puede quedar preparada con su nombre, pero NO se puede prender hasta que Meta la apruebe.',
       'Si el pedido es un mensaje DISTINTO por cada camino, hacen falta tantas plantillas como caminos. Reusar la misma en las tres ramas no es lo que pidieron: pide las que falten antes de armar.',
+      // Rasmiaw, 2026-09-18: tres plantillas de marketing en 27 h por pedido y Meta
+      // rechazaba la 2.ª y la 3.ª (131049). Los recordatorios van como utilidad.
+      'En una secuencia, NUNCA dos plantillas de MARKETING seguidas a la misma persona en 48 h: Meta limita el marketing por persona y rechaza la segunda (código 131049). Lo que persuade va en la primera; los recordatorios de un pedido, pago o envío se piden al de plantillas como UTILIDAD, sin descuento en el texto; el beneficio se lo cuenta el asistente cuando la persona responde.',
     ].join('\n'),
     puedePedirle: ['plantillas'],
   },
