@@ -11,6 +11,7 @@ import {
   Pencil,
   Trash2,
   Send,
+  FlaskConical,
 } from 'lucide-react';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
@@ -28,6 +29,13 @@ import { AgentEditor } from '@/components/ai/agent-editor';
 import { limpiarPersona } from '@/lib/ai/persona-limpia';
 import { AnswerGapsPanel } from '@/components/ai/answer-gaps-panel';
 import { ProbarComoCliente } from '@/components/ai/probar-como-cliente';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { EscalacionesPanel } from '@/components/ai/escalaciones-panel';
 import { SupportModeSwitcher } from '@/components/support/mode-switcher';
 import type { AiAgent } from '@/lib/ai/types';
@@ -89,6 +97,7 @@ export default function AiAgentsPage() {
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<AgentSummary | 'new' | null>(null);
+  const [probando, setProbando] = useState(false);
 
   // Entrada por enlace a un asistente concreto desde acciones contextuales.
   const params = useSearchParams();
@@ -206,15 +215,35 @@ export default function AiAgentsPage() {
         {/* El botón solo cuando ya hay asistentes: en vacío manda el CTA del
             empty state, sin duplicar la acción. */}
         {agents.length > 0 && (
-          <Button
-            onClick={() => setEditing('new')}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            <Plus className="size-4" />
-            {t('assistant.newAgent')}
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Probar el sistema entero como cliente: qué plantillas salen y
+                quién contesta, sin elegir asistente. */}
+            <Button variant="outline" onClick={() => setProbando(true)}>
+              <FlaskConical className="size-4" />
+              {t('assistant.test')}
+            </Button>
+            <Button
+              onClick={() => setEditing('new')}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="size-4" />
+              {t('assistant.newAgent')}
+            </Button>
+          </div>
         )}
       </header>
+
+      <Dialog open={probando} onOpenChange={setProbando}>
+        <DialogContent className="border-border bg-card max-h-[92vh] overflow-y-auto sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">{t('assistant.probarTitle')}</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {t('assistant.probarHint')}
+            </DialogDescription>
+          </DialogHeader>
+          {probando ? <ProbarComoCliente /> : null}
+        </DialogContent>
+      </Dialog>
 
       {loading ? (
         <div className="flex justify-center py-16">
@@ -240,21 +269,6 @@ export default function AiAgentsPage() {
           ))}
         </div>
       )}
-
-      {/* Probar el comercio entero como cliente: qué plantillas salen y quién
-          contesta, sin elegir asistente. Va primero porque es lo que uno hace
-          apenas termina de configurar: "a ver cómo queda". */}
-      {!loading && agents.length > 0 ? (
-        <section className="border-border bg-card rounded-2xl border p-4">
-          <h2 className="text-foreground text-sm font-semibold">
-            {t('assistant.probarTitle')}
-          </h2>
-          <p className="text-muted-foreground mt-0.5 mb-3 text-xs">
-            {t('assistant.probarHint')}
-          </p>
-          <ProbarComoCliente />
-        </section>
-      ) : null}
 
       {/* Los casos que dejó en manos de una persona. Van antes que los huecos
           porque tienen a alguien esperando del otro lado: un hueco se puede
