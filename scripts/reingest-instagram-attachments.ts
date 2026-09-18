@@ -52,7 +52,7 @@ async function main() {
   const resultados: Array<Record<string, unknown>> = []
   for (const raw of rows ?? []) {
     const row = raw as unknown as {
-      id: string; message_id: string; content_text: string | null; created_at: string
+      id: string; message_id: string; content_text: string | null; created_at: string; conversation_id: string
       conversations: { workspace_id: string; contact_id: string | null } | Array<{ workspace_id: string; contact_id: string | null }>
     }
     const conv = Array.isArray(row.conversations) ? row.conversations[0] : row.conversations
