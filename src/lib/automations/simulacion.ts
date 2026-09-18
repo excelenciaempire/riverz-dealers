@@ -366,7 +366,14 @@ function evaluar(
   const valor = cfg.value ?? '';
   if (cfg.subject === 'context_var' && cfg.operand) {
     const actual = ctx[cfg.operand];
-    const desc = `${cfg.operand} ${op} «${valor}»${op === 'between' ? ` y «${cfg.value2 ?? ''}»` : ''} (vale «${actual ?? ''}»)`;
+    const desc =
+      op === 'empty' || op === 'not_empty'
+        ? `${cfg.operand} ${op === 'empty' ? 'está vacío' : 'tiene valor'} (vale «${actual ?? ''}»)`
+        : `${cfg.operand} ${op} «${valor}»${op === 'between' ? ` y «${cfg.value2 ?? ''}»` : ''} (vale «${actual ?? ''}»)`;
+    if (op === 'empty' || op === 'not_empty') {
+      const vacio = actual == null || String(actual).trim() === '';
+      return { camino: (op === 'empty' ? vacio : !vacio) ? 'yes' : 'no', asumido: false, descripcion: desc };
+    }
     if (actual == null) return { camino: 'no', asumido: false, descripcion: desc };
     if (op === 'eq') {
       return {

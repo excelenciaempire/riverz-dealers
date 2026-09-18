@@ -228,7 +228,7 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
       const pend: Pendiente[] = [];
       for (const auto of autos) {
         if (auto.omitida) {
-          nuevos.push({ k: 'sys', texto: t('assistant.probarOmitida', { nombre: auto.nombre, motivo: auto.omitida }) });
+          nuevos.push({ k: 'sys', texto: t('assistant.probarOmitida', { nombre: auto.nombre, motivo: motivoOmision(t, auto.omitida) }) });
           continue;
         }
         const cabecera = [
@@ -486,7 +486,6 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
           </Button>
         </div>
       </div>
-      <p className="text-muted-foreground text-xs">{t('assistant.probarNota')}</p>
     </div>
   );
 }
@@ -579,6 +578,19 @@ function barreraTexto(t: ReturnType<typeof useT>, b: { tipo: string; detalle: st
   if (b.tipo === 'problema_detectado') return t('assistant.probarBarreraProblema', { detalle: b.detalle ?? '' });
   if (b.tipo === 'tope_respuestas') return t('assistant.probarBarreraTope', { n: b.detalle ?? '' });
   return b.tipo;
+}
+
+/** Los motivos de la barrera de DeUNA, en palabras. */
+function motivoOmision(t: ReturnType<typeof useT>, motivo: string): string {
+  const claves: Record<string, string> = {
+    order_already_confirmed_or_paid: 'assistant.probarOmisionPagado',
+    order_already_in_fulfillment: 'assistant.probarOmisionDespachado',
+    order_cancelled_or_refunded: 'assistant.probarOmisionCancelado',
+    tracking_not_verified: 'assistant.probarOmisionSinGuia',
+    delivery_not_verified: 'assistant.probarOmisionSinEntrega',
+    cancellation_not_verified: 'assistant.probarOmisionSinCancelacion',
+  };
+  return claves[motivo] ? t(claves[motivo]) : motivo;
 }
 
 function motivoTexto(t: ReturnType<typeof useT>, motivo: string): string {

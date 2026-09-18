@@ -1468,8 +1468,15 @@ function defaultVoiceCallType(trigger: AutomationTriggerType): VoiceCallType {
  * so the "Bifurcar según…" node can branch on units >= 4, between 2 and 3, etc.
  */
 function matchesValue(actual: unknown, cfg: ConditionStepConfig): boolean {
-  if (actual == null) return false
   const op = cfg.op ?? 'eq'
+  // «¿Tiene valor?» no compara contra nada: pregunta si el dato llegó. Es lo
+  // que necesita un envío que sólo tiene sentido con número de guía, en una
+  // tienda que a veces despacha sin cargarlo (Rasmiaw, 2026-09-17).
+  if (op === 'empty' || op === 'not_empty') {
+    const vacio = actual == null || String(actual).trim() === ''
+    return op === 'empty' ? vacio : !vacio
+  }
+  if (actual == null) return false
   // Comparación de igualdad tolerante: trim + minúsculas. Las ofertas se
   // guardan con casing variable (la del sitio vs la manual: "2 Unidades + 1
   // GRATIS" vs "2 unidades + 1 gratis"), y estados como 'paid' son

@@ -347,6 +347,8 @@ export const automations = {
   opGt: { es: "más de", en: "more than" },
   opLt: { es: "menos de", en: "less than" },
   opBetween: { es: "entre", en: "between" },
+  opNotEmpty: { es: "tiene valor", en: "has a value" },
+  opEmpty: { es: "está vacío", en: "is empty" },
 
   // Builder — keyword match config
   keywordsLabel: {

@@ -81,6 +81,22 @@ describe('simularDisparo', () => {
     })
   })
 
+  it('«tiene valor» decide sin comparar contra nada', async () => {
+    const db2 = dbConTablas({
+      automations: [{ id: 'a', workspace_id: 'w', name: 'Envío', trigger_type: 'shopify_order_fulfilled', is_active: true, deleted_at: null, trigger_config: {} }],
+      automation_steps: [
+        { id: 'c', automation_id: 'a', parent_step_id: null, branch: null, position: 0, step_type: 'condition', step_config: { subject: 'context_var', operand: 'tracking_number', op: 'not_empty', value: '' } },
+        { id: 's', automation_id: 'a', parent_step_id: 'c', branch: 'yes', position: 0, step_type: 'send_template', step_config: { template_name: 'envio', language: 'es', variables: { '1': '{{vars.tracking_number}}' } } },
+      ],
+      message_templates: [{ workspace_id: 'w', name: 'envio', language: 'es', body_text: 'Guía {{1}}', buttons: null }],
+      ai_agents: [],
+    })
+    const sin = await simularDisparo(db2, 'w', 'shopify_order_fulfilled', pedidoCod)
+    expect(sin.automatizaciones[0].pasos.map((p) => p.tipo)).toEqual(['condicion'])
+    const con = await simularDisparo(db2, 'w', 'shopify_order_fulfilled', { ...pedidoCod, guia: 'RA9' })
+    expect(con.automatizaciones[0].pasos.map((p) => p.tipo)).toEqual(['condicion', 'plantilla'])
+  })
+
   it('en DeUNA un pedido pagado con Mercado Pago no recibe la confirmación de contra entrega', async () => {
     const deuna = dbConTablas({
       automations: [

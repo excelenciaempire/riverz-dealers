@@ -582,9 +582,14 @@ function aCondicion(
     }
     default: {
       // Datos de número o de texto: van con su comparador y su valor.
+      const op = String(cfg.op ?? 'eq')
+      // «tiene valor» / «está vacío» no comparan contra nada.
+      if (op === 'empty' || op === 'not_empty') {
+        cfg.value = ''
+        break
+      }
       const valor = texto(p.valor)
       if (!valor) return falta(problemas, `${ruta}.valor`, 'falta con qué comparar')
-      const op = String(cfg.op ?? 'eq')
       if (op !== 'eq' && !Number.isFinite(Number(valor))) {
         return falta(problemas, `${ruta}.valor`, `para comparar con ${op} hace falta un número`)
       }

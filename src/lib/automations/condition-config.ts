@@ -26,7 +26,7 @@ import type { AutomationTriggerType } from '@/types'
  */
 
 /** Los comparadores que ofrece el selector para un dato numérico o de texto. */
-export const OPS_CONDICION = ['eq', 'gte', 'lte', 'gt', 'lt', 'between'] as const
+export const OPS_CONDICION = ['eq', 'gte', 'lte', 'gt', 'lt', 'between', 'not_empty', 'empty'] as const
 
 export type OpCondicion = (typeof OPS_CONDICION)[number]
 

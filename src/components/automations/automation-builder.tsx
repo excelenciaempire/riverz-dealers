@@ -632,6 +632,15 @@ const NUMBER_OPS: { op: string; key: string }[] = [
   { op: 'between', key: 'automations.opBetween' },
 ];
 
+// Un texto se compara, o se pregunta si llegó. «Número de guía tiene valor»
+// es la condición que le falta a un envío en una tienda que a veces despacha
+// sin cargar la guía.
+const TEXT_OPS: { op: string; key: string }[] = [
+  { op: 'eq', key: 'automations.opEq' },
+  { op: 'not_empty', key: 'automations.opNotEmpty' },
+  { op: 'empty', key: 'automations.opEmpty' },
+];
+
 const GROUP_LABEL: Record<string, string> = {
   order: 'automations.dpGroupOrder',
   contact: 'automations.dpGroupContact',
@@ -1059,14 +1068,29 @@ function ConditionValue({
     );
   }
 
-  // text → equals
+  // text → equals / has a value / is empty
   return (
-    <FieldBlock label={t('automations.opEq')}>
-      <Input
-        value={value}
-        onChange={(e) => set({ op: 'eq', value: e.target.value })}
-        className="bg-muted text-foreground"
-      />
+    <FieldBlock label={t('automations.condCompare')}>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={op}
+          onChange={(e) => set({ op: e.target.value, value: e.target.value === 'eq' ? value : '' })}
+          className="border-border bg-muted text-foreground h-9 rounded-md border px-2 text-sm"
+        >
+          {TEXT_OPS.map((o) => (
+            <option key={o.op} value={o.op}>
+              {t(o.key)}
+            </option>
+          ))}
+        </select>
+        {op === 'eq' ? (
+          <Input
+            value={value}
+            onChange={(e) => set({ op: 'eq', value: e.target.value })}
+            className="bg-muted text-foreground h-9 flex-1"
+          />
+        ) : null}
+      </div>
     </FieldBlock>
   );
 }
@@ -4472,7 +4496,7 @@ function conditionPreview(cfg: Record<string, unknown>, t: TFn, etiquetas: Conta
     return `${side} · ${t('automations.condWindowLabel').toLowerCase()} ${n} ${t(unitKey).toLowerCase()}`;
   }
   if (kind === 'message') return `${label}: "${(cfg.value as string) ?? ''}"`;
-  const opKey = NUMBER_OPS.find((o) => o.op === (cfg.op ?? 'eq'))?.key;
+  const opKey = [...NUMBER_OPS, ...TEXT_OPS].find((o) => o.op === (cfg.op ?? 'eq'))?.key;
   const opLabel = opKey ? t(opKey) : '';
   // Un dato de lista muestra su etiqueta, no el valor interno. La tarjeta
   // decía "Estado de la llamada igual a completed": el comercio no tiene por

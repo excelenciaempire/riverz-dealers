@@ -169,9 +169,11 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       if (!SUBJECTS_WITHOUT_OPERAND.has(String(c.subject)) && !nonEmpty(c.operand)) {
         issues.push({ path: `${path}.operand`, message: 'condition operand is required', key: 'automations.issueSinOperando' })
       }
-      // Elegir el dato no completa "Método de pago es igual a ___".
+      // Elegir el dato no completa "Método de pago es igual a ___". Las
+      // preguntas «tiene valor» / «está vacío» no llevan valor.
       if (
         ['context_var', 'contact_field', 'message_content'].includes(String(c.subject)) &&
+        !['empty', 'not_empty'].includes(String(c.op ?? 'eq')) &&
         !nonEmpty(c.value)
       ) {
         issues.push({
