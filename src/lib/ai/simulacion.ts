@@ -2,6 +2,7 @@ import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import {
+  bloquesDeEntrega,
   buildSystemPrompt,
   construirHerramientas,
   detectInboundProduct,
@@ -9,6 +10,7 @@ import {
   productosPermitidos,
   splitReplyForMode,
 } from '@/lib/ai/runner';
+import { resolverRegistro } from '@/lib/ai/registro-rioplatense';
 import { runWithTools, type ShopifyToolContext } from '@/lib/ai/tools';
 import type { AiAgent } from '@/lib/ai/types';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
@@ -64,6 +66,13 @@ export async function simularRespuesta(
     historial: TurnoSimulado[];
     simulatedPhone?: string | null;
     simulatedChannel: Channel;
+    /**
+     * Lo que la automatización dejó en la conversación al entregarla
+     * (`conversations.automation_context`): las variables del pedido y lo
+     * que fijó `set_context`. Con esto el prompt suma los mismos bloques que
+     * producción (recuperación asignada, pedido actual).
+     */
+    automationContext?: Record<string, unknown> | null;
   }
 ): Promise<RespuestaSimulada> {
   const resolvedKey = await resolveAnthropicKey(admin, {
@@ -75,7 +84,14 @@ export async function simularRespuesta(
 
   // El mismo enganche de producto que producción: es lo que fija el producto
   // y trae su material de entrenamiento al prompt.
-  const productMatch = await detectInboundProduct(admin, a.workspace_id, input.message);
+  const automationContext = input.automationContext ?? null;
+  const productMatch = await detectInboundProduct(
+    admin,
+    a.workspace_id,
+    [input.message, automationContext?.first_item, automationContext?.order_items]
+      .filter(Boolean)
+      .join('\n')
+  );
   const [products, businessCurrency, permitidos, reglas, topeDescuento, perfilOperativo] =
     await Promise.all([
       loadProductCatalog(admin, a, a.workspace_id, productMatch),
@@ -118,22 +134,31 @@ export async function simularRespuesta(
         return { ...t, customerEmail: null, customerPhone: null };
       })();
 
-  const system = buildSystemPrompt(
-    a,
-    contacto,
-    contacto,
-    null,
-    [],
-    { messages: [], rollingSummary: null, idleResetHint: null },
-    products,
-    productMatch,
-    shopify,
-    esComentarioPublico(input.simulatedChannel) ? REGLAS_COMENTARIO_PUBLICO : null,
-    businessCurrency,
-    reglas,
-    undefined,
-    perfilOperativo
-  );
+  // De vos o de tú, según el teléfono simulado (o el número del comercio).
+  const registro = await resolverRegistro({
+    db: admin,
+    workspaceId: a.workspace_id,
+    idioma: a.language,
+    contact: contacto,
+  });
+  const system =
+    buildSystemPrompt(
+      a,
+      contacto,
+      contacto,
+      null,
+      [],
+      { messages: [], rollingSummary: null, idleResetHint: null },
+      products,
+      productMatch,
+      shopify,
+      esComentarioPublico(input.simulatedChannel) ? REGLAS_COMENTARIO_PUBLICO : null,
+      businessCurrency,
+      reglas,
+      registro,
+      perfilOperativo,
+      input.simulatedChannel
+    ) + bloquesDeEntrega(a, automationContext, input.simulatedChannel);
 
   // La misma lista que produccion, resuelta por la pizarra del comercio.
   // `hayContacto` va en true a propósito: lo que hay que previsualizar es lo

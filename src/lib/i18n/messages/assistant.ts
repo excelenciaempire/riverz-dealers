@@ -543,6 +543,35 @@ export const assistant = {
   },
   probarEscribi: { es: "Escribe como el cliente…", en: "Type as the customer…" },
   probarEmpezar: { es: "Empezar", en: "Start" },
+  probarEscPagoRechazado: { es: "Se le rechaza el pago", en: "Their payment is rejected" },
+  probarSoloWhatsapp: {
+    es: "Las plantillas de un evento de tienda salen por WhatsApp.",
+    en: "Store-event templates go out via WhatsApp.",
+  },
+  probarBarreraBaja: {
+    es: "Pidió la baja: se le manda el acuse y ningún asistente le escribe más.",
+    en: "They opted out: the acknowledgement is sent and no assistant writes again.",
+  },
+  probarBarreraAlta: {
+    es: "Pidió volver a recibir mensajes: se le manda el acuse.",
+    en: "They opted back in: the acknowledgement is sent.",
+  },
+  probarBarreraContestador: {
+    es: "Eso es el contestador automático del cliente: se guarda y no se contesta.",
+    en: "That is the customer's auto-reply: stored, not answered.",
+  },
+  probarBarreraPersona: {
+    es: "Pide una persona: el asistente no contesta, el caso queda marcado y el comercio recibe aviso. {detalle}",
+    en: "Asks for a person: the assistant stays quiet, the case is flagged and the store is notified. {detalle}",
+  },
+  probarBarreraProblema: {
+    es: "Problema detectado, va a una persona: {detalle}. El asistente no contesta y el comercio recibe aviso.",
+    en: "Problem detected, goes to a person: {detalle}. The assistant stays quiet and the store is notified.",
+  },
+  probarBarreraTope: {
+    es: "El asistente ya contestó {n} veces en este hilo: se calla y deja el caso a una persona.",
+    en: "The assistant already replied {n} times in this thread: it steps back for a person.",
+  },
   probarEnLinea: { es: "en línea · simulación", en: "online · simulation" },
   probarSiNoRespondes: {
     es: "Si no respondes, en {n} {unit} sigue…",

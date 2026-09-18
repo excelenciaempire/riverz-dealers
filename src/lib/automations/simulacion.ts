@@ -30,7 +30,8 @@ export type EscenarioSimulado =
   | 'shopify_abandoned_checkout'
   | 'shopify_order_fulfilled'
   | 'shopify_order_delivered'
-  | 'shopify_order_cancelled';
+  | 'shopify_order_cancelled'
+  | 'payment_rejected';
 
 export const ESCENARIOS: EscenarioSimulado[] = [
   'shopify_order_created',
@@ -38,6 +39,7 @@ export const ESCENARIOS: EscenarioSimulado[] = [
   'shopify_order_fulfilled',
   'shopify_order_delivered',
   'shopify_order_cancelled',
+  'payment_rejected',
 ];
 
 export interface ProductoDePrueba {
@@ -80,6 +82,12 @@ export interface AutomacionSimulada {
   ventana: string | null;
   se_detiene_si_responde: boolean;
   pasos: PasoSimulado[];
+  /**
+   * Lo que quedaría en `conversations.automation_context` al entregar la
+   * conversación: las variables del pedido más lo que fijó `set_context` por
+   * el camino recorrido. Es lo que el asistente lee después.
+   */
+  contexto: Record<string, string>;
 }
 
 /** Las variables que tendría el contexto para este pedido de mentira. */
@@ -146,6 +154,18 @@ export function varsDePedido(
     vars.tracking_company = '';
     vars.tracking_url = '';
   }
+  if (trigger === 'payment_rejected') {
+    // Lo que manda el cron de Mercado Pago cuando un pago no pasa.
+    Object.assign(vars, {
+      payment_gateway: 'mercadopago',
+      financial_status: 'pending',
+      payment_attempts: '1',
+      payment_reason: 'Fondos insuficientes',
+      payment_reason_code: 'cc_rejected_insufficient_amount',
+      payment_reason_bucket: 'fondos',
+      installments: '1',
+    });
+  }
   Object.assign(vars, confirmationDisplayVars(vars, 'es'));
   return vars;
 }
@@ -207,6 +227,7 @@ export async function simularDisparo(
       | undefined;
     const ctx: Record<string, string> = { ...vars };
     const propios = steps.filter((s) => s.automation_id === a.id);
+    const pasos = recorrer(propios, null, null, ctx, templates, agentes);
     return {
       id: a.id,
       nombre: a.name,
@@ -216,7 +237,8 @@ export async function simularDisparo(
           ? `${String(rh.start).padStart(2, '0')}:00–${String(rh.end).padStart(2, '0')}:00 ${rh.timezone ?? ''}`.trim()
           : null,
       se_detiene_si_responde: cfg.stop_on_inbound === true,
-      pasos: recorrer(propios, null, null, ctx, templates, agentes),
+      pasos,
+      contexto: ctx,
     };
   });
   return { vars, automatizaciones };

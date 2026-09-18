@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Check, CheckCheck, FastForward, Loader2, Phone, RotateCcw, Send, Timer } from 'lucide-react';
+import { Check, CheckCheck, FastForward, Loader2, Phone, RotateCcw, Send, Timer, UserRound } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { Button } from '@/components/ui/button';
@@ -41,7 +41,8 @@ type Escenario =
   | 'shopify_abandoned_checkout'
   | 'shopify_order_fulfilled'
   | 'shopify_order_delivered'
-  | 'shopify_order_cancelled';
+  | 'shopify_order_cancelled'
+  | 'payment_rejected';
 
 const ESCENARIOS: Array<{ id: Escenario; key: string }> = [
   { id: 'mensaje', key: 'assistant.probarEscMensaje' },
@@ -50,6 +51,7 @@ const ESCENARIOS: Array<{ id: Escenario; key: string }> = [
   { id: 'shopify_order_fulfilled', key: 'assistant.probarEscDespachado' },
   { id: 'shopify_order_delivered', key: 'assistant.probarEscEntregado' },
   { id: 'shopify_order_cancelled', key: 'assistant.probarEscCancelado' },
+  { id: 'payment_rejected', key: 'assistant.probarEscPagoRechazado' },
 ];
 
 const CANALES: Array<{ id: Channel; label: string }> = [
@@ -65,7 +67,7 @@ type Agente = { id: string; nombre: string; role?: string } | null;
 type Item =
   | { k: 'biz'; texto: string; botones: Array<{ text: string; type: string }>; nota?: string; alerta?: string; hora: string }
   | { k: 'me'; texto: string; hora: string }
-  | { k: 'sys'; texto: string; icono?: 'espera' | 'llamada' }
+  | { k: 'sys'; texto: string; icono?: 'espera' | 'llamada' | 'persona' }
   | { k: 'typing' };
 
 /** Una automatización a medio recorrer: lo que falta después de una espera. */
@@ -92,6 +94,8 @@ export function ProbarComoCliente() {
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
   const [agenteAsignado, setAgenteAsignado] = useState<Agente>(null);
   const [agenteActual, setAgenteActual] = useState<Agente>(null);
+  /** Lo que la automatización deja en la conversación; el asistente lo lee. */
+  const [contexto, setContexto] = useState<Record<string, unknown> | null>(null);
   const [historial, setHistorial] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [mensaje, setMensaje] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -120,7 +124,14 @@ export function ProbarComoCliente() {
     setPendientes([]);
     setAgenteAsignado(null);
     setAgenteActual(null);
+    setContexto(null);
     setHistorial([]);
+  }
+
+  /** Las plantillas que ya le llegaron al cliente son parte del hilo que el asistente ve. */
+  function recordar(items: Item[]) {
+    const textos = items.filter((i): i is Extract<Item, { k: 'biz' }> => i.k === 'biz').map((i) => i.texto);
+    if (textos.length) setHistorial((prev) => [...prev, ...textos.map((c) => ({ role: 'assistant' as const, content: c }))]);
   }
 
   /** Recorre pasos hasta la próxima espera; devuelve lo que queda. */
@@ -179,6 +190,10 @@ export function ProbarComoCliente() {
       if (!res.ok) throw new Error(json.error ?? '');
       const autos = (json.automatizaciones ?? []) as AutomacionSimulada[];
       setAgenteAsignado(json.agente_asignado ?? null);
+      // En vivo `automation_context` sólo queda cuando la automatización
+      // entrega la conversación a un asistente.
+      const conEntrega = autos.find((a) => a.agente);
+      setContexto(conEntrega?.contexto ?? null);
       if (autos.length === 0) {
         setItems([{ k: 'sys', texto: t('assistant.probarSinAutomatizaciones') }]);
         return;
@@ -203,6 +218,7 @@ export function ProbarComoCliente() {
       }
       setItems(nuevos);
       setPendientes(pend);
+      recordar(nuevos);
     } catch {
       toast.error(t('assistant.probarFallo'));
     } finally {
@@ -233,6 +249,7 @@ export function ProbarComoCliente() {
       nuevos.push(...chipEspera(r.pendiente));
     }
     setItems((prev) => [...prev, ...nuevos]);
+    recordar(nuevos);
   }
 
   async function enviar(textoCrudo?: string) {
@@ -264,11 +281,23 @@ export function ProbarComoCliente() {
           historial,
           agente_asignado: agenteAsignado?.id ?? null,
           agente_actual: agenteActual?.id ?? null,
+          automation_context: contexto,
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? '');
       const agente = (json.agente ?? null) as Agente;
+      if (json.barrera) {
+        // Una barrera del runner: en vivo el asistente no contesta.
+        const b = json.barrera as { tipo: string; detalle: string | null };
+        setItems((prev) => [
+          ...prev.filter((i) => i.k !== 'typing'),
+          { k: 'sys', icono: b.tipo === 'baja' || b.tipo === 'alta' ? undefined : 'persona', texto: barreraTexto(t, b) },
+        ]);
+        setHistorial((prev) => [...prev, { role: 'user', content: texto }]);
+        if (agente) setAgenteActual(agente);
+        return;
+      }
       const chunks: string[] =
         Array.isArray(json.chunks) && json.chunks.length > 0 ? json.chunks : json.reply ? [json.reply] : [];
       const herramientas = Array.isArray(json.herramientas)
@@ -304,12 +333,16 @@ export function ProbarComoCliente() {
             {ESCENARIOS.map((e) => <SelectItem key={e.id} value={e.id}>{t(e.key)}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={canal} onValueChange={(v) => { if (v) { setCanal(v as Channel); reiniciar(); } }}>
-          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {CANALES.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {esEvento ? (
+          <Input value="WhatsApp" readOnly title={t('assistant.probarSoloWhatsapp')} />
+        ) : (
+          <Select value={canal} onValueChange={(v) => { if (v) { setCanal(v as Channel); reiniciar(); } }}>
+            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {CANALES.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         {esEvento && productos.length > 0 ? (
           <Select value={productoId} onValueChange={(v) => setProductoId(v ?? '')}>
             <SelectTrigger className="w-full"><SelectValue placeholder={t('assistant.probarProducto')} /></SelectTrigger>
@@ -408,6 +441,7 @@ function Linea({ it, onBoton }: { it: Item; onBoton: (texto: string) => void }) 
         <span className="text-muted-foreground inline-flex max-w-[90%] items-center gap-1 rounded-lg bg-white/70 px-2 py-1 text-center text-[11px] dark:bg-[#182229]">
           {it.icono === 'espera' ? <Timer className="size-3 shrink-0" /> : null}
           {it.icono === 'llamada' ? <Phone className="size-3 shrink-0" /> : null}
+          {it.icono === 'persona' ? <UserRound className="size-3 shrink-0" /> : null}
           {it.texto}
         </span>
       </div>
@@ -464,6 +498,16 @@ function Linea({ it, onBoton }: { it: Item; onBoton: (texto: string) => void }) 
       {it.alerta ? <p className="text-destructive mt-0.5 text-[10px]">{it.alerta}</p> : null}
     </div>
   );
+}
+
+function barreraTexto(t: ReturnType<typeof useT>, b: { tipo: string; detalle: string | null }): string {
+  if (b.tipo === 'baja') return t('assistant.probarBarreraBaja');
+  if (b.tipo === 'alta') return t('assistant.probarBarreraAlta');
+  if (b.tipo === 'respuesta_automatica') return t('assistant.probarBarreraContestador');
+  if (b.tipo === 'escalation_keyword') return t('assistant.probarBarreraPersona', { detalle: b.detalle ?? '' });
+  if (b.tipo === 'problema_detectado') return t('assistant.probarBarreraProblema', { detalle: b.detalle ?? '' });
+  if (b.tipo === 'tope_respuestas') return t('assistant.probarBarreraTope', { n: b.detalle ?? '' });
+  return b.tipo;
 }
 
 function motivoTexto(t: ReturnType<typeof useT>, motivo: string): string {
