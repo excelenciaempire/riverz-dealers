@@ -22,7 +22,10 @@ export function recoveryButtonKind(
   if (normalized === 'CONFIRMAR' || normalized === 'MANTENER CONTRAENTREGA') {
     return 'confirm';
   }
-  if (normalized === 'BENEFICIO' || normalized === 'RECIBIR BENEFICIO') {
+  // «CAMBIAR PAGO» es el botón de las plantillas de UTILIDAD de confirmación
+  // (sin descuento en el texto, para que Meta no las tope como marketing);
+  // el beneficio se lo cuenta el asistente ya con la sesión abierta.
+  if (normalized === 'BENEFICIO' || normalized === 'RECIBIR BENEFICIO' || normalized === 'CAMBIAR PAGO') {
     return 'payment_change';
   }
   return null;

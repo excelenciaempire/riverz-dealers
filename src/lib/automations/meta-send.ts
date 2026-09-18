@@ -13,7 +13,7 @@ import {
   isRecipientNotAllowedError,
   isUsPhone,
 } from '@/lib/whatsapp/phone-utils'
-import { US_MARKETING_BLOCKED_CODE } from '@/lib/whatsapp/delivery-errors'
+import { MARKETING_LIMIT_HOLD_CODE, META_MARKETING_LIMIT_CODE, US_MARKETING_BLOCKED_CODE } from '@/lib/whatsapp/delivery-errors'
 import { resolveTemplateButtons } from '@/lib/whatsapp/template-buttons'
 import { checkSendGate, type SendReason } from '@/lib/outreach/send-gate'
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes'
@@ -160,6 +160,44 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     const isMarketing =
       String((tplCat as { category?: string } | null)?.category ?? '').toLowerCase() ===
       'marketing'
+    // Meta le cortó el marketing a esta persona hace menos de 24 h (131049,
+    // "healthy ecosystem engagement": quien no contesta recibe menos
+    // marketing). Insistir con la siguiente plantilla de marketing en la misma
+    // ventana vuelve a fallar y suma un rechazo más a la reputación del número:
+    // en Rasmiaw, 20 rechazos en 3 días, la mayoría en el 2.º y 3.º toque de la
+    // misma secuencia. Se deja escrito y no se intenta; las de utilidad
+    // (confirmación, envío) no tienen ese tope y siguen saliendo.
+    if (isMarketing) {
+      const { data: convs } = await db
+        .from('conversations')
+        .select('id')
+        .eq('workspace_id', input.workspaceId)
+        .eq('contact_id', input.contactId)
+      const ids = ((convs ?? []) as Array<{ id: string }>).map((c) => c.id)
+      if (ids.length > 0) {
+        const { count } = await db
+          .from('messages')
+          .select('id', { count: 'exact', head: true })
+          .in('conversation_id', ids)
+          .eq('status', 'failed')
+          .eq('error_code', META_MARKETING_LIMIT_CODE)
+          .gt('created_at', new Date(Date.now() - 24 * 3_600_000).toISOString())
+        if ((count ?? 0) > 0) {
+          await db.from('messages').insert({
+            conversation_id: input.conversationId,
+            sender_type: 'bot',
+            content_type: 'template',
+            content_text: null,
+            template_name: input.templateName,
+            status: 'failed',
+            error_code: MARKETING_LIMIT_HOLD_CODE,
+            origin: 'automation',
+            origin_name: input.automationName ?? null,
+          })
+          return { whatsapp_message_id: '' }
+        }
+      }
+    }
     if (isMarketing && isUsPhone(sanitized)) {
       await db.from('messages').insert({
         conversation_id: input.conversationId,

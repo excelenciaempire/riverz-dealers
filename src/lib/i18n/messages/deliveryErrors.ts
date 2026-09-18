@@ -127,6 +127,10 @@ export const deliveryErrors = {
     es: "WhatsApp rechazó el envío por un dato inválido.",
     en: "WhatsApp rejected the send because of an invalid value.",
   },
+  marketingLimitHold: {
+    es: "WhatsApp ya limitó el marketing a esta persona hace menos de 24 h: este mensaje no se intentó. Los mensajes de utilidad sí salen.",
+    en: "WhatsApp already capped marketing to this person less than 24 h ago: this message was not attempted. Utility messages still go out.",
+  },
   usMarketingBlocked: {
     es: "WhatsApp no entrega marketing a números de EE.UU. Usa una plantilla de utilidad o espera a que el cliente escriba primero.",
     en: "WhatsApp doesn't deliver marketing to US numbers. Use a utility template or wait for the customer to message first.",

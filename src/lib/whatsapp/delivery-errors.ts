@@ -72,10 +72,18 @@ const CODES: Record<number, CodeMeta> = {
   // bloqueado del lado del cliente (Meta no lo entrega y quedaría en 'sent'
   // para siempre). Ver isUsPhone / US_MARKETING_BLOCKED_CODE.
   4001: { key: 'usMarketingBlocked', silent: true },
+  // Código PRIVADO de Riverz: Meta ya le cortó el marketing a esta persona
+  // (131049) hace menos de 24 h, así que la siguiente plantilla de marketing
+  // no se intenta. Ver MARKETING_LIMIT_HOLD_CODE en automations/meta-send.
+  4002: { key: 'marketingLimitHold', silent: true },
 }
 
 /** Código privado (no-Meta) para el bloqueo de marketing a EE.UU. */
 export const US_MARKETING_BLOCKED_CODE = 4001
+/** Código privado (no-Meta): marketing en pausa por un 131049 reciente. */
+export const MARKETING_LIMIT_HOLD_CODE = 4002
+/** Meta: "not delivered to maintain healthy ecosystem engagement" — tope de marketing por persona. */
+export const META_MARKETING_LIMIT_CODE = 131049
 
 /** Códigos de Meta que son transitorios aunque el HTTP no sea 5xx: reintentar
  *  es seguro porque Meta rechazó ANTES de actuar (no puede duplicar). */
