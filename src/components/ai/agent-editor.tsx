@@ -7,11 +7,8 @@ import Link from '@/components/i18n/locale-link';
 import { toast } from 'sonner';
 import {
   Loader2,
-  Send,
   Sparkles,
   X,
-  Eye,
-  EyeOff,
   Search,
   Package,
   Plus,
@@ -22,8 +19,6 @@ import {
   ChevronDown,
   ChevronRight,
   Check,
-  CheckCheck,
-  RotateCcw,
 } from 'lucide-react';
 import { AgentStats } from '@/components/ai/agent-stats';
 import { MODELO_POR_DEFECTO } from '@/lib/ai/esfuerzo';
@@ -527,27 +522,7 @@ export function AgentEditor({
   const [applyingProduct, setApplyingProduct] = useState(false);
 
   const [saving, setSaving] = useState(false);
-  const [testMessage, setTestMessage] = useState('');
-  // El preview es una conversación multi-turno tipo WhatsApp. Cada
-  // turno guarda los chunks individuales para que el modo "multi"
-  // (varios bubbles) se vea como en producción.
-  type TestTurn = {
-    role: 'user' | 'assistant';
-    chunks: string[];
-    stamp: string;
-    /** Qué herramientas usó para contestar. Es la mitad de lo que se quiere
-     *  ver al probar: no sólo qué dijo, sino si fue a buscar el dato. */
-    herramientas?: string[];
-  };
-  const [testHistory, setTestHistory] = useState<TestTurn[]>([]);
-  const [testing, setTesting] = useState(false);
-  const testScrollRef = useRef<HTMLDivElement>(null);
-
   const [showAdvancedPersona, setShowAdvancedPersona] = useState(false);
-  // El panel "Probar" arranca cerrado para que el form tenga el ancho
-  // completo; el botón del header lo abre on-demand.
-  const [showTest, setShowTest] = useState(false);
-
   const [voiceAgentId, setVoiceAgentId] = useState(agent?.voice_agent_id ?? '');
   const [voiceCanPropose, setVoiceCanPropose] = useState(
     agent?.voice_ai_decides ?? false
@@ -1082,81 +1057,6 @@ export function AgentEditor({
     }
   }
 
-  function nowStamp(): string {
-    const d = new Date();
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  }
-
-  async function runTest() {
-    const text = testMessage.trim();
-    if (!text) return;
-    if (!currentAgentId) {
-      toast.error(t('assistant.saveBeforeTest'));
-      return;
-    }
-    // Bubble del usuario inmediato — UX de chat real.
-    setTestHistory((prev) => [
-      ...prev,
-      { role: 'user', chunks: [text], stamp: nowStamp() },
-    ]);
-    setTestMessage('');
-    setTesting(true);
-    try {
-      const res = await fetchWithCsrf(`/api/ai/agents/${currentAgentId}/test`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          // El hilo de la prueba. Antes no se mandaba y el servidor trataba
-          // cada mensaje como el primero: era imposible probar una
-          // confirmación, un cambio de idea o cualquier cosa de dos turnos.
-          historial: testHistory.map((turn) => ({
-            role: turn.role,
-            content: turn.chunks.join('\n'),
-          })),
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? t('assistant.testFailed'));
-      const reply: string = json.reply ?? '';
-      const chunks: string[] =
-        Array.isArray(json.chunks) && json.chunks.length > 0
-          ? json.chunks
-          : reply
-            ? [reply]
-            : [];
-      setTestHistory((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          chunks,
-          stamp: nowStamp(),
-          herramientas: Array.isArray(json.herramientas)
-            ? json.herramientas
-            : [],
-        },
-      ]);
-    } catch (err) {
-      toast.error(t('assistant.genericError'));
-    } finally {
-      setTesting(false);
-    }
-  }
-
-  function resetTestConversation() {
-    setTestHistory([]);
-    setTestMessage('');
-  }
-
-  // Auto-scroll del preview al llegar mensajes nuevos.
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      if (testScrollRef.current) {
-        testScrollRef.current.scrollTop = testScrollRef.current.scrollHeight;
-      }
-    });
-  }, [testHistory, testing]);
-
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent
@@ -1180,25 +1080,6 @@ export function AgentEditor({
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {tab !== 'stats' && (
-              <button
-                type="button"
-                onClick={() => setShowTest((v) => !v)}
-                className="border-border bg-background text-foreground hover:bg-accent hidden items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors sm:inline-flex"
-                title={
-                  showTest
-                    ? t('assistant.hideTestPanel')
-                    : t('assistant.showTestPanel')
-                }
-              >
-                {showTest ? (
-                  <EyeOff className="size-3.5" />
-                ) : (
-                  <Eye className="size-3.5" />
-                )}
-                {showTest ? t('assistant.hideTest') : t('assistant.test')}
-              </button>
-            )}
             <label className="text-muted-foreground flex items-center gap-2 text-xs">
               <Switch checked={isActive} onCheckedChange={setIsActive} />
               {isActive ? t('assistant.active') : t('assistant.paused')}
@@ -1222,11 +1103,7 @@ export function AgentEditor({
             'grid min-h-0 gap-0 overflow-y-auto sm:overflow-hidden',
             tab === 'stats'
               ? 'sm:grid-cols-1'
-              : showTest
-                ? // El panel de prueba suma ~520px de rieles fijos: solo a 3 columnas
-                  // desde lg (donde el diálogo ya es max-w-5xl y hay espacio).
-                  'lg:grid-cols-[180px_minmax(0,1fr)_340px]'
-                : 'sm:grid-cols-[180px_minmax(0,1fr)]'
+              : 'sm:grid-cols-[180px_minmax(0,1fr)]'
           )}
         >
           {/* Section nav rail */}
@@ -2204,206 +2081,6 @@ export function AgentEditor({
             )}
           </div>
 
-          {/* Test column — conversación multi-turno tipo WhatsApp.
-              El usuario tipea como cliente; el bot del editor responde
-              y se ve igual que en producción (left bubbles blancas para
-              asistente, right verdes para usuario, fondo beige con dots).
-              Se puede ocultar con el botón "Ocultar prueba" del header. */}
-          {showTest && tab !== 'stats' && (
-            <aside className="border-border bg-muted/30 flex min-h-0 flex-col overflow-hidden border-t sm:border-t-0 sm:border-l">
-              <div className="border-border bg-card flex items-center justify-between gap-2 border-b px-4 py-3">
-                <div className="min-w-0">
-                  <p className="text-foreground text-xs font-semibold">
-                    {t('assistant.testPanelTitle')}
-                  </p>
-                  <p className="text-muted-foreground text-[11px]">
-                    {t('assistant.testPanelSubtitle')}
-                  </p>
-                </div>
-                {testHistory.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={resetTestConversation}
-                    className="border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-[10px] transition-colors"
-                    title={t('assistant.resetConversation')}
-                  >
-                    <RotateCcw className="size-3" />
-                    {t('assistant.reset')}
-                  </button>
-                )}
-              </div>
-              {/* De acá para abajo los hex sueltos son el cromo REAL de
-                WhatsApp, no un descuido del sistema de temas: la prueba tiene
-                que verse como el teléfono del cliente, así que no usan los
-                tokens de la app.
-                Pero WhatsApp TAMBIÉN tiene modo oscuro, así que cada color
-                lleva su par (`dark:`): en claro va el cromo claro (#ece5dd,
-                #dcf8c6, blanco) y en oscuro el suyo (#0b141a, #005c4b,
-                #202c33). Antes el panel se quedaba crema sobre una app en
-                oscuro y el texto del compositor no se leía. */}
-              <div
-                ref={testScrollRef}
-                className="flex-1 space-y-1.5 overflow-y-auto bg-[#ece5dd] px-3 py-3 dark:bg-[#0b141a]"
-                style={{
-                  backgroundImage:
-                    'radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
-                  backgroundSize: '12px 12px',
-                }}
-              >
-                {testHistory.length === 0 && !testing && (
-                  <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-[#54656f] dark:text-[#8696a0]">
-                    <Sparkles className="size-6" />
-                    <p className="text-xs leading-snug">
-                      {t('assistant.testEmptyPrompt')}
-                    </p>
-                  </div>
-                )}
-                {testHistory.map((turn, ti) => (
-                  <div
-                    key={ti}
-                    className={cn(
-                      'flex flex-col gap-1',
-                      turn.role === 'user' ? 'items-end' : 'items-start'
-                    )}
-                  >
-                    {/* Sender label so it's unmistakable who is who: the
-                      tester ("Tú", green) vs the assistant (its name, blue). */}
-                    <span
-                      className={cn(
-                        'px-1 text-[10px] font-semibold',
-                        turn.role === 'user'
-                          ? 'text-[#146034] dark:text-[#06cf9c]'
-                          : 'text-[#0a5c9e] dark:text-[#53bdeb]'
-                      )}
-                    >
-                      {turn.role === 'user'
-                        ? t('assistant.you')
-                        : name.trim() || t('assistant.assistant')}
-                    </span>
-                    {turn.chunks.length === 0 ? (
-                      <div
-                        className={cn(
-                          'relative max-w-[85%] rounded-lg px-2 py-1.5 text-[13px] leading-snug shadow-sm',
-                          turn.role === 'user'
-                            ? 'rounded-br-none bg-[#dcf8c6] text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef]'
-                            : 'border-border rounded-bl-none border bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]'
-                        )}
-                      >
-                        <span className="text-[#6b7280] italic dark:text-[#8696a0]">
-                          {t('assistant.noReply')}
-                        </span>
-                      </div>
-                    ) : (
-                      turn.chunks.map((chunk, ci) => {
-                        const isLast = ci === turn.chunks.length - 1;
-                        return (
-                          <div
-                            key={ci}
-                            className={cn(
-                              'relative max-w-[85%] rounded-lg px-2 py-1.5 text-[13px] leading-snug shadow-sm',
-                              turn.role === 'user'
-                                ? cn(
-                                    'bg-[#dcf8c6] text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef]',
-                                    isLast ? 'rounded-br-none' : ''
-                                  )
-                                : cn(
-                                    'border-border border bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]',
-                                    isLast ? 'rounded-bl-none' : ''
-                                  )
-                            )}
-                          >
-                            <p className="pr-10 whitespace-pre-wrap">{chunk}</p>
-                            {isLast && (
-                              <div
-                                className={cn(
-                                  'flex items-center justify-end gap-1 text-[10px]',
-                                  // Sobre el verde de la burbuja del cliente el
-                                  // gris de WhatsApp no se lee (2.6:1 en
-                                  // oscuro), asi que cada lado lleva el suyo.
-                                  turn.role === 'user'
-                                    ? 'text-[#4f5b63] dark:text-[#cfe0da]'
-                                    : 'text-[#667781] dark:text-[#8696a0]'
-                                )}
-                              >
-                                <span>{turn.stamp}</span>
-                                {turn.role === 'user' && (
-                                  <CheckCheck className="size-3 text-[#53bdeb]" />
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                    {/* Con qué se ayudó para contestar. Sin esto no hay forma de
-                      distinguir una respuesta buscada de una inventada, que es
-                      justo lo que se viene a mirar acá. */}
-                    {turn.role === 'assistant' &&
-                      (turn.herramientas?.length ?? 0) > 0 && (
-                        <div className="flex flex-wrap gap-1 px-1">
-                          {turn.herramientas!.map((h, hi) => (
-                            <span
-                              key={`${h}-${hi}`}
-                              className="rounded bg-white/70 px-1.5 py-px font-mono text-[9px] text-[#54656f] dark:bg-[#111b21]/70 dark:text-[#8696a0]"
-                            >
-                              {h}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                  </div>
-                ))}
-                {testing && (
-                  <div className="flex items-start">
-                    <div className="border-border rounded-lg rounded-bl-none border bg-white px-3 py-2 text-[13px] leading-snug text-[#111b21] shadow-sm dark:bg-[#202c33] dark:text-[#e9edef]">
-                      <span className="inline-flex gap-0.5">
-                        <span className="size-1.5 animate-pulse rounded-full bg-[#54656f] dark:bg-[#8696a0]" />
-                        <span
-                          className="size-1.5 animate-pulse rounded-full bg-[#54656f] dark:bg-[#8696a0]"
-                          style={{ animationDelay: '150ms' }}
-                        />
-                        <span
-                          className="size-1.5 animate-pulse rounded-full bg-[#54656f] dark:bg-[#8696a0]"
-                          style={{ animationDelay: '300ms' }}
-                        />
-                      </span>
-                    </div>
-                  </div>
-                )}
-                {!editing && (
-                  <p className="rounded-md border border-dashed border-[#b4b4a8] bg-white/60 px-3 py-2 text-[11px] text-[#54656f] dark:border-[#3b4a54] dark:bg-[#111b21]/60 dark:text-[#8696a0]">
-                    {t('assistant.saveBeforeTestHint')}
-                  </p>
-                )}
-              </div>
-              <div className="border-border border-t bg-[#f0f0f0] p-2 dark:bg-[#111b21]">
-                <div className="flex items-end gap-2">
-                  <Textarea
-                    value={testMessage}
-                    onChange={(e) => setTestMessage(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        void runTest();
-                      }
-                    }}
-                    rows={2}
-                    placeholder={t('assistant.testInputPlaceholder')}
-                    className="min-h-[44px] resize-none rounded-2xl border border-[#dcdcdc] bg-white text-sm text-[#111b21] placeholder:text-[#667781] dark:border-[#2a3942] dark:bg-[#2a3942] dark:text-[#e9edef] dark:placeholder:text-[#8696a0]"
-                    disabled={testing || !editing}
-                  />
-                  <Button
-                    onClick={runTest}
-                    disabled={testing || !editing || !testMessage.trim()}
-                    className="size-10 shrink-0 rounded-full bg-[#25d366] p-0 text-white hover:bg-[#1ebe5a] dark:bg-[#00a884] dark:hover:bg-[#029b78]"
-                    aria-label={t('assistant.send')}
-                  >
-                    <Send className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            </aside>
-          )}
         </div>
 
         <div className="border-border bg-card/60 flex items-center justify-end gap-2 border-t px-4 py-4 sm:px-6">
