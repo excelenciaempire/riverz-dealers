@@ -103,3 +103,37 @@ it('times out a body that stops sending', async () => {
   expect(await downloadPublicMedia('https://slow.test/photo', 1024, 10)).toBeNull();
   expect(response.destroyed).toBe(true);
 });
+
+it('connects over IPv4 first even when the resolver lists IPv6 first', async () => {
+  // lookaside.fbsbx.com publica AAAA antes que A; la instancia no tiene IPv6.
+  mocks.lookup.mockResolvedValue([
+    { address: '2a03:2880:f332:80:face:b00c:0:3', family: 6 },
+    { address: '157.240.1.1', family: 4 },
+  ]);
+  serve([reply()]);
+  expect(await downloadPublicMedia('https://lookaside.fbsbx.com/x', 1024, 1000)).toEqual({ buffer: Buffer.from('photo'), mime: 'application/octet-stream' });
+  const options = mocks.request.mock.calls[0][1] as RequestOptions;
+  const callback = vi.fn();
+  (options.lookup as (h: string, o: { all?: boolean }, cb: typeof callback) => void)('lookaside.fbsbx.com', {}, callback);
+  expect(callback).toHaveBeenCalledWith(null, '157.240.1.1', 4);
+});
+
+it('falls back to the next validated address when the first one cannot connect', async () => {
+  mocks.lookup.mockResolvedValue([
+    { address: '2a03:2880:f332:80:face:b00c:0:3', family: 6 },
+    { address: '157.240.1.1', family: 4 },
+  ]);
+  // Sin IPv6 en la instancia: la primera dirección probada (v4, por el orden)
+  // sirve; pero si fallara, se prueba la siguiente en vez de rendirse.
+  let intentos = 0;
+  mocks.request.mockImplementation((_url: URL, options: RequestOptions, callback: (r: IncomingMessage) => void) => {
+    const outgoing = new EventEmitter();
+    intentos += 1;
+    const primera = intentos === 1;
+    return Object.assign(outgoing, {
+      end: () => (primera ? outgoing.emit('error', Object.assign(new Error('connect ENETUNREACH'), { code: 'ENETUNREACH' })) : callback(reply())),
+    });
+  });
+  expect(await downloadPublicMedia('https://lookaside.fbsbx.com/x', 1024, 1000)).toEqual({ buffer: Buffer.from('photo'), mime: 'application/octet-stream' });
+  expect(intentos).toBe(2);
+});
