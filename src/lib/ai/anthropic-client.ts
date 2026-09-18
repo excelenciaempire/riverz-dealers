@@ -104,3 +104,23 @@ export function getAnthropicSubagent(
     maxRetries: 0,
   });
 }
+
+/**
+ * El mensaje de un error del SDK, con la causa de verdad.
+ *
+ * Todo lo que lanza el `fetch` a medida —la reserva de la billetera que
+ * falla, `sin_saldo`, el conteo de tokens que devuelve 5xx— el SDK lo
+ * envuelve en `APIConnectionError` con el texto genérico "Connection error.",
+ * y ESO era lo que quedaba en `ai_replies.error` y en el caso escalado. El
+ * 2026-09-17 hubo catorce "Connection error." en un día y no se podía saber
+ * cuáles eran la base colgada y cuáles la billetera. La causa viaja en
+ * `cause`; acá se la saca.
+ */
+export function mensajeDeError(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const causa = (err as { cause?: unknown }).cause;
+  if (causa instanceof Error && causa.message && causa.message !== err.message) {
+    return `${err.message} (${causa.message})`;
+  }
+  return err.message;
+}

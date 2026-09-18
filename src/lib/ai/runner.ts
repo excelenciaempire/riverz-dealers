@@ -69,7 +69,7 @@ import type {
 import Anthropic from '@anthropic-ai/sdk';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { registrarHueco } from './answer-gaps';
-import { getAnthropic } from './anthropic-client';
+import { getAnthropic, mensajeDeError } from './anthropic-client';
 import { avisarEscalada } from './aviso-escalada';
 import {
   containsEscalationKeyword as hasEscalationKeyword,
@@ -1304,7 +1304,7 @@ export async function runAiAgent(
       if (agent) {
         await logReply(db, agent, args, {
           status: 'failed',
-          error: err instanceof Error ? err.message : String(err),
+          error: mensajeDeError(err),
         });
       }
     } catch {

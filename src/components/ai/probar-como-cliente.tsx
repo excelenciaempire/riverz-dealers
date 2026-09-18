@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Bot, Loader2, Phone, RotateCcw, Send, Timer, Wrench } from 'lucide-react';
+import { Check, CheckCheck, FastForward, Loader2, Phone, RotateCcw, Send, Timer } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { Button } from '@/components/ui/button';
@@ -19,14 +19,20 @@ import type { AutomacionSimulada, PasoSimulado } from '@/lib/automations/simulac
 import type { Channel } from '@/types';
 
 /**
- * Probar el comercio entero como si uno fuera el cliente.
+ * Probar el comercio entero como si uno fuera el cliente, en un chat que se
+ * ve y se siente como WhatsApp.
  *
  * No se elige agente: se elige la SITUACIÓN (compra, carrito, despacho…) y el
- * canal. El servidor recorre las automatizaciones y muestra qué le llega al
- * cliente; después uno chatea y contesta el asistente que contestaría en vivo
- * —el que la automatización entregó, o el que el enrutamiento elige—, con una
- * etiqueta chica que dice cuál fue y por qué. Un comercio con dos asistentes
- * no tiene que saber cuál abrir.
+ * canal. Lo que las automatizaciones le mandarían al cliente aparece como
+ * mensajes recibidos —plantillas ya rellenas, con sus botones—; las esperas
+ * se muestran como "si no respondes, en 3 horas…" con un botón para adelantar
+ * el reloj; y cuando uno escribe (o toca un botón de la plantilla), contesta
+ * el asistente que contestaría en vivo, con una línea chica que dice cuál
+ * fue y por qué. Un comercio con dos asistentes no tiene que saber cuál abrir.
+ *
+ * El tiempo es simulado a propósito: una espera de 21 horas no se puede
+ * probar esperando 21 horas. Responder frena los recordatorios cuando la
+ * automatización dice que se detiene al recibir respuesta, igual que en vivo.
  */
 
 type Escenario =
@@ -55,15 +61,19 @@ const CANALES: Array<{ id: Channel; label: string }> = [
 
 type Agente = { id: string; nombre: string; role?: string } | null;
 
-type Turno =
-  | { role: 'user'; texto: string }
-  | {
-      role: 'assistant';
-      chunks: string[];
-      agente: Agente;
-      motivo: string;
-      herramientas: string[];
-    };
+/** Lo que se ve en el hilo. `biz` es lo que manda el comercio (automatización o asistente). */
+type Item =
+  | { k: 'biz'; texto: string; botones: Array<{ text: string; type: string }>; nota?: string; alerta?: string; hora: string }
+  | { k: 'me'; texto: string; hora: string }
+  | { k: 'sys'; texto: string; icono?: 'espera' | 'llamada' }
+  | { k: 'typing' };
+
+/** Una automatización a medio recorrer: lo que falta después de una espera. */
+interface Pendiente {
+  auto: AutomacionSimulada;
+  espera: { amount: number; unit: string };
+  resto: PasoSimulado[];
+}
 
 export function ProbarComoCliente() {
   const t = useT();
@@ -71,16 +81,18 @@ export function ProbarComoCliente() {
   const [escenario, setEscenario] = useState<Escenario>('shopify_order_created');
   const [canal, setCanal] = useState<Channel>('whatsapp');
   const [productos, setProductos] = useState<Array<{ id: string; title: string }>>([]);
-  const [productoId, setProductoId] = useState<string>('');
+  const [productoId, setProductoId] = useState('');
   const [pago, setPago] = useState<'cod' | 'paid'>('cod');
   const [guia, setGuia] = useState('');
   const [telefono, setTelefono] = useState('');
 
-  const [simulando, setSimulando] = useState(false);
-  const [automatizaciones, setAutomatizaciones] = useState<AutomacionSimulada[] | null>(null);
+  const [iniciado, setIniciado] = useState(false);
+  const [cargando, setCargando] = useState(false);
+  const [items, setItems] = useState<Item[]>([]);
+  const [pendientes, setPendientes] = useState<Pendiente[]>([]);
   const [agenteAsignado, setAgenteAsignado] = useState<Agente>(null);
   const [agenteActual, setAgenteActual] = useState<Agente>(null);
-  const [turnos, setTurnos] = useState<Turno[]>([]);
+  const [historial, setHistorial] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [mensaje, setMensaje] = useState('');
   const [enviando, setEnviando] = useState(false);
   const finRef = useRef<HTMLDivElement | null>(null);
@@ -97,26 +109,59 @@ export function ProbarComoCliente() {
   }, []);
 
   useEffect(() => {
-    finRef.current?.scrollIntoView({ block: 'end' });
-  }, [turnos, automatizaciones]);
+    finRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  }, [items]);
 
   const esEvento = escenario !== 'mensaje';
-  const listoParaChatear = !esEvento || automatizaciones !== null;
 
   function reiniciar() {
-    setAutomatizaciones(null);
+    setIniciado(false);
+    setItems([]);
+    setPendientes([]);
     setAgenteAsignado(null);
     setAgenteActual(null);
-    setTurnos([]);
+    setHistorial([]);
   }
 
-  async function simular() {
-    reiniciar();
-    if (!esEvento) {
-      setAutomatizaciones([]);
-      return;
+  /** Recorre pasos hasta la próxima espera; devuelve lo que queda. */
+  function reproducir(auto: AutomacionSimulada, pasos: PasoSimulado[]): { items: Item[]; pendiente: Pendiente | null } {
+    const out: Item[] = [];
+    for (let i = 0; i < pasos.length; i++) {
+      const p = pasos[i];
+      if (p.tipo === 'plantilla' || p.tipo === 'mensaje') {
+        out.push({
+          k: 'biz',
+          texto: p.texto,
+          botones: p.tipo === 'plantilla' ? p.botones : [],
+          nota: p.tipo === 'plantilla' ? p.nombre : undefined,
+          alerta:
+            p.tipo === 'plantilla' && p.vacias.length > 0
+              ? t('assistant.probarVariableVacia', { detalle: p.vacias.join(', ') })
+              : undefined,
+          hora: ahora(),
+        });
+      } else if (p.tipo === 'espera') {
+        return { items: out, pendiente: { auto, espera: { amount: p.amount, unit: p.unit }, resto: pasos.slice(i + 1) } };
+      } else if (p.tipo === 'llamada') {
+        out.push({ k: 'sys', icono: 'llamada', texto: t('assistant.probarLlamada', { agente: p.agente ?? '—' }) });
+      } else if (p.tipo === 'condicion') {
+        out.push({
+          k: 'sys',
+          texto: `${t('assistant.probarCondicion', {
+            desc: p.descripcion,
+            camino: p.camino === 'yes' ? t('assistant.probarCaminoSi') : t('assistant.probarCaminoNo'),
+          })}${p.asumido ? ` ${t('assistant.probarAsumido')}` : ''}`,
+        });
+      }
     }
-    setSimulando(true);
+    return { items: out, pendiente: null };
+  }
+
+  async function empezar() {
+    reiniciar();
+    setIniciado(true);
+    if (!esEvento) return;
+    setCargando(true);
     try {
       const res = await fetchWithCsrf('/api/ai/probar', {
         method: 'POST',
@@ -132,24 +177,79 @@ export function ProbarComoCliente() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? '');
-      setAutomatizaciones(json.automatizaciones ?? []);
+      const autos = (json.automatizaciones ?? []) as AutomacionSimulada[];
       setAgenteAsignado(json.agente_asignado ?? null);
+      if (autos.length === 0) {
+        setItems([{ k: 'sys', texto: t('assistant.probarSinAutomatizaciones') }]);
+        return;
+      }
+      const nuevos: Item[] = [];
+      const pend: Pendiente[] = [];
+      for (const auto of autos) {
+        const cabecera = [
+          auto.nombre,
+          auto.ventana ? t('assistant.probarVentana', { ventana: auto.ventana }) : null,
+          auto.se_detiene_si_responde ? t('assistant.probarSeDetiene') : null,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+        nuevos.push({ k: 'sys', texto: cabecera });
+        const r = reproducir(auto, auto.pasos);
+        nuevos.push(...r.items);
+        if (r.pendiente) {
+          pend.push(r.pendiente);
+          nuevos.push(...chipEspera(r.pendiente));
+        }
+      }
+      setItems(nuevos);
+      setPendientes(pend);
     } catch {
       toast.error(t('assistant.probarFallo'));
     } finally {
-      setSimulando(false);
+      setCargando(false);
     }
   }
 
-  async function enviar() {
-    const texto = mensaje.trim();
+  function chipEspera(p: Pendiente): Item[] {
+    return [
+      {
+        k: 'sys',
+        icono: 'espera',
+        texto: t('assistant.probarSiNoRespondes', { n: p.espera.amount, unit: unidad(p.espera.unit, p.espera.amount) }),
+      },
+    ];
+  }
+
+  /** "Pasaron N horas": sigue la automatización hasta la próxima espera. */
+  function avanzar(p: Pendiente) {
+    setPendientes((prev) => prev.filter((x) => x !== p));
+    const r = reproducir(p.auto, p.resto);
+    const nuevos: Item[] = [
+      { k: 'sys', icono: 'espera', texto: t('assistant.probarPasaron', { n: p.espera.amount, unit: unidad(p.espera.unit, p.espera.amount) }) },
+      ...r.items,
+    ];
+    if (r.pendiente) {
+      setPendientes((prev) => [...prev, r.pendiente as Pendiente]);
+      nuevos.push(...chipEspera(r.pendiente));
+    }
+    setItems((prev) => [...prev, ...nuevos]);
+  }
+
+  async function enviar(textoCrudo?: string) {
+    const texto = (textoCrudo ?? mensaje).trim();
     if (!texto || enviando) return;
-    const historial = turnos.map((turno) =>
-      turno.role === 'user'
-        ? { role: 'user', content: turno.texto }
-        : { role: 'assistant', content: turno.chunks.join('\n') }
-    );
-    setTurnos((prev) => [...prev, { role: 'user', texto }]);
+    if (!iniciado) setIniciado(true);
+    // Responder frena los recordatorios que se detienen al recibir respuesta.
+    const frenados = pendientes.filter((p) => p.auto.se_detiene_si_responde);
+    if (frenados.length > 0) {
+      setPendientes((prev) => prev.filter((p) => !p.auto.se_detiene_si_responde));
+    }
+    setItems((prev) => [
+      ...prev,
+      { k: 'me', texto, hora: ahora() },
+      ...(frenados.length > 0 ? [{ k: 'sys', texto: t('assistant.probarSeDetuvo') } as Item] : []),
+      { k: 'typing' },
+    ]);
     setMensaje('');
     setEnviando(true);
     try {
@@ -170,27 +270,24 @@ export function ProbarComoCliente() {
       if (!res.ok) throw new Error(json.error ?? '');
       const agente = (json.agente ?? null) as Agente;
       const chunks: string[] =
-        Array.isArray(json.chunks) && json.chunks.length > 0
-          ? json.chunks
-          : json.reply
-            ? [json.reply]
-            : [];
-      setTurnos((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          chunks,
-          agente,
-          motivo: String(json.motivo ?? ''),
-          herramientas: Array.isArray(json.herramientas)
-            ? (json.herramientas as unknown[]).map((h) =>
-                typeof h === 'string' ? h : String((h as { name?: string })?.name ?? h)
-              )
-            : [],
-        },
+        Array.isArray(json.chunks) && json.chunks.length > 0 ? json.chunks : json.reply ? [json.reply] : [];
+      const herramientas = Array.isArray(json.herramientas)
+        ? (json.herramientas as unknown[]).map((h) => (typeof h === 'string' ? h : String((h as { name?: string })?.name ?? h)))
+        : [];
+      const quien = agente
+        ? `${t('assistant.probarQuienContesta', { agente: agente.nombre })} · ${motivoTexto(t, String(json.motivo ?? ''))}${herramientas.length ? ` · ${herramientas.join(', ')}` : ''}`
+        : json.motivo === 'asignado_inactivo'
+          ? t('assistant.probarAsignadoInactivo')
+          : t('assistant.probarSinAgente');
+      setItems((prev) => [
+        ...prev.filter((i) => i.k !== 'typing'),
+        ...chunks.map((c, i): Item => ({ k: 'biz', texto: c, botones: [], hora: ahora(), nota: i === chunks.length - 1 ? quien : undefined })),
+        ...(chunks.length === 0 ? [{ k: 'sys', texto: quien } as Item] : []),
       ]);
+      setHistorial((prev) => [...prev, { role: 'user', content: texto }, ...(chunks.length ? [{ role: 'assistant' as const, content: chunks.join('\n') }] : [])]);
       if (agente) setAgenteActual(agente);
     } catch {
+      setItems((prev) => prev.filter((i) => i.k !== 'typing'));
       toast.error(t('assistant.probarFallo'));
     } finally {
       setEnviando(false);
@@ -198,120 +295,90 @@ export function ProbarComoCliente() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-      {/* ── Qué pasa ── */}
-      <div className="space-y-3">
-        <Campo label={t('assistant.probarEscenario')}>
-          <Select value={escenario} onValueChange={(v) => { if (v) { setEscenario(v as Escenario); reiniciar(); } }}>
-            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {ESCENARIOS.map((e) => (
-                <SelectItem key={e.id} value={e.id}>{t(e.key)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Campo>
-        <Campo label={t('assistant.probarCanal')}>
-          <Select value={canal} onValueChange={(v) => { if (v) { setCanal(v as Channel); reiniciar(); } }}>
-            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {CANALES.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Campo>
+    <div className="space-y-3">
+      {/* ── Qué pasa: una fila compacta ── */}
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <Select value={escenario} onValueChange={(v) => { if (v) { setEscenario(v as Escenario); reiniciar(); } }}>
+          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {ESCENARIOS.map((e) => <SelectItem key={e.id} value={e.id}>{t(e.key)}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={canal} onValueChange={(v) => { if (v) { setCanal(v as Channel); reiniciar(); } }}>
+          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {CANALES.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
         {esEvento && productos.length > 0 ? (
-          <Campo label={t('assistant.probarProducto')}>
-            <Select value={productoId} onValueChange={(v) => setProductoId(v ?? '')}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {productos.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Campo>
+          <Select value={productoId} onValueChange={(v) => setProductoId(v ?? '')}>
+            <SelectTrigger className="w-full"><SelectValue placeholder={t('assistant.probarProducto')} /></SelectTrigger>
+            <SelectContent>
+              {productos.map((p) => <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>)}
+            </SelectContent>
+          </Select>
         ) : null}
         {escenario === 'shopify_order_created' ? (
-          <Campo label={t('assistant.probarPago')}>
-            <Select value={pago} onValueChange={(v) => { if (v) setPago(v as 'cod' | 'paid'); }}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="cod">{t('assistant.probarPagoCod')}</SelectItem>
-                <SelectItem value="paid">{t('assistant.probarPagoPagado')}</SelectItem>
-              </SelectContent>
-            </Select>
-          </Campo>
+          <Select value={pago} onValueChange={(v) => { if (v) setPago(v as 'cod' | 'paid'); }}>
+            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="cod">{t('assistant.probarPagoCod')}</SelectItem>
+              <SelectItem value="paid">{t('assistant.probarPagoPagado')}</SelectItem>
+            </SelectContent>
+          </Select>
         ) : null}
         {escenario === 'shopify_order_fulfilled' ? (
-          <Campo label={t('assistant.probarGuia')} hint={t('assistant.probarGuiaHint')}>
-            <Input value={guia} onChange={(e) => setGuia(e.target.value)} placeholder="RA123456789CO" />
-          </Campo>
+          <Input value={guia} onChange={(e) => setGuia(e.target.value)} placeholder={`${t('assistant.probarGuia')} · ${t('assistant.probarGuiaHint')}`} />
         ) : null}
-        <Campo label={t('assistant.probarTelefono')} hint={t('assistant.probarTelefonoHint')}>
-          <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="+57 300 000 0000" />
-        </Campo>
-        <Button onClick={simular} disabled={simulando} className="w-full">
-          {simulando ? <Loader2 className="size-4 animate-spin" /> : null}
-          {t('assistant.probarSimular')}
-        </Button>
+        <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder={t('assistant.probarTelefono')} title={t('assistant.probarTelefonoHint')} />
       </div>
 
-      {/* ── Lo que pasa ── */}
-      <div className="border-border bg-background flex min-h-[420px] flex-col rounded-xl border">
-        <div className="flex-1 space-y-3 overflow-y-auto p-3">
-          {esEvento && automatizaciones !== null ? (
-            <section className="space-y-2">
-              <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-                {t('assistant.probarLoQueLlega')}
-              </h3>
-              {automatizaciones.length === 0 ? (
-                <p className="text-muted-foreground text-sm">{t('assistant.probarSinAutomatizaciones')}</p>
-              ) : (
-                automatizaciones.map((a) => <Automacion key={a.id} a={a} />)
-              )}
-            </section>
+      {/* ── El chat ── */}
+      <div className="border-border flex h-[60vh] min-h-[420px] flex-col overflow-hidden rounded-xl border bg-[#efeae2] dark:bg-[#0b141a]">
+        <div className="flex items-center gap-2 bg-[#f0f2f5] px-3 py-2 text-sm dark:bg-[#202c33]">
+          <div className="bg-primary/20 text-primary grid size-8 place-items-center rounded-full text-xs font-semibold">R</div>
+          <div className="min-w-0 flex-1">
+            <p className="text-foreground truncate font-medium">{t('assistant.probarTitle')}</p>
+            <p className="text-muted-foreground truncate text-[11px]">
+              {agenteActual ? agenteActual.nombre : t('assistant.probarEnLinea')}
+            </p>
+          </div>
+          {iniciado ? (
+            <Button size="sm" variant="ghost" onClick={reiniciar}>
+              <RotateCcw className="size-4" />
+              {t('assistant.probarReiniciar')}
+            </Button>
           ) : null}
+        </div>
 
-          {turnos.map((turno, i) =>
-            turno.role === 'user' ? (
-              <Burbuja key={i} lado="der">
-                <p className="whitespace-pre-wrap">{turno.texto}</p>
-              </Burbuja>
-            ) : (
-              <div key={i} className="space-y-1">
-                <p className="text-muted-foreground flex items-center gap-1 text-[11px]">
-                  <Bot className="size-3" />
-                  {turno.agente
-                    ? `${t('assistant.probarQuienContesta', { agente: turno.agente.nombre })} · ${motivoTexto(t, turno.motivo)}`
-                    : turno.motivo === 'asignado_inactivo'
-                      ? t('assistant.probarAsignadoInactivo')
-                      : t('assistant.probarSinAgente')}
-                </p>
-                {turno.chunks.map((c, j) => (
-                  <Burbuja key={j} lado="izq">
-                    <p className="whitespace-pre-wrap">{c}</p>
-                  </Burbuja>
-                ))}
-                {turno.herramientas.length > 0 ? (
-                  <p className="text-muted-foreground flex items-center gap-1 text-[11px]">
-                    <Wrench className="size-3" />
-                    {turno.herramientas.join(', ')}
-                  </p>
-                ) : null}
-              </div>
-            )
-          )}
-          {enviando ? (
-            <Burbuja lado="izq">
-              <Loader2 className="text-muted-foreground size-4 animate-spin" />
-            </Burbuja>
+        <div className="flex-1 space-y-2 overflow-y-auto px-3 py-3">
+          {!iniciado ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+              <p className="text-muted-foreground max-w-sm text-sm">{t('assistant.probarHint')}</p>
+              <Button onClick={empezar} disabled={cargando}>
+                {cargando ? <Loader2 className="size-4 animate-spin" /> : null}
+                {t('assistant.probarEmpezar')}
+              </Button>
+            </div>
           ) : null}
+          {cargando ? (
+            <div className="flex justify-center py-6"><Loader2 className="text-muted-foreground size-5 animate-spin" /></div>
+          ) : null}
+          {items.map((it, i) => (
+            <Linea key={i} it={it} onBoton={(texto) => void enviar(texto)} />
+          ))}
+          {pendientes.map((p, i) => (
+            <div key={`p${i}`} className="flex justify-center">
+              <Button size="sm" variant="secondary" onClick={() => avanzar(p)} disabled={enviando}>
+                <FastForward className="size-4" />
+                {t('assistant.probarPasaron', { n: p.espera.amount, unit: unidad(p.espera.unit, p.espera.amount) })}
+              </Button>
+            </div>
+          ))}
           <div ref={finRef} />
         </div>
 
-        <div className="border-border flex items-center gap-2 border-t p-2">
+        <div className="flex items-center gap-2 bg-[#f0f2f5] p-2 dark:bg-[#202c33]">
           <Input
             value={mensaje}
             onChange={(e) => setMensaje(e.target.value)}
@@ -322,18 +389,79 @@ export function ProbarComoCliente() {
               }
             }}
             placeholder={t('assistant.probarEscribi')}
-            disabled={!listoParaChatear || enviando}
+            disabled={enviando || cargando}
+            className="rounded-full bg-white dark:bg-[#2a3942]"
           />
-          <Button size="icon" onClick={enviar} disabled={!listoParaChatear || enviando || !mensaje.trim()} aria-label={t('assistant.probarSimular')}>
+          <Button size="icon" className="rounded-full" onClick={() => void enviar()} disabled={enviando || cargando || !mensaje.trim()} aria-label={t('assistant.probarEmpezar')}>
             <Send className="size-4" />
           </Button>
-          {turnos.length > 0 || automatizaciones ? (
-            <Button size="icon" variant="ghost" onClick={reiniciar} aria-label={t('assistant.probarReiniciar')}>
-              <RotateCcw className="size-4" />
-            </Button>
-          ) : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+function Linea({ it, onBoton }: { it: Item; onBoton: (texto: string) => void }) {
+  if (it.k === 'sys') {
+    return (
+      <div className="flex justify-center">
+        <span className="text-muted-foreground inline-flex max-w-[90%] items-center gap-1 rounded-lg bg-white/70 px-2 py-1 text-center text-[11px] dark:bg-[#182229]">
+          {it.icono === 'espera' ? <Timer className="size-3 shrink-0" /> : null}
+          {it.icono === 'llamada' ? <Phone className="size-3 shrink-0" /> : null}
+          {it.texto}
+        </span>
+      </div>
+    );
+  }
+  if (it.k === 'typing') {
+    return (
+      <div className="flex justify-start">
+        <div className="rounded-lg rounded-tl-none bg-white px-3 py-2 text-sm dark:bg-[#202c33]">
+          <span className="text-muted-foreground animate-pulse">•••</span>
+        </div>
+      </div>
+    );
+  }
+  if (it.k === 'me') {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[80%] rounded-lg rounded-tr-none bg-[#d9fdd3] px-3 py-1.5 text-sm text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef]">
+          <p className="whitespace-pre-wrap">{it.texto}</p>
+          <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-60">
+            {it.hora} <CheckCheck className="size-3" />
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col items-start">
+      <div className="max-w-[80%] rounded-lg rounded-tl-none bg-white px-3 py-1.5 text-sm text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]">
+        <p className="whitespace-pre-wrap">{it.texto}</p>
+        <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-60">
+          {it.hora} <Check className="size-3" />
+        </p>
+        {it.botones.length > 0 ? (
+          <div className="border-border/50 -mx-3 mt-1 border-t">
+            {it.botones.map((b, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => (b.type === 'QUICK_REPLY' ? onBoton(b.text) : undefined)}
+                className={cn(
+                  'block w-full py-1.5 text-center text-[13px] font-medium text-[#027eb5]',
+                  i > 0 && 'border-border/50 border-t',
+                  b.type !== 'QUICK_REPLY' && 'cursor-default'
+                )}
+              >
+                {b.text}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      {it.nota ? <p className="text-muted-foreground mt-0.5 text-[10px]">{it.nota}</p> : null}
+      {it.alerta ? <p className="text-destructive mt-0.5 text-[10px]">{it.alerta}</p> : null}
     </div>
   );
 }
@@ -344,118 +472,16 @@ function motivoTexto(t: ReturnType<typeof useT>, motivo: string): string {
   return t('assistant.probarMotivoEnrutamiento');
 }
 
-function Campo({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-1">
-      <span className="text-foreground text-xs font-medium">{label}</span>
-      {children}
-      {hint ? <span className="text-muted-foreground block text-[11px]">{hint}</span> : null}
-    </label>
-  );
+function ahora(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-function Burbuja({ lado, children }: { lado: 'izq' | 'der'; children: React.ReactNode }) {
-  return (
-    <div className={cn('flex', lado === 'der' ? 'justify-end' : 'justify-start')}>
-      <div
-        className={cn(
-          'max-w-[85%] rounded-2xl px-3 py-2 text-sm',
-          lado === 'der' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
-        )}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Automacion({ a }: { a: AutomacionSimulada }) {
-  const t = useT();
-  return (
-    <div className="border-border rounded-lg border p-2">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="text-foreground text-sm font-medium">{a.nombre}</span>
-        {a.agente ? (
-          <span className="text-muted-foreground text-[11px]">
-            → {t('assistant.probarQuienContesta', { agente: a.agente.nombre })}
-          </span>
-        ) : null}
-        {a.ventana ? (
-          <span className="text-muted-foreground text-[11px]">· {t('assistant.probarVentana', { ventana: a.ventana })}</span>
-        ) : null}
-        {a.se_detiene_si_responde ? (
-          <span className="text-muted-foreground text-[11px]">· {t('assistant.probarSeDetiene')}</span>
-        ) : null}
-      </div>
-      <ol className="mt-2 space-y-2">
-        {a.pasos.map((p, i) => (
-          <li key={i}>
-            <Paso p={p} />
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
-
-function Paso({ p }: { p: PasoSimulado }) {
-  const t = useT();
-  switch (p.tipo) {
-    case 'plantilla':
-    case 'mensaje': {
-      const vacias = p.tipo === 'plantilla' ? p.vacias : [];
-      return (
-        <div className="space-y-1">
-          <Burbuja lado="izq">
-            <p className="whitespace-pre-wrap">{p.texto}</p>
-            {p.tipo === 'plantilla' && p.botones.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {p.botones.map((b, i) => (
-                  <span key={i} className="border-border rounded-md border px-2 py-0.5 text-xs">
-                    {b.text}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </Burbuja>
-          {p.tipo === 'plantilla' ? (
-            <p className="text-muted-foreground text-[11px]">{p.nombre}</p>
-          ) : null}
-          {vacias.length > 0 ? (
-            <p className="text-destructive text-[11px]">
-              {t('assistant.probarVariableVacia', { detalle: vacias.join(', ') })}
-            </p>
-          ) : null}
-        </div>
-      );
-    }
-    case 'espera':
-      return (
-        <p className="text-muted-foreground flex items-center gap-1 text-xs">
-          <Timer className="size-3" />
-          {t('assistant.probarEspera', { n: p.amount, unit: p.unit })}
-        </p>
-      );
-    case 'llamada':
-      return (
-        <p className="text-muted-foreground flex items-center gap-1 text-xs">
-          <Phone className="size-3" />
-          {t('assistant.probarLlamada', { agente: p.agente ?? '—' })}
-        </p>
-      );
-    case 'condicion':
-      return (
-        <p className="text-muted-foreground text-xs">
-          {t('assistant.probarCondicion', {
-            desc: p.descripcion,
-            camino: p.camino === 'yes' ? t('assistant.probarCaminoSi') : t('assistant.probarCaminoNo'),
-          })}{' '}
-          {p.asumido ? t('assistant.probarAsumido') : ''}
-        </p>
-      );
-    case 'contexto':
-      return null;
-    default:
-      return <p className="text-muted-foreground text-xs">{p.step_type}</p>;
-  }
+function unidad(unit: string, n: number): string {
+  const una = n === 1;
+  if (unit === 'seconds') return una ? 'segundo' : 'segundos';
+  if (unit === 'minutes') return una ? 'minuto' : 'minutos';
+  if (unit === 'hours') return una ? 'hora' : 'horas';
+  if (unit === 'days') return una ? 'día' : 'días';
+  return unit;
 }
