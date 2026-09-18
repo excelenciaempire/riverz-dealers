@@ -68,6 +68,8 @@ export type PasoSimulado =
       botones: Array<{ text: string; type: string }>;
       /** Una variable quedó vacía: en vivo, el motor corta antes de Meta. */
       vacias: string[];
+      /** Estado en Meta. Sólo una aprobada sale de verdad. */
+      estado: string | null;
     }
   | { tipo: 'mensaje'; texto: string }
   | { tipo: 'espera'; amount: number; unit: string }
@@ -181,13 +183,33 @@ export function varsDePedido(
   return vars;
 }
 
+export interface DisparoSimulado {
+  vars: Record<string, string>;
+  automatizaciones: AutomacionSimulada[];
+  /** De qué tienda se simuló el pedido; null si el comercio no tiene tienda conectada. */
+  plataforma: string | null;
+  /** Sin WhatsApp conectado, en vivo ninguna plantilla sale. */
+  whatsapp_conectado: boolean;
+}
+
 export async function simularDisparo(
   db: SupabaseClient,
   workspaceId: string,
   trigger: EscenarioSimulado,
   pedido: PedidoDePrueba
-): Promise<{ vars: Record<string, string>; automatizaciones: AutomacionSimulada[] }> {
+): Promise<DisparoSimulado> {
   const vars = varsDePedido(trigger, pedido);
+  // La tienda real del comercio. Con dos conectadas (Pilar: Shopify y
+  // Tiendanube) se simula la de Shopify, que es la que más automatizaciones
+  // filtran por plataforma.
+  const [{ data: tiendas }, { data: wa }] = await Promise.all([
+    db.from('shopify_connections').select('platform').eq('workspace_id', workspaceId).eq('status', 'active'),
+    db.from('channel_connections').select('id').eq('workspace_id', workspaceId).eq('channel', 'whatsapp').eq('status', 'connected').limit(1),
+  ]);
+  const plataformas = ((tiendas ?? []) as Array<{ platform: string | null }>).map((t) => String(t.platform ?? 'shopify'));
+  const plataforma = plataformas.includes('shopify') ? 'shopify' : (plataformas[0] ?? null);
+  vars.platform = plataforma ?? '';
+  const whatsappConectado = ((wa ?? []) as unknown[]).length > 0;
   const { data: rows } = await db
     .from('automations')
     .select('id, name, trigger_type, trigger_config, is_active, deleted_at')
@@ -202,7 +224,9 @@ export async function simularDisparo(
     trigger_type: AutomationTriggerType;
     trigger_config: Record<string, unknown> | null;
   }>;
-  if (automations.length === 0) return { vars, automatizaciones: [] };
+  if (automations.length === 0) {
+    return { vars, automatizaciones: [], plataforma, whatsapp_conectado: whatsappConectado };
+  }
 
   const [{ data: stepRows }, { data: tplRows }, { data: agentRows }] = await Promise.all([
     db
@@ -215,7 +239,7 @@ export async function simularDisparo(
       .order('position', { ascending: true }),
     db
       .from('message_templates')
-      .select('name, language, body_text, buttons')
+      .select('name, language, body_text, buttons, status')
       .eq('workspace_id', workspaceId),
     db.from('ai_agents').select('id, name').eq('workspace_id', workspaceId).is('deleted_at', null),
   ]);
@@ -225,6 +249,7 @@ export async function simularDisparo(
     language: string | null;
     body_text: string | null;
     buttons: Array<{ text?: string; type?: string }> | null;
+    status: string | null;
   }>;
   const agentes = new Map(
     ((agentRows ?? []) as Array<{ id: string; name: string }>).map((a) => [a.id, a.name])
@@ -239,10 +264,14 @@ export async function simularDisparo(
     const ctx: Record<string, string> = { ...vars };
     const propios = steps.filter((s) => s.automation_id === a.id);
     const pasos = recorrer(propios, null, null, ctx, templates, agentes);
+    // El mismo filtro por plataforma que el despachador (`matchesEventConfig`).
+    const soloEn = Array.isArray(cfg.platforms) ? (cfg.platforms as string[]) : [];
+    const fueraDePlataforma = soloEn.length > 0 && plataforma !== null && !soloEn.includes(plataforma);
     // La barrera propia de DeUNA, con el mismo criterio que en vivo pero
     // sobre el pedido de mentira.
-    const omitida =
-      workspaceId === RIVERZOFICIAL_WORKSPACE && RIVERZ_FLOWS[a.id]
+    const omitida = fueraDePlataforma
+      ? `platform:${soloEn.join(',')}`
+      : workspaceId === RIVERZOFICIAL_WORKSPACE && RIVERZ_FLOWS[a.id]
         ? riverzOrderSkipReason(RIVERZ_FLOWS[a.id], {
             financial_status: vars.financial_status,
             payment_gateway_names: [vars.payment_gateway],
@@ -268,7 +297,7 @@ export async function simularDisparo(
       contexto: ctx,
     };
   });
-  return { vars, automatizaciones };
+  return { vars, automatizaciones, plataforma, whatsapp_conectado: whatsappConectado };
 }
 
 function recorrer(
@@ -276,7 +305,7 @@ function recorrer(
   parentId: string | null,
   branch: 'yes' | 'no' | null,
   ctx: Record<string, string>,
-  templates: Array<{ name: string; language: string | null; body_text: string | null; buttons: Array<{ text?: string; type?: string }> | null }>,
+  templates: Array<{ name: string; language: string | null; body_text: string | null; buttons: Array<{ text?: string; type?: string }> | null; status: string | null }>,
   agentes: Map<string, string>
 ): PasoSimulado[] {
   const propios = steps
@@ -310,6 +339,7 @@ function recorrer(
             .filter((b) => b && typeof b.text === 'string')
             .map((b) => ({ text: String(b.text), type: String(b.type ?? '') })),
           vacias,
+          estado: tpl?.status ?? null,
         });
         break;
       }

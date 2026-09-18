@@ -511,6 +511,26 @@ export const assistant = {
     es: "«{nombre}» no se envía: {motivo}.",
     en: "“{nombre}” is not sent: {motivo}.",
   },
+  probarOmisionPlataforma: {
+    es: "sólo corre para pedidos de {tiendas} y este pedido es de {plataforma}",
+    en: "only runs for {tiendas} orders and this order is from {plataforma}",
+  },
+  probarSinWhatsapp: {
+    es: "WhatsApp no está conectado: en vivo, ninguno de estos mensajes sale hasta conectarlo en Integraciones.",
+    en: "WhatsApp is not connected: live, none of these messages go out until you connect it in Integrations.",
+  },
+  probarSinTienda: {
+    es: "No hay tienda conectada: el pedido de prueba es inventado. Conecta tu tienda en Integraciones para que estos eventos ocurran de verdad.",
+    en: "No store connected: the test order is made up. Connect your store in Integrations so these events happen for real.",
+  },
+  probarPlantillaNoAprobada: {
+    es: "Plantilla en estado {estado}: en vivo no sale hasta que Meta la apruebe.",
+    en: "Template status {estado}: live, it does not go out until Meta approves it.",
+  },
+  probarPlantillaNoExiste: {
+    es: "La plantilla no existe en este comercio: en vivo el envío falla.",
+    en: "The template does not exist in this store: live, the send fails.",
+  },
   probarOmisionPagado: { es: "el pedido ya está pagado", en: "the order is already paid" },
   probarOmisionDespachado: { es: "el pedido ya salió", en: "the order already shipped" },
   probarOmisionCancelado: { es: "el pedido está cancelado o reembolsado", en: "the order is cancelled or refunded" },

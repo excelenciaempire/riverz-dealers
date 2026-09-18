@@ -12,6 +12,7 @@ function dbConTablas(tablas: Record<string, any[]>) {
         is: (k: string, v: any) => { filtros.push((r) => (r[k] ?? null) === v); return q },
         in: (k: string, vs: any[]) => { filtros.push((r) => vs.includes(r[k])); return q },
         order: () => q,
+        limit: () => q,
         then: (res: any, rej: any) =>
           Promise.resolve({ data: (tablas[tabla] ?? []).filter((r) => filtros.every((f) => f(r))), error: null }).then(res, rej),
       }

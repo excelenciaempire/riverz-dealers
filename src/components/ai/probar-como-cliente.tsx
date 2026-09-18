@@ -174,7 +174,11 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
           alerta:
             p.tipo === 'plantilla' && p.vacias.length > 0
               ? t('assistant.probarVariableVacia', { detalle: p.vacias.join(', ') })
-              : undefined,
+              : p.tipo === 'plantilla' && p.estado && p.estado.toLowerCase() !== 'approved'
+                ? t('assistant.probarPlantillaNoAprobada', { estado: p.estado })
+                : p.tipo === 'plantilla' && !p.estado
+                  ? t('assistant.probarPlantillaNoExiste')
+                  : undefined,
           hora: ahora(),
         });
       } else if (p.tipo === 'espera') {
@@ -216,19 +220,22 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
       if (!res.ok) throw new Error(json.error ?? '');
       const autos = (json.automatizaciones ?? []) as AutomacionSimulada[];
       setAgenteAsignado(json.agente_asignado ?? null);
+      const avisos: Item[] = [];
+      if (json.whatsapp_conectado === false) avisos.push({ k: 'sys', icono: 'persona', texto: t('assistant.probarSinWhatsapp') });
+      if (json.plataforma === null) avisos.push({ k: 'sys', texto: t('assistant.probarSinTienda') });
       // En vivo `automation_context` sólo queda cuando la automatización
       // entrega la conversación a un asistente.
       const conEntrega = autos.find((a) => a.agente && !a.omitida);
       setContexto(conEntrega?.contexto ?? null);
       if (autos.length === 0) {
-        setItems([{ k: 'sys', texto: t('assistant.probarSinAutomatizaciones') }]);
+        setItems([...avisos, { k: 'sys', texto: t('assistant.probarSinAutomatizaciones') }]);
         return;
       }
-      const nuevos: Item[] = [];
+      const nuevos: Item[] = [...avisos];
       const pend: Pendiente[] = [];
       for (const auto of autos) {
         if (auto.omitida) {
-          nuevos.push({ k: 'sys', texto: t('assistant.probarOmitida', { nombre: auto.nombre, motivo: motivoOmision(t, auto.omitida) }) });
+          nuevos.push({ k: 'sys', texto: t('assistant.probarOmitida', { nombre: auto.nombre, motivo: motivoOmision(t, auto.omitida, json.plataforma ?? '') }) });
           continue;
         }
         const cabecera = [
@@ -249,8 +256,8 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
       setItems(nuevos);
       setPendientes(pend);
       recordar(nuevos);
-    } catch {
-      toast.error(t('assistant.probarFallo'));
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : t('assistant.probarFallo'));
     } finally {
       setCargando(false);
     }
@@ -345,9 +352,9 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
       ]);
       setHistorial((prev) => [...prev, { role: 'user', content: texto }, ...(chunks.length ? [{ role: 'assistant' as const, content: chunks.join('\n') }] : [])]);
       if (agente) setAgenteActual(agente);
-    } catch {
+    } catch (err) {
       setItems((prev) => prev.filter((i) => i.k !== 'typing'));
-      toast.error(t('assistant.probarFallo'));
+      toast.error(err instanceof Error && err.message ? err.message : t('assistant.probarFallo'));
     } finally {
       setEnviando(false);
     }
@@ -581,7 +588,10 @@ function barreraTexto(t: ReturnType<typeof useT>, b: { tipo: string; detalle: st
 }
 
 /** Los motivos de la barrera de DeUNA, en palabras. */
-function motivoOmision(t: ReturnType<typeof useT>, motivo: string): string {
+function motivoOmision(t: ReturnType<typeof useT>, motivo: string, plataforma: string): string {
+  if (motivo.startsWith('platform:')) {
+    return t('assistant.probarOmisionPlataforma', { tiendas: motivo.slice('platform:'.length), plataforma });
+  }
   const claves: Record<string, string> = {
     order_already_confirmed_or_paid: 'assistant.probarOmisionPagado',
     order_already_in_fulfillment: 'assistant.probarOmisionDespachado',

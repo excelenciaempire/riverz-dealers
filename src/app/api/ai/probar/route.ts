@@ -120,7 +120,7 @@ export async function POST(request: Request) {
       cargarProducto(admin, workspaceId, body?.product_id),
       resolveWorkspaceCurrency(admin, workspaceId),
     ]);
-    const { vars, automatizaciones } = await simularDisparo(admin, workspaceId, escenario, {
+    const { vars, automatizaciones, plataforma, whatsapp_conectado } = await simularDisparo(admin, workspaceId, escenario, {
       producto,
       currency,
       pago:
@@ -132,6 +132,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       vars,
       automatizaciones,
+      plataforma,
+      whatsapp_conectado,
       agente_asignado: conEntrega?.agente ?? null,
     });
   }
