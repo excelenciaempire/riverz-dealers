@@ -1,3 +1,4 @@
+import { hayJev, preguntarJev, type RespuestasDe } from '@/lib/ai/jev';
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import type { BillingContext } from '@/lib/wallet/operacion';
 
@@ -17,9 +18,10 @@ import type { BillingContext } from '@/lib/wallet/operacion';
  *              compra, que no conviene publicar bajo la foto.
  *   ninguna  — halago, emoji, curiosidad general: se contesta y ya está.
  *
- * Decide el modelo de triage (rápido y barato). Si no hay modelo o falla, manda
- * la heurística de abajo, que es pura y testeable: nunca se deja de contestar
- * por culpa de esta decisión.
+ * Decide Jev cuando hay llave (`jev.ts`): una razón entre cinco y un sí o no
+ * con probabilidad, en una llamada de ~$0,00003. Sin llave, el modelo de
+ * triage. Si ninguno está o falla, manda la heurística de abajo, que es pura y
+ * testeable: nunca se deja de contestar por culpa de esta decisión.
  */
 
 export type DmReason = 'compra' | 'pedido' | 'reclamo' | 'privado' | 'ninguna';
@@ -163,6 +165,53 @@ export function heuristicDmDecision(
   return { dm: false, reason: 'ninguna' };
 }
 
+/* ── Jev ─────────────────────────────────────────────────────────────────── */
+
+/**
+ * Dos preguntas: la razón (una de cinco) y si hace falta el privado. Van
+ * separadas a propósito: la razón es relativa —cuál de las cinco pega más— y
+ * el sí o no es absoluto. Con la razón sola, "ninguna" al 40% contra "compra"
+ * al 35% abriría un DM que no hacía falta.
+ */
+export const PREGUNTAS_DM = {
+  razon: {
+    type: 'choice',
+    instructions:
+      '¿Por qué motivo, si hay alguno, `comentario` merece un mensaje privado de la marca además de `respuesta_publica`?',
+    criteria: {
+      compra: 'Quiere comprar o pregunta precio, talla, stock, envío o formas de pago.',
+      pedido: 'Pregunta por un pedido suyo: dónde está, cuándo llega, un problema con él. Lleva datos personales.',
+      reclamo: 'Se queja, algo salió mal, pide devolución o reembolso.',
+      privado: '`respuesta_publica` lleva un precio, un enlace de compra o un código de descuento, que no conviene publicar bajo la foto.',
+      ninguna: 'Un halago, un emoji, una etiqueta a un amigo, una curiosidad general: la respuesta pública ya lo resuelve.',
+    },
+  },
+  abrir_privado: {
+    type: 'noul',
+    instructions: {
+      question: '¿Hace falta escribirle en privado a quien dejó `comentario`?',
+      focus: 'El privado se usa UNA sola vez por comentario. Ante la duda, no.',
+    },
+    criteria: {
+      true: 'Hay algo concreto que resolver o vender que no se puede o no conviene hacer en público; o `respuesta_publica` lleva un precio, un código de descuento o un enlace de compra, que van mejor en privado.',
+      false: 'La respuesta pública alcanza: no hay venta, pedido ni reclamo de por medio, y la respuesta no lleva precio, código ni enlace.',
+    },
+  },
+} as const;
+
+/** Por encima de esto se abre el privado. Es UNA respuesta por comentario: se pide claridad. */
+const UMBRAL_DM = 0.6;
+
+/** Pura, para probarla sin red. */
+export function dmDesdeJev(r: RespuestasDe<typeof PREGUNTAS_DM>): DmDecision {
+  const dm = r.abrir_privado.noul >= UMBRAL_DM;
+  if (!dm) return { dm: false, reason: 'ninguna' };
+  const reason = VALID_REASONS.includes(r.razon.choice as DmReason)
+    ? (r.razon.choice as DmReason)
+    : 'compra';
+  return { dm: true, reason: reason === 'ninguna' ? 'compra' : reason };
+}
+
 /* ── Clasificador ────────────────────────────────────────────────────────── */
 
 const SYSTEM = `Decides si un comentario de Instagram/Facebook merece además un mensaje privado (DM) de la marca, o si alcanza con la respuesta pública.
@@ -227,6 +276,22 @@ export async function decideCommentDm(input: {
 
   const floor = heuristicDmDecision(input.comment, input.reply);
   if (floor.dm) return floor;
+
+  if (hayJev() && input.billing) {
+    const resultado = await preguntarJev({
+      db: input.billing.db,
+      workspaceId: input.billing.workspaceId,
+      concepto: 'ia_clasificacion',
+      detalle: { ...input.billing.detalle, para: 'comentario_dm' },
+      state: {
+        comentario: input.comment.slice(0, 400).replace(/\s+/g, ' '),
+        respuesta_publica: input.reply.slice(0, 400).replace(/\s+/g, ' '),
+      },
+      questions: PREGUNTAS_DM,
+    });
+    if (resultado) return dmDesdeJev(resultado.answers);
+  }
+
   if (!hasLlm(input.apiKey)) return floor;
 
   try {

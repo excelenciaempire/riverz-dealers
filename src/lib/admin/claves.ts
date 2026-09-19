@@ -85,6 +85,17 @@ export const PROVEEDORES_CON_CLAVE: ProveedorConClave[] = [
     almacen: 'platform_ai_settings',
   },
   {
+    // Jev: el que decide sin escribir. Escalar o no, qué intención, spam o
+    // no, abrir el privado o no. Sin esta llave todo eso vuelve a Haiku, que
+    // cuesta veinte veces más por decisión.
+    id: 'typesafe',
+    nombre: 'TypeSafe (Jev)',
+    envVar: 'TYPESAFE_API_KEY',
+    paraQueKey: 'admin.svcJev',
+    conceptos: ['ia_clasificacion'],
+    almacen: 'platform_keys',
+  },
+  {
     id: 'openai',
     nombre: 'OpenAI',
     envVar: 'OPENAI_API_KEY',

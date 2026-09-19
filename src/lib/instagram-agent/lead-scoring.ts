@@ -1,3 +1,4 @@
+import { hayJev, preguntarJev, type Pregunta, type RespuestasDe } from '@/lib/ai/jev';
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import type { BillingContext } from '@/lib/wallet/operacion';
@@ -8,10 +9,15 @@ import { latestInboundText } from './engagement';
  * Lead scoring del Agente de Instagram.
  *
  * Clasifica el engagement de cada persona (su comentario/DM de origen) en
- * intención de compra, sentimiento y spam, usando el modelo de triage (rápido
- * y barato) en lote. El resultado prioriza a quién contactar primero y filtra
- * spam/haters — el "lead scoring" que Blueberry hace y nuestra heurística por
- * recencia no.
+ * intención de compra, sentimiento y spam. El resultado prioriza a quién
+ * contactar primero y filtra spam/haters — el "lead scoring" que Blueberry
+ * hace y nuestra heurística por recencia no.
+ *
+ * Decide Jev cuando hay llave (`jev.ts`): tres preguntas cerradas por
+ * comentario, todas en una llamada, ~$0,00003 cada comentario contra ~$0,0006
+ * de Haiku. Es la llamada más frecuente de toda la IA —una por comentario que
+ * entra— y la que menos necesita un modelo que escriba. Sin llave, Haiku en
+ * lote como siempre.
  */
 
 export type LeadScore = 'high' | 'medium' | 'low';
@@ -81,13 +87,140 @@ export function parseScoreResponse(text: string, count: number): ScoredLead[] {
   return out;
 }
 
-/** Llama al modelo de triage para puntuar una tanda de mensajes. */
+/* ── Jev ─────────────────────────────────────────────────────────────────── */
+
+/**
+ * Las tres preguntas, por mensaje. Cada una apunta a `mensajes[i]` por su
+ * ruta: así una llamada puntúa veinte comentarios de una vez y ninguna
+ * pregunta se confunde de mensaje.
+ *
+ * Los criterios son los mismos que tenía el prompt de Haiku, escritos como
+ * contraste (qué es, qué NO es) porque Jev lee literal: "interés tibio" sin
+ * decir qué lo separa de "explícito" mezcla los dos.
+ */
+export function preguntasDeLead(i: number) {
+  const ruta = `\`mensajes[${i}]\``;
+  return {
+    intencion: {
+      type: 'choice' as const,
+      instructions: `¿Cuánta intención de compra muestra ${ruta}? Es un comentario o mensaje a una marca que vende por redes.`,
+      criteria: {
+        high: {
+          what: 'Pregunta precio, talla, stock, envío o cómo comprar; dice que lo quiere o que lo compra.',
+          examples: ['cuánto sale?', 'lo quiero', 'hacen envíos a Córdoba?', 'tienen talle M?'],
+        },
+        medium: {
+          what: 'Interés tibio: le gusta, pregunta algo general del producto, pide más información sin hablar de comprar.',
+          not_for: 'Preguntar precio, stock o envío (eso es high).',
+          examples: ['qué lindo', 'sirve para piel seca?', 'me interesa'],
+        },
+        low: {
+          what: 'Comentario casual sin intención de comprar: un emoji, una etiqueta a un amigo, una opinión suelta, o alguien que YA lo compró y cuenta cómo le fue.',
+          not_for: 'Preguntar por precio, stock, envío o talle.',
+          examples: ['😍', '@maria mirá', 'jaja', 'lo compré y no me hizo nada', 'ya lo tengo y me encanta'],
+        },
+      },
+    },
+    sentimiento: {
+      type: 'choice' as const,
+      instructions: `¿Qué sentimiento hacia la marca o el producto expresa ${ruta}?`,
+      criteria: {
+        positive: 'Elogia, agradece, muestra entusiasmo o dice que le fue bien con el producto.',
+        neutral: 'Pregunta o comenta sin carga emocional.',
+        negative: 'Se queja, critica, desconfía, se burla, o dice que el producto no le funcionó o lo decepcionó.',
+      },
+    },
+    spam: {
+      type: 'noul' as const,
+      instructions: `¿${ruta} es spam, un bot, autopromoción, un enlace sospechoso, un insulto o algo que ataca a la marca?`,
+      criteria: {
+        true: 'Publicidad de otra cosa, cadenas, enlaces raros, cuentas que venden seguidores, insultos, acusaciones de estafa o de publicidad engañosa.',
+        false: 'Una persona real hablando del producto, aunque sea con una crítica educada o una duda.',
+      },
+    },
+  };
+}
+
+type PreguntasDeLead = ReturnType<typeof preguntasDeLead>;
+export type RespuestasDeLead = RespuestasDe<PreguntasDeLead>;
+
+/** Umbral de spam. Por encima se oculta el comentario: se pide que sea claro. */
+const UMBRAL_SPAM = 0.7;
+
+/** Pura: de las respuestas de un mensaje a su puntaje. */
+export function leadDesdeJev(r: Partial<RespuestasDeLead>): ScoredLead {
+  const intencion = r.intencion?.choice;
+  const sentimiento = r.sentimiento?.choice;
+  return {
+    score: VALID_SCORE.includes(intencion as LeadScore) ? (intencion as LeadScore) : 'low',
+    sentiment: VALID_SENT.includes(sentimiento as LeadSentiment)
+      ? (sentimiento as LeadSentiment)
+      : 'neutral',
+    spam: (r.spam?.noul ?? 0) >= UMBRAL_SPAM,
+  };
+}
+
+/** Las tres preguntas del mensaje `i`, con su índice en la clave. */
+const CLAVES = ['intencion', 'sentimiento', 'spam'] as const;
+const clave = (i: number, k: (typeof CLAVES)[number]) => `m${i}_${k}`;
+
+/**
+ * Cuántos mensajes van en una llamada. Cinco y no más: probado el 2026-09-19,
+ * con diez en el mismo estado "lo compré y no me hizo nada" salía como
+ * intención alta y sentimiento neutro; solo o de a tres, baja y negativo.
+ * Los mensajes ajenos distraen (docs.typesafe.ai, "context rot").
+ */
+const LOTE = 5;
+
+async function scoreLeadsConJev(
+  texts: string[],
+  billing: BillingContext
+): Promise<ScoredLead[] | null> {
+  const out: ScoredLead[] = [];
+  for (let desde = 0; desde < texts.length; desde += LOTE) {
+    const lote = texts.slice(desde, desde + LOTE);
+    const questions: Record<string, Pregunta> = {};
+    lote.forEach((_, i) => {
+      const q = preguntasDeLead(i);
+      for (const k of CLAVES) questions[clave(i, k)] = q[k];
+    });
+    const resultado = await preguntarJev({
+      db: billing.db,
+      workspaceId: billing.workspaceId,
+      concepto: 'ia_clasificacion',
+      detalle: { ...billing.detalle, para: 'lead_scoring' },
+      state: {
+        mensajes: lote.map((t) => t.slice(0, 400).replace(/\s+/g, ' ')),
+      },
+      questions,
+    });
+    if (!resultado) return null;
+    const answers = resultado.answers as Record<string, unknown>;
+    lote.forEach((_, i) =>
+      out.push(
+        leadDesdeJev({
+          intencion: answers[clave(i, 'intencion')] as RespuestasDeLead['intencion'],
+          sentimiento: answers[clave(i, 'sentimiento')] as RespuestasDeLead['sentimiento'],
+          spam: answers[clave(i, 'spam')] as RespuestasDeLead['spam'],
+        })
+      )
+    );
+  }
+  return out;
+}
+
+/** Puntúa una tanda de mensajes: Jev si hay llave, si no el modelo de triage. */
 export async function scoreLeads(
   apiKey: string | null,
   texts: string[],
   billing: BillingContext
 ): Promise<ScoredLead[]> {
   if (texts.length === 0) return [];
+  if (hayJev()) {
+    const porJev = await scoreLeadsConJev(texts, billing);
+    if (porJev) return porJev;
+    if (!hasLlm(apiKey)) throw new Error('jev_unavailable');
+  }
   const userPrompt = texts
     .map((t, i) => `${i}: ${t.slice(0, 400).replace(/\n/g, ' ')}`)
     .join('\n');
@@ -127,7 +260,7 @@ export async function scoreCampaignRecipients(
   const apiKey = wsCampaña
     ? ((await resolveAnthropicKey(db, { workspaceId: wsCampaña }))?.key ?? null)
     : null;
-  if (!hasLlm(apiKey)) return { scored: 0, spam: 0 };
+  if (!hayJev() && !hasLlm(apiKey)) return { scored: 0, spam: 0 };
 
   const { data: recipients } = await db
     .from('instagram_campaign_recipients')

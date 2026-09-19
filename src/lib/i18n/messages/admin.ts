@@ -1029,6 +1029,10 @@ export const admin = {
   svcVoiceLlm: { es: 'LLM de voz (rápido)', en: 'voice LLM (fast)' },
   svcBackupLlm: { es: 'LLM de respaldo', en: 'backup LLM' },
   svcGpt: { es: 'GPT', en: 'GPT' },
+  svcJev: {
+    es: 'decisiones cerradas: escalar, intención, spam',
+    en: 'closed decisions: escalate, intent, spam',
+  },
   svcEmail: { es: 'lista de espera y avisos', en: 'waitlist and alerts' },
   svcPlatformWa: {
     es: 'por aquí salen las preguntas al comercio',

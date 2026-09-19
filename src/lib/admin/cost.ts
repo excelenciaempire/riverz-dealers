@@ -67,6 +67,14 @@ const RATES: Record<string, Rate> = {
   'llama-3.1-8b-instant': { input: 0.05, output: 0.08 },
   'gemini-2.0-flash': { input: 0.1, output: 0.4 },
   'google/gemini-2.0-flash-001': { input: 0.1, output: 0.4 },
+
+  // ── Jev (TypeSafe) ───────────────────────────────────────────────────────
+  //
+  // El clasificador: escalar o no, qué intención, spam o no. Cobra sólo la
+  // entrada; la salida es gratis porque no genera texto, devuelve
+  // probabilidades. Ver `src/lib/ai/jev.ts`.
+  'jev-1.13.0': { input: 0.042, output: 0 },
+  'jev-latest': { input: 0.042, output: 0 },
 };
 
 /** El modelo por defecto de los agentes (migración 024). */

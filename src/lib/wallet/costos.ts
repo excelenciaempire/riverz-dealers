@@ -147,12 +147,14 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     cobro: 'por_uso',
   },
   {
+    // Jev decide (escalar, intención, spam) por ~0,005 centavos; la línea del
+    // aviso cuando SÍ se escala la escribe Haiku, y es lo que sube el promedio.
     concepto: 'ia_clasificacion',
     nombreEs: 'Entender qué te pidieron',
     nombreEn: 'Understanding what was asked',
-    centavos: 0.15,
+    centavos: 0.02,
     unidad: 'consulta',
-    proveedor: 'Anthropic',
+    proveedor: 'TypeSafe · Anthropic',
     cobro: 'por_uso',
   },
   {

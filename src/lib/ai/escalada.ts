@@ -21,14 +21,18 @@
  *      no llegó, denunciar un cobro doble.
  *   2. El clasificador, sólo si las señales no dijeron nada Y la conversación
  *      muestra fricción. Es el que caza lo de Rosanna, que no tiene ninguna
- *      palabra de la lista y aun así es urgente.
+ *      palabra de la lista y aun así es urgente. Desde el 2026-09-19 decide
+ *      Jev (`jev.ts`): preguntas cerradas con probabilidad, ~300 ms y veinte
+ *      veces más barato que Haiku, que queda de respaldo cuando no hay llave.
  *
  * Lo que NO se escala: una pregunta difícil. Para eso está el agente. Escalar
  * de más entrena al comercio a ignorar los avisos, que es la única forma de
  * que un aviso deje de servir.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { hayJev, preguntarJev, type RespuestasDe } from './jev';
 import { completeTextMedido } from './medido';
+import { recoveryButtonKind } from './recovery-policy';
 
 /** Qué tan rápido hay que meterse. Define el tono del aviso, no si sale. */
 export type Urgencia = 'ahora' | 'hoy';
@@ -170,7 +174,7 @@ const MEDIO_CON_ENLACE_HUMANO = /(?<![\wáéíóúñ])(bold|addi)(?![\wáéíó�
 const ELIGE_MEDIO = /(?<![\wáéíóúñ])(elijo|escojo|prefiero|quiero|deseo|voy a|me quedo con|usar[ée]?|pago (con|por))(?![\wáéíóúñ])/i;
 const PIDE_ENLACE = /(?<![\wáéíóúñ])(env[ií]ame|mándame|mandame|pásame|pasame|necesito)(?![\wáéíóúñ])[^.!?]{0,30}(?<![\wáéíóúñ])(link|enlace)(?![\wáéíóúñ])/i;
 
-function pagoAsistido(ctx: Pick<ContextoEscalada, 'mensaje'>): Escalada | null {
+export function pagoAsistido(ctx: Pick<ContextoEscalada, 'mensaje'>): Escalada | null {
   const mensaje = (ctx.mensaje ?? '').normalize('NFC');
   if (!MEDIO_CON_ENLACE_HUMANO.test(mensaje)) return null;
   const soloMedio = /^(bold|addi)[\s.!?]*$/i.test(mensaje.trim());
@@ -250,12 +254,258 @@ const SISTEMA_CLASIFICADOR = [
 ].join('\n');
 
 /**
+ * LAS PREGUNTAS PARA JEV. Tres condiciones literales y dos clasificaciones,
+ * todas sobre el mismo estado y en una sola llamada.
+ *
+ * Tres condiciones y no una porque Jev contesta lo que está escrito: "¿hay un
+ * problema real?" esconde adentro "¿el envío va a otro lado?", "¿pide algo que
+ * no puedo dar?", y cada una se pierde si se pregunta la otra. La de destino
+ * está aparte porque es el caso de Rosanna: comparar dos nombres de ciudad es
+ * una pregunta directa, y hecha así Jev la contesta con 0,97; metida adentro de
+ * "problema real" bajaba a 0,4.
+ *
+ * `clase` y `urgencia` llevan una opción de "ninguno" a propósito: sin ella el
+ * modelo tiene que elegir un problema aunque no haya, y la probabilidad de la
+ * clase deja de significar nada.
+ */
+export const PREGUNTAS_ESCALADA = {
+  destino_distinto: {
+    type: 'noul',
+    instructions: {
+      question:
+        '¿El envío está yendo a una ciudad o lugar distinto de donde la persona dice que vive o que quiere recibirlo?',
+      compare: [
+        'la ciudad o lugar de destino que aparece en `conversacion` (seguimiento, guía, captura)',
+        'la ciudad o dirección que la persona menciona en `ultimo_mensaje`',
+      ],
+      focus: 'Compara los nombres de lugar. Si son ciudades distintas, la respuesta es sí.',
+    },
+    criteria: {
+      true: 'El seguimiento dice que va a una ciudad y la persona dice que vive en otra; o pide que lo manden a otra ciudad de la que ya figura.',
+      false: 'No se menciona ningún destino, o coinciden, o no hay envío en juego.',
+    },
+  },
+  problema_en_curso: {
+    type: 'noul',
+    instructions: {
+      question:
+        '¿La persona describe un problema REAL y concreto en curso con su pedido, envío, pago o producto?',
+      inspect: ['`ultimo_mensaje`', '`conversacion`'],
+      focus: 'Un hecho que ya pasó o está pasando, no una duda ni una opinión.',
+    },
+    criteria: {
+      true: 'El envío va a una dirección o ciudad equivocada; el seguimiento no cierra con lo que la persona dice; llegó roto, incompleto, vencido o distinto; pagó y no figura; le cobraron mal; viene reclamando hace días sin solución.',
+      false: 'Pregunta de producto, duda difícil, comparación de precios, queja general sobre la publicidad o el precio, mal humor sin un hecho concreto, conversación de compra normal.',
+    },
+  },
+  pide_fuera_de_alcance: {
+    type: 'noul',
+    instructions: {
+      question:
+        '¿La persona pide un cambio sobre un pedido ya hecho, o algo que un asistente automático no puede hacer y tiene que autorizar o coordinar una persona del comercio?',
+      inspect: ['`ultimo_mensaje`', '`conversacion`'],
+    },
+    criteria: {
+      true: 'Cambiar la dirección, la cantidad o el producto de un pedido ya hecho; mandarlo a una sucursal o punto de retiro; coordinar día u horario de entrega; una excepción a la política; un precio, descuento o reembolso fuera de lo ofrecido; combinar pedidos; adelantar una entrega.',
+      false: 'Preguntas normales, elegir producto o medio de pago antes de comprar, pedir el seguimiento, preguntar cuánto tarda o cuánto cuesta.',
+    },
+  },
+  pago_por_confirmar: {
+    type: 'noul',
+    instructions: {
+      question:
+        '¿La persona dice que ya pagó, o manda un comprobante, captura o archivo de pago, y falta que el comercio lo confirme?',
+      inspect: ['`ultimo_mensaje`', '`ultimo_mensaje_es_adjunto`', '`conversacion`'],
+      focus: 'Un pago que la persona da por hecho y que del lado del comercio nadie confirmó todavía.',
+    },
+    criteria: {
+      true: 'Dice que ya pagó, transfirió o abonó; pregunta si llegó el pago; manda un archivo o imagen después de que se le pidió el comprobante; el pedido figura pendiente de pago aunque dice que pagó.',
+      false: 'Pregunta cómo pagar, elige un medio de pago sin haber pagado, o el pago ya fue confirmado en la conversación.',
+    },
+  },
+  pedido_no_encontrado: {
+    type: 'noul',
+    instructions: {
+      question:
+        '¿El asistente dijo en `conversacion` que no encuentra el pedido de la persona, y la persona insiste o da más datos (mail, teléfono, fecha, número) para que lo busquen?',
+      inspect: ['`conversacion`', '`ultimo_mensaje`'],
+    },
+    criteria: {
+      true: 'El asistente respondió que no le aparece ningún pedido con esos datos y la persona sigue dando datos, insiste en que compró, o dice que ya habló muchas veces.',
+      false: 'El pedido se encontró, o la persona todavía no dio ningún dato, o no está hablando de un pedido suyo.',
+    },
+  },
+  clase: {
+    type: 'choice',
+    instructions: 'Si hay un problema, ¿de qué tipo es? Mira `ultimo_mensaje` y `conversacion`.',
+    criteria: {
+      envio_mal: 'El envío va a una dirección o ciudad equivocada, o el seguimiento no coincide con donde vive la persona.',
+      no_llego: 'El pedido no llegó, figura entregado sin recibirlo, o lleva días demorado.',
+      cobro: 'Pagó y no figura, cobro doble o incorrecto, comprobante mandado y sin confirmar, pago pendiente de validar.',
+      devolucion: 'Llegó roto, incompleto, vencido o distinto; quiere devolver, cambiar o cancelar.',
+      otro: 'Otro problema real: el pedido no aparece en el sistema, pide un cambio o una excepción, o algo que no es ninguna de las anteriores.',
+      ninguno: 'No hay ningún problema en curso.',
+    },
+  },
+  urgencia: {
+    type: 'choice',
+    instructions: '¿Qué tan rápido tiene que intervenir una persona del comercio?',
+    criteria: {
+      ahora: 'El daño crece con cada hora: un envío yendo al lugar equivocado, un cobro incorrecto, un producto que hizo daño.',
+      hoy: 'Hay que atenderlo pero puede esperar unas horas: una devolución, un pedido demorado, una excepción.',
+      no_hace_falta: 'No hace falta que intervenga nadie.',
+    },
+  },
+} as const;
+
+export type RespuestasEscalada = RespuestasDe<typeof PREGUNTAS_ESCALADA>;
+
+/**
+ * Los umbrales. Salen de `scripts/jev-escalada-validar.ts` corrido el
+ * 2026-09-19 sobre 100 escaladas reales de Haiku y 100 conversaciones que no
+ * escalaron (90 días, tres comercios). En las que no escalaron, "problema"
+ * queda en 0,03 la mitad de las veces y por debajo de 0,46 el 95 %; en las que
+ * sí, la mitad pasa de 0,5. Cada condición tiene su umbral porque cada una es
+ * más o menos literal: comparar dos ciudades se contesta con 0,97 o con 0,05,
+ * "hay un problema" tiene grises. Escalar de más es peor que no escalar.
+ */
+const UMBRAL_PROBLEMA = 0.5;
+const UMBRAL_DESTINO = 0.7;
+const UMBRAL_FUERA_DE_ALCANCE = 0.6;
+const UMBRAL_PAGO = 0.6;
+const UMBRAL_PEDIDO_NO_ENCONTRADO = 0.6;
+
+/** Lo que dice el aviso cuando no hay quien redacte la línea. */
+const POR_QUE_FIJO: Record<Escalada['clase'], string> = {
+  envio_mal: 'El envío parece ir a una dirección o ciudad incorrecta',
+  no_llego: 'Dice que el pedido no llegó o viene demorado',
+  cobro: 'Reclama un cobro: pagó y no figura, doble o de más',
+  devolucion: 'Llegó mal o quiere devolver, cambiar o cancelar',
+  otro: 'Hay un problema que necesita una persona',
+  pide_persona: 'Pide hablar con una persona',
+  legal: 'Habla de abogados, denuncia o defensa del consumidor',
+  salud: 'Dice que le hizo mal a la piel o al cuerpo',
+  enojo: 'Está enojada y sube el tono',
+  pago_asistido: 'Eligió un medio cuyo enlace o solicitud debe gestionar una persona',
+};
+
+/**
+ * De las respuestas de Jev a una escalada, o a nada. Pura, para poder
+ * probarla sin red. Es la única política: los umbrales viven acá y no en el
+ * modelo.
+ */
+export function escaladaDesdeJev(
+  r: RespuestasEscalada
+): Omit<Escalada, 'porQue'> | null {
+  const destino = r.destino_distinto.noul >= UMBRAL_DESTINO;
+  const pago = r.pago_por_confirmar.noul >= UMBRAL_PAGO;
+  const escalar =
+    r.problema_en_curso.noul >= UMBRAL_PROBLEMA ||
+    destino ||
+    pago ||
+    r.pide_fuera_de_alcance.noul >= UMBRAL_FUERA_DE_ALCANCE ||
+    r.pedido_no_encontrado.noul >= UMBRAL_PEDIDO_NO_ENCONTRADO;
+  if (!escalar) return null;
+  // La clase que Jev eligió, salvo que diga "ninguno" con una condición dando
+  // que sí: ahí gana la condición, que es más literal, y la clase es la de esa
+  // condición o "otro".
+  let clase: Escalada['clase'];
+  if (r.clase.choice !== 'ninguno') clase = r.clase.choice;
+  else if (destino) clase = 'envio_mal';
+  else if (pago) clase = 'cobro';
+  else clase = 'otro';
+  return {
+    clase,
+    urgencia: r.urgencia.choice === 'ahora' ? 'ahora' : 'hoy',
+  };
+}
+
+/**
+ * La capa 2 con Jev: decide en ~300 ms y por ~$0,00004, contra ~$0,001 y uno o
+ * dos segundos de Haiku. La LÍNEA del aviso ("qué pasa") la sigue escribiendo
+ * Haiku, pero sólo cuando hay escalada, que es una de cada veinte o treinta
+ * veces: Jev no redacta, y una línea concreta le ahorra a quien atiende los
+ * primeros treinta segundos del caso. Si no la puede escribir, va la fija de
+ * la clase; el aviso sale igual.
+ */
+async function clasificarConJev(ctx: ContextoEscalada): Promise<Escalada | null> {
+  const hilo = (ctx.hilo ?? []).slice(-6);
+  const resultado = await preguntarJev({
+    db: ctx.db,
+    workspaceId: ctx.workspaceId,
+    concepto: 'ia_clasificacion',
+    detalle: { para: 'escalada' },
+    state: {
+      conversacion: hilo,
+      ultimo_mensaje: ctx.mensaje.slice(0, 600),
+      // "[Imagen]" o "comprobante_1795.pdf" son un adjunto, no un texto: se
+      // le dice para que no lo lea como una palabra rara.
+      ultimo_mensaje_es_adjunto: esAdjunto(ctx.mensaje),
+      hay_pedido: Boolean(ctx.hayPedido),
+    },
+    questions: PREGUNTAS_ESCALADA,
+  });
+  if (!resultado) return null;
+  const decision = escaladaDesdeJev(resultado.answers);
+  if (!decision) return null;
+  return {
+    ...decision,
+    porQue: (await redactarPorQue(ctx, hilo)) ?? POR_QUE_FIJO[decision.clase],
+  };
+}
+
+/** Lo que queda como texto cuando el mensaje era un archivo o una imagen. */
+export function esAdjunto(mensaje: string): boolean {
+  const t = mensaje.trim();
+  return (
+    /^\[(imagen|image|unsupported|audio|video|documento|document|sticker|archivo|file)\]$/i.test(t) ||
+    /^[\w.-]+\.(pdf|jpe?g|png|webp|heic|docx?)$/i.test(t)
+  );
+}
+
+async function redactarPorQue(
+  ctx: ContextoEscalada,
+  hilo: string[]
+): Promise<string | null> {
+  try {
+    const linea = await completeTextMedido(ctx.db, {
+      workspaceId: ctx.workspaceId,
+      agentKeyEncrypted: ctx.agentKeyEncrypted,
+      concepto: 'ia_clasificacion',
+      detalle: { para: 'escalada_por_que' },
+      tier: 'triage',
+      system:
+        'Una persona del comercio va a recibir un aviso de que esta conversación necesita que se meta. Escribí en UNA línea, en español llano y en máximo 90 caracteres, qué le pasa a la clienta. Sin comillas, sin JSON, sin encabezado.',
+      user: [
+        hilo.length ? `CONVERSACIÓN:\n${hilo.join('\n')}` : null,
+        `ÚLTIMO MENSAJE: ${ctx.mensaje.slice(0, 600)}`,
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+      maxTokens: 60,
+      effort: 'low',
+    });
+    const limpia = (linea ?? '').replace(/^["'“”\s]+|["'“”.\s]+$/g, '').replace(/\s+/g, ' ');
+    return limpia.length >= 8 ? limpia.slice(0, 90) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * La capa 2. Corre SÓLO si la capa 1 no dijo nada: es la que cuesta plata y
  * la que puede fallar. Ante cualquier duda —sin clave, JSON roto, timeout—
  * devuelve null y todo sigue como antes: escalar de más es peor que no
  * escalar, porque un aviso que suena por cualquier cosa se empieza a ignorar.
+ *
+ * Con `TYPESAFE_API_KEY` decide Jev; sin ella, Haiku como siempre.
  */
 async function clasificar(ctx: ContextoEscalada): Promise<Escalada | null> {
+  if (hayJev()) return clasificarConJev(ctx);
+  return clasificarConHaiku(ctx);
+}
+
+async function clasificarConHaiku(ctx: ContextoEscalada): Promise<Escalada | null> {
   const hilo = (ctx.hilo ?? []).slice(-6).join('\n');
   try {
     const salida = await completeTextMedido(ctx.db, {
@@ -328,6 +578,10 @@ export async function detectarEscalada(
     /(?<![\wáéíóúñ])(transferencia|transferir)(?![\wáéíóúñ])/i.test(ctx.mensaje) &&
     /(?<![\wáéíóúñ])(comprar|pagar|checkout|enlace|link)(?![\wáéíóúñ])/i.test(ctx.mensaje)
   if (eligeTransferencia) return null;
+  // Un botón de la recuperación ("CONFIRMAR", "MANTENER CONTRAENTREGA") es
+  // una respuesta a lo que se le ofreció, no un incidente. Jev lo leía como
+  // "pide cambiar el pago de un pedido hecho" (0,6) y lo escalaba.
+  if (recoveryButtonKind(ctx.mensaje)) return null;
   const conversacionCargada = ctx.hayPedido || (ctx.hilo?.length ?? 0) >= 3;
   if (!conversacionCargada) return null;
   return clasificar(ctx);

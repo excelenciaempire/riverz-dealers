@@ -202,6 +202,7 @@ export function proveedorDeModelo(modelo: string): string | null {
   if (id.startsWith('llama-')) return 'groq'
   if (id.startsWith('gemini-') || id.startsWith('google/')) return 'gemini'
   if (id.startsWith('gpt-') || id.startsWith('o1') || id.startsWith('o3')) return 'openai'
+  if (id.startsWith('jev-')) return 'typesafe'
   return null
 }
 

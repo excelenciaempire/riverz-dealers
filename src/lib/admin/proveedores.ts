@@ -28,6 +28,7 @@ import { leerCostosFijosConCache, type Fijos } from './costos-fijos'
 import { leerCostoIa, proveedorDeModelo } from './costo-ia'
 import { leerSaldoDeStripe } from './stripe-saldo'
 import { leerEstadoDeClaves, type OrigenDeClave } from './claves'
+import { sondaJev } from '@/lib/ai/jev'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 
 export type EstadoProveedor =
@@ -473,6 +474,27 @@ async function gemini(): Promise<Proveedor> {
   }
 }
 
+async function typesafe(): Promise<Proveedor> {
+  const p = base({
+    id: 'typesafe',
+    nombre: 'TypeSafe (Jev)',
+    categoria: 'llm',
+    recargable: true,
+    url: 'https://console.typesafe.ai/',
+    detalleKey: 'admin.svcJev',
+  })
+  const key = process.env.TYPESAFE_API_KEY
+  if (!key) return sinLlave(p, 'TYPESAFE_API_KEY')
+  try {
+    // `GET /models` no cobra y contesta 401 con una llave mala.
+    const r = await sondaJev(key)
+    if (r.ok) return { ...p, estado: 'desconocido' }
+    return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
+  } catch {
+    return sinRespuesta(p)
+  }
+}
+
 async function render(): Promise<Proveedor> {
   const p = base({
     id: 'render',
@@ -712,6 +734,7 @@ export async function leerProveedores(): Promise<EstadoDeProveedores> {
         'OPENAI_API_KEY',
       ),
       gemini(),
+      typesafe(),
       // Voz y telefonía
       telnyx(),
       deepgram(),
