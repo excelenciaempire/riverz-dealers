@@ -10,7 +10,12 @@ const jev = vi.hoisted(() => ({
   llamadas: 0,
   hay: true,
 }))
-const haiku = vi.hoisted(() => ({ llamadas: 0, linea: 'El paquete va a otra ciudad' as string | null }))
+const haiku = vi.hoisted(() => ({
+  llamadas: 0,
+  linea: 'El paquete va a otra ciudad' as string | null,
+  /** Lo que contesta el clasificador viejo cuando le toca decidir. */
+  clasificacion: null as string | null,
+}))
 
 vi.mock('./jev', () => ({
   hayJev: () => jev.hay,
@@ -20,9 +25,9 @@ vi.mock('./jev', () => ({
   },
 }))
 vi.mock('./medido', () => ({
-  completeTextMedido: async () => {
+  completeTextMedido: async (_db: unknown, args: { detalle?: { para?: string } }) => {
     haiku.llamadas += 1
-    return haiku.linea
+    return args.detalle?.para === 'escalada' ? haiku.clasificacion : haiku.linea
   },
 }))
 
@@ -164,10 +169,25 @@ describe('detectarEscalada con Jev', () => {
     })
   })
 
-  it('si Jev no contesta, no se escala y no se cae a Haiku para decidir', async () => {
+  it('si Jev no contesta (caído, fusible abierto), decide Haiku como antes', async () => {
     jev.respuesta = null
+    haiku.clasificacion =
+      '{"escalar": true, "clase": "devolucion", "urgencia": "hoy", "porQue": "Llegó roto"}'
+    await expect(detectarEscalada(ctx)).resolves.toEqual({
+      clase: 'devolucion',
+      urgencia: 'hoy',
+      porQue: 'Llegó roto',
+    })
+    expect(jev.llamadas).toBe(1)
+    expect(haiku.llamadas).toBe(1)
+  })
+
+  it('sin llave de Jev ni siquiera se lo llama: Haiku directo', async () => {
+    jev.hay = false
+    haiku.clasificacion = '{"escalar": false}'
     await expect(detectarEscalada(ctx)).resolves.toBeNull()
-    expect(haiku.llamadas).toBe(0)
+    expect(jev.llamadas).toBe(0)
+    expect(haiku.llamadas).toBe(1)
   })
 
   it('un botón de la recuperación no es un incidente ni paga una llamada', async () => {

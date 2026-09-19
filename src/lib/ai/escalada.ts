@@ -428,7 +428,8 @@ export function escaladaDesdeJev(
  * primeros treinta segundos del caso. Si no la puede escribir, va la fija de
  * la clase; el aviso sale igual.
  */
-async function clasificarConJev(ctx: ContextoEscalada): Promise<Escalada | null> {
+/** `undefined` = Jev no contestó (caído o sin llave): que decida Haiku. */
+async function clasificarConJev(ctx: ContextoEscalada): Promise<Escalada | null | undefined> {
   const hilo = (ctx.hilo ?? []).slice(-6);
   const resultado = await preguntarJev({
     db: ctx.db,
@@ -445,7 +446,7 @@ async function clasificarConJev(ctx: ContextoEscalada): Promise<Escalada | null>
     },
     questions: PREGUNTAS_ESCALADA,
   });
-  if (!resultado) return null;
+  if (!resultado) return undefined;
   const decision = escaladaDesdeJev(resultado.answers);
   if (!decision) return null;
   return {
@@ -498,10 +499,15 @@ async function redactarPorQue(
  * devuelve null y todo sigue como antes: escalar de más es peor que no
  * escalar, porque un aviso que suena por cualquier cosa se empieza a ignorar.
  *
- * Con `TYPESAFE_API_KEY` decide Jev; sin ella, Haiku como siempre.
+ * Con `TYPESAFE_API_KEY` decide Jev; sin ella, o si Jev no contesta (caído,
+ * timeout, fusible abierto), Haiku como siempre. Una caída de TypeSafe no
+ * puede dejar de escalar lo que antes se escalaba.
  */
 async function clasificar(ctx: ContextoEscalada): Promise<Escalada | null> {
-  if (hayJev()) return clasificarConJev(ctx);
+  if (hayJev()) {
+    const porJev = await clasificarConJev(ctx);
+    if (porJev !== undefined) return porJev;
+  }
   return clasificarConHaiku(ctx);
 }
 

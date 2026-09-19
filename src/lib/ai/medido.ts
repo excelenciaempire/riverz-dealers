@@ -40,7 +40,8 @@ export async function completeTextMedido(
       | 'ia_clasificacion'
       | 'ia_resumen'
       | 'ia_seguimiento'
-      | 'ia_asistencia';
+      | 'ia_asistencia'
+      | 'ia_respuesta';
     referenciaTipo?: string;
     referenciaId?: string | null;
     detalle?: Record<string, unknown>;

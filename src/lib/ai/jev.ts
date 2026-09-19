@@ -37,6 +37,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * camino de antes (Haiku o la heurística), así que apagar Jev es borrar la
  * llave y nada deja de funcionar.
  *
+ * Y SI SE CAE, TAMPOCO. Hay un fusible: un timeout, un 5xx, un 401 o un error
+ * de red lo abren durante `FUSIBLE_MS`, y en ese rato `hayJev()` dice que no,
+ * así que cada superficie va derecho a Haiku sin esperar un timeout por
+ * mensaje. Pasado el rato se prueba de nuevo con una sola llamada; si vuelve a
+ * fallar, otro rato. Una caída de TypeSafe le cuesta a Riverz una llamada
+ * lenta cada dos minutos, no una por mensaje.
+ *
  * Se cobra como todo lo demás: pasa por la puerta (`puedeUsarIa`), reserva un
  * centavo —el mínimo de la billetera— y liquida el costo exacto con los tokens
  * que devolvió. Siempre con la llave de Riverz: no hay BYOK de TypeSafe.
@@ -44,7 +51,22 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 const URL_BASE = 'https://api.typesafe.ai/v1';
 const PROVEEDOR = 'typesafe';
-const TIMEOUT_MS = 15_000;
+/** Jev contesta en ~250 ms; a los 8 s ya no va a contestar. */
+const TIMEOUT_MS = 8_000;
+/** Cuánto se lo da por caído después de un fallo. */
+const FUSIBLE_MS = 2 * 60_000;
+
+let caidoHasta = 0;
+
+function abrirFusible(motivo: string): void {
+  caidoHasta = Date.now() + FUSIBLE_MS;
+  console.warn(`[jev] caído (${motivo}); Haiku toma las decisiones durante ${FUSIBLE_MS / 1000} s`);
+}
+
+/** Para las pruebas: cierra el fusible a mano. */
+export function reiniciarFusibleJev(): void {
+  caidoHasta = 0;
+}
 
 /** Un `noul`: ¿esto es verdad? Devuelve la probabilidad de que sí. */
 export interface PreguntaNoul {
@@ -121,9 +143,12 @@ function modelo(): string {
   return process.env.TYPESAFE_MODEL?.trim() || 'jev-latest';
 }
 
-/** ¿Está Jev disponible? Sin llave, cada superficie sigue por su camino viejo. */
+/**
+ * ¿Está Jev disponible AHORA? Sin llave, o con el fusible abierto por una
+ * caída reciente, cada superficie sigue por su camino viejo.
+ */
 export function hayJev(): boolean {
-  return Boolean(process.env.TYPESAFE_API_KEY?.trim());
+  return Boolean(process.env.TYPESAFE_API_KEY?.trim()) && Date.now() >= caidoHasta;
 }
 
 export interface OpcionesJev<Q extends Record<string, Pregunta>> {
@@ -146,7 +171,7 @@ export async function preguntarJev<Q extends Record<string, Pregunta>>(
   o: OpcionesJev<Q>
 ): Promise<ResultadoJev<Q> | null> {
   const key = process.env.TYPESAFE_API_KEY?.trim();
-  if (!key) return null;
+  if (!key || !hayJev()) return null;
   if (!(await puedeUsarIa(o.db, o.workspaceId))) return null;
 
   const model = modelo();
@@ -181,9 +206,10 @@ export async function preguntarJev<Q extends Record<string, Pregunta>>(
   let res: Response;
   try {
     res = await pedirConReintento(key, body);
-  } catch {
+  } catch (err) {
     // Un error de red deja la reserva: el proveedor pudo haberla procesado.
     // Es un centavo y `wallet_operaciones_pending` la limpia.
+    abrirFusible(err instanceof Error ? err.name : 'red');
     return null;
   }
 
@@ -193,6 +219,10 @@ export async function preguntarJev<Q extends Record<string, Pregunta>>(
     }
     const detalle = await res.text().catch(() => '');
     console.warn(`[jev] ${res.status}: ${detalle.slice(0, 200)}`);
+    // Un 4xx de ESTA pregunta (422: una pregunta mal armada) es un bug del
+    // llamador, no una caída: no se le cierra la puerta a los demás. Todo lo
+    // otro —llave inválida, tope de ritmo que no cedió, 5xx, saturado— sí.
+    if (res.status !== 400 && res.status !== 422) abrirFusible(`HTTP ${res.status}`);
     return null;
   }
 
@@ -200,11 +230,13 @@ export async function preguntarJev<Q extends Record<string, Pregunta>>(
   try {
     json = (await res.json()) as ResultadoJev<Q>;
   } catch {
+    abrirFusible('cuerpo ilegible');
     return null;
   }
   const tokens = json.usage?.input_tokens;
   if (!Number.isFinite(tokens) || tokens < 0 || !json.answers) {
     console.warn('[jev] respuesta sin usage o sin answers');
+    abrirFusible('respuesta incompleta');
     return null;
   }
   try {

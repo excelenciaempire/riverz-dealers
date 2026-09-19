@@ -82,6 +82,8 @@ import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { cargarReglas, reglasATexto } from './guidance';
+import { completeTextMedido } from './medido';
+import { reglasDeSalidaPara, verificarRespuesta } from './verificacion';
 import {
   aceptaContraentrega,
   frase as fraseDeMedios,
@@ -861,7 +863,8 @@ export async function runAiAgent(
       // Este bloqueo no significa que el proveedor o el modelo hayan fallado:
       // evitó enviar un precio que no estaba verificado. Se deriva a una persona,
       // pero no debe contaminar la métrica de errores de IA.
-      const isPriceIntegrityHandoff = error.startsWith('price_integrity:');
+      const isPriceIntegrityHandoff =
+        error.startsWith('price_integrity:') || error.startsWith('respuesta_prohibida:');
       const category = isPriceIntegrityHandoff
         ? 'answer_gap'
         : httpStatus === 429
@@ -2834,9 +2837,8 @@ async function generateReply(
     if (de) extras.push(de);
   }
   const igContext = extras.length ? extras.join('\n\n') : null;
-  const reglas = reglasATexto(
-    await cargarReglas(db, agent.workspace_id, agent.id)
-  );
+  const reglasCrudas = await cargarReglas(db, agent.workspace_id, agent.id);
+  const reglas = reglasATexto(reglasCrudas);
   const perfilOperativo = await cargarPerfilOperativo(db, agent.workspace_id);
   // De vos o de tú, según de dónde sea el CLIENTE. Sirve en todos los canales:
   // donde no hay teléfono (Instagram, comentarios, chat web, correo) el país
@@ -3076,6 +3078,62 @@ async function generateReply(
   // mensaje más corto que el tope por nada, y sacarlos antes puede evitar el
   // corte entero.
   const limpio = humanizarTexto(result.text);
+
+  async function respuestaVerificada(texto: string): Promise<string> {
+    const reglasDeSalida = reglasDeSalidaPara(
+      products,
+      productMatch?.product_id ?? null,
+      reglasCrudas
+    );
+    const verificar = (respuesta: string) =>
+      verificarRespuesta({
+        db,
+        workspaceId: agent.workspace_id,
+        respuesta,
+        ultimoMensaje: origen.inboundText,
+        reglas: reglasDeSalida,
+        detalle: { agente: agent.id },
+      });
+    const primero = await verificar(texto);
+    if (!primero || primero.ok) return texto;
+    console.warn(
+      `[ai] respuesta del agente ${agent.id} rompía una regla (${primero.maximo.toFixed(2)}): ${primero.motivos.join(' | ').slice(0, 200)}`
+    );
+    // Una reescritura sin herramientas: no puede volver a crear un pedido ni
+    // un link. Sólo saca lo que rompe la regla y deja el resto igual.
+    const reescrita = humanizarTexto(
+      (await completeTextMedido(db, {
+        workspaceId: agent.workspace_id,
+        agentKeyEncrypted: agent.api_key_encrypted,
+        concepto: 'ia_respuesta',
+        detalle: { para: 'reescritura', agente: agent.id },
+        tier: 'triage',
+        system: [
+          'Reescribes un mensaje que un asistente de ventas ya redactó para una clienta. El mensaje rompe una regla del comercio y hay que quitar SOLO eso.',
+          'Reglas que rompe:',
+          ...primero.motivos.map((m) => `- ${m}`),
+          '',
+          'Conserva el idioma, el tono, el registro (tú o vos), la longitud aproximada y todo lo demás que dice. No agregues precios, ofertas, datos ni promesas nuevas. Si hace falta, di con naturalidad que eso no lo puedes asegurar.',
+          'Devuelve SOLO el mensaje reescrito, sin comillas ni explicación.',
+        ].join('\n'),
+        user: texto,
+        maxTokens: Math.max(300, Math.ceil(texto.length / 2)),
+        effort: 'low',
+      })) ?? ''
+    ).trim();
+    if (!reescrita) throw new Error(`respuesta_prohibida: ${primero.motivos.join(' | ')}`);
+    // La reescritura pasa por la misma guarda de precios que la original: se
+    // le pidió no agregar ninguno, y si igual lo hizo, no sale.
+    if (unauthorizedQuotedPrices(reescrita, trustedPrices, { priceQuestion: priceIntegrity.priceQuestion }).length > 0) {
+      throw new Error(`respuesta_prohibida: ${primero.motivos.join(' | ')} (la reescritura trajo un precio no autorizado)`);
+    }
+    const segundo = await verificar(reescrita);
+    // Si Jev se cayó entre la primera y la segunda, la reescritura vale: se le
+    // pidió sacar lo prohibido y no hay con qué desmentirla.
+    if (!segundo || segundo.ok) return reescrita;
+    throw new Error(`respuesta_prohibida: ${segundo.motivos.join(' | ')}`);
+  }
+
   const trustedPrices =
     priceIntegrity.priceQuestion && !priceIntegrity.priceVerified
       ? []
@@ -3120,10 +3178,22 @@ async function generateReply(
     }
     throw new Error(`price_integrity: ${invalidPrices.join(',')}`);
   }
+
+  // LA RESPUESTA SE REVISA CONTRA LO QUE EL COMERCIO PROHIBIÓ.
+  //
+  // Mismo criterio que el precio: lo que el comercio dijo que no se afirma
+  // (`never_say`) y las promociones que existen (`allowed_offers`) son
+  // límites, no sugerencias. Jev lee la respuesta ya escrita y contesta, regla
+  // por regla, si la rompe (`verificacion.ts`; validado el 2026-09-19 sobre
+  // 203 respuestas reales: frenó 2, las dos rompían una regla). Si rompe una,
+  // se pide UNA reescritura sin eso; si la reescritura sigue mal, no sale y
+  // pasa a una persona, como con un precio no autorizado. Sin Jev no se
+  // verifica y la respuesta sale como siempre.
+  const verificada = await respuestaVerificada(limpio);
   const trimmed =
-    limpio.length > agent.max_response_chars
-      ? limpio.slice(0, agent.max_response_chars).trimEnd() + '…'
-      : limpio;
+    verificada.length > agent.max_response_chars
+      ? verificada.slice(0, agent.max_response_chars).trimEnd() + '…'
+      : verificada;
 
   return {
     text: trimmed,

@@ -29,7 +29,7 @@ vi.mock('@/lib/wallet/operacion', () => ({
   },
 }))
 
-import { hayJev, preguntarJev } from './jev'
+import { hayJev, preguntarJev, reiniciarFusibleJev } from './jev'
 
 const db = {} as never
 
@@ -46,6 +46,7 @@ describe('preguntarJev', () => {
     // `clearMocks` no vacía la cola de `mockResolvedValueOnce`: un test que
     // no consumió la suya se la dejaba al siguiente.
     fetchMock.mockReset()
+    reiniciarFusibleJev()
     vi.stubGlobal('fetch', fetchMock)
     vi.stubEnv('TYPESAFE_API_KEY', 'ts-test-key')
     caja.reservas.length = 0
@@ -200,5 +201,50 @@ describe('preguntarJev', () => {
     })
     expect(r).toBeNull()
     expect(caja.cancelaciones).toBe(0)
+  })
+
+  describe('el fusible', () => {
+    const pregunta = () =>
+      preguntarJev({
+        db,
+        workspaceId: 'w1',
+        concepto: 'ia_clasificacion',
+        state: 'x',
+        questions: { x: { type: 'noul', instructions: '¿?' } },
+      })
+
+    it('una caída lo abre: durante dos minutos Jev no existe y nadie espera un timeout', async () => {
+      vi.useFakeTimers()
+      fetchMock.mockRejectedValueOnce(new Error('timeout'))
+      expect(await pregunta()).toBeNull()
+      expect(hayJev()).toBe(false)
+      // La siguiente pregunta ni llama a la red.
+      expect(await pregunta()).toBeNull()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      // Pasado el rato, se prueba de nuevo.
+      vi.advanceTimersByTime(2 * 60_000 + 1)
+      expect(hayJev()).toBe(true)
+      fetchMock.mockResolvedValueOnce(
+        respuesta({ model: 'jev-1.13.0', answers: { x: { type: 'noul', noul: 0.4 } }, usage: { input_tokens: 5, output_tokens: 0 } }),
+      )
+      expect((await pregunta())?.answers.x.noul).toBe(0.4)
+      vi.useRealTimers()
+    })
+
+    it('un 5xx o una llave inválida también lo abren', async () => {
+      fetchMock.mockResolvedValueOnce(respuesta({ error: 'down' }, 503))
+      expect(await pregunta()).toBeNull()
+      expect(hayJev()).toBe(false)
+      reiniciarFusibleJev()
+      fetchMock.mockResolvedValueOnce(respuesta({ error: 'bad key' }, 401))
+      expect(await pregunta()).toBeNull()
+      expect(hayJev()).toBe(false)
+    })
+
+    it('una pregunta mal armada (422) es un bug del llamador, no una caída', async () => {
+      fetchMock.mockResolvedValueOnce(respuesta({ error: 'bad question' }, 422))
+      expect(await pregunta()).toBeNull()
+      expect(hayJev()).toBe(true)
+    })
   })
 })

@@ -12,7 +12,7 @@ import { supabaseAdmin } from './admin-client';
  *
  * Con `TYPESAFE_API_KEY` decide Jev: es una elección entre opciones cerradas,
  * que es exactamente lo que hace, y devuelve además cuánto se inclina por la
- * ganadora. Sin llave, Haiku como siempre.
+ * ganadora. Sin llave, o si Jev no contesta, Haiku como siempre.
  *
  * Never throws on AI failures — the caller routes to fallback_next_key.
  */
@@ -37,8 +37,8 @@ export async function classifyIntent(args: {
       state: { mensaje_del_cliente: args.message.slice(0, 1500) },
       questions: { intencion: preguntaDeIntencion(args.intents) },
     });
-    if (!resultado) return null;
-    return intencionDesdeJev(resultado.answers.intencion, args.intents);
+    // Si Jev no contestó (caído, fusible abierto), sigue Haiku como siempre.
+    if (resultado) return intencionDesdeJev(resultado.answers.intencion, args.intents);
   }
 
   const { data: agent } = await db
