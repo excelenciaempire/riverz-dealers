@@ -67,14 +67,13 @@ async function main() {
     if (!remote) throw new Error(`Remote template missing: ${item.name}/${item.language}`);
     if (remote.components.find(c => c.type === 'BODY')?.text !== item.body) throw new Error('Remote copy mismatch');
     const status = remote.status === 'APPROVED' ? 'Approved' : remote.status === 'REJECTED' ? 'Rejected' : 'Pending';
-    const saved = await db.from('message_templates').update({ status, category: remote.category === 'UTILITY' ? 'Utility' : 'Marketing' })
+    const saved = await db.from('message_templates').update({ status, meta_status: remote.status, category: remote.category === 'UTILITY' ? 'Utility' : 'Marketing' })
       .eq('workspace_id', workspace).eq('name', item.name).eq('language', item.language);
     if (saved.error) throw saved.error;
     console.log(JSON.stringify({ name: item.name, language: item.language, status, category: remote.category }));
     if (status !== 'Approved' || remote.category !== 'UTILITY') ready = false;
   }
   if (!process.argv.includes('--apply')) return;
-  if (!ready) throw new Error('Meta approval pending; current confirmation remains active');
   const commit = process.argv.find(a => a.startsWith('--deployed-commit='))?.split('=')[1];
   if (!commit || !/^[a-f0-9]{40}$/.test(commit)) throw new Error('Exact deployed commit required');
   const version = await fetch('https://riverz.co/api/version', { cache: 'no-store', signal: AbortSignal.timeout(20_000) });
@@ -82,14 +81,14 @@ async function main() {
   const step = await db.from('automation_steps').select('step_config').eq('automation_id', automation).eq('id', stepId).eq('step_type', 'send_template').single();
   if (step.error) throw step.error;
   if (!['deuna_confirmacion_producto_v1', 'deuna_resumen_compra_general_v1'].includes(step.data.step_config.template_name)) throw new Error('Initial step changed; inspect before applying');
-  const definition = purchaseConfirmationTemplates('es').find(t => t.name === 'deuna_resumen_compra_general_v1')!;
-  const cfg = { ...step.data.step_config, template_name: definition.name, purchase_confirmation: true,
-    variables: Object.fromEntries(definition.fields.map((f, i) => [String(i + 1), `{{vars.${f}}}`])) };
+  // The engine selects the revised body only when its exact language/count
+  // is approved. Keep the original template and mappings as the fallback.
+  const cfg = { ...step.data.step_config, purchase_confirmation: true };
   const changed = await db.from('automation_steps').update({ step_config: cfg }).eq('automation_id', automation).eq('id', stepId)
     .filter('step_config', 'eq', JSON.stringify(step.data.step_config)).select('id');
   if (changed.error || changed.data?.length !== 1) throw new Error('Concurrent step update');
   const verified = await db.from('automation_steps').select('step_config').eq('automation_id', automation).eq('id', stepId).single();
-  if (verified.error || !verified.data?.step_config.purchase_confirmation || verified.data.step_config.template_name !== definition.name) throw new Error('Activation verification failed');
-  console.log('Verified: initial confirmation updated; reminders and pending orders preserved.');
+  if (verified.error || !verified.data?.step_config.purchase_confirmation || verified.data.step_config.template_name !== step.data.step_config.template_name) throw new Error('Activation verification failed');
+  console.log(`Verified: initial confirmation opted in; reminders and pending orders preserved. Templates: ${ready ? 'all approved' : 'activate individually after Meta approval'}.`);
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; });

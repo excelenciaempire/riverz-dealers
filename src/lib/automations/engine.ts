@@ -936,8 +936,18 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         const count = lines.length === 1 || lines.length === 2 ? lines.length : 'general'
         const definition = purchaseConfirmationTemplates(cfg.language === 'en' ? 'en' : 'es')
           .find(t => t.name === `deuna_resumen_compra_${count}_v1`)!
-        cfg = { ...cfg, template_name: definition.name,
-          variables: Object.fromEntries(definition.fields.map((field, i) => [String(i + 1), `{{vars.${field}}}`])) }
+        const approved = await db.from('message_templates').select('status,category,meta_status')
+          .eq('workspace_id', args.automation.workspace_id).eq('name', definition.name)
+          .eq('language', cfg.language ?? 'es').maybeSingle()
+        if (approved.error) throw approved.error
+        // Keep the current approved confirmation until Meta approves this
+        // exact language and item count. The status reconciler activates it
+        // naturally; a pending/reclassified template never breaks delivery.
+        if (approved.data?.status === 'Approved' && approved.data?.category === 'Utility' &&
+          (!approved.data.meta_status || approved.data.meta_status === 'APPROVED')) {
+          cfg = { ...cfg, template_name: definition.name,
+            variables: Object.fromEntries(definition.fields.map((field, i) => [String(i + 1), `{{vars.${field}}}`])) }
+        }
       }
       // Meta templates use positional {{1}}, {{2}}, … placeholders, so
       // we MUST emit params in strict numeric order. Lexicographic sort

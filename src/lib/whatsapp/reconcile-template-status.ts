@@ -9,7 +9,7 @@ export async function reconcileTemplateStatus(
   db: SupabaseClient,
   args: { workspaceId: string; wabaId: string; accessToken: string },
 ): Promise<number> {
-  let url: string | null = `https://graph.facebook.com/v22.0/${args.wabaId}/message_templates?limit=100&fields=name,language,status,quality_score`;
+  let url: string | null = `https://graph.facebook.com/v22.0/${args.wabaId}/message_templates?limit=100&fields=name,language,status,category,quality_score`;
   let updated = 0;
   for (let page = 0; url && page < 20; page++) {
     const response = await fetchMetaGraph(withAppsecretProof(url, args.accessToken), {
@@ -17,13 +17,15 @@ export async function reconcileTemplateStatus(
     });
     if (!response.ok) throw new Error(`template_sync_http_${response.status}`);
     const body = await response.json() as {
-      data?: Array<{ name: string; language: string; status: string; quality_score?: { score?: string } }>;
+      data?: Array<{ name: string; language: string; status: string; category?: string; quality_score?: { score?: string } }>;
       paging?: { next?: string };
     };
     for (const template of body.data ?? []) {
       const status = normalizeTemplateStatusEvent(template.status);
       const { error } = await db.from('message_templates').update({
         meta_status: template.status,
+        ...(['UTILITY', 'MARKETING', 'AUTHENTICATION'].includes(template.category ?? '')
+          ? { category: template.category![0] + template.category!.slice(1).toLowerCase() } : {}),
         ...(status ? { status } : {}),
         ...(template.quality_score?.score ? { quality_score: template.quality_score.score } : {}),
         updated_at: new Date().toISOString(),

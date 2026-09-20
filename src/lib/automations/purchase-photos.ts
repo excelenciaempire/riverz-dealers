@@ -13,10 +13,11 @@ export async function sendPurchasePhotos(db: SupabaseClient, args: {
   const order = String(args.vars.order_id ?? '');
   if (!lines.length || !shop || !order) return 'photos: no order context';
   const templateName = 'deuna_foto_referencia_v1';
-  const template = await db.from('message_templates').select('status,header_type,category')
+  const template = await db.from('message_templates').select('status,header_type,category,meta_status')
     .eq('workspace_id', args.workspaceId).eq('name', templateName).eq('language', args.language).maybeSingle();
   if (template.error) throw template.error;
-  if (template.data?.status !== 'Approved' || template.data?.header_type !== 'image' || template.data?.category !== 'Utility') {
+  if (template.data?.status !== 'Approved' || template.data?.header_type !== 'image' || template.data?.category !== 'Utility' ||
+    (template.data.meta_status && template.data.meta_status !== 'APPROVED')) {
     return 'photos: utility image template not approved';
   }
   const ids = [...new Set(lines.map(l => String(l.product_id ?? '')).filter(id => /^\d+$/.test(id)))];

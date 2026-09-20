@@ -80,6 +80,7 @@ describe('send_template con una variable vacía', () => {
   })
 
   it('separates two purchased references into fixed template rows without changing delivery details', async () => {
+    state.tables.message_templates.push({ workspace_id: 'w', name: 'deuna_resumen_compra_2_v1', language: 'es', status: 'Approved', category: 'Utility' })
     state.tables.automation_steps[0] = { ...envio, step_config: {
       template_name: 'deuna_resumen_compra_general_v1', language: 'es', purchase_confirmation: true,
     } }
@@ -98,6 +99,13 @@ describe('send_template con una variable vacía', () => {
       ],
     }))
     expect(state.tables.automation_logs[0].status).toBe('success')
+  })
+
+  it('keeps the original approved confirmation while the replacement is pending', async () => {
+    state.tables.automation_steps[0] = { ...envio, step_config: { ...envio.step_config, purchase_confirmation: true } }
+    state.tables.message_templates.push({ workspace_id: 'w', name: 'deuna_resumen_compra_general_v1', language: 'es', status: 'Pending', category: 'Utility' })
+    await resumePendingExecution(pendingCon({ tracking_number: 'existing-approved-copy' }))
+    expect(sendTemplate).toHaveBeenCalledWith(expect.objectContaining({ templateName: envio.step_config.template_name, params: ['existing-approved-copy'] }))
   })
 
   it('la condición «guía vacía» de Rasmiaw deja la corrida en éxito sin enviar nada', async () => {
