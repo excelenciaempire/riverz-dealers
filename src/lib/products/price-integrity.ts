@@ -70,8 +70,10 @@ function quotedAmounts(text: string, includeBare: boolean): number[] {
   // “990 una unidad. 900. 900.”: fue exactamente el comentario roto que motivó
   // esta guarda. Sólo 3+ dígitos para no confundir “3 unidades” con dinero.
   if (includeBare) {
-    for (const match of text.matchAll(/(?<![\p{L}\p{N}%])\d{3,}(?:[.,]\d{3})*(?![\p{L}\p{N}%])/gu)) {
-      matches.push(match[0])
+    // Consume el importe entero: buscar 3+ dígitos desde cualquier posición
+    // interpretaba 99.900 como otro precio de 900, incluso ya autorizado.
+    for (const match of text.matchAll(/(?<![\p{L}\p{N}%.,])\d+(?:[.,]\d+)*(?![\p{L}\p{N}%])/gu)) {
+      if (match[0].replace(/\D/g, '').length >= 3) matches.push(match[0])
     }
   }
 

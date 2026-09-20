@@ -1,6 +1,7 @@
 import type { BillingContext } from '@/lib/wallet/operacion';
 import { reservar, liquidar, cancelar } from '@/lib/wallet/operacion';
 import { rateFor } from '@/lib/admin/cost';
+import { inlineCountableMedia } from './countable-media';
 
 type Usage = {
   input_tokens?: number;
@@ -53,6 +54,11 @@ export function meteredAnthropicFetch(
     if (body.service_tier && body.service_tier !== 'standard')
       throw new Error('wallet_unsupported_service_tier');
     if (body.inference_geo) throw new Error('wallet_unsupported_inference_geo');
+    if (await inlineCountableMedia(body.messages)) {
+      const headers = new Headers(init?.headers);
+      headers.delete('content-length');
+      init = { ...init, headers, body: JSON.stringify(body) };
+    }
     const count = await transport(
       url.replace(/\/messages(?=\?|$)/, '/messages/count_tokens'),
       {

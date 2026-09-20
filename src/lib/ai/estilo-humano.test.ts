@@ -19,6 +19,11 @@ import { ESTILO_HUMANO, humanizarTexto, tieneEstiloHumano } from './estilo-human
  *      comentario de Instagram.
  */
 describe('humanizarTexto', () => {
+  it('quita marcadores del historial sin cambiar el contenido ni otros corchetes', () => {
+    expect(humanizarTexto('[recién] La referencia cuesta $129.900.')).toBe('La referencia cuesta $129.900.')
+    expect(humanizarTexto('[just now] Your order is ready.')).toBe('Your order is ready.')
+    expect(humanizarTexto('Modelo [XL] disponible.')).toBe('Modelo [XL] disponible.')
+  })
   it('saca las negritas y las itálicas de markdown', () => {
     expect(humanizarTexto('**Envío gratis** desde *hoy*')).toBe('Envío gratis desde hoy')
     expect(humanizarTexto('__importante__')).toBe('importante')

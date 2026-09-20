@@ -19,6 +19,14 @@ const product = {
 }
 
 describe('integridad de precios', () => {
+  it.each(['99.900 COP', '$99,900', '99.900', '129.900 COP', '$1.299.900'])('no extrae fragmentos de %s', (text) => {
+    expect(unauthorizedQuotedPrices(text, [99900, 129900, 1299900], { priceQuestion: true })).toEqual([])
+  })
+
+  it('sigue bloqueando un importe no autorizado junto a uno válido', () => {
+    expect(unauthorizedQuotedPrices('99.900 COP. Otro cuesta 900.', [99900], { priceQuestion: true })).toEqual([900])
+  })
+
   it('reconoce preguntas de precio en ambos idiomas', () => {
     expect(asksForPrice('Precio?')).toBe(true)
     expect(asksForPrice('How much does it cost?')).toBe(true)

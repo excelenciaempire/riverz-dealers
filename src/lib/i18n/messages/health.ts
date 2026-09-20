@@ -292,6 +292,7 @@ export const health: Namespace = {
   },
   skip_already_paid: { es: "el pedido ya estaba pago", en: "the order was already paid" },
   skip_empty_reply: { es: "no tenía nada que decir", en: "nothing to say" },
+  skip_cierre_sin_respuesta: { es: "cierre sin respuesta necesaria", en: "no reply needed to closing message" },
   skip_risk: { es: "el mensaje necesitaba revisión", en: "the reply needed review" },
   skip_no_phone: { es: "el contacto no tiene teléfono", en: "the contact has no phone" },
   skip_tool_loop_truncated_fallback: {

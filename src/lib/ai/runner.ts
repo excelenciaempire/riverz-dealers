@@ -77,6 +77,7 @@ import {
 } from './business-hours';
 import { herramientaDeBusqueda, REGLAS_DE_BUSQUEDA } from './busqueda-web';
 import { aplicarDesenlace } from './desenlace';
+import { sinRespuestaNecesaria } from './sin-respuesta-necesaria';
 import { detectarEscalada, type Escalada } from './escalada';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
@@ -670,6 +671,19 @@ export async function runAiAgent(
         status: 'skipped',
         skip_reason: 'debounced_by_newer_inbound',
       });
+      return;
+    }
+
+    if (recoveryIntent === 'none' && args.inboundMessage.content_type === 'text' &&
+      !args.inboundMessage.media_url && await sinRespuestaNecesaria(db, {
+        workspaceId: args.workspaceId,
+        conversationId: args.conversation.id,
+        messageId: args.inboundMessage.id,
+        createdAt: args.inboundMessage.created_at,
+        text: textoEntrante,
+        agentKeyEncrypted: agent.api_key_encrypted,
+      })) {
+      await logReply(db, agent, args, { status: 'skipped', skip_reason: 'cierre_sin_respuesta' });
       return;
     }
 

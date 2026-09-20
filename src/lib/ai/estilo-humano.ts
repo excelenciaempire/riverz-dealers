@@ -111,6 +111,8 @@ export function humanizarTexto(entrada: string | null | undefined): string {
   t = t.replace(INVISIBLES, '').replace(CARACTER_ROTO, '').replace(CONTROLES, '');
   t = t.replace(ESPACIOS_RAROS, ' ');
   t = t.replace(/\u2212/g, '-');
+  // Las etiquetas temporales del historial son contexto interno, no copy.
+  t = t.replace(/^\s*\[(?:reci[eé]n|just now|hace \d+ (?:min|h|d)|\d+ (?:min|h|d) ago)\]\s*/gim, '');
 
   // 2. Bloques de código. El contenido se queda; las comillas de cerca, no.
   t = t.replace(/```[a-zA-Z0-9]*\n?([\s\S]*?)```/g, '$1');

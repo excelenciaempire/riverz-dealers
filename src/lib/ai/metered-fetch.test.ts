@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { meteredAnthropicFetch, anthropicUsageCost } from './metered-fetch';
+import { downloadPublicMedia } from '@/lib/security/download-public-media';
+vi.mock('@/lib/security/download-public-media', () => ({ downloadPublicMedia: vi.fn() }));
 const params = {
   model: 'claude-haiku-4-5',
   max_tokens: 100,
@@ -20,6 +22,32 @@ function setup(allowed = true, source = 'platform') {
   return { ctx, rpc };
 }
 describe('metered Anthropic HTTP boundary', () => {
+  it('counts and generates with identical inline media, then settles actual usage', async () => {
+    vi.mocked(downloadPublicMedia).mockResolvedValue({ buffer: Buffer.from('photo'), mime: 'image/jpeg' });
+    const { ctx, rpc } = setup();
+    const transport = vi.fn().mockResolvedValueOnce(Response.json({ input_tokens: 100 }))
+      .mockResolvedValueOnce(Response.json({ id: 'image_reply', usage: { input_tokens: 100, output_tokens: 5 } }));
+    await meteredAnthropicFetch(ctx, transport)('https://api.anthropic.com/v1/messages', {
+      headers: { 'content-length': '10' },
+      body: JSON.stringify({ ...params, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'url', url: 'https://cdn.example/photo' } }] }] }),
+    });
+    const countBody = JSON.parse(transport.mock.calls[0][1].body);
+    const sentBody = JSON.parse(transport.mock.calls[1][1].body);
+    expect(countBody.messages).toEqual(sentBody.messages);
+    expect(sentBody.messages[0].content[0].source.type).toBe('base64');
+    expect(transport.mock.calls[1][1].headers.has('content-length')).toBe(false);
+    expect(rpc.mock.calls.map(c => c[0])).toEqual(['wallet_reservar', 'wallet_liquidar']);
+  });
+  it('never reserves or generates when media cannot be counted safely', async () => {
+    vi.mocked(downloadPublicMedia).mockResolvedValue(null);
+    const { ctx, rpc } = setup();
+    const transport = vi.fn();
+    await expect(meteredAnthropicFetch(ctx, transport)('https://api.anthropic.com/v1/messages', {
+      body: JSON.stringify({ ...params, messages: [{ content: [{ type: 'image', source: { type: 'url', url: 'https://cdn.example/photo' } }] }] }),
+    })).rejects.toThrow('wallet_media_download_failed');
+    expect(transport).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
   it('accounts for different cache durations and actual searches', () => {
     expect(
       anthropicUsageCost('claude-haiku-4-5', {

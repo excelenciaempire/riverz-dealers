@@ -92,6 +92,7 @@ export const POLITICA = {
   suscripcion_vencida: NO_ESCALA('la suscripción venció'),
   csat_capturada: NO_ESCALA('era la nota de la encuesta, no una consulta'),
   respuesta_automatica_del_cliente: NO_ESCALA('era el contestador automático del cliente, no una persona'),
+  cierre_sin_respuesta: NO_ESCALA('el cliente cerró la conversación sin pedir nada'),
   // Éste sí es configuración que falta: no hay ningún agente para ese canal.
   // Tampoco escala —no hay nada que una persona tenga que atender en ESE
   // hilo— pero deja de ser invisible.
