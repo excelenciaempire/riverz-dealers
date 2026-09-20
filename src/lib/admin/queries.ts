@@ -412,7 +412,7 @@ export async function getWorkspaceDetail(
       .eq('workspace_id', id)
       .order('creado_en', { ascending: false })
       .limit(20),
-    safeSelect(client, 'workspace_subscriptions', 'estado')
+    safeSelect(client, 'workspace_subscriptions', 'estado, modelo_cobro')
       .eq('workspace_id', id)
       .maybeSingle(),
   ]);
@@ -446,7 +446,10 @@ export async function getWorkspaceDetail(
 
   return {
     billetera: {
-      ...workspaceWalletSummary(cuentaBilletera, suscripcionRes.data as { estado?: string } | null),
+      ...workspaceWalletSummary(
+        cuentaBilletera,
+        suscripcionRes.data as { estado?: string; modelo_cobro?: string } | null,
+      ),
       movimientos: ((movimientosRes.data ?? []) as unknown as Array<{
         id: string;
         creado_en: string;

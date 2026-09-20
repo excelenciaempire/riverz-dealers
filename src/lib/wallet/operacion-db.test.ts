@@ -6,14 +6,19 @@ const ws = '00000000-0000-4000-8000-000000000001';
 beforeAll(async () => {
   await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
     CREATE TABLE workspaces(id uuid PRIMARY KEY);
-    CREATE TABLE workspace_subscriptions(workspace_id uuid,estado text);
+    CREATE TABLE workspace_subscriptions(workspace_id uuid PRIMARY KEY,estado text);
     CREATE TABLE wallet_accounts(workspace_id uuid PRIMARY KEY REFERENCES workspaces, saldo_centavos bigint DEFAULT 0,
       bloquear_sin_saldo boolean DEFAULT false, descubierto_centavos int DEFAULT 200,cobrar_a_costo boolean DEFAULT false,updated_at timestamptz DEFAULT now());
     CREATE TABLE wallet_movimientos(id uuid DEFAULT gen_random_uuid(),workspace_id uuid,tipo text,concepto text,centavos bigint,saldo_despues_centavos bigint,
       costo_centavos numeric,cantidad numeric,referencia_tipo text,referencia_id text,detalle jsonb);
-    INSERT INTO workspaces VALUES('${ws}'); INSERT INTO wallet_accounts(workspace_id,saldo_centavos) VALUES('${ws}',100);`);
+    INSERT INTO workspaces VALUES('${ws}');
+    INSERT INTO workspace_subscriptions(workspace_id,estado) VALUES('${ws}','activa');
+    INSERT INTO wallet_accounts(workspace_id,saldo_centavos) VALUES('${ws}',100);`);
   await db.exec(
     readFileSync('supabase/migrations/253_wallet_provider_usage.sql', 'utf8')
+  );
+  await db.exec(
+    readFileSync('supabase/migrations/263_modelo_cobro_oficial.sql', 'utf8')
   );
 }, 20000);
 afterAll(async () => db.close());
@@ -122,6 +127,7 @@ describe('receipt reconciliation and automatic top-ups', () => {
   it('charges once when 100 workers retry the same operation and leaves other accounts untouched', async () => {
     const target = '00000000-0000-4000-8000-000000000003';
     await db.query('insert into workspaces values ($1)', [target]);
+    await db.query("insert into workspace_subscriptions(workspace_id,estado,modelo_cobro) values ($1,'activa','saldo')", [target]);
     await db.query('insert into wallet_accounts(workspace_id,saldo_centavos) values ($1,1000)', [target]);
     const before = await db.query('select saldo_centavos,reservado_centavos from wallet_accounts where workspace_id=$1', [ws]);
     const reservations = await Promise.allSettled(Array.from({ length: 100 }, () => db.query<{ ok: boolean }>(
@@ -146,5 +152,30 @@ describe('receipt reconciliation and automatic top-ups', () => {
     expect(Number(ledger.rows[0].count)).toBe(1);
     const after = await db.query('select saldo_centavos,reservado_centavos from wallet_accounts where workspace_id=$1', [ws]);
     expect(after.rows).toEqual(before.rows);
+  });
+  it('records provider cost without consuming balance on the official model', async () => {
+    const official = '00000000-0000-4000-8000-000000000004';
+    await db.query('insert into workspaces values ($1)', [official]);
+    await db.query("insert into workspace_subscriptions(workspace_id,estado) values ($1,'activa')", [official]);
+    const reserved = await db.query<{ ok: boolean }>(
+      "select wallet_reservar($1,'official-use','ia_respuesta','anthropic',100) as ok",
+      [official],
+    );
+    expect(reserved.rows[0].ok).toBe(true);
+    await db.query(
+      "select * from wallet_liquidar($1,'official-use','ia_respuesta','anthropic',25)",
+      [official],
+    );
+    const account = await db.query<{ saldo_centavos: number; reservado_centavos: number }>(
+      'select saldo_centavos,reservado_centavos from wallet_accounts where workspace_id=$1',
+      [official],
+    );
+    expect(Number(account.rows[0].saldo_centavos)).toBe(0);
+    expect(Number(account.rows[0].reservado_centavos)).toBe(0);
+    const ledger = await db.query<{ centavos: number; costo_centavos: string }>(
+      "select centavos,costo_centavos from wallet_movimientos where referencia_id='official-use'",
+    );
+    expect(Number(ledger.rows[0].centavos)).toBe(0);
+    expect(Number(ledger.rows[0].costo_centavos)).toBe(25);
   });
 });

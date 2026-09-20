@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { supabaseAdmin } from '@/lib/automations/admin-client';
-import { leerSuscripcion } from '@/lib/billing/plan';
+import { leerSuscripcion, usaSaldo } from '@/lib/billing/plan';
 import { stripeDisponible } from '@/lib/billing/stripe';
 import { createClient } from '@/lib/supabase/server';
 import { costosReales } from '@/lib/wallet/costos';
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
   // La cuenta de cortesía no gasta saldo: la puerta la deja pasar siempre. Sin
   // esto el panel le avisaba que la IA dejó de responder a alguien a quien
   // nunca se le va a apagar — un susto inventado.
-  const exenta = sus?.estado === 'cortesia';
+  const exenta = sus?.estado === 'cortesia' || !usaSaldo(sus);
 
   return NextResponse.json(
     {
@@ -92,7 +92,7 @@ export async function GET(request: Request) {
         })),
       // Sin Stripe configurado no se ofrece un botón de recargar que no puede
       // funcionar.
-      puedeRecargar: stripeDisponible(),
+      puedeRecargar: stripeDisponible() && !exenta,
       sugeridos: SUGERIDOS_CENTAVOS,
     },
     { headers: { 'Cache-Control': 'no-store' } }

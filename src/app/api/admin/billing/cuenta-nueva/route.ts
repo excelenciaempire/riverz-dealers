@@ -29,6 +29,7 @@ interface Cuerpo {
   estado?: 'prueba' | 'activa' | 'cortesia';
   nota?: string;
   precio_centavos?: number | null;
+  modelo_cobro?: 'oficial' | 'saldo';
 }
 
 export async function POST(request: Request) {
@@ -81,6 +82,7 @@ export async function POST(request: Request) {
       workspace_id: workspaceId,
       plan_id: plan?.id ?? null,
       estado,
+      modelo_cobro: body?.modelo_cobro === 'saldo' ? 'saldo' : 'oficial',
       // La prueba sólo tiene sentido si el estado es prueba. En cortesía, una
       // fecha de vencimiento guardada es una bomba de tiempo escrita al lado
       // de un acuerdo que dice lo contrario.
@@ -101,7 +103,13 @@ export async function POST(request: Request) {
     action: 'update.billing_subscription',
     targetType: 'workspace',
     targetId: workspaceId,
-    meta: { alta: true, email, estado, invitado },
+    meta: {
+      alta: true,
+      email,
+      estado,
+      modelo_cobro: body?.modelo_cobro === 'saldo' ? 'saldo' : 'oficial',
+      invitado,
+    },
   });
 
   return NextResponse.json({ ok: true, workspaceId, invitado });

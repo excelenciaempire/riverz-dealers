@@ -39,7 +39,7 @@ export function SaldoChip({
   const { saldo } = useSaldo();
 
   if (!saldo) return null;
-  if (saldo.exenta && saldo.centavos <= 0) return null;
+  if (saldo.exenta) return null;
 
   const enCero = !saldo.exenta && saldo.centavos <= 0;
   // Con tarjeta y recarga automática el saldo se repone solo antes de llegar

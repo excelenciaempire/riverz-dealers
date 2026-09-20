@@ -10,6 +10,7 @@
     );
   for (const [table, select] of [
     ['wallet_accounts', 'reservado_centavos,resto_costo_centavos'],
+    ['workspace_subscriptions', 'modelo_cobro'],
     ['wallet_operaciones', 'id'],
     ['wallet_auto_intentos', 'id'],
     ['wallet_provider_receipts', 'id'],
@@ -23,7 +24,7 @@
     );
     if (!res.ok)
       throw new Error(
-        `Wallet migration 253 is unavailable (${table}, HTTP ${res.status}). Apply it before deploying.`
+        `Wallet pricing schema is unavailable (${table}, HTTP ${res.status}). Apply migrations through 263 before deploying.`
       );
   }
   console.log('Wallet schema verified.');

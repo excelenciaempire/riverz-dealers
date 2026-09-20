@@ -1326,6 +1326,10 @@ export const settings = {
     es: 'El umbral tiene que ser menor que el monto de la recarga.',
     en: 'The threshold has to be lower than the top-up amount.',
   },
+  walletIncludedNoTopup: {
+    es: 'Tu plan incluye el consumo y no necesita recargas.',
+    en: 'Your plan includes usage and does not need top-ups.',
+  },
   alertPhonesLabel: {
     es: 'A qué números avisamos',
     en: 'Which numbers we notify',

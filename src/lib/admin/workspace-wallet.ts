@@ -1,11 +1,11 @@
 /** Read-only wallet summary; mirrors the runtime gate without creating wallet accounts. */
 export function workspaceWalletSummary(
   account: { saldo_centavos?: number | string; reservado_centavos?: number | string; moneda?: string } | null,
-  subscription: { estado?: string } | null,
+  subscription: { estado?: string; modelo_cobro?: string } | null,
 ) {
   const saldoCentavos = Number(account?.saldo_centavos ?? 0);
   const disponibleCentavos = saldoCentavos - Number(account?.reservado_centavos ?? 0);
-  const exenta = subscription?.estado === 'cortesia';
+  const exenta = subscription?.estado === 'cortesia' || subscription?.modelo_cobro !== 'saldo';
   return {
     saldoCentavos,
     disponibleCentavos,

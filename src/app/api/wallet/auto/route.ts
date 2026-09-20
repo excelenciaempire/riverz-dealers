@@ -89,6 +89,8 @@ export async function POST(request: Request) {
           })
         : codigo === 'umbral_mayor_que_recarga'
           ? translate(locale, 'settings.walletThresholdBelow')
+          : codigo === 'consumo_incluido'
+            ? translate(locale, 'settings.walletIncludedNoTopup')
           : codigo || 'no se pudo'
     return NextResponse.json({ error: mensaje }, { status: 400 })
   }

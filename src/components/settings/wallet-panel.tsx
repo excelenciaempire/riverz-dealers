@@ -324,6 +324,7 @@ export function WalletPanel() {
     );
   }
   if (!e) return null;
+  if (e.exenta) return null;
 
   const { resumen, auto } = e;
   const autoActivo =

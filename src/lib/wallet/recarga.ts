@@ -74,11 +74,15 @@ export async function urlDeRecarga(
 
   const { data: sus } = await db
     .from('workspace_subscriptions')
-    .select('stripe_customer_id')
+    .select('stripe_customer_id, modelo_cobro')
     .eq('workspace_id', workspaceId)
     .maybeSingle()
-  const customerId = (sus as { stripe_customer_id?: string | null } | null)
-    ?.stripe_customer_id
+  const subscription = sus as {
+    stripe_customer_id?: string | null
+    modelo_cobro?: string
+  } | null
+  if (subscription?.modelo_cobro !== 'saldo') throw new Error('consumo_incluido')
+  const customerId = subscription.stripe_customer_id
 
   // El checkout es de Stripe pero lo que dice adentro es nuestro: el nombre del
   // producto y su descripción los escribimos acá, así que van en el idioma del

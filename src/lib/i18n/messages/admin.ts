@@ -885,6 +885,13 @@ export const admin = {
   billingState_cortesia: { es: 'cortesía', en: 'comped' },
   billingState_vencida: { es: 'vencida', en: 'past due' },
   billingState_cancelada: { es: 'cancelada', en: 'canceled' },
+  billingModel: { es: 'Sistema de cobro', en: 'Billing system' },
+  billingModel_oficial: { es: 'Todo incluido', en: 'All included' },
+  billingModel_saldo: { es: 'Saldo por consumo', en: 'Usage balance' },
+  billingModelOfficialNote: {
+    es: 'La mensualidad incluye todo el consumo. Esta cuenta no usa saldo ni recargas.',
+    en: 'The monthly fee includes all usage. This account does not use a balance or top-ups.',
+  },
   billingUsage: { es: 'Conversaciones', en: 'Conversations' },
   billingOwnDeal: { es: 'trato propio', en: 'custom deal' },
   billingEdit: { es: 'Cambiar', en: 'Change' },

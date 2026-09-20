@@ -12,7 +12,12 @@
  * — cuando el costo de atenderlas es real y es justo lo que hay que mirar.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { aSuscripcion, type EstadoSuscripcion, type Suscripcion } from './plan'
+import {
+  aSuscripcion,
+  type EstadoSuscripcion,
+  type ModeloCobro,
+  type Suscripcion,
+} from './plan'
 
 export interface CuentaDelNegocio {
   workspaceId: string
@@ -41,6 +46,8 @@ export interface CuentaDelNegocio {
   bloqueaSinSaldo: boolean
   /** El consumo se le descuenta a costo, sin margen. */
   cobraACosto: boolean
+  /** `oficial` incluye el uso; `saldo` conserva la billetera anterior. */
+  modeloCobro: ModeloCobro
 }
 
 export interface Negocio {
@@ -91,7 +98,7 @@ export async function leerNegocio(
     db.from('workspace_subscriptions').select(
       `workspace_id, plan_id, estado, prueba_hasta, periodo_desde, periodo_hasta,
        precio_centavos_override, incluidas_override, excedente_centavos_override,
-       nota, stripe_customer_id, stripe_subscription_id, cancelar_al_final,
+       nota, stripe_customer_id, stripe_subscription_id, cancelar_al_final, modelo_cobro,
        billing_plans ( id, slug, nombre, activo, precio_centavos, moneda, incluidas,
                        excedente_centavos, stripe_price_id, stripe_price_excedente_id, orden )`,
     ),
@@ -196,6 +203,7 @@ export async function leerNegocio(
         costoBilleteraCentavos: Math.round(l.costo),
         bloqueaSinSaldo: b.bloquea,
         cobraACosto: b.aCosto,
+        modeloCobro: s.modeloCobro,
       }
     })
     .sort((a, b) => b.mrrCentavos - a.mrrCentavos || b.conversaciones - a.conversaciones)

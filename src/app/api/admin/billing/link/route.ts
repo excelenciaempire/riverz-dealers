@@ -61,7 +61,7 @@ async function suscripcionDe(
       `workspace_id, plan_id, estado, prueba_hasta, periodo_desde, periodo_hasta,
        vencida_desde, precio_centavos_override, incluidas_override,
        excedente_centavos_override, nota, stripe_customer_id, stripe_subscription_id,
-       cancelar_al_final,
+       cancelar_al_final, modelo_cobro,
        billing_plans ( id, slug, nombre, activo, precio_centavos, moneda, incluidas,
                        excedente_centavos, stripe_price_id, stripe_price_excedente_id, orden )`,
     )

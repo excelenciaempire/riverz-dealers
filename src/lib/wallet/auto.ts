@@ -29,6 +29,21 @@ export const FALLOS_PARA_RENDIRSE = 3;
 /** Lo mínimo que se puede poner de umbral. Cero sería recargar tarde siempre. */
 export const UMBRAL_MINIMO_CENTAVOS = 100;
 
+async function exigirCuentaConSaldo(
+  db: SupabaseClient,
+  workspaceId: string
+): Promise<void> {
+  const { data, error } = await db
+    .from('workspace_subscriptions')
+    .select('modelo_cobro')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+  if (error) throw error;
+  if ((data as { modelo_cobro?: string } | null)?.modelo_cobro !== 'saldo') {
+    throw new Error('consumo_incluido');
+  }
+}
+
 function volverA(path: string): string {
   const base =
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ?? 'https://riverz.co';
@@ -77,6 +92,7 @@ export async function urlDeTarjeta(
   workspaceId: string,
   quien: { email: string | null; nombre: string | null }
 ): Promise<string> {
+  await exigirCuentaConSaldo(db, workspaceId);
   const customer = await clienteDe(db, workspaceId, quien);
   const sesion = await stripe().checkout.sessions.create({
     mode: 'setup',
@@ -274,6 +290,8 @@ export async function guardarConfigAuto(
     return;
   }
 
+  await exigirCuentaConSaldo(db, workspaceId);
+
   const recarga = Math.round(cfg.recargaCentavos);
   const umbral = Math.round(cfg.umbralCentavos);
   if (recarga < MINIMO_CENTAVOS || recarga > MAXIMO_CENTAVOS) {
@@ -358,11 +376,18 @@ export async function recargarLasQueHagaFalta(
 
     const { data: sus } = await db
       .from('workspace_subscriptions')
-      .select('stripe_customer_id')
+      .select('stripe_customer_id, modelo_cobro, estado')
       .eq('workspace_id', f.workspace_id)
       .maybeSingle();
-    const customer = (sus as { stripe_customer_id?: string | null } | null)
-      ?.stripe_customer_id;
+    const subscription = sus as {
+      stripe_customer_id?: string | null;
+      modelo_cobro?: string;
+      estado?: string;
+    } | null;
+    if (subscription?.modelo_cobro !== 'saldo' || subscription.estado === 'cortesia') {
+      continue;
+    }
+    const customer = subscription.stripe_customer_id;
     if (!customer) {
       detalle.push(`${f.workspace_id}: sin cliente en Stripe`);
       continue;

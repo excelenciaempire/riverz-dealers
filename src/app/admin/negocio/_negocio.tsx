@@ -223,6 +223,11 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         ),
       },
       {
+        key: "modelo",
+        header: t("admin.billingModel"),
+        cell: (c) => t(`admin.billingModel_${c.modeloCobro}`),
+      },
+      {
         key: "uso",
         header: t("admin.billingUsage"),
         cell: (c) => (
@@ -236,6 +241,9 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         key: "saldo",
         header: t("admin.walletBalance"),
         cell: (c) => {
+          if (c.modeloCobro === "oficial") {
+            return <Muted>{t("admin.billingModel_oficial")}</Muted>;
+          }
           // El rojo es sólo cuando el saldo cero APAGA algo. Pintar en rojo a
           // una cuenta de cortesía —que nunca se apaga— es inventar una alarma.
           const apagada = c.bloqueaSinSaldo && c.saldoCentavos <= 0;
@@ -386,12 +394,19 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
                 onGuardar={guardarCuenta}
                 onCerrar={() => setEditando(null)}
               />
-              <BloqueBilletera
-                cuenta={negocio.cuentas.find((c) => c.workspaceId === editando)!}
-                guardando={guardando}
-                onMover={moverSaldo}
-                onBloqueo={cambiarBloqueo}
-              />
+              {negocio.cuentas.find((c) => c.workspaceId === editando)!.modeloCobro ===
+              "saldo" ? (
+                <BloqueBilletera
+                  cuenta={negocio.cuentas.find((c) => c.workspaceId === editando)!}
+                  guardando={guardando}
+                  onMover={moverSaldo}
+                  onBloqueo={cambiarBloqueo}
+                />
+              ) : (
+                <p className="mt-3 rounded-xl border border-border p-3 text-sm text-muted-foreground">
+                  {t("admin.billingModelOfficialNote")}
+                </p>
+              )}
             </div>
           )}
         </Panel>
@@ -706,6 +721,7 @@ function FormularioCuenta({
   const t = useT();
   const [f, setF] = useState({
     estado: cuenta.estado,
+    modelo: cuenta.modeloCobro,
     plan_id: "",
     precio: "",
     incluidas: "",
@@ -715,7 +731,7 @@ function FormularioCuenta({
   return (
     <div className="space-y-3">
       <p className="text-sm font-medium text-foreground">{cuenta.nombre}</p>
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
         <Campo label={t("admin.billingState")}>
           <select
             className={INPUT}
@@ -727,6 +743,16 @@ function FormularioCuenta({
                 {t(`admin.billingState_${e}`)}
               </option>
             ))}
+          </select>
+        </Campo>
+        <Campo label={t("admin.billingModel")}>
+          <select
+            className={INPUT}
+            value={f.modelo}
+            onChange={(e) => setF({ ...f, modelo: e.target.value as typeof f.modelo })}
+          >
+            <option value="oficial">{t("admin.billingModel_oficial")}</option>
+            <option value="saldo">{t("admin.billingModel_saldo")}</option>
           </select>
         </Campo>
         <Campo label={t("admin.billingPlans")}>
@@ -778,6 +804,7 @@ function FormularioCuenta({
             onGuardar({
               workspace_id: cuenta.workspaceId,
               estado: f.estado,
+              modelo_cobro: f.modelo,
               ...(f.plan_id ? { plan_id: f.plan_id } : {}),
               ...(f.precio !== ""
                 ? { precio_centavos_override: Math.round(Number(f.precio) * 100) }
@@ -825,13 +852,14 @@ function FormularioAlta({
     email: "",
     nombre: "",
     estado: "cortesia" as "cortesia" | "prueba" | "activa",
+    modelo: "oficial" as "oficial" | "saldo",
     precio: "",
     nota: "",
   });
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
         <Campo label={t("admin.billingEmail")}>
           <input
             className={INPUT}
@@ -856,6 +884,16 @@ function FormularioAlta({
             <option value="cortesia">{t("admin.billingState_cortesia")}</option>
             <option value="prueba">{t("admin.billingState_prueba")}</option>
             <option value="activa">{t("admin.billingState_activa")}</option>
+          </select>
+        </Campo>
+        <Campo label={t("admin.billingModel")}>
+          <select
+            className={INPUT}
+            value={f.modelo}
+            onChange={(e) => setF({ ...f, modelo: e.target.value as typeof f.modelo })}
+          >
+            <option value="oficial">{t("admin.billingModel_oficial")}</option>
+            <option value="saldo">{t("admin.billingModel_saldo")}</option>
           </select>
         </Campo>
         <Campo label={t("admin.billingOwnPrice")}>
@@ -885,6 +923,7 @@ function FormularioAlta({
               email: f.email,
               nombre: f.nombre,
               estado: f.estado,
+              modelo_cobro: f.modelo,
               nota: f.nota,
               ...(f.precio !== ""
                 ? { precio_centavos: Math.round(Number(f.precio) * 100) }

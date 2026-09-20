@@ -62,6 +62,7 @@ interface CuerpoCuenta {
   precio_centavos_override?: number | null;
   incluidas_override?: number | null;
   excedente_centavos_override?: number | null;
+  modelo_cobro?: 'oficial' | 'saldo';
   nota?: string | null;
 }
 
@@ -162,6 +163,12 @@ export async function PUT(request: Request) {
       fila.incluidas_override = ENTERO(c.incluidas_override);
     if (c.excedente_centavos_override !== undefined)
       fila.excedente_centavos_override = ENTERO(c.excedente_centavos_override);
+    if (c.modelo_cobro !== undefined) {
+      if (c.modelo_cobro !== 'oficial' && c.modelo_cobro !== 'saldo') {
+        return NextResponse.json({ error: 'modelo de cobro inválido' }, { status: 400 });
+      }
+      fila.modelo_cobro = c.modelo_cobro;
+    }
     if (c.nota !== undefined) fila.nota = c.nota?.trim() || null;
 
     const { error } = await db
@@ -169,11 +176,27 @@ export async function PUT(request: Request) {
       .upsert(fila, { onConflict: 'workspace_id' });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
+    // Al pasar a todo incluido se apaga cualquier recarga automática anterior.
+    // Se conserva la tarjeta y el libro por si el acuerdo vuelve a saldo.
+    if (c.modelo_cobro === 'oficial') {
+      const { error: walletError } = await db
+        .from('wallet_accounts')
+        .update({
+          auto_recarga_centavos: null,
+          auto_umbral_centavos: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('workspace_id', c.workspace_id);
+      if (walletError) {
+        return NextResponse.json({ error: walletError.message }, { status: 400 });
+      }
+    }
+
     await recordAdminAction(gate.actor, request, {
       action: 'update.billing_subscription',
       targetType: 'workspace',
       targetId: c.workspace_id,
-      meta: { estado: c.estado, nota: c.nota },
+      meta: { estado: c.estado, modelo_cobro: c.modelo_cobro, nota: c.nota },
     });
     return NextResponse.json({ ok: true });
   }

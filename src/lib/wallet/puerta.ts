@@ -14,7 +14,7 @@
  * lo que haga falta. Cortarle el acceso a sus propias conversaciones porque nos
  * debe plata sería tomarle de rehén a sus clientes, que no deben nada.
  */
-import { acceso, leerSuscripcion } from '@/lib/billing/plan';
+import { acceso, leerSuscripcion, usaSaldo } from '@/lib/billing/plan';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { leerBilletera, puedeGastar, type Billetera } from './saldo';
@@ -54,6 +54,14 @@ export async function puertaDeIa(
       return {
         puede: false,
         motivo: 'suscripcion_vencida',
+        saldoCentavos: billetera.saldoCentavos,
+      };
+    }
+
+    if (!usaSaldo(sus)) {
+      return {
+        puede: true,
+        motivo: null,
         saldoCentavos: billetera.saldoCentavos,
       };
     }
@@ -165,7 +173,8 @@ export async function estadoDeCobro(
       leerBilletera(db, workspaceId),
     ]);
 
-    const vistazo = vistazoDe(billetera, sus?.estado === 'cortesia');
+    const exenta = sus?.estado === 'cortesia' || !usaSaldo(sus);
+    const vistazo = vistazoDe(billetera, exenta);
 
     if (sus?.estado === 'cortesia') {
       return {
@@ -192,6 +201,15 @@ export async function estadoDeCobro(
         bloqueado: false,
         aviso: 'gracia',
         horas: a.horasDeGracia,
+        saldoCentavos: billetera.saldoCentavos,
+        vistazo,
+      };
+    }
+    if (!usaSaldo(sus)) {
+      return {
+        bloqueado: false,
+        aviso: null,
+        horas: null,
         saldoCentavos: billetera.saldoCentavos,
         vistazo,
       };

@@ -13,6 +13,7 @@ import { SupportAccessPanel } from '@/components/settings/support-access';
 import { McpPanel } from '@/components/settings/mcp-panel';
 import { BillingPanel } from '@/components/settings/billing-panel';
 import { WalletPanel } from '@/components/settings/wallet-panel';
+import { useEffect, useState } from 'react';
 
 /**
  * Ajustes — sólo cosas que NO son integraciones. Canales y apps externas
@@ -30,9 +31,24 @@ export default function SettingsPage() {
   const router = useLocalizedRouter();
   const searchParams = useSearchParams();
   const t = useT();
+  const [walletVisible, setWalletVisible] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void fetch('/api/wallet/vistazo', { cache: 'no-store' })
+      .then(async (res) => (res.ok ? ((await res.json()) as { exenta?: boolean }) : null))
+      .then((data) => {
+        if (active) setWalletVisible(data?.exenta === false);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const queryTab = searchParams.get('tab');
-  const tab: TabValue = isTabValue(queryTab) ? queryTab : 'profile';
+  const requestedTab: TabValue = isTabValue(queryTab) ? queryTab : 'profile';
+  const tab: TabValue = requestedTab === 'saldo' && !walletVisible ? 'billing' : requestedTab;
 
   const onChange = (next: TabValue) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -71,13 +87,15 @@ export default function SettingsPage() {
             <CreditCard className="size-4" />
             {t('settings.tabBilling')}
           </TabsTrigger>
-          <TabsTrigger
-            value="saldo"
-            className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
-          >
-            <Wallet className="size-4" />
-            {t('settings.tabWallet')}
-          </TabsTrigger>
+          {walletVisible && (
+            <TabsTrigger
+              value="saldo"
+              className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
+            >
+              <Wallet className="size-4" />
+              {t('settings.tabWallet')}
+            </TabsTrigger>
+          )}
           <TabsTrigger
             value="mcp"
             className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
@@ -111,9 +129,11 @@ export default function SettingsPage() {
           <BillingPanel />
         </TabsContent>
 
-        <TabsContent value="saldo">
-          <WalletPanel />
-        </TabsContent>
+        {walletVisible && (
+          <TabsContent value="saldo">
+            <WalletPanel />
+          </TabsContent>
+        )}
 
         <TabsContent value="mcp">
           <McpPanel />

@@ -21,6 +21,15 @@ export type EstadoSuscripcion =
   | 'cancelada'
   | 'cortesia'
 
+/**
+ * Cómo paga el consumo variable esta cuenta.
+ *
+ * `oficial` es el precio público actual: la mensualidad incluye el uso y la
+ * billetera no interviene. `saldo` conserva el acuerdo anterior de las cuentas
+ * que recargan y pagan cada consumo por separado.
+ */
+export type ModeloCobro = 'oficial' | 'saldo'
+
 export interface Plan {
   id: string
   slug: string
@@ -48,6 +57,7 @@ export interface Suscripcion {
   stripeCustomerId: string | null
   stripeSubscriptionId: string | null
   cancelarAlFinal: boolean
+  modeloCobro: ModeloCobro
   /**
    * Lo que se le cobra a ESTA cuenta, ya resuelto.
    *
@@ -107,6 +117,7 @@ interface FilaSuscripcion {
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
   cancelar_al_final: boolean
+  modelo_cobro: string
   billing_plans: FilaPlan | null
 }
 
@@ -150,7 +161,7 @@ export async function leerSuscripcion(
     .select(
       `workspace_id, plan_id, estado, prueba_hasta, periodo_desde, periodo_hasta,
        vencida_desde, precio_centavos_override, incluidas_override, excedente_centavos_override,
-       nota, stripe_customer_id, stripe_subscription_id, cancelar_al_final,
+       nota, stripe_customer_id, stripe_subscription_id, cancelar_al_final, modelo_cobro,
        billing_plans ( ${COLUMNAS_PLAN} )`,
     )
     .eq('workspace_id', workspaceId)
@@ -179,6 +190,7 @@ export function aSuscripcion(f: FilaSuscripcion): Suscripcion {
     stripeCustomerId: f.stripe_customer_id,
     stripeSubscriptionId: f.stripe_subscription_id,
     cancelarAlFinal: f.cancelar_al_final,
+    modeloCobro: f.modelo_cobro === 'saldo' ? 'saldo' : 'oficial',
     precioCentavos: precio,
     incluidas: f.incluidas_override ?? plan?.incluidas ?? 0,
     excedenteCentavos:
@@ -230,12 +242,18 @@ export async function asegurarSuscripcion(
       stripeCustomerId: null,
       stripeSubscriptionId: null,
       cancelarAlFinal: false,
+      modeloCobro: 'oficial',
       precioCentavos: plan?.precioCentavos ?? 0,
       incluidas: plan?.incluidas ?? 0,
       excedenteCentavos: plan?.excedenteCentavos ?? 0,
       tratoPropio: false,
     }
   )
+}
+
+/** Sólo el acuerdo anterior usa y puede quedar bloqueado por la billetera. */
+export function usaSaldo(s: Pick<Suscripcion, 'modeloCobro'> | null): boolean {
+  return s?.modeloCobro === 'saldo'
 }
 
 export interface Acceso {

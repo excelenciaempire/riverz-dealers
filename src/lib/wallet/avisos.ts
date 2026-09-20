@@ -106,10 +106,11 @@ async function avisarSaldo(db: SupabaseClient): Promise<{ n: number; detalle: st
     // sería asustarla con algo que no la afecta.
     const { data: sus } = await db
       .from('workspace_subscriptions')
-      .select('estado')
+      .select('estado, modelo_cobro')
       .eq('workspace_id', f.workspace_id)
       .maybeSingle()
-    if ((sus as { estado?: string } | null)?.estado === 'cortesia') continue
+    const subscription = sus as { estado?: string; modelo_cobro?: string } | null
+    if (subscription?.estado === 'cortesia' || subscription?.modelo_cobro !== 'saldo') continue
 
     const telefonos = await destinosDeAviso(db, f.workspace_id, 'plata')
     if (telefonos.length === 0) {
@@ -155,7 +156,7 @@ async function avisarPlan(db: SupabaseClient): Promise<{ n: number; detalle: str
       `workspace_id, plan_id, estado, prueba_hasta, periodo_desde, periodo_hasta,
        vencida_desde, aviso_plan_en, precio_centavos_override, incluidas_override,
        excedente_centavos_override, nota, stripe_customer_id, stripe_subscription_id,
-       cancelar_al_final,
+       cancelar_al_final, modelo_cobro,
        billing_plans ( id, slug, nombre, activo, precio_centavos, moneda, incluidas,
                        excedente_centavos, stripe_price_id, stripe_price_excedente_id, orden )`,
     )

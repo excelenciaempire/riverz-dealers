@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { acceso, aSuscripcion, type EstadoSuscripcion } from './plan'
+import { acceso, aSuscripcion } from './plan'
 import { cuentaDelPeriodo, periodoDe } from './uso'
 
 /**
@@ -45,6 +45,7 @@ const sus = (over: Record<string, unknown> = {}): any =>
     stripe_customer_id: null,
     stripe_subscription_id: null,
     cancelar_al_final: false,
+    modelo_cobro: 'oficial',
     billing_plans: PLAN,
     ...over,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -59,6 +60,10 @@ const uso = (conversaciones: number) => ({
 })
 
 describe('lo que paga una cuenta', () => {
+  it('conserva el modelo de saldo sólo cuando está declarado', () => {
+    expect(sus({ modelo_cobro: 'saldo' }).modeloCobro).toBe('saldo')
+    expect(sus({ modelo_cobro: 'otro' }).modeloCobro).toBe('oficial')
+  })
   it('dentro del cupo paga sólo la base', () => {
     const c = cuentaDelPeriodo(sus(), uso(1500))
     expect(c.excedidas).toBe(0)

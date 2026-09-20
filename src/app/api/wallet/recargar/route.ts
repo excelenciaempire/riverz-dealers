@@ -84,5 +84,8 @@ async function enEspanolDelUsuario(e: unknown): Promise<string> {
   if (codigo === 'umbral_mayor_que_recarga') {
     return translate(locale, 'settings.walletThresholdBelow')
   }
+  if (codigo === 'consumo_incluido') {
+    return translate(locale, 'settings.walletIncludedNoTopup')
+  }
   return codigo || 'no se pudo'
 }
