@@ -39,7 +39,7 @@ export function MetricCard({
     <Root
       {...(onClick ? { type: 'button' as const, onClick } : {})}
       className={cn(
-        'rounded-xl border border-border bg-card p-5',
+        'flex flex-col items-stretch rounded-xl border border-border bg-card p-5 text-left',
         onClick &&
           'w-full cursor-pointer text-left transition-colors hover:border-foreground/25 hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
       )}

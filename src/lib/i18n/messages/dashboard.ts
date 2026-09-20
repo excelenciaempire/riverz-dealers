@@ -2,6 +2,156 @@ import type { Namespace } from "./types";
 
 /** Dashboard (/panel): metrics, charts, activity feed, date filter, setup checklist. */
 export const dashboard = {
+  outcomeMixedCurrencies: {
+    es: 'Hay varias monedas; no se suman entre sí',
+    en: 'Multiple currencies; amounts are not added together',
+  },
+  outcomeTitle: { es: 'Resultados de Riverz', en: 'Riverz results' },
+  outcomeResolved: {
+    es: 'Casos resueltos verificados',
+    en: 'Verified resolutions',
+  },
+  outcomeResolvedSub: {
+    es: 'Revisados por tu equipo · Sin respuestas humanas',
+    en: 'Reviewed by your team · No human replies',
+  },
+  outcomeRate: {
+    es: 'Resolución sin tu equipo',
+    en: 'Resolution without your team',
+  },
+  outcomeRateSub: {
+    es: 'Verificados: {n} de {total} atendidos',
+    en: '{n} verified out of {total} handled cases',
+  },
+  outcomePending: { es: 'Necesitan una persona', en: 'Need a person' },
+  outcomePendingSub: {
+    es: 'Pendientes ahora · Todos los períodos',
+    en: 'Pending now · All periods',
+  },
+  outcomeSales: {
+    es: 'Ventas asistidas con evidencia',
+    en: 'Sales assisted with evidence',
+  },
+  outcomeSalesSub: {
+    es: '{n} pedidos pagados · Ver evidencia',
+    en: '{n} paid orders · View evidence',
+  },
+  outcomeConnectStore: {
+    es: 'Conecta tu tienda para medir ventas',
+    en: 'Connect your store to measure sales',
+  },
+  outcomeSalesUnavailable: {
+    es: 'Sin datos de ventas disponibles',
+    en: 'Sales data unavailable',
+  },
+  outcomeEvidence: { es: 'Casos y evidencia', en: 'Cases and evidence' },
+  outcomeMethod: {
+    es: 'Estado actual de casos atendidos por IA o revisados en el período. Una respuesta o el silencio del cliente no prueban una resolución.',
+    en: 'Current status of cases handled by AI or reviewed in this period. A reply or customer silence does not prove resolution.',
+  },
+  outcomeTab_review: { es: 'Por verificar', en: 'To verify' },
+  outcomeTab_verified: { es: 'Verificados', en: 'Verified' },
+  outcomeTab_human: { es: 'Con intervención', en: 'Human involvement' },
+  outcomeTab_pending: { es: 'Pendientes ahora', en: 'Pending now' },
+  outcomeBreakdown: { es: 'Trabajo verificado', en: 'Verified work' },
+  outcomeCategory_tracking: {
+    es: 'Seguimiento de pedidos',
+    en: 'Order tracking',
+  },
+  outcomeCategory_product: {
+    es: 'Consultas de productos',
+    en: 'Product questions',
+  },
+  outcomeCategory_confirmation: {
+    es: 'Confirmaciones de pedidos',
+    en: 'Order confirmations',
+  },
+  outcomeCategory_address: {
+    es: 'Cambios de dirección',
+    en: 'Address changes',
+  },
+  outcomeCategory_return: { es: 'Devoluciones', en: 'Returns' },
+  outcomeCategory_other: { es: 'Otros casos', en: 'Other cases' },
+  outcomeTemporal: {
+    es: 'Compras posteriores a una interacción, sin evidencia directa',
+    en: 'Purchases after an interaction, without direct evidence',
+  },
+  outcomeContact: { es: 'Contacto', en: 'Contact' },
+  outcomeOpen: { es: 'Abrir conversación', en: 'Open conversation' },
+  outcomeOpenNew: {
+    es: 'Abrir conversación en otra pestaña',
+    en: 'Open conversation in a new tab',
+  },
+  outcomeReview: { es: 'Verificar resultado', en: 'Verify outcome' },
+  outcomeEdit: { es: 'Revisar verificación', en: 'Review verification' },
+  outcomeReviewHelp: {
+    es: 'Revisa la conversación y comprueba que la consulta o acción quedó resuelta. Si llegan mensajes nuevos, la verificación deja de contar.',
+    en: 'Review the conversation and check that the question or action was resolved. New messages invalidate this verification.',
+  },
+  outcomeCategory: { es: 'Caso resuelto', en: 'Resolved case' },
+  outcomeConfirm: {
+    es: 'He revisado la conversación y comprobado que Riverz resolvió el caso correctamente.',
+    en: 'I reviewed the conversation and confirmed that Riverz resolved the case correctly.',
+  },
+  outcomeSave: { es: 'Confirmar resolución', en: 'Confirm resolution' },
+  outcomeSaving: { es: 'Guardando…', en: 'Saving…' },
+  outcomeRemove: { es: 'Quitar verificación', en: 'Remove verification' },
+  outcomeSaved: { es: 'Resolución verificada', en: 'Resolution verified' },
+  outcomeRemoved: { es: 'Verificación eliminada', en: 'Verification removed' },
+  outcomeRetry: { es: 'Reintentar', en: 'Retry' },
+  outcomeLoading: { es: 'Cargando resultados…', en: 'Loading results…' },
+  outcomeEmpty_review: {
+    es: 'No hay casos pendientes de verificación en este período.',
+    en: 'No cases awaiting verification in this period.',
+  },
+  outcomeEmpty_verified: {
+    es: 'Todavía no hay resoluciones verificadas en este período.',
+    en: 'No verified resolutions in this period yet.',
+  },
+  outcomeEmpty_human: {
+    es: 'No hay casos con intervención humana en este período.',
+    en: 'No cases with human involvement in this period.',
+  },
+  outcomeEmpty_pending: {
+    es: 'No hay conversaciones escaladas pendientes.',
+    en: 'No escalated conversations pending.',
+  },
+  outcomePrevious: { es: 'Anterior', en: 'Previous' },
+  outcomeNext: { es: 'Siguiente', en: 'Next' },
+  outcomeTrial: { es: 'Resultados de tu prueba', en: 'Your trial results' },
+  outcomeTrialHelp: {
+    es: 'Revisa los casos y resultados del período seleccionado.',
+    en: 'Review cases and results for the selected period.',
+  },
+  outcomeTrialUntil: {
+    es: 'Prueba configurada hasta {date}',
+    en: 'Trial configured until {date}',
+  },
+  outcomeActivity: { es: 'Actividad y volumen', en: 'Activity and volume' },
+  outcomeUnauthorized: {
+    es: 'Inicia sesión para consultar los resultados.',
+    en: 'Sign in to view results.',
+  },
+  outcomeInvalid: {
+    es: 'Revisa los datos o el período seleccionado.',
+    en: 'Check the submitted data or selected period.',
+  },
+  outcomeNotFound: {
+    es: 'No se encontró un caso de IA en esta cuenta.',
+    en: 'No AI case was found in this account.',
+  },
+  outcomeChanged: {
+    es: 'La conversación cambió o necesitó una persona. Vuelve a revisarla.',
+    en: 'The conversation changed or needed a person. Review it again.',
+  },
+  outcomeLoadFailed: {
+    es: 'No se pudieron cargar los resultados.',
+    en: 'Results could not be loaded.',
+  },
+  outcomeSaveFailed: {
+    es: 'No se pudo guardar la verificación.',
+    en: 'The verification could not be saved.',
+  },
   // Page header
   home: { es: "Inicio", en: "Home" },
   overview: { es: "Resumen", en: "Overview" },
@@ -49,8 +199,8 @@ export const dashboard = {
 
   attrProvenTitle: { es: "Comprobadas", en: "Proven" },
   attrProvenHelp: {
-    es: "El pedido salió de un link, un pedido, un carrito o un cupón que generó Riverz. No puede ser de otro.",
-    en: "The order came from a link, order, cart or coupon Riverz generated. It can't belong to anyone else.",
+    es: "El pedido pagado tiene una marca de Riverz: enlace, carrito, pedido o cupón. Esto demuestra participación, no ventas adicionales.",
+    en: "The paid order carries a Riverz link, cart, order or coupon marker. This proves participation, not incremental sales.",
   },
   attrProvenEmpty: {
     es: "Ningún pedido de este rango lleva marca de Riverz.",

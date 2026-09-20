@@ -39,7 +39,8 @@ function fakeAdmin() {
         },
         then: (ok: (v: unknown) => unknown, fail?: (e: unknown) => unknown) =>
           Promise.resolve({
-            data: table === 'messages' ? [] : periodoAnterior ? [] : filas[table],
+            data:
+              table === 'messages' ? [] : periodoAnterior ? [] : filas[table],
             error: null,
           }).then(ok, fail),
       };
@@ -62,13 +63,22 @@ vi.mock('@/lib/workspaces/resolve', () => ({
   resolveWorkspaceIdForUser: async () => 'ws1',
 }));
 
+vi.mock('@/lib/dashboard/outcomes-query', () => ({
+  readOutcomes: async () => ({ cases: [] }),
+}));
 import { GET } from './route';
 
 interface Cuerpo {
+  resolved: number;
+  resolution_rate: number | null;
   revenue: number;
   currency: string | null;
   orders: number;
-  revenue_by_currency: Array<{ currency: string | null; revenue: number; orders: number }>;
+  revenue_by_currency: Array<{
+    currency: string | null;
+    revenue: number;
+    orders: number;
+  }>;
 }
 
 async function stats(): Promise<Cuerpo> {
@@ -91,6 +101,11 @@ beforeEach(() => {
 });
 
 describe('GET /api/webchat/stats — ingreso por divisa', () => {
+  it('does not call an unassigned open conversation resolved without evidence', async () => {
+    const body = await stats();
+    expect(body.resolved).toBe(0);
+    expect(body.resolution_rate).toBeNull();
+  });
   it('no mezcla divisas: cada una lleva su propio total', async () => {
     filas.orders = [
       { total_price: 1_000_000, currency: 'ARS', status: 'paid' },
@@ -131,7 +146,9 @@ describe('GET /api/webchat/stats — ingreso por divisa', () => {
 
     const body = await stats();
 
-    expect(body.revenue_by_currency).toEqual([{ currency: 'ARS', revenue: 100, orders: 1 }]);
+    expect(body.revenue_by_currency).toEqual([
+      { currency: 'ARS', revenue: 100, orders: 1 },
+    ]);
     // El conteo de pedidos sí los incluye: son conversaciones que compraron.
     expect(body.orders).toBe(3);
   });

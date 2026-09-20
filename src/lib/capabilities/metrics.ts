@@ -13,7 +13,7 @@
  * gráfico.
  */
 import { leerAtribucion } from '@/lib/attribution/informe'
-import { MINIMO_PARA_PORCENTAJE, leerCortes } from '@/lib/dashboard/cortes'
+import { leerCortes } from '@/lib/dashboard/cortes'
 import { loadMetrics } from '@/lib/dashboard/queries'
 import { daysAgoStart, previousRange } from '@/lib/dashboard/date-utils'
 import { workspaceTimezone } from '@/lib/workspaces/timezone'
@@ -115,14 +115,15 @@ async function cortes(ctx: CapabilityContext, args: Record<string, unknown>) {
     por_agente: c.agentes,
     ia: {
       atendidas: c.ia.atendidas,
-      // Resuelta = la atendió la IA y NUNCA necesitó a una persona.
+      // Explicit merchant review, still matching the latest message; no human replies.
       resueltas: c.ia.resueltas,
       tasa: c.ia.tasa,
       tasa_anterior: c.ia.tasaPrevia,
       calificaron: c.ia.calificaron,
       satisfaccion: c.ia.satisfaccion,
       // Bajo este piso un porcentaje engaña más de lo que informa.
-      minimo_para_porcentaje: MINIMO_PARA_PORCENTAJE,
+      minimo_para_porcentaje: 1,
+      criterio_resolucion: 'Revision explicita del comercio; no implica medicion automatica ni garantia comercial.',
     },
     // Lo que una persona no habría contestado: a las tres de la mañana no
     // estaba nadie. Es el número que no admite el "lo hacíamos igual".

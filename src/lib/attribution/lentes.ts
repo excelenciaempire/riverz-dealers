@@ -34,7 +34,7 @@ export interface Toque {
 export function ultimoToquePorLente(
   toques: Toque[],
   orderTime: number,
-  lookbackMs: number,
+  lookbackMs: number
 ): Toque[] {
   const desde = orderTime - lookbackMs;
   const salida: Toque[] = [];
@@ -49,18 +49,9 @@ export function ultimoToquePorLente(
   return salida;
 }
 
-/**
- * ¿Este pedido es plata?
- *
- * Un pedido cancelado o devuelto existe pero no es una venta, y contarlo
- * inflaba las dos puntas: las ventas de la tienda y las de Riverz. El
- * reembolso PARCIAL sí cuenta —devolver el envío no deshace la compra—, por
- * eso se miran sólo `refunded` y `voided`.
- */
+/** Only paid, non-cancelled orders. Refunds require net-receipt data before counting. */
 export function esVentaReal(order: ShopifyOrder): boolean {
-  return !(
-    Boolean(order.cancelled_at) ||
-    order.financial_status === 'refunded' ||
-    order.financial_status === 'voided'
-  );
+  // Unknown, pending, authorized and partially-paid orders are not paid sales.
+  // Refunded orders are excluded until net receipts can be measured reliably.
+  return !order.cancelled_at && order.financial_status === 'paid';
 }

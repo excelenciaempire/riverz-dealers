@@ -25,6 +25,7 @@ function pedido(over: Partial<ShopifyOrder> & { id: number }): ShopifyOrder {
     created_at: new Date(T0).toISOString(),
     total_price: '10000',
     currency: 'ARS',
+    financial_status: 'paid',
     ...over,
   };
 }

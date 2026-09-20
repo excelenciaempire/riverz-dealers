@@ -278,6 +278,9 @@ export async function leerAtribucion(
   // dato, y es peor que no mostrar nada. `monedaDeLaTienda` la lee de la
   // conexión y sólo cae al pedido si ahí no hay nada.
   const moneda = await resolveWorkspaceCurrency(admin, workspaceId);
+  // Without an exchange-rate model, adding different currencies invents revenue.
+  const currencies = new Set([...orders, ...prevOrders].map(o => o.currency || moneda));
+  if (currencies.size > 1) return { ...emptyResponse(days), error: 'mixed_currencies' };
   const totals: CommerceTotals = {
     revenue: { current: sumRevenue(orders), previous: sumRevenue(prevOrders) },
     orders: { current: orders.length, previous: prevOrders.length },

@@ -65,7 +65,7 @@ async function pedidosDeMercadoLibre(
       phone: p.customer_phone ?? null,
     },
     cancelled_at: p.status === 'cancelled' ? p.created_at : null,
-    financial_status: p.status === 'cancelled' ? 'refunded' : null,
+    financial_status: p.status === 'cancelled' ? 'refunded' : p.status === 'paid' ? 'paid' : 'pending',
   }))
 }
 
@@ -197,6 +197,8 @@ interface PedidoWoo {
   currency?: string
   date_created?: string
   /** El mismo instante en UTC. Es el que sirve: ver `wooFechaAIso`. */
+  date_paid?: string | null
+  date_paid_gmt?: string | null
   date_created_gmt?: string
   coupon_lines?: { code?: string }[]
   billing?: { email?: string; phone?: string }
@@ -226,7 +228,8 @@ function deWoo(p: PedidoWoo): ShopifyOrder {
       p.status === 'cancelled' || p.status === 'failed'
         ? (wooFechaAIso(p.date_created, p.date_created_gmt) ?? null)
         : null,
-    financial_status: p.status === 'refunded' ? 'refunded' : (p.status ?? null),
+    financial_status: p.status === 'cancelled' || p.status === 'failed' ? 'voided'
+      : p.status === 'refunded' ? 'refunded' : (p.date_paid || p.date_paid_gmt) ? 'paid' : 'pending',
     contact_email: correo ?? null,
     customer: { email: correo ?? null, phone: tel ?? null },
     shipping_address: p.shipping?.phone ? { phone: p.shipping.phone } : null,
