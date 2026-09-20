@@ -5,13 +5,21 @@ const db = new PGlite();
 const ws = '00000000-0000-4000-8000-000000000001';
 beforeAll(async () => {
   await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
-    CREATE TABLE workspaces(id uuid PRIMARY KEY);
-    CREATE TABLE workspace_subscriptions(workspace_id uuid PRIMARY KEY,estado text);
+    CREATE TABLE workspaces(id uuid PRIMARY KEY, deleted_at timestamptz);
+    CREATE TABLE billing_plans(id uuid PRIMARY KEY, activo boolean, orden int);
+    CREATE TABLE workspace_subscriptions(
+      workspace_id uuid PRIMARY KEY,
+      plan_id uuid,
+      estado text,
+      precio_centavos_override int,
+      nota text
+    );
     CREATE TABLE wallet_accounts(workspace_id uuid PRIMARY KEY REFERENCES workspaces, saldo_centavos bigint DEFAULT 0,
       bloquear_sin_saldo boolean DEFAULT false, descubierto_centavos int DEFAULT 200,cobrar_a_costo boolean DEFAULT false,updated_at timestamptz DEFAULT now());
     CREATE TABLE wallet_movimientos(id uuid DEFAULT gen_random_uuid(),workspace_id uuid,tipo text,concepto text,centavos bigint,saldo_despues_centavos bigint,
       costo_centavos numeric,cantidad numeric,referencia_tipo text,referencia_id text,detalle jsonb);
-    INSERT INTO workspaces VALUES('${ws}');
+    INSERT INTO billing_plans VALUES('00000000-0000-4000-8000-000000000099',true,1);
+    INSERT INTO workspaces(id) VALUES('${ws}');
     INSERT INTO workspace_subscriptions(workspace_id,estado) VALUES('${ws}','activa');
     INSERT INTO wallet_accounts(workspace_id,saldo_centavos) VALUES('${ws}',100);`);
   await db.exec(
@@ -126,7 +134,7 @@ describe('receipt reconciliation and automatic top-ups', () => {
   });
   it('charges once when 100 workers retry the same operation and leaves other accounts untouched', async () => {
     const target = '00000000-0000-4000-8000-000000000003';
-    await db.query('insert into workspaces values ($1)', [target]);
+    await db.query('insert into workspaces(id) values ($1)', [target]);
     await db.query("insert into workspace_subscriptions(workspace_id,estado,modelo_cobro) values ($1,'activa','saldo')", [target]);
     await db.query('insert into wallet_accounts(workspace_id,saldo_centavos) values ($1,1000)', [target]);
     const before = await db.query('select saldo_centavos,reservado_centavos from wallet_accounts where workspace_id=$1', [ws]);
@@ -155,7 +163,7 @@ describe('receipt reconciliation and automatic top-ups', () => {
   });
   it('records provider cost without consuming balance on the official model', async () => {
     const official = '00000000-0000-4000-8000-000000000004';
-    await db.query('insert into workspaces values ($1)', [official]);
+    await db.query('insert into workspaces(id) values ($1)', [official]);
     await db.query("insert into workspace_subscriptions(workspace_id,estado) values ($1,'activa')", [official]);
     const reserved = await db.query<{ ok: boolean }>(
       "select wallet_reservar($1,'official-use','ia_respuesta','anthropic',100) as ok",

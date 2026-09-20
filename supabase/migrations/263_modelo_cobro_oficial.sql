@@ -20,6 +20,30 @@ BEGIN
     -- Esta actualización ocurre sólo al crear la columna. Repetir la migración
     -- jamás puede convertir en legado a una cuenta oficial creada después.
     UPDATE public.workspace_subscriptions SET modelo_cobro = 'saldo';
+
+    -- Dos cuentas antiguas podían no tener suscripción todavía. Conservan el
+    -- acceso y la billetera, sin inventarles una mensualidad retroactiva.
+    INSERT INTO public.workspace_subscriptions (
+      workspace_id,
+      plan_id,
+      estado,
+      precio_centavos_override,
+      nota,
+      modelo_cobro
+    )
+    SELECT
+      w.id,
+      (SELECT id FROM public.billing_plans WHERE activo = true ORDER BY orden LIMIT 1),
+      'activa',
+      0,
+      'Legado: cuenta existente sin suscripción al activar el precio oficial.',
+      'saldo'
+    FROM public.workspaces w
+    WHERE w.deleted_at IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM public.workspace_subscriptions s WHERE s.workspace_id = w.id
+      )
+    ON CONFLICT (workspace_id) DO NOTHING;
   END IF;
 END $$;
 
