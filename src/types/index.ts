@@ -903,6 +903,8 @@ export interface SendMessageStepConfig {
 
 export interface SendTemplateStepConfig {
   template_name: string;
+  /** Order confirmation: separate item rows and exact Shopify variant photos. */
+  purchase_confirmation?: boolean;
   language?: string;
   variables?: Record<string, string>;
   /**

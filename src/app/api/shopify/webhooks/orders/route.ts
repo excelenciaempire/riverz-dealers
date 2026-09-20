@@ -574,6 +574,7 @@ export async function POST(request: Request) {
     let vars: Record<string, string> = {};
     for (const triggerType of triggerTypes) {
       vars = buildVarsForOrder(triggerType, order, name);
+      vars.purchase_shop_domain = shopDomain;
       vars.offer_chosen = offer.label;
       vars.offer_units = offer.units > 0 ? String(offer.units) : '';
 
@@ -812,6 +813,11 @@ function buildVarsForOrder(
     total_discounts: String(order.total_discounts ?? ''),
     currency: String(order.currency ?? order.presentment_currency ?? ''),
     item_count: String(lineItems.length),
+    purchase_order_lines: JSON.stringify(lineItems.map((item: Record<string, unknown>) => ({
+      id: item.id, product_id: item.product_id, variant_id: item.variant_id,
+      title: item.title, name: item.name, variant_title: item.variant_title,
+      quantity: item.quantity, properties: item.properties,
+    }))),
     first_item: String(firstItem?.title ?? ''),
     retention_order_lines: JSON.stringify(lineItems.map((item: Record<string, unknown>) => ({ title: item.title, quantity: item.quantity }))),
     is_repeat_customer: ordersCount > 1 ? 'true' : 'false',

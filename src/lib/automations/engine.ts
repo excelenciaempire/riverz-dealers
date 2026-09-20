@@ -17,6 +17,8 @@ import type {
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { confirmationDisplayVars } from './confirmation-copy'
+import { purchaseLines, purchaseLineSummary, purchaseConfirmationTemplates } from './purchase-confirmation'
+import { sendPurchasePhotos } from './purchase-photos'
 import { motorApagado } from '@/lib/workspaces/motor'
 import {
   inferVoiceCallScenario,
@@ -895,7 +897,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       })
       // The selected variant becomes the normal send configuration. This keeps
       // dynamic-link and variable resolution identical to regular templates.
-      const cfg: SendTemplateStepConfig = variant
+      let cfg: SendTemplateStepConfig = variant
         ? { template_name: variant.template_name, language: variant.language, variables: variant.variables }
         : configured
       if (!cfg.template_name) throw new Error('send_template needs template_name')
@@ -928,6 +930,15 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       }
       await requireRiverzoficialTemplateItems(db, args.automation.workspace_id, cfg.template_name, args.context.vars ??= {})
       Object.assign(args.context.vars ??= {}, confirmationDisplayVars(args.context.vars ?? {}, cfg.language ?? 'es'))
+      if (configured.purchase_confirmation && !variant) {
+        const lines = purchaseLines(args.context.vars.purchase_order_lines)
+        lines.forEach((line, i) => { args.context.vars![`purchase_item_${i + 1}`] = purchaseLineSummary(line) })
+        const count = lines.length === 1 || lines.length === 2 ? lines.length : 'general'
+        const definition = purchaseConfirmationTemplates(cfg.language === 'en' ? 'en' : 'es')
+          .find(t => t.name === `deuna_resumen_compra_${count}_v1`)!
+        cfg = { ...cfg, template_name: definition.name,
+          variables: Object.fromEntries(definition.fields.map((field, i) => [String(i + 1), `{{vars.${field}}}`])) }
+      }
       // Meta templates use positional {{1}}, {{2}}, … placeholders, so
       // we MUST emit params in strict numeric order. Lexicographic sort
       // of "1", "2", …, "10" yields "1", "10", "2", … which silently
@@ -1020,6 +1031,18 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         }).eq('id', conversationId).eq('workspace_id', args.automation.workspace_id)
         if (error) throw new Error(`automation reply context: ${error.message}`)
       }
+      let photoDetail = ''
+      if (configured.purchase_confirmation && !variant) {
+        try {
+          photoDetail = await sendPurchasePhotos(db, {
+            workspaceId: args.automation.workspace_id, conversationId, contactId: args.contactId,
+            automationId: args.automation.id, automationName: args.automation.name, stepId: step.id,
+            language: cfg.language ?? 'es', vars: args.context.vars ?? {},
+          })
+        } catch (error) {
+          photoDetail = `photos: failed (${error instanceof Error ? error.message : String(error)})`
+        }
+      }
       const { whatsapp_message_id } = await engineSendTemplate({
         workspaceId: args.automation.workspace_id,
         conversationId,
@@ -1051,7 +1074,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
           whatsappMessageId: whatsapp_message_id,
         })
       }
-      return `template sent via Meta (${whatsapp_message_id})${variant ? ` [A/B ${variant.id.toUpperCase()}]` : ''}`
+      return `template sent via Meta (${whatsapp_message_id})${variant ? ` [A/B ${variant.id.toUpperCase()}]` : ''}${photoDetail ? `; ${photoDetail}` : ''}`
     }
 
     case 'set_context': {

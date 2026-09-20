@@ -1,5 +1,6 @@
 import type { OtherStoreContext } from '@/lib/ai/tools';
 import { untrustedContext } from './input-security';
+import { purchaseConfirmationReply } from './purchase-confirmation-reply';
 import {
   esCanalDeComentarios,
   esError as esErrorDestinoComentario,
@@ -2787,6 +2788,11 @@ async function generateReply(
   priceIntegrity: { priceQuestion: boolean; priceVerified: boolean },
   recoveryContext: Record<string, unknown> | null
 ): Promise<ReplyResult> {
+  const acknowledgement = purchaseConfirmationReply({
+    workspaceId: agent.workspace_id, language: agent.language,
+    text: origen.inboundText, context: recoveryContext,
+  });
+  if (acknowledgement) return { text: acknowledgement, promptTokens: 0, completionTokens: 0, herramientas: [] };
   if (agent.provider !== 'anthropic') {
     throw new Error(`Provider ${agent.provider} not implemented`);
   }

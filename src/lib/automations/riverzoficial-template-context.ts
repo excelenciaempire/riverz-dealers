@@ -12,7 +12,7 @@ export async function requireRiverzoficialTemplateItems(
   templateName: string,
   vars: Record<string, unknown>,
 ) {
-  if (workspaceId !== RIVERZOFICIAL_WORKSPACE || !/^deuna_.*_producto_v\d+$/.test(templateName)) return;
+  if (workspaceId !== RIVERZOFICIAL_WORKSPACE || !/^deuna_(?:.*_producto|resumen_compra_(?:\d+|general))_v\d+$/.test(templateName)) return;
   if (vars.checkout_url) {
     const { data, error } = await db.from('shopify_checkouts').select('line_items')
       .eq('workspace_id', workspaceId).eq('abandoned_checkout_url', String(vars.checkout_url))

@@ -208,6 +208,7 @@ export interface SendTemplateMessageArgs {
   templateName: string
   language?: string
   params?: string[]
+  headerImageUrl?: string
   /** Valor que llena la variable {{1}} de un botón URL DINÁMICO (el token del
    *  short link). Cuando está presente se emite el componente `button`. */
   buttonUrlParam?: string
@@ -245,6 +246,9 @@ export async function sendTemplateMessage(
   }
 
   const components: Record<string, unknown>[] = []
+  if (args.headerImageUrl) {
+    components.push({ type: 'header', parameters: [{ type: 'image', image: { link: args.headerImageUrl } }] })
+  }
   if (params && params.length > 0) {
     components.push({
       type: 'body',

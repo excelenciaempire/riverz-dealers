@@ -1,4 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { purchaseConfirmationReply } from './purchase-confirmation-reply';
 import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import {
@@ -75,6 +76,12 @@ export async function simularRespuesta(
     automationContext?: Record<string, unknown> | null;
   }
 ): Promise<RespuestaSimulada> {
+  const acknowledgement = purchaseConfirmationReply({
+    workspaceId: a.workspace_id, language: a.language, text: input.message,
+    context: input.automationContext ?? null,
+  });
+  if (acknowledgement) return { reply: acknowledgement, chunks: [acknowledgement], herramientas: [],
+    usage: { input_tokens: 0, output_tokens: 0, iterations: 0 } };
   const resolvedKey = await resolveAnthropicKey(admin, {
     workspaceId: a.workspace_id,
     agentKeyEncrypted: a.api_key_encrypted,

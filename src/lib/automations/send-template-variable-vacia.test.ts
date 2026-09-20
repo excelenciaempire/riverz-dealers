@@ -79,6 +79,27 @@ describe('send_template con una variable vacía', () => {
     expect(state.tables.automation_logs[0].status).toBe('success')
   })
 
+  it('separates two purchased references into fixed template rows without changing delivery details', async () => {
+    state.tables.automation_steps[0] = { ...envio, step_config: {
+      template_name: 'deuna_resumen_compra_general_v1', language: 'es', purchase_confirmation: true,
+    } }
+    await resumePendingExecution(pendingCon({ recipient_name: 'Luz Mary', total_price: '249900.00', currency: 'COP',
+      delivery_address: 'Cúcuta, Norte de Santander', delivery_phone: '573000000000', order_items: 'both items',
+      purchase_order_lines: JSON.stringify([
+        { quantity: 1, title: 'Puma', variant_title: 'Blanco / 36' },
+        { quantity: 1, title: 'Puma', variant_title: 'Negro con blanco / 37' },
+      ]),
+    }))
+    expect(sendTemplate).toHaveBeenCalledOnce()
+    expect(sendTemplate).toHaveBeenCalledWith(expect.objectContaining({
+      templateName: 'deuna_resumen_compra_2_v1', params: [
+        'Luz', '1 × Puma (Blanco / 36)', '1 × Puma (Negro con blanco / 37)',
+        '249.900 COP', 'Cúcuta, Norte de Santander', '573000000000',
+      ],
+    }))
+    expect(state.tables.automation_logs[0].status).toBe('success')
+  })
+
   it('la condición «guía vacía» de Rasmiaw deja la corrida en éxito sin enviar nada', async () => {
     // Estructura que quedó en producción el 2026-09-17: la plantilla cuelga
     // del camino "no" de una condición tracking_number == ''.
