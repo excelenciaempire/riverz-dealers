@@ -577,6 +577,18 @@ export const inbox = {
     es: "Se envía automáticamente (botón con enlace dinámico).",
     en: "Sent automatically (dynamic-link button).",
   },
+  searchTemplates: { es: "Buscar plantillas", en: "Search templates" },
+  noTemplateResults: {
+    es: "No hay plantillas que coincidan",
+    en: "No matching templates",
+  },
+  continueTemplate: { es: "Continuar", en: "Continue" },
+  templateCategoryUtility: { es: "Servicio", en: "Utility" },
+  templateCategoryMarketing: { es: "Marketing", en: "Marketing" },
+  templateCategoryAuthentication: {
+    es: "Autenticación",
+    en: "Authentication",
+  },
   preview: { es: "Vista previa", en: "Preview" },
   variableLabel: { es: "Variable {{{n}}}", en: "Variable {{{n}}}" },
   variableExample: { es: "· ej. {sample}", en: "· e.g. {sample}" },

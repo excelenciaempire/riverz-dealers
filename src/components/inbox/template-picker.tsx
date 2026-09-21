@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { MessageTemplate } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -17,9 +17,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft,
-  ChevronRight,
   LayoutTemplate,
   Loader2,
+  Search,
 } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
@@ -66,6 +66,20 @@ function hasDynamicUrlButton(template: MessageTemplate): boolean {
   });
 }
 
+function getTemplateButtons(template: MessageTemplate): { text: string; type: string }[] {
+  if (!Array.isArray(template.buttons)) return [];
+  return template.buttons.flatMap((button) => {
+    const text = typeof button.text === "string" ? button.text.trim() : "";
+    if (!text) return [];
+    return [{ text, type: String(button.type ?? "").toUpperCase() }];
+  });
+}
+
+function readableTemplateName(name: string): string {
+  const words = name.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : name;
+}
+
 export function TemplatePicker({
   open,
   onOpenChange,
@@ -76,6 +90,8 @@ export function TemplatePicker({
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<MessageTemplate | null>(null);
   const [params, setParams] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -121,10 +137,16 @@ export function TemplatePicker({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    listRef.current?.scrollTo({ top: 0 });
+  }, [open, query]);
+
   function handleOpenChange(next: boolean) {
     if (!next) {
       setSelected(null);
       setParams([]);
+      setQuery("");
     }
     onOpenChange(next);
   }
@@ -153,10 +175,33 @@ export function TemplatePicker({
   const canConfirm =
     !!selected &&
     variables.every((_, i) => (params[i] ?? "").trim().length > 0);
+  const filteredTemplates = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase();
+    if (!needle) return templates;
+    return templates.filter((template) =>
+      [
+        template.name,
+        template.body_text,
+        template.footer_text,
+        template.category,
+        template.language,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase()
+        .includes(needle),
+    );
+  }, [query, templates]);
+
+  function categoryLabel(category: MessageTemplate["category"]): string {
+    if (category === "Utility") return t("inbox.templateCategoryUtility");
+    if (category === "Authentication") return t("inbox.templateCategoryAuthentication");
+    return t("inbox.templateCategoryMarketing");
+  }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="border-border bg-card sm:max-w-lg">
+      <DialogContent className="flex max-h-[92svh] flex-col border-border bg-card sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-foreground">
             <LayoutTemplate className="h-4 w-4 text-accent-ink" />
@@ -168,82 +213,145 @@ export function TemplatePicker({
         </DialogHeader>
 
         {!selected ? (
-          <div className="max-h-[60vh] space-y-2 overflow-y-auto">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-accent-ink" />
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            {!loading && templates.length > 0 ? (
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t("inbox.searchTemplates")}
+                  aria-label={t("inbox.searchTemplates")}
+                  className="border-border bg-background pl-9 text-foreground placeholder:text-muted-foreground"
+                />
               </div>
-            ) : templates.length === 0 ? (
-              <div className="rounded-md border border-border bg-background/50 p-6 text-center">
-                <p className="text-sm text-foreground">{t("inbox.noApprovedTemplates")}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("inbox.syncTemplatesHint")}
-                </p>
-              </div>
-            ) : (
-              templates.map((tpl) => {
-                // Plantillas con botón de enlace dinámico (p. ej. carrito
-                // abandonado) no se pueden enviar a mano: el {{1}} del botón lo
-                // llena la automatización. Se muestran deshabilitadas con aviso.
-                const autoOnly = hasDynamicUrlButton(tpl);
-                return (
-                  <button
-                    key={tpl.id}
-                    type="button"
-                    disabled={autoOnly}
-                    onClick={() => !autoOnly && pickTemplate(tpl)}
-                    className={cn(
-                      "w-full rounded-md border border-border bg-background/50 p-3 text-left transition-colors",
-                      autoOnly
-                        ? "cursor-not-allowed opacity-60"
-                        : "hover:border-primary/40 hover:bg-accent",
-                    )}
-                  >
-                    <div className="flex items-start gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-sm font-medium text-foreground">
-                            {tpl.name}
-                          </p>
-                          <Badge className="border border-primary/30 bg-primary/20 text-[10px] text-accent-ink">
-                            {tpl.category}
-                          </Badge>
-                          {tpl.language && (
-                            <span className="text-[10px] uppercase text-muted-foreground">
-                              {tpl.language}
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                          {tpl.body_text}
-                        </p>
-                        {autoOnly && (
-                          <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
-                            {t("inbox.templateAutoOnly")}
-                          </p>
-                        )}
-                      </div>
-                      {!autoOnly && (
-                        <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+            ) : null}
+
+            <div
+              ref={listRef}
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
+            >
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-accent-ink" />
+                </div>
+              ) : templates.length === 0 ? (
+                <div className="rounded-md border border-border bg-background/50 p-6 text-center">
+                  <p className="text-sm text-foreground">
+                    {t("inbox.noApprovedTemplates")}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t("inbox.syncTemplatesHint")}
+                  </p>
+                </div>
+              ) : filteredTemplates.length === 0 ? (
+                <div className="rounded-lg border border-border bg-background/50 p-8 text-center">
+                  <p className="text-sm text-foreground">
+                    {t("inbox.noTemplateResults")}
+                  </p>
+                </div>
+              ) : (
+                filteredTemplates.map((tpl) => {
+                  const autoOnly = hasDynamicUrlButton(tpl);
+                  const templateVariables = extractVariables(tpl.body_text);
+                  const templateButtons = getTemplateButtons(tpl);
+                  return (
+                    <article
+                      key={tpl.id}
+                      className={cn(
+                        "overflow-hidden rounded-xl border border-border bg-background/60 transition-colors",
+                        !autoOnly && "hover:border-primary/40",
                       )}
-                    </div>
-                  </button>
-                );
-              })
-            )}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground">
+                            {readableTemplateName(tpl.name)}
+                          </p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <Badge className="border border-primary/30 bg-primary/15 text-[10px] text-accent-ink">
+                              {categoryLabel(tpl.category)}
+                            </Badge>
+                            {tpl.language ? (
+                              <span className="text-[10px] font-medium uppercase text-muted-foreground">
+                                {tpl.language}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={autoOnly}
+                          onClick={() => pickTemplate(tpl)}
+                          className="h-8 shrink-0 bg-primary px-3 text-xs text-primary-foreground hover:bg-primary/90"
+                        >
+                          {templateVariables.length > 0
+                            ? t("inbox.continueTemplate")
+                            : t("inbox.send")}
+                        </Button>
+                      </div>
+
+                      <div className="border-t border-border bg-[#efeae2] p-3 dark:bg-[#0b141a]">
+                        <div className="ml-auto max-w-[92%] overflow-hidden rounded-lg rounded-tr-none bg-[#d9fdd3] text-[#111b21] shadow-sm dark:bg-[#005c4b] dark:text-[#e9edef]">
+                          <div className="px-3 py-2.5">
+                            {tpl.header_type === "text" && tpl.header_content ? (
+                              <p className="mb-1 whitespace-pre-wrap text-sm font-semibold [overflow-wrap:anywhere]">
+                                {tpl.header_content}
+                              </p>
+                            ) : null}
+                            <p className="whitespace-pre-wrap text-sm leading-5 [overflow-wrap:anywhere]">
+                              {tpl.body_text}
+                            </p>
+                            {tpl.footer_text ? (
+                              <p className="mt-1.5 whitespace-pre-wrap text-xs text-[#667781] dark:text-[#aebac1]">
+                                {tpl.footer_text}
+                              </p>
+                            ) : null}
+                          </div>
+                          {templateButtons.length > 0 ? (
+                            <div className="border-t border-black/10 dark:border-white/10">
+                              {templateButtons.map((button, index) => (
+                                <div
+                                  key={`${button.type}-${button.text}-${index}`}
+                                  className={cn(
+                                    "px-3 py-2 text-center text-xs font-medium text-[#027eb5] dark:text-[#53bdeb]",
+                                    index > 0 &&
+                                      "border-t border-black/10 dark:border-white/10",
+                                  )}
+                                >
+                                  {button.text}
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {autoOnly ? (
+                        <p className="border-t border-border px-4 py-2 text-[11px] text-amber-600 dark:text-amber-400">
+                          {t("inbox.templateAutoOnly")}
+                        </p>
+                      ) : null}
+                    </article>
+                  );
+                })
+              )}
+            </div>
           </div>
         ) : (
           <div className="max-h-[70svh] space-y-3 overflow-y-auto">
-            <div className="rounded-md border border-border bg-background/50 p-3">
-              <p className="mb-1 text-xs text-muted-foreground">{t("inbox.preview")}</p>
-              <p className="whitespace-pre-wrap text-sm text-foreground">
-                {renderBodyPreview(selected.body_text, params)}
-              </p>
-              {selected.footer_text && (
-                <p className="mt-2 text-xs italic text-muted-foreground">
-                  {selected.footer_text}
+            <div className="rounded-xl border border-border bg-[#efeae2] p-3 dark:bg-[#0b141a]">
+              <div className="ml-auto max-w-[92%] rounded-lg rounded-tr-none bg-[#d9fdd3] px-3 py-2.5 text-sm text-[#111b21] shadow-sm dark:bg-[#005c4b] dark:text-[#e9edef]">
+                <p className="whitespace-pre-wrap leading-5 [overflow-wrap:anywhere]">
+                  {renderBodyPreview(selected.body_text, params)}
                 </p>
-              )}
+                {selected.footer_text ? (
+                  <p className="mt-1.5 whitespace-pre-wrap text-xs text-[#667781] dark:text-[#aebac1]">
+                    {selected.footer_text}
+                  </p>
+                ) : null}
+              </div>
             </div>
             {variables.map((v, i) => {
               const sample = Array.isArray(selected.variable_samples)
