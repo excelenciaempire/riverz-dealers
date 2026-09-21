@@ -24,6 +24,7 @@ describe('Efra: retain uncertainty across buttons, screenshots and audio', () =>
     expect(orderConversationModel({ ...base, messages: [{ content: text }, { content: 'CONFIRMAR' }] })).toBe('claude-opus-5');
   });
   it('preserves routine model and other merchants configuration', () => {
+    expect(orderConversationModel({ ...base, messages: [{ role: 'assistant', content: 'Toca CONFIRMAR o CORREGIR' }, { role: 'user', content: 'CONFIRMAR' }] })).toBe(base.configuredModel);
     expect(orderConversationModel({ ...base, messages: [{ content: 'Cuánto tarda el envío?' }] })).toBe(base.configuredModel);
     expect(orderConversationModel({ ...base, workspaceId: 'another', messages: [{ content: 'CORREGIR', media: {} }] })).toBe(base.configuredModel);
   });

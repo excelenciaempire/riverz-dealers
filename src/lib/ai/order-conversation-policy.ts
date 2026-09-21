@@ -10,9 +10,13 @@ Una confirmación válida identifica un pedido y su combinación exacta, sin dud
 
 export function orderConversationModel(input: {
   workspaceId: string; configuredModel: string; hasOrder: boolean;
-  messages: Array<{ content: string; media?: unknown }>;
+  messages: Array<{ role?: string; content: string; media?: unknown }>;
 }): string {
   if (input.workspaceId !== DEUNA_WORKSPACE || !input.hasOrder) return input.configuredModel;
-  const complex = input.messages.some(m => m.media || /corregir|correct|no estoy segur|not sure|dos pedidos|two orders|imagen analizada|audio transcrito|adjunto pendiente/i.test(m.content));
+  const complex = input.messages.some(m =>
+    // Offering a CORREGIR button is not a customer correction.
+    (m.role !== 'assistant' && (m.media || /corregir|correct|no estoy segur|not sure|dos pedidos|two orders|imagen analizada|audio transcrito|adjunto pendiente/i.test(m.content))) ||
+    (/\[Mensaje del equipo humano\]/.test(m.content) && /Imagen analizada|Audio transcrito|pendiente de interpretar/i.test(m.content))
+  );
   return complex ? 'claude-opus-5' : input.configuredModel;
 }
