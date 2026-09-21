@@ -185,6 +185,31 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const channel = (conversation as Conversation).channel;
+  // El estado del panel puede quedar unos segundos por detrás del sondeo de
+  // Mercado Libre. El servidor vuelve a comprobarlo para que un compositor
+  // viejo no cree burbujas fallidas ni intente escribir en un reclamo cerrado.
+  const threadExternalId = (conversation as Conversation).thread_external_id ?? "";
+  if (channel === "mercadolibre" && threadExternalId.startsWith("claim:")) {
+    const claimId = threadExternalId.slice("claim:".length);
+    const { data: claim } = await admin
+      .from("ml_claims")
+      .select("status")
+      .eq("workspace_id", (conversation as Conversation).workspace_id)
+      .eq("claim_id", claimId)
+      .maybeSingle();
+    if (
+      (conversation as Conversation).status === "closed" ||
+      String((claim as { status?: string } | null)?.status ?? "").toLowerCase() === "closed"
+    ) {
+      return NextResponse.json(
+        {
+          error: translate(locale, "inbox.mlClaimClosed"),
+          code: "ML_CLAIM_CLOSED",
+        },
+        { status: 409 },
+      );
+    }
+  }
   // Approved Meta templates belong to WhatsApp. Other channels can reuse the
   // rendered content, but it must travel as a regular text/media message.
   const templateName = channel === "whatsapp" ? requestedTemplateName : null;

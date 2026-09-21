@@ -27,6 +27,21 @@ import { isInactiveMLAccountError } from './account-health';
 const ML = "https://api.mercadolibre.com";
 const log = getLogger("channels.mercadolibre");
 
+/**
+ * Mercado Libre documenta dos nombres distintos para el mismo campo según la
+ * versión del recurso de reclamos: `filename` y `file_name`. Aceptamos ambos
+ * para no convertir una carga 2xx en un falso "sin id".
+ */
+export function claimAttachmentName(uploaded: unknown): string | undefined {
+  if (!uploaded || typeof uploaded !== "object") return undefined;
+  const value = uploaded as Record<string, unknown>;
+  for (const key of ["filename", "file_name", "id"] as const) {
+    const candidate = value[key];
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+  }
+  return undefined;
+}
+
 interface MlNotification {
   resource?: string; // e.g. "/questions/123" or "/messages/packs/456/sellers/789"
   user_id?: number | string;
@@ -617,11 +632,8 @@ async function sendClaimMedia(claimId: string, input: OutboundMedia, token: stri
     const detail = await upRes.text().catch(() => "");
     throw new Error(`[mercadolibre] claim attachment failed (${upRes.status}): ${detail}`);
   }
-  const uploaded = (await upRes.json().catch(() => ({}))) as {
-    filename?: string;
-    id?: string;
-  };
-  const attachmentId = uploaded.filename ?? uploaded.id;
+  const uploaded = await upRes.json().catch(() => ({}));
+  const attachmentId = claimAttachmentName(uploaded);
   if (!attachmentId) throw new Error("[mercadolibre] claim attachment returned no id");
 
   const res = await fetch(`${ML}/post-purchase/v1/claims/${claimId}/actions/send-message`, {

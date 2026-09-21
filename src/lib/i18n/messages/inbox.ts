@@ -717,6 +717,10 @@ export const inbox = {
     es: "Reclamo cerrado: Mercado Libre ya no acepta mensajes",
     en: "Claim closed: Mercado Libre no longer accepts messages",
   },
+  mlClaimAttachmentFailed: {
+    es: "No se envió el archivo. Vuelve a adjuntarlo e inténtalo de nuevo",
+    en: "The file wasn't sent. Attach it again and retry",
+  },
   mlQuestionPublic: { es: "Pregunta pública", en: "Public question" },
   mlMessagePostSale: { es: "Mensaje post-venta", en: "Post-sale message" },
   mlFilterAll: { es: "Todas", en: "All" },

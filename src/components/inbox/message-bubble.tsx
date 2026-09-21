@@ -97,8 +97,24 @@ function deliveryReasonText(
     // entrega que falló, así que un comentario que alguien borró a propósito
     // salía en rojo — y encima con el motivo de abajo, que habla de WhatsApp.
     if ((message.content_text ?? "").trim() === COMMENT_DELETED_TEXT) return null;
-    const key = deliveryErrorKey(message.error_code);
+    // Los códigos numéricos de Meta sólo describen WhatsApp. Mercado Libre,
+    // correo y comentarios también pueden devolver 400; traducirlo como
+    // "WhatsApp rechazó" atribuye el fallo al canal equivocado.
+    const key =
+      message.channel === "whatsapp" ? deliveryErrorKey(message.error_code) : null;
     if (key) return t(key, { code: message.error_code ?? "" });
+    if (
+      message.channel === "mercadolibre" &&
+      message.error_reason?.includes("Invalid action send_message_to_complainant")
+    ) {
+      return t("inbox.mlClaimClosed");
+    }
+    if (
+      message.channel === "mercadolibre" &&
+      message.error_reason?.includes("claim attachment returned no id")
+    ) {
+      return t("inbox.mlClaimAttachmentFailed");
+    }
     if (message.error_reason) return message.error_reason;
     // El "no informó el motivo" nombra a WhatsApp, y se mostraba en cualquier
     // canal: un comentario de Instagram decía "WhatsApp no entregó el mensaje"
