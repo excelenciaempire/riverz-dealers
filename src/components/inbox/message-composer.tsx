@@ -5,8 +5,6 @@ import {
   Send,
   LayoutTemplate,
   Slash,
-  Paperclip,
-  X,
   Plus,
   Pencil,
   Trash2,
@@ -25,8 +23,8 @@ import type { Channel } from "@/types";
 import { VoiceNoteComposer } from '@/components/voice/voice-note-editor';
 import { supportsVoiceNotes } from '@/lib/voice-notes/channels';
 
-/** Client-side attachment ceiling — mirrors MAX_ATTACHMENT_BYTES on the server. */
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
+import { AttachmentPreview } from './attachment-preview';
+import { MAX_ATTACHMENTS, selectAttachments, sendAttachmentQueue } from './attachment-queue';
 
 /** Alto maximo del compositor: 4 lineas. Mas alla de eso desplaza. */
 const MAX_COMPOSER_HEIGHT = 96;
@@ -56,6 +54,7 @@ interface Snippet {
 
 interface MessageComposerProps {
   conversationId: string;
+  attachmentDropZoneRef?: React.RefObject<HTMLDivElement | null>;
   /** Canal de la conversación — decide qué acciones ofrece el composer
    *  (adjuntar media, plantillas). Cada canal muestra sólo lo que soporta. */
   channel: Channel;
@@ -74,6 +73,7 @@ interface MessageComposerProps {
 
 export function MessageComposer({
   conversationId,
+  attachmentDropZoneRef,
   channel,
   sessionExpired,
   onSend,
@@ -109,7 +109,10 @@ export function MessageComposer({
   const canUseTemplates = channel === "whatsapp";
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<Array<{ id: string; file: File }>>([]);
+  const [dragging, setDragging] = useState(false);
+  const activeConversation = useRef(conversationId);
+  activeConversation.current = conversationId;
   // Mejorar redaccion: un clic reescribe el borrador antes de enviarlo.
   const [improving, setImproving] = useState(false);
   // Generar respuesta: el agente propone qué contestar; nadie envía nada.
@@ -315,35 +318,39 @@ export function MessageComposer({
     else borradores.current.delete(saliente);
     chatAnterior.current = conversationId;
     setText(borradores.current.get(conversationId) ?? "");
-    setPendingFile(null);
+    setPendingFiles([]);
+    setDragging(false);
     setSnippetMenu(null);
   }, [conversationId, text]);
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
-    // A message is sendable if it has text OR a pending attachment.
-    if ((!trimmed && !pendingFile) || sendingRef.current || sessionExpired) return;
+    if ((!trimmed && !pendingFiles.length) || sendingRef.current || sessionExpired) return;
+    if (pendingFiles.length && !onSendMedia) return;
     sendingRef.current = true;
     setSending(true);
-    const fileToSend = pendingFile;
-    setText("");
-    setPendingFile(null);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
+    const targetConversation = conversationId;
     try {
-      // await garantiza que el botón siga deshabilitado hasta que el
-      // POST resuelva.
-      if (fileToSend && onSendMedia) {
-        await onSendMedia(fileToSend, trimmed, replyTo?.id);
+      if (pendingFiles.length && onSendMedia) {
+        await sendAttachmentQueue(pendingFiles,
+          (item, index) => Promise.resolve(onSendMedia(item.file, index === 0 ? trimmed : '', replyTo?.id)),
+          () => activeConversation.current === targetConversation,
+          (item, index) => {
+            if (activeConversation.current !== targetConversation) return;
+            setPendingFiles(files => files.filter(f => f.id !== item.id));
+            if (index === 0) setText('');
+          });
       } else {
         await onSend(trimmed, replyTo?.id);
+        if (activeConversation.current === targetConversation) setText('');
       }
+    } catch {
+      // The sender displays the error. Keep the failed item and all unsent files.
     } finally {
       sendingRef.current = false;
       setSending(false);
     }
-  }, [text, pendingFile, sessionExpired, onSend, onSendMedia, replyTo?.id]);
+  }, [text, pendingFiles, sessionExpired, onSend, onSendMedia, replyTo?.id, conversationId]);
 
   /**
    * Un clic: el borrador vuelve bien redactado. Es reescritura, no
@@ -443,19 +450,54 @@ export function MessageComposer({
     }
   }, [text, drafting, sessionExpired, fetchWithCsrf, conversationId, t, adjustHeight]);
 
-  const handleFilePick = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const f = e.target.files?.[0];
-      e.target.value = ""; // let the same file be re-picked later
-      if (!f) return;
-      if (f.size > MAX_FILE_BYTES) {
-        toast.error(t("inbox.fileTooLarge"));
-        return;
-      }
-      setPendingFile(f);
-    },
-    [t],
-  );
+  const addFiles = useCallback((files: File[]) => {
+    if (sessionExpired || sendingRef.current || !canAttachMedia || !onSendMedia) return;
+    const selected = selectAttachments(files, acceptedFiles, MAX_ATTACHMENTS - pendingFiles.length);
+    for (const reason of new Set(selected.rejected.map(r => r.reason))) {
+      toast.error(t(reason === 'size' ? 'inbox.fileTooLarge' : reason === 'type' ? 'inbox.attachmentUnsupported' : 'inbox.tooManyAttachments', { count: MAX_ATTACHMENTS }));
+    }
+    setPendingFiles(current => [...current, ...selected.accepted.map(file => ({ id: crypto.randomUUID(), file }))].slice(0, MAX_ATTACHMENTS));
+    textareaRef.current?.focus();
+  }, [sessionExpired, canAttachMedia, onSendMedia, acceptedFiles, pendingFiles.length, t]);
+
+  useEffect(() => {
+    const zone = attachmentDropZoneRef?.current;
+    if (!zone) return;
+    let depth = 0;
+    const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
+    const enter = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault(); depth++;
+      if (!sessionExpired && !sendingRef.current && canAttachMedia && onSendMedia) setDragging(true);
+    };
+    const over = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = sessionExpired || sendingRef.current || !canAttachMedia || !onSendMedia ? 'none' : 'copy';
+    };
+    const leave = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault(); depth = Math.max(0, depth - 1);
+      if (!depth) setDragging(false);
+    };
+    const drop = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault(); depth = 0; setDragging(false);
+      addFiles(Array.from(event.dataTransfer?.files ?? []));
+    };
+    zone.addEventListener('dragenter', enter); zone.addEventListener('dragover', over);
+    zone.addEventListener('dragleave', leave); zone.addEventListener('drop', drop);
+    return () => {
+      zone.removeEventListener('dragenter', enter); zone.removeEventListener('dragover', over);
+      zone.removeEventListener('dragleave', leave); zone.removeEventListener('drop', drop);
+    };
+  }, [attachmentDropZoneRef, addFiles, sessionExpired, canAttachMedia, onSendMedia]);
+
+  const handleFilePick = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    addFiles(files);
+  }, [addFiles]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -691,21 +733,11 @@ export function MessageComposer({
         </div>
       )}
 
-      {/* Adjunto pendiente: chip con nombre + quitar. */}
-      {pendingFile && (
-        <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-1.5">
-          <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate text-xs text-foreground">
-            {pendingFile.name}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPendingFile(null)}
-            className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label={t("inbox.removeAttachment")}
-          >
-            <X className="size-3.5" />
-          </button>
+      {dragging && <div className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-background/95 text-sm font-medium" role="status">{t('inbox.dropAttachments')}</div>}
+      {pendingFiles.length > 0 && (
+        <div className="mb-3 flex gap-2 overflow-x-auto pb-1" role="group" aria-label={t('inbox.attachmentPreviews')}>
+          {pendingFiles.map(item => <AttachmentPreview key={item.id} file={item.file} disabled={sending}
+            onRemove={() => setPendingFiles(files => files.filter(f => f.id !== item.id))} />)}
         </div>
       )}
 
@@ -716,6 +748,7 @@ export function MessageComposer({
             <input
               ref={fileInputRef}
               type="file"
+              multiple
               accept={acceptedFiles}
               className="hidden"
               onChange={handleFilePick}
@@ -740,6 +773,12 @@ export function MessageComposer({
           value={text}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onPaste={event => {
+            const files = Array.from(event.clipboardData.files);
+            if (!files.length) return;
+            event.preventDefault();
+            addFiles(files);
+          }}
           placeholder={
             sessionExpired
               ? t(
@@ -749,7 +788,7 @@ export function MessageComposer({
                 )
               : t("inbox.typeMessage")
           }
-          disabled={sessionExpired}
+          disabled={sessionExpired || sending}
           rows={1}
           className={cn(
             "scrollbar-thin flex-1 resize-none overflow-y-hidden rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50",
@@ -810,7 +849,7 @@ export function MessageComposer({
         <Button
           size="sm"
           className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary/90 disabled:opacity-40"
-          disabled={(!text.trim() && !pendingFile) || sessionExpired || sending}
+          disabled={(!text.trim() && !pendingFiles.length) || sessionExpired || sending}
           onClick={handleSend}
           aria-label={t("inbox.sendMessage")}
         >
