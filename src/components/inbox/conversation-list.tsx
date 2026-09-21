@@ -226,7 +226,7 @@ export function ConversationList({
             // cambie nada más: ocultar un comentario no mueve el último
             // mensaje ni el no-leído, así que sin esto el resync lo daría por
             // "sin cambios" y la lista se quedaría con el estado viejo.
-            `${c.id}:${c.last_message_at}:${c.unread_count}:${c.deleted_at ?? ""}:${c.last_message_hidden ? 1 : 0}`,
+            `${c.id}:${c.last_message_at}:${c.unread_count}:${c.deleted_at ?? ""}:${c.last_message_hidden ? 1 : 0}:${c.contact?.name ?? ""}:${c.contact?.avatar_url ?? ""}`,
         )
         .join("|");
       if (sig !== lastSigRef.current) {

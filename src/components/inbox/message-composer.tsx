@@ -337,6 +337,14 @@ export function MessageComposer({
     sendingRef.current = true;
     setSending(true);
     const targetConversation = conversationId;
+    // La burbuja optimista ya aparece arriba al pulsar Enviar. Dejar el mismo
+    // texto abajo hasta que termine toda la petición parecía un duplicado y
+    // permitía creer que aún no se había enviado. Lo retiramos en el acto y
+    // sólo lo recuperamos si el canal rechaza el envío.
+    const draftBeforeSend = text;
+    if (draftBeforeSend) setText('');
+    borradores.current.delete(targetConversation);
+    let captionSent = false;
     try {
       if (pendingFiles.length && onSendMedia) {
         await sendAttachmentQueue(pendingFiles,
@@ -345,14 +353,21 @@ export function MessageComposer({
           (item, index) => {
             if (activeConversation.current !== targetConversation) return;
             setPendingFiles(files => files.filter(f => f.id !== item.id));
-            if (index === 0) setText('');
+            if (index === 0) captionSent = true;
           });
       } else {
         await onSend(trimmed, replyTo?.id);
-        if (activeConversation.current === targetConversation) setText('');
       }
     } catch {
-      // The sender displays the error. Keep the failed item and all unsent files.
+      // El sender muestra el error. Conservamos adjuntos fallidos/no enviados y
+      // devolvemos el texto sólo si todavía no se alcanzó a mandar como caption.
+      if (
+        activeConversation.current === targetConversation &&
+        draftBeforeSend &&
+        !captionSent
+      ) {
+        setText((current) => current.trim() ? current : draftBeforeSend);
+      }
     } finally {
       sendingRef.current = false;
       setSending(false);

@@ -483,6 +483,20 @@ export default function InboxPage() {
   const handleConversationsLoaded = useCallback(
     (loaded: Conversation[]) => {
       setConversations(loaded);
+      // La lista vuelve con el contacto unido. Si cambió su nombre o avatar,
+      // refrescamos también el encabezado y la ficha abierta sin vaciar el
+      // hilo ni obligar a seleccionar otra conversación.
+      if (activeConversation) {
+        const refreshed = loaded.find((c) => c.id === activeConversation.id);
+        if (refreshed?.contact) {
+          setActiveConversation((current) =>
+            current?.id === refreshed.id
+              ? { ...current, contact: refreshed.contact }
+              : current,
+          );
+          setActiveContact(refreshed.contact);
+        }
+      }
       // Resolve a pending deep-link here rather than in an effect — this
       // is an event handler, so the setState calls below are allowed by
       // react-hooks/set-state-in-effect. Runs once per ?c=<id> URL value
@@ -540,7 +554,7 @@ export default function InboxPage() {
         }
       }
     },
-    [deepLinkConvId, activeConversation?.id, abrirConversacionPorId]
+    [deepLinkConvId, activeConversation, abrirConversacionPorId]
   );
 
   const handleSelectConversation = useCallback(

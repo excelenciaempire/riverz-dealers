@@ -35,6 +35,7 @@ import type { TFn } from "@/lib/i18n/translate";
 import type { Locale } from "@/lib/i18n/config";
 import { dateFnsLocale } from "@/lib/i18n/format";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MlKindBadge } from "@/components/inbox/ml-kind-badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./message-bubble";
@@ -866,8 +867,10 @@ export function MessageThread({
       onNewMessage(optimisticMsg);
       setReplyTo(null);
 
+      let res: Response;
+      let payload: Record<string, unknown>;
       try {
-        const res = await fetchWithCsrf("/api/messages/send", {
+        res = await fetchWithCsrf("/api/messages/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -876,30 +879,31 @@ export function MessageThread({
             reply_to_external_id: replyToId,
           }),
         });
-
-        const payload = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          const reason = payload?.error || `HTTP ${res.status}`;
-          console.error("Failed to send message:", reason);
-          if (payload?.code === CHANNEL_DISCONNECTED_CODE) {
-            setChannelDisconnected(true);
-          }
-          toast.error(t("inbox.sendFailed", { reason }));
-          onUpdateMessage(tempId, { status: "failed" });
-          return;
-        }
-
-        onUpdateMessage(tempId, { status: "sent" });
-        // El envío salió bien, pero puede venir con una advertencia: hoy la
-        // única es la de TikTok ocultando respuestas repetidas.
-        if (typeof payload?.warning === "string") toast.warning(payload.warning);
+        payload = await res.json().catch(() => ({}));
       } catch (err) {
         console.error("Failed to send message:", err);
         const reason = t("inbox.networkErrorReason");
         toast.error(t("inbox.sendFailed", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
+        throw err;
       }
+
+      if (!res.ok) {
+        const reason =
+          typeof payload.error === "string" ? payload.error : `HTTP ${res.status}`;
+        console.error("Failed to send message:", reason);
+        if (payload.code === CHANNEL_DISCONNECTED_CODE) {
+          setChannelDisconnected(true);
+        }
+        toast.error(t("inbox.sendFailed", { reason }));
+        onUpdateMessage(tempId, { status: "failed" });
+        throw new Error(reason);
+      }
+
+      onUpdateMessage(tempId, { status: "sent" });
+      // El envío salió bien, pero puede venir con una advertencia: hoy la
+      // única es la de TikTok ocultando respuestas repetidas.
+      if (typeof payload.warning === "string") toast.warning(payload.warning);
     },
     [conversation, onNewMessage, onUpdateMessage, fetchWithCsrf, t]
   );
@@ -1494,9 +1498,12 @@ export function MessageThread({
             aria-label={t("inbox.viewContactInfo")}
             className="flex min-w-0 items-center gap-2 rounded-md text-left transition-colors enabled:hover:bg-accent disabled:cursor-default sm:gap-3 lg:px-1.5 lg:py-1"
           >
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
+            <Avatar className="h-9 w-9 text-sm font-medium text-foreground">
+              {contact.avatar_url && (
+                <AvatarImage src={contact.avatar_url} alt={displayName} />
+              )}
+              <AvatarFallback>{displayName.charAt(0).toUpperCase()}</AvatarFallback>
+            </Avatar>
             {/* Solo el nombre — el teléfono vive en la barra de contacto
                 (clic aquí la abre), no pegado al nombre. */}
             <div className="min-w-0">
