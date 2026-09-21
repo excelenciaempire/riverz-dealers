@@ -2,8 +2,6 @@
 
 import { useState } from 'react';
 import {
-  CheckCircle2,
-  Percent,
   ShoppingBag,
   UserRound,
 } from 'lucide-react';
@@ -65,33 +63,7 @@ export function OutcomesDashboard({
           </Button>
         </div>
       )}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          title={t('dashboard.outcomeResolved')}
-          value={data ? fmt.number(data.verified) : '—'}
-          icon={CheckCircle2}
-          subtitle={t('dashboard.outcomeResolvedSub')}
-        />
-        <MetricCard
-          title={t('dashboard.outcomeRate')}
-          value={
-            data?.rate != null
-              ? fmt.number(data.rate, {
-                  style: 'percent',
-                  maximumFractionDigits: 0,
-                })
-              : '—'
-          }
-          icon={Percent}
-          subtitle={
-            data
-              ? t('dashboard.outcomeRateSub', {
-                  n: fmt.number(data.verified),
-                  total: fmt.number(data.attended),
-                })
-              : undefined
-          }
-        />
+      <div className="grid gap-4 sm:grid-cols-2">
         <MetricCard
           title={t('dashboard.outcomePending')}
           value={data ? fmt.number(pending.length) : '—'}

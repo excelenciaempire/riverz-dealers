@@ -256,10 +256,10 @@ export function PanelDashboard() {
         onRefresh={() => refresh(true)}
       />
 
-      <details className="bg-card rounded-xl border p-5">
-        <summary className="cursor-pointer text-sm font-semibold">
+      <section className="bg-card rounded-xl border p-5">
+        <h2 className="text-sm font-semibold">
           {t('dashboard.outcomeActivity')}
-        </summary>
+        </h2>
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {metricsLoading || !metrics ? (
             Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
@@ -316,7 +316,7 @@ export function PanelDashboard() {
             </>
           )}
         </div>
-      </details>
+      </section>
 
       {/* Channel mix — volume per channel over the selected range, y cuánto de
           cada canal tocó la IA. El corte por canal vivía en una segunda tarjeta
