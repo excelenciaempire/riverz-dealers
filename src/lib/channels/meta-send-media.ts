@@ -85,6 +85,7 @@ export async function sendMetaMedia(
   const send = (useHumanAgentTag: boolean): Promise<Response> =>
     post(attachment, useHumanAgentTag);
 
+  let usedHumanAgentTag = false;
   let res = await send(false);
   let detail = res.ok ? "" : await res.text().catch(() => "");
   // Misma red de seguridad que el texto: un humano contestando fuera de la
@@ -101,6 +102,7 @@ export async function sendMetaMedia(
       if (retry.ok) {
         res = retry;
         detail = "";
+        usedHumanAgentTag = true;
       } else {
         console.error(
           `[${channel}] fallback HUMAN_AGENT rechazado (${retry.status}):`,
@@ -126,7 +128,10 @@ export async function sendMetaMedia(
   const caption = input.caption?.trim();
   if (caption) {
     try {
-      const capRes = await post({ text: caption }, false);
+      // If the attachment needed HUMAN_AGENT, its caption is part of the same
+      // manual reply and needs the same tag. Sending it as RESPONSE would make
+      // Meta accept the image but silently drop the explanatory text.
+      const capRes = await post({ text: caption }, usedHumanAgentTag);
       if (!capRes.ok) {
         console.warn(
           `[${channel}] pie de foto no enviado (${capRes.status}):`,

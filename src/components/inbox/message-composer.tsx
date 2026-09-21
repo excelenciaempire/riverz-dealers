@@ -20,6 +20,10 @@ import { useT } from "@/hooks/use-locale";
 import { useSnippets } from "@/hooks/use-snippets";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import type { Channel } from "@/types";
+import {
+  canUseTemplateLibrary,
+  isOfficialTemplateSend,
+} from "@/lib/inbox/template-channel";
 import { VoiceNoteComposer } from '@/components/voice/voice-note-editor';
 import { supportsVoiceNotes } from '@/lib/voice-notes/channels';
 
@@ -88,7 +92,9 @@ export function MessageComposer({
   // WhatsApp, Instagram y Messenger envían medios por Meta; los correos
   // adjuntan el archivo; Chat web entrega el archivo en el widget. Instagram
   // no acepta documentos por DM. En comentarios y Voz se oculta el clip.
-  // Las plantillas (HSM) son de WhatsApp únicamente.
+  // WhatsApp sends approved HSM templates. In the other written channels the
+  // same library is available as reusable content and is sent as a normal
+  // message supported by that channel.
   const canAttachMedia =
     channel === "whatsapp" ||
     channel === "instagram" ||
@@ -106,7 +112,8 @@ export function MessageComposer({
       : channel === "gmail" || channel === "outlook" || channel === "zoho" || channel === "webchat"
         ? undefined
         : "image/*,video/*,audio/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx";
-  const canUseTemplates = channel === "whatsapp";
+  const canUseOfficialTemplates = isOfficialTemplateSend(channel);
+  const canUseTemplates = canUseTemplateLibrary(channel);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<Array<{ id: string; file: File }>>([]);
@@ -571,12 +578,12 @@ export function MessageComposer({
         <div className="mb-2 flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-600 dark:text-amber-400">
             {t(
-              canUseTemplates
+              canUseOfficialTemplates
                 ? "inbox.sessionExpiredBanner"
                 : "inbox.metaSessionExpiredBanner",
             )}
           </p>
-          {canUseTemplates && (
+          {canUseOfficialTemplates && (
             <Button
               variant="ghost"
               size="sm"
@@ -782,7 +789,7 @@ export function MessageComposer({
           placeholder={
             sessionExpired
               ? t(
-                  canUseTemplates
+                  canUseOfficialTemplates
                     ? "inbox.composerExpiredPlaceholder"
                     : "inbox.metaComposerExpiredPlaceholder",
                 )
@@ -832,13 +839,14 @@ export function MessageComposer({
           )}
         </Button>
 
-        {/* Plantillas aprobadas de WhatsApp (donde WhatsApp pone los stickers). */}
+        {/* Approved on WhatsApp; reusable message content on other channels. */}
         {canUseTemplates && (
           <Button
             variant="ghost"
             size="sm"
             className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
             onClick={onOpenTemplates}
+            disabled={sessionExpired && !canUseOfficialTemplates}
             title={t("inbox.sendTemplate")}
             aria-label={t("inbox.sendTemplate")}
           >

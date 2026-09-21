@@ -19,6 +19,7 @@ import { translate } from "@/lib/i18n/translate";
 import type { Channel, ChannelConnection, Contact, Conversation, Message } from "@/types";
 import { isButtonUrlVariable } from "@/lib/whatsapp/dynamic-links";
 import { emitWebhook } from '@/lib/webhooks/outbound';
+import { metaHumanReplyExpired } from '@/lib/channels/meta-window';
 import {
   CHANNEL_DISCONNECTED_CODE,
   assertConnectionCanSend,
@@ -104,8 +105,8 @@ export async function POST(req: Request): Promise<Response> {
   // A template send carries no free text: the body is rendered by Meta from
   // the approved template + positional params. `text` still arrives as the
   // rendered preview so the thread shows what the customer received.
-  const templateName = body?.template_name?.trim() || null;
-  if (!body?.conversation_id || (!body.text?.trim() && !media && !templateName)) {
+  const requestedTemplateName = body?.template_name?.trim() || null;
+  if (!body?.conversation_id || (!body.text?.trim() && !media && !requestedTemplateName)) {
     return NextResponse.json(
       { error: translate(locale, "errInbox.sendMissingFields") },
       { status: 400 },
@@ -184,6 +185,15 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const channel = (conversation as Conversation).channel;
+  // Approved Meta templates belong to WhatsApp. Other channels can reuse the
+  // rendered content, but it must travel as a regular text/media message.
+  const templateName = channel === "whatsapp" ? requestedTemplateName : null;
+  if (!body.text?.trim() && !media && !templateName) {
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.sendMissingFields") },
+      { status: 400 },
+    );
+  }
   // Outbound media: normalize the upload category to a WhatsApp send type +
   // the messages.content_type CHECK set (voice→audio, sticker→image).
   const mediaSendType: "image" | "video" | "audio" | "document" | null = media
@@ -207,10 +217,10 @@ export async function POST(req: Request): Promise<Response> {
         ? "comment"
         : "text";
 
-  // Instagram y Messenger aplican la misma ventana de 24 h que Meta usa para
-  // mensajes libres. La bandeja ya la muestra, pero el servidor vuelve a
-  // comprobarla por si la pestaña quedó abierta mientras vencía: así no crea
-  // una burbuja fallida por un envío que sabemos que Meta rechazará.
+  // Instagram y Messenger permiten que una persona continúe soporte durante
+  // siete días con HUMAN_AGENT. Este endpoint siempre pertenece a una persona
+  // autenticada; el adapter intenta RESPONSE y, fuera de 24 h, reintenta con
+  // esa etiqueta. Después de siete días Meta sí bloquea el envío.
   if ((channel === "instagram" || channel === "messenger") && !templateName) {
     const { data: lastCustomerMessage } = await admin
       .from("messages")
@@ -220,10 +230,7 @@ export async function POST(req: Request): Promise<Response> {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    const lastAt = lastCustomerMessage?.created_at
-      ? new Date(lastCustomerMessage.created_at).getTime()
-      : 0;
-    if (!lastAt || Date.now() - lastAt >= 24 * 60 * 60 * 1000) {
+    if (metaHumanReplyExpired(channel, lastCustomerMessage?.created_at)) {
       return NextResponse.json(
         {
           error: translate(locale, "inbox.metaSessionExpiredBanner"),

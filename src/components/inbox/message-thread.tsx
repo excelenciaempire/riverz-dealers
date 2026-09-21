@@ -43,6 +43,8 @@ import { MessageComposer } from "./message-composer";
 import { PendingReplyCard } from "./pending-reply-card";
 import { VoiceCallCard } from "./voice-call-view";
 import { TemplatePicker } from "./template-picker";
+import { replyWindowHours } from "@/lib/channels/meta-window";
+import { isOfficialTemplateSend } from "@/lib/inbox/template-channel";
 import { buildReplyPreview } from "./reply-quote";
 import { originLabelKey } from "@/lib/inbox/message-origin";
 import { toast } from "sonner";
@@ -535,7 +537,8 @@ export function MessageThread({
     };
   }, [conversation?.id, conversation?.channel, fetchWithCsrf]);
 
-  // 24-hour session timer
+  // WhatsApp uses the 24 h service window. Instagram and Messenger allow a
+  // manual HUMAN_AGENT reply for seven days, which is what this inbox sends.
   const sessionInfo = useMemo(() => {
     if (!messages.length) return { expired: false, remaining: "" };
 
@@ -546,21 +549,22 @@ export function MessageThread({
 
     if (!lastCustomerMsg) return { expired: true, remaining: t("inbox.noCustomerMessages") };
 
+    const limitHours = replyWindowHours(conversation?.channel ?? "whatsapp");
     const hoursSince = differenceInHours(new Date(), new Date(lastCustomerMsg.created_at));
-    const expired = hoursSince >= 24;
+    const expired = hoursSince >= limitHours;
 
     if (expired) {
       return { expired: true, remaining: t("inbox.sessionExpired") };
     }
 
-    const hoursLeft = 24 - hoursSince;
+    const hoursLeft = limitHours - hoursSince;
     const remaining =
       hoursLeft >= 1
         ? t("inbox.hoursRemaining", { n: Math.floor(hoursLeft) })
         : t("inbox.minutesRemaining", { n: Math.floor(hoursLeft * 60) });
 
     return { expired, remaining };
-  }, [messages, t]);
+  }, [conversation?.channel, messages, t]);
 
   // Store latest callback in a ref so fetchMessages doesn't need to
   // depend on `onMessagesLoaded` — otherwise parent re-renders cause
@@ -1034,6 +1038,7 @@ export function MessageThread({
       if (!conversation) return;
 
       const renderedBody = renderTemplateBody(template.body_text, params);
+      const officialWhatsAppTemplate = isOfficialTemplateSend(conversation.channel);
       const tempId = `temp-${Date.now()}`;
       const localImageUrl = headerImage ? URL.createObjectURL(headerImage) : null;
 
@@ -1042,9 +1047,21 @@ export function MessageThread({
         conversation_id: conversation.id,
         channel: conversation.channel,
         sender_type: "agent",
-        content_type: "template",
+        content_type: officialWhatsAppTemplate
+          ? "template"
+          : headerImage
+            ? "image"
+            : conversation.channel === "gmail" ||
+                conversation.channel === "outlook" ||
+                conversation.channel === "zoho"
+              ? "email"
+              : conversation.channel === "fb_comment" ||
+                  conversation.channel === "ig_comment" ||
+                  conversation.channel === "tiktok_comment"
+                ? "comment"
+                : "text",
         content_text: renderedBody,
-        template_name: template.name,
+        template_name: officialWhatsAppTemplate ? template.name : undefined,
         ...(localImageUrl
           ? {
               media_url: localImageUrl,
@@ -1102,9 +1119,13 @@ export function MessageThread({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             conversation_id: conversation.id,
-            template_name: template.name,
-            template_language: template.language,
-            template_params: params,
+            ...(officialWhatsAppTemplate
+              ? {
+                  template_name: template.name,
+                  template_language: template.language,
+                  template_params: params,
+                }
+              : {}),
             media: uploadedMedia,
             // Rendered preview — what the thread shows for the sent template.
             text: renderedBody,
@@ -1482,22 +1503,24 @@ export function MessageThread({
               <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
             </div>
           </button>
-          {/* Session timer badge — Meta aplica la ventana de 24 h a WhatsApp,
-              Instagram DM y Messenger. Los comentarios y correos no usan esta
-              ventana. Hidden on
+          {/* Session timer badge — WhatsApp uses 24 h; Instagram and Messenger
+              allow manual support for seven days. Hidden on
               the narrowest phones so the name + back arrow keep their room. */}
           {(conversation.channel === "whatsapp" ||
             conversation.channel === "instagram" ||
             conversation.channel === "messenger") && (
             <Badge
               variant="outline"
-              // El reloj no se explica solo: dice cuánto queda de la ventana de
-              // 24 h de WhatsApp, que es lo que separa contestar libre de tener
-              // que mandar una plantilla.
+              // WhatsApp shows its template boundary; Instagram/Messenger show
+              // the seven-day HUMAN_AGENT window for manual inbox replies.
               title={
-                sessionInfo.expired
-                  ? t("inbox.sessionWindowExpiredHint")
-                  : t("inbox.sessionWindowHint")
+                conversation.channel === "whatsapp"
+                  ? sessionInfo.expired
+                    ? t("inbox.sessionWindowExpiredHint")
+                    : t("inbox.sessionWindowHint")
+                  : sessionInfo.expired
+                    ? t("inbox.metaHumanWindowExpiredHint")
+                    : t("inbox.metaHumanWindowHint")
               }
               className={cn(
                 "ml-1 hidden cursor-help gap-1 border-border text-[10px] sm:inline-flex sm:ml-2",
@@ -1953,8 +1976,8 @@ export function MessageThread({
           <span>{t("inbox.channelDisconnectedAlert")}</span>
         </div>
       ) : (
-        /* Meta limita los mensajes libres de WhatsApp, Instagram DM y
-           Messenger a 24 h. Los comentarios, correos y demás canales no. */
+        /* WhatsApp uses a 24 h service window. Instagram and Messenger keep
+           manual support available for seven days. */
         <>
           {/* Respuesta propuesta por un agente que necesita aprobación. */}
           <PendingReplyCard
@@ -1984,6 +2007,7 @@ export function MessageThread({
         open={templateModalOpen}
         onOpenChange={setTemplateModalOpen}
         onSelect={handleSendTemplate}
+        channel={conversation.channel}
       />
     </div>
   );

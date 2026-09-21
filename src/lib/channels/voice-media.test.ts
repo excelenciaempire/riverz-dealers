@@ -44,6 +44,32 @@ describe('voice delivery protocols', () => {
     await expect(sendMetaMedia('messenger', 'sender', input)).rejects.toThrow();
     expect(requests).toHaveLength(1);
   });
+  it('keeps the HUMAN_AGENT tag on the caption after an outside-window media retry', async () => {
+    let attempt = 0;
+    respond(() => {
+      attempt += 1;
+      if (attempt === 1) {
+        return new Response(JSON.stringify({ error: { code: 10, error_subcode: 2018278, message: 'Outside window' } }), { status: 400 });
+      }
+      return json({ message_id: 'mid.template-photo' });
+    });
+    await sendMetaMedia('instagram', 'sender', {
+      ...input,
+      channel: 'instagram',
+      allowHumanAgent: true,
+      caption: 'Información de tu pedido',
+    });
+    expect(requests).toHaveLength(3);
+    expect(JSON.parse(String(requests[1].init?.body))).toMatchObject({
+      messaging_type: 'MESSAGE_TAG',
+      tag: 'HUMAN_AGENT',
+    });
+    expect(JSON.parse(String(requests[2].init?.body))).toMatchObject({
+      messaging_type: 'MESSAGE_TAG',
+      tag: 'HUMAN_AGENT',
+      message: { text: 'Información de tu pedido' },
+    });
+  });
   it('attaches MP3 bytes inside a Gmail MIME message', async () => {
     respond(() => json({ id: 'gmail.audio' }));
     await gmailAdapter.sendMedia!({ ...input, channel: 'gmail' });

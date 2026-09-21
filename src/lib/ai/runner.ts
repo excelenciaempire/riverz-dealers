@@ -36,6 +36,7 @@ import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { registrarCalificacion } from '@/lib/inbox/opinion';
+import { resolveHumanAttentionFromCustomerClosure } from '@/lib/inbox/human-attention';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import {
@@ -129,6 +130,7 @@ import { esperaParaEsteTurno } from './ritmo-de-escritura';
 import type { AgentRole } from './roles';
 import { pickByRole, ROLE_BEHAVIOR, roleForInbound } from './roles';
 import { prometeAveriguar } from './salida';
+import { respuestaDeRespaldoParaSaludo } from './saludo-fallback';
 import {
   summarizeContactIfNeeded,
   summarizeConversationIfNeeded,
@@ -162,7 +164,6 @@ import type { AiAgent, AiResponseMode, AiTone } from './types';
 import {
   BURST_MAX_REPLIES,
   BURST_WINDOW_MS,
-  CORTESIA_UNA_VEZ_MS,
   MIN_DEBOUNCE_SECONDS,
   NO_RECIBIDO_VENTANA_MS,
   WEBCHAT_DEBOUNCE_SECONDS,
@@ -358,6 +359,31 @@ export async function runAiAgent(
       benefitPercent: automationContext?.benefit_percent,
       existingOrder: existingOrderRecovery,
     });
+    const purchaseButtonReply = purchaseConfirmationReply({
+      workspaceId: args.workspaceId,
+      language: agent.language,
+      text: textoEntrante,
+      context: automationContext,
+    });
+
+    // A goodbye or a plain thank-you is the end of the pending turn, not a new
+    // problem. Run this before escalation so "No, that's all, thank you" cannot
+    // create a fresh human alert. The classifier reads the full customer burst
+    // and defaults to attending whenever an action or question remains.
+    if (!purchaseButtonReply && recoveryIntent === 'none' &&
+      args.inboundMessage.content_type === 'text' && !args.inboundMessage.media_url &&
+      await sinRespuestaNecesaria(db, {
+        workspaceId: args.workspaceId,
+        conversationId: args.conversation.id,
+        messageId: args.inboundMessage.id,
+        createdAt: args.inboundMessage.created_at,
+        text: textoEntrante,
+        agentKeyEncrypted: agent.api_key_encrypted,
+      })) {
+      await resolveHumanAttentionFromCustomerClosure(db, args.inboundMessage);
+      await logReply(db, agent, args, { status: 'skipped', skip_reason: 'cierre_sin_respuesta' });
+      return;
+    }
     if (
       args.channel !== 'webchat' &&
       containsEscalationKeyword(agent, textoEntrante)
@@ -685,20 +711,6 @@ export async function runAiAgent(
       return;
     }
 
-    const purchaseButtonReply = purchaseConfirmationReply({ workspaceId: args.workspaceId, language: agent.language, text: textoEntrante, context: automationContext });
-    if (!purchaseButtonReply && recoveryIntent === 'none' && args.inboundMessage.content_type === 'text' &&
-      !args.inboundMessage.media_url && await sinRespuestaNecesaria(db, {
-        workspaceId: args.workspaceId,
-        conversationId: args.conversation.id,
-        messageId: args.inboundMessage.id,
-        createdAt: args.inboundMessage.created_at,
-        text: textoEntrante,
-        agentKeyEncrypted: agent.api_key_encrypted,
-      })) {
-      await logReply(db, agent, args, { status: 'skipped', skip_reason: 'cierre_sin_respuesta' });
-      return;
-    }
-
     const deterministicRecoveryReply =
       currentRecoveryButton === 'confirm' && args.workspaceId !== DEUNA_WORKSPACE
         ? recoveryButtonReply(currentRecoveryButton, agent.language)
@@ -906,44 +918,17 @@ export async function runAiAgent(
         genErr
       );
       const lang = (agent.language || 'es').toLowerCase().slice(0, 2);
-      const courtesy: Record<string, string> =
-        args.channel === 'webchat'
-          ? {
-              es: 'No pude responder en este momento. Intenta nuevamente.',
-              en: "I couldn't answer right now. Please try again.",
-              pt: 'Não consegui responder agora. Tente novamente.',
-            }
-          : {
-              es: 'Gracias por tu mensaje 🙌 En un momento te responde una persona de nuestro equipo.',
-              en: 'Thanks for your message 🙌 Someone from our team will get back to you shortly.',
-              pt: 'Obrigado pela sua mensagem 🙌 Em instantes uma pessoa da nossa equipe vai te responder.',
-            };
-      const text = courtesy[lang] ?? courtesy.es;
-      // UNA SOLA VEZ POR CAÍDA.
-      //
-      // La cortesía sale por CADA mensaje entrante, y cuando el proveedor está
-      // caído entran varios: el 2026-08-30, con el saldo agotado, una clienta
-      // recibió "en un momento te responde una persona" DOS VECES en 26
-      // segundos. Repetir la misma disculpa no informa nada nuevo y convierte
-      // una caída en spam — es el mismo mecanismo que el 4 y el 21 de agosto
-      // mandó 995 correos de cortesía cuando se cayó el proveedor de correo.
-      //
-      // Se manda una y se calla. El cliente ya sabe que lo están mirando, y la
-      // conversación ya quedó marcada para una persona por el desenlace.
-      const { data: cortesiaPrevia } = await db
-        .from('messages')
-        .select('id')
-        .eq('conversation_id', args.conversation.id)
-        .eq('content_text', text)
-        .gte(
-          'created_at',
-          new Date(Date.now() - CORTESIA_UNA_VEZ_MS).toISOString()
-        )
-        .limit(1);
-      if (((cortesiaPrevia ?? []) as unknown[]).length > 0) {
-        console.info(
-          `[ia] cortesía ya enviada hace poco en ${args.conversation.id}: no se repite`
-        );
+      const greetingFallback = respuestaDeRespaldoParaSaludo(
+        args.inboundMessage.content_text,
+        lang,
+      );
+      // External channels stay silent on provider failures unless the pending
+      // turn is only a greeting. A greeting has a safe, factual fallback that
+      // keeps the chat moving without guessing why the customer returned.
+      // A generic promise that "a person will reply shortly" is misleading and
+      // was repeated in old threads every time the customer wrote again. The
+      // outcome below still puts the unanswered turn in the review queue.
+      if (args.channel !== 'webchat' && !greetingFallback) {
         await logReply(db, agent, args, {
           status: executionStatus,
           skip_reason: category,
@@ -951,6 +936,12 @@ export async function runAiAgent(
         });
         return;
       }
+      const courtesy: Record<string, string> = {
+        es: 'No pude responder en este momento. Intenta nuevamente.',
+        en: "I couldn't answer right now. Please try again.",
+        pt: 'Não consegui responder agora. Tente novamente.',
+      };
+      const text = greetingFallback ?? courtesy[lang] ?? courtesy.es;
       try {
         const outboundTarget = await resolveAiOutboundTarget(db, args);
         const adapter = getAdapter(args.channel);
@@ -967,14 +958,7 @@ export async function runAiAgent(
           conversation_id: args.conversation.id,
           channel: args.channel,
           sender_type: 'bot',
-          content_type:
-            args.channel === 'gmail' ||
-            args.channel === 'outlook' ||
-            args.channel === 'zoho'
-              ? 'email'
-              : args.channel === 'fb_comment' || args.channel === 'ig_comment'
-                ? 'comment'
-                : 'text',
+          content_type: 'text',
           content_text: text,
           message_id: sendResult.externalMessageId,
           status: sendResult.status ?? 'sent',
@@ -996,9 +980,8 @@ export async function runAiAgent(
         console.error('[ai] courtesy send failed:', sendErr);
       }
       await logReply(db, agent, args, {
-        status: executionStatus,
-        skip_reason: category,
-        error,
+        status: greetingFallback ? 'sent' : executionStatus,
+        ...(greetingFallback ? {} : { skip_reason: category, error }),
       });
       return;
     }

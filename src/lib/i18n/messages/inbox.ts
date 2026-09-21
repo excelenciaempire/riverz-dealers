@@ -66,8 +66,8 @@ export const inbox = {
     en: "The assistant couldn't answer this message. Reply yourself.",
   },
   needsHumanIaCaida: {
-    es: "Le dijimos que en un momento le responde una persona: el asistente no pudo. Cumple esa promesa.",
-    en: "We told them a person would reply shortly and the assistant couldn't. Make good on it.",
+    es: "El asistente no pudo responder este mensaje. Revísalo antes de cerrar el chat.",
+    en: "The assistant couldn't answer this message. Review it before closing the chat.",
   },
 
   needsHumanSinModerar: {
@@ -352,8 +352,16 @@ export const inbox = {
     en: "The 24-hour session has expired. Use a template.",
   },
   metaSessionExpiredBanner: {
-    es: "Pasaron 24 horas. Espera a que el cliente vuelva a escribir.",
-    en: "The 24-hour window has passed. Wait for the customer to write again.",
+    es: "Meta cerró la ventana de respuesta humana. Espera a que el cliente vuelva a escribir.",
+    en: "Meta's human reply window has closed. Wait for the customer to write again.",
+  },
+  metaHumanWindowHint: {
+    es: "Tiempo disponible para que una persona responda desde la bandeja.",
+    en: "Time available for a person to reply from the inbox.",
+  },
+  metaHumanWindowExpiredHint: {
+    es: "Meta cerró la ventana de respuesta humana de 7 días.",
+    en: "Meta's 7-day human reply window has closed.",
   },
   templates: { es: "Plantillas", en: "Templates" },
   quickSnippets: { es: "Atajos rápidos", en: "Quick snippets" },
@@ -597,6 +605,33 @@ export const inbox = {
   templateImageTypeError: {
     es: "Usa una imagen JPG o PNG",
     en: "Use a JPG or PNG image",
+  },
+  templateImageDrop: {
+    es: "Arrastra una imagen aquí",
+    en: "Drag an image here",
+  },
+  templateImageDropActive: {
+    es: "Suelta la imagen aquí",
+    en: "Drop the image here",
+  },
+  templateImagePaste: {
+    es: "También puedes pegarla desde el portapapeles",
+    en: "You can also paste it from the clipboard",
+  },
+  templateImageSelect: { es: "Seleccionar imagen", en: "Select image" },
+  templateImageRequirements: {
+    es: "JPG o PNG · máximo 25 MB",
+    en: "JPG or PNG · up to 25 MB",
+  },
+  templateImageChange: { es: "Cambiar", en: "Change" },
+  templateImageRemove: { es: "Quitar imagen", en: "Remove image" },
+  templateCustomTextLabel: {
+    es: "Texto personalizado",
+    en: "Custom text",
+  },
+  templateCustomTextNumberedLabel: {
+    es: "Texto personalizado {n}",
+    en: "Custom text {n}",
   },
   templateCategoryUtility: { es: "Servicio", en: "Utility" },
   templateCategoryMarketing: { es: "Marketing", en: "Marketing" },

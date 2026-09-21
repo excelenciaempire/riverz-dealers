@@ -13,9 +13,8 @@ import type { NeedsHumanReason } from '@/types'
  *
  *   - `empty_reply`: el modelo no devolvió texto. Nadie contestó y nadie se
  *     enteró.
- *   - `ai_no_credit` / `ai_upstream` / `ai_error`: se le manda al cliente "en un
- *     momento te responde una persona" y NO se marcaba para ninguna persona.
- *     Prometer y no cumplir es peor que callarse.
+ *   - `ai_no_credit` / `ai_upstream` / `ai_error`: nadie contestó y NO se
+ *     marcaba para ninguna persona.
  *   - `tool_loop_truncated_fallback`: sale un "no pude completar la consulta"
  *     genérico y el registro decía `sent`, como una respuesta cualquiera.
  *
@@ -117,10 +116,10 @@ export const POLITICA = {
     'salió el mensaje genérico, no la respuesta',
     false,
   ),
-  ai_no_credit: ESCALA('ia_caida', 'sin saldo: se prometió una persona', false),
-  ai_rate_limited: ESCALA('ia_caida', 'el proveedor frenó: se prometió una persona', false),
-  ai_upstream: ESCALA('ia_caida', 'el proveedor falló: se prometió una persona', false),
-  ai_error: ESCALA('ia_caida', 'error del modelo: se prometió una persona', false),
+  ai_no_credit: ESCALA('ia_caida', 'sin saldo: el mensaje quedó sin respuesta', false),
+  ai_rate_limited: ESCALA('ia_caida', 'el proveedor frenó: el mensaje quedó sin respuesta', false),
+  ai_upstream: ESCALA('ia_caida', 'el proveedor falló: el mensaje quedó sin respuesta', false),
+  ai_error: ESCALA('ia_caida', 'error del modelo: el mensaje quedó sin respuesta', false),
   // El catch de afuera del runner: se rompió algo que no estaba previsto y ni
   // siquiera salió el mensaje de cortesía. Es el peor caso —el cliente escribió
   // y no recibió NADA— y era el único que no dejaba ni un `skip_reason`.
