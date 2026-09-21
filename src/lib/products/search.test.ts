@@ -86,6 +86,52 @@ describe('searchProducts', () => {
     expect(hit.image).toBe('https://cdn/x.jpg');
   });
 
+  it('entrega una foto real por color disponible', async () => {
+    const [hit] = await searchProducts(
+      db([
+        producto({
+          raw: {
+            status: 'active',
+            published_at: '2026-09-08T22:51:03-04:00',
+            options: [{ name: 'Color' }],
+            variants: [
+              {
+                id: 1,
+                option1: 'Blanco',
+                image_id: 11,
+                inventory_management: 'shopify',
+                inventory_quantity: 3,
+              },
+              {
+                id: 2,
+                option1: 'Negro',
+                image_id: 12,
+                inventory_management: 'shopify',
+                inventory_quantity: 2,
+              },
+              {
+                id: 3,
+                option1: 'Blanco',
+                image_id: 11,
+                inventory_management: 'shopify',
+                inventory_quantity: 1,
+              },
+            ],
+            images: [
+              { id: 11, src: 'https://cdn.test/blanco.jpg' },
+              { id: 12, src: 'https://cdn.test/negro.jpg' },
+            ],
+          },
+        }),
+      ]),
+      { workspaceId: 'w', query: 'serum' },
+    );
+    expect(hit.visual_options).toEqual([
+      { label: 'Blanco', image: 'https://cdn.test/blanco.jpg' },
+      { label: 'Negro', image: 'https://cdn.test/negro.jpg' },
+    ]);
+  });
+
   it('pone primero el título exacto', async () => {
     const hits = await searchProducts(
       db([

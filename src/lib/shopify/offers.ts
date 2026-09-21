@@ -16,17 +16,17 @@ export async function resolveOfferChosen(
   admin: SupabaseClient,
   workspaceId: string,
   order: Record<string, unknown>,
-): Promise<{ label: string; units: number }> {
+): Promise<{ label: string; units: number; entitledUnits?: number }> {
   const lineItems = Array.isArray(order.line_items)
     ? (order.line_items as Record<string, unknown>[])
     : []
   const totalUnits = lineItems.reduce(
-    (sum, li) => sum + (Number(li.quantity) || 0),
+    (sum, li) => sum + unitsActivas(li),
     0,
   )
   if (totalUnits <= 0) return { label: '', units: 0 }
 
-  const candidates: { label: string; units: number }[] = []
+  const candidates: { label: string; units: number; total?: number }[] = []
 
   // 1) Per-product offers (allowed_offers with `units`) for the products in
   //    the order. external_id = Shopify product_id.
@@ -53,7 +53,11 @@ export async function resolveOfferChosen(
       for (const o of offers) {
         const units = Number(o?.units)
         if (Number.isFinite(units) && units > 0)
-          candidates.push({ label: String(o?.label ?? ''), units })
+          candidates.push({
+            label: String(o?.label ?? ''),
+            units,
+            total: precioOferta(o?.total),
+          })
       }
     }
   }
@@ -73,12 +77,34 @@ export async function resolveOfferChosen(
     for (const o of offers) {
       const units = Number(o?.qty)
       if (Number.isFinite(units) && units > 0)
-        candidates.push({ label: String(o?.label ?? ''), units })
+        candidates.push({
+          label: String(o?.label ?? ''),
+          units,
+          total: precioOferta(o?.total),
+        })
     }
   }
 
-  const match = candidates.find((c) => c.units === totalUnits && c.label)
-  return { label: match?.label ?? '', units: totalUnits }
+  const orderTotal = precioOferta(order.current_total_price ?? order.total_price)
+  const entitlement =
+    orderTotal == null
+      ? null
+      : candidates
+          .filter(
+            (candidate) =>
+              candidate.label &&
+              candidate.total != null &&
+              Math.abs(candidate.total - orderTotal) < 0.01,
+          )
+          .sort((a, b) => b.units - a.units)[0] ?? null
+  const match = entitlement ?? candidates.find((c) => c.units === totalUnits && c.label)
+  return {
+    label: match?.label ?? '',
+    units: totalUnits,
+    ...(entitlement && entitlement.units > totalUnits
+      ? { entitledUnits: entitlement.units }
+      : {}),
+  }
 }
 
 /**
@@ -136,7 +162,7 @@ export function resolveOfferFromConfig(
     ? (order.line_items as Record<string, unknown>[])
     : []
   const totalUnits = lineItems.reduce(
-    (sum, li) => sum + (Number(li.quantity) || 0),
+    (sum, li) => sum + unitsActivas(li),
     0,
   )
   if (totalUnits <= 0) return { label: '', units: 0 }
@@ -157,4 +183,31 @@ export function resolveOfferFromConfig(
   }
   const match = candidates.find((c) => c.units === totalUnits && c.label)
   return { label: match?.label ?? '', units: totalUnits }
+}
+
+/** Shopify conserva las líneas eliminadas después de editar un pedido. */
+function unitsActivas(lineItem: Record<string, unknown>): number {
+  const raw = lineItem.current_quantity ?? lineItem.quantity
+  const units = Number(raw)
+  return Number.isFinite(units) && units > 0 ? units : 0
+}
+
+function precioOferta(raw: unknown): number | undefined {
+  if (typeof raw === 'number') return Number.isFinite(raw) && raw >= 0 ? raw : undefined
+  if (typeof raw !== 'string') return undefined
+  const normalized = raw.trim().replace(/[^\d.,-]/g, '')
+  if (!normalized) return undefined
+  let value = normalized
+  if (value.includes(',') && value.includes('.')) {
+    value =
+      value.lastIndexOf(',') > value.lastIndexOf('.')
+        ? value.replace(/\./g, '').replace(',', '.')
+        : value.replace(/,/g, '')
+  } else if (value.includes(',')) {
+    value = /,\d{1,2}$/.test(value) ? value.replace(',', '.') : value.replace(/,/g, '')
+  } else if ((value.match(/\./g) ?? []).length > 1 || /\.\d{3}$/.test(value)) {
+    value = value.replace(/\./g, '')
+  }
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
 }

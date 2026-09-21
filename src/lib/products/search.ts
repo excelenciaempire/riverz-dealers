@@ -40,6 +40,8 @@ export interface ProductHit {
   variant_id: string | null;
   /** Todas las variantes publicadas y su disponibilidad; nunca sólo la primera. */
   variants: CatalogVariant[];
+  /** Una foto real por opción visual principal (por ejemplo, cada color). */
+  visual_options: Array<{ label: string; image: string }>;
   /** Recorte de la descripción, para que el modelo sepa de qué se trata. */
   summary: string;
   /**
@@ -74,8 +76,15 @@ interface Row {
     status?: unknown;
     published_at?: unknown;
     options?: unknown;
-    variants?: Array<{ id?: number | string }>;
-    images?: Array<{ src?: string }>;
+    variants?: Array<{
+      id?: number | string;
+      option1?: unknown;
+      image_id?: unknown;
+      inventory_management?: unknown;
+      inventory_policy?: unknown;
+      inventory_quantity?: unknown;
+    }>;
+    images?: Array<{ id?: unknown; src?: string; alt?: unknown }>;
   } | null;
   /** La fila que manda cuando el producto se vende en varias plataformas. */
   master_id?: string | null;
@@ -327,6 +336,7 @@ export async function searchProducts(
           (f.platform ?? 'shopify') === 'shopify'
             ? shopifyCatalogVariants(f.raw)
             : [],
+        visual_options: visualOptions(f.raw),
         summary: (f.description ?? '')
           .replace(/\s+/g, ' ')
           .trim()
@@ -342,4 +352,31 @@ export async function searchProducts(
         })),
       };
     });
+}
+
+/** Relaciona la primera opción de Shopify con su imagen de variante. */
+function visualOptions(raw: Row['raw']): Array<{ label: string; image: string }> {
+  const variants = Array.isArray(raw?.variants) ? raw.variants : [];
+  const images = Array.isArray(raw?.images) ? raw.images : [];
+  const imageById = new Map(
+    images
+      .filter((image) => image?.id != null && typeof image.src === 'string')
+      .map((image) => [String(image.id), image.src!.trim()]),
+  );
+  const seen = new Set<string>();
+  const options: Array<{ label: string; image: string }> = [];
+  for (const variant of variants) {
+    const label = String(variant.option1 ?? '').trim();
+    const image = imageById.get(String(variant.image_id ?? '')) ?? '';
+    const quantity = Number(variant.inventory_quantity ?? 0);
+    const available =
+      !String(variant.inventory_management ?? '').trim() ||
+      quantity > 0 ||
+      String(variant.inventory_policy ?? '').toLowerCase() === 'continue';
+    const key = label.toLocaleLowerCase();
+    if (!label || !image || !available || seen.has(key)) continue;
+    seen.add(key);
+    options.push({ label, image });
+  }
+  return options.slice(0, 8);
 }

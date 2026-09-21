@@ -3,6 +3,11 @@ import type { OtherStoreContext } from '@/lib/ai/tools';
 import { untrustedContext } from './input-security';
 import { captureCustomerOrder, orderScreenshotMessageId, type OrderScreenshot } from './order-screenshot';
 import { appMediaUrl, MEDIA_BUCKET, signMediaPath, OUTBOUND_SIGNED_TTL_SECONDS } from '../channels/media-url';
+import {
+  productOptionsMessageId,
+  renderProductOptionsImage,
+  type ProductOptionsImage,
+} from '../products/options-image';
 import { purchaseConfirmationReply } from './purchase-confirmation-reply';
 import { enrichConversationEvidence, evidenceText, type EvidenceRow } from './conversation-evidence';
 import { DEUNA_WORKSPACE, ORDER_CONVERSATION_POLICY, orderConversationModel } from './order-conversation-policy';
@@ -47,6 +52,7 @@ import {
 } from '@/lib/operacion/perfil-operativo';
 import { expandirGrupos } from '@/lib/products/agrupar';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import type { ProductHit } from '@/lib/products/search';
 import {
   asksForPrice,
   asksForCurrentOffer,
@@ -1235,6 +1241,62 @@ export async function runAiAgent(
         throw error;
       }
     }
+    for (const visual of reply.productOptions ?? []) {
+      if (!await mayContinueSending()) return;
+      await assertStoredConnectionCanSend(db, outboundTarget.connection.id);
+      const path = `${args.workspaceId}/${args.conversation.id}/product-options-${visual.productId.replace(/[^a-zA-Z0-9_-]/g, '')}-${args.inboundMessage.id}.png`;
+      const uploaded = await db.storage
+        .from(MEDIA_BUCKET)
+        .upload(path, visual.png, { contentType: 'image/png', upsert: true });
+      if (uploaded.error) throw new Error('product_options_upload_failed');
+      const url = await signMediaPath(path, OUTBOUND_SIGNED_TTL_SECONDS);
+      if (!url || !adapter.sendMedia) throw new Error('product_options_media_unavailable');
+      const id = productOptionsMessageId(
+        args.conversation.id,
+        args.inboundMessage.id,
+        visual.productId,
+      );
+      const claim = await db.from('messages').insert({
+        id,
+        conversation_id: args.conversation.id,
+        channel: args.channel,
+        sender_type: 'bot',
+        content_type: 'image',
+        content_text: visual.caption,
+        media_url: appMediaUrl(path),
+        media_type: 'image',
+        media_mime: 'image/png',
+        status: 'sending',
+        origin: 'ai_agent',
+        origin_name: agent.name ?? null,
+      });
+      if (claim.error?.code === '23505') continue;
+      if (claim.error) throw claim.error;
+      try {
+        const sent = await adapter.sendMedia({
+          channel: args.channel,
+          connection: outboundTarget.connection,
+          conversation: args.conversation,
+          contact: args.contact,
+          mediaUrl: url,
+          mediaType: 'image',
+          caption: visual.caption,
+          allowHumanAgent: false,
+        });
+        const saved = await db
+          .from('messages')
+          .update({ message_id: sent.externalMessageId, status: sent.status ?? 'sent' })
+          .eq('id', id);
+        if (saved.error) throw saved.error;
+        insertedIds.push(id);
+      } catch (error) {
+        await db
+          .from('messages')
+          .update({ status: 'failed', error_reason: 'product_options_send_failed' })
+          .eq('id', id);
+        throw error;
+      }
+    }
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       if (!await mayContinueSending()) return;
@@ -2137,6 +2199,7 @@ const TONE_INSTRUCTIONS: Record<AiTone, string> = {
 
 interface ReplyResult {
   screenshots?: OrderScreenshot[];
+  productOptions?: ProductOptionsImage[];
   text: string;
   promptTokens?: number;
   completionTokens?: number;
@@ -3043,6 +3106,8 @@ async function generateReply(
   });
   const screenshots: OrderScreenshot[] = [];
   const screenshotRequests = new Map<string, Promise<void>>();
+  const productOptions: ProductOptionsImage[] = [];
+  const productOptionRequests = new Map<string, Promise<void>>();
   const routedModel = orderConversationModel({ workspaceId: agent.workspace_id, configuredModel: agent.model || MODELO_POR_DEFECTO, hasOrder: recoveryHasExistingOrder(recoveryContext), messages });
   const opciones = {
     // Mercado Libre no permite consultar pedidos en vivo (comprador
@@ -3077,6 +3142,25 @@ async function generateReply(
                 screenshotRequests.set(key, request);
                 await request;
               } : undefined,
+          queueProductOptions:
+            ['whatsapp', 'instagram', 'messenger'].includes(origen.channel) &&
+            !agent.requires_approval
+              ? async (product: ProductHit) => {
+                  const existing = productOptionRequests.get(product.id);
+                  if (existing) return existing;
+                  if (productOptionRequests.size >= 2) throw new Error('product_options_limit');
+                  const request = renderProductOptionsImage({
+                    productId: product.id,
+                    title: product.title,
+                    options: product.visual_options,
+                    language: agent.language || 'es',
+                  }).then((visual) => {
+                    productOptions.push(visual);
+                  });
+                  productOptionRequests.set(product.id, request);
+                  await request;
+                }
+              : undefined,
           // Las que el comercio puso "con aprobación". La lista la arma el
           // toolbox para que sea la MISMA en el chat y en los comentarios.
           requiereAprobacion: herramientasQueRequierenAprobacion(agent),
@@ -3272,6 +3356,7 @@ async function generateReply(
   return {
     text: trimmed,
     screenshots,
+    productOptions,
     promptTokens: result.promptTokens,
     completionTokens: result.completionTokens,
     cacheReadTokens: result.cacheReadTokens,
@@ -3445,7 +3530,10 @@ async function resolveDefaultVariantId(
 }
 
 export const VARIANT_INTERPRETATION_RULE =
-  'Los nombres de variantes y opciones de Shopify son datos exactos del catálogo. Frases como “para niña” o “para niño” expresan una preferencia del cliente: no son nombres de variante y no autorizan a asociar género con un color o modelo. Compara la petición con todas las variantes reales publicadas y disponibles. Si el cliente no nombra una variante exacta y única, enumera brevemente las opciones disponibles o pregunta cuál prefiere; nunca inventes variantes genéricas. Nunca afirmes que cambiaste la variante de un pedido sin que la operación se haya ejecutado.';
+  'Los nombres de variantes y opciones de Shopify son datos exactos del catálogo. Frases como “para niña”, “para niño”, “para hombre” o “para mujer” expresan una preferencia del cliente: no son nombres de variante, no son colores y no autorizan a asociar género con un color o modelo. Compara la petición con todas las variantes reales publicadas y disponibles. Cuando la elección sea visual (color o modelo) y haya fotos reales, llama buscar_producto con include_images=true y pregunta después de enviar la imagen; no respondas únicamente con una lista de colores. Si no hay imágenes disponibles, enumera brevemente las opciones reales; nunca inventes variantes genéricas ni afirmes que cambiaste un pedido sin que la operación se haya ejecutado.';
+
+export const OFFER_ENTITLEMENT_RULE =
+  'Las ofertas vigentes del catálogo son la verdad comercial. Si el total del pedido coincide con una oferta que entrega más unidades (por ejemplo, paga 1 y lleva 2 al mismo total), el cliente tiene derecho a todas esas unidades: no preguntes si quiere una o dos. Explica brevemente el beneficio y solicita sólo las variantes o tallas que falten. Lee toda la conversación, incluidos audios e imágenes, para reunir la selección final. Cuando el cliente confirme la lista exacta, llama update_order con todos los items, marca free únicamente la unidad gratis y confirmed=true. No envíes el pedido a logística ni digas que quedó corregido hasta que la herramienta confirme el cambio.';
 
 export function buildSystemPrompt(
   agent: AiAgent,
@@ -3917,6 +4005,7 @@ export function buildSystemPrompt(
     }
   }
   lines.push(VARIANT_INTERPRETATION_RULE);
+  lines.push(OFFER_ENTITLEMENT_RULE);
 
   // La tienda, para cuando la consulta no es de un producto concreto. Sale del
   // primer enlace de producto que haya: es el mismo dominio y ahorra una

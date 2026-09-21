@@ -28,8 +28,12 @@ import { type CreateOrderInput, type ShippingAddressInput } from '@/lib/shopify/
 import { crearPedidoConEspejo } from '@/lib/orders/crear'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { enqueueCall } from '@/lib/voice/queue'
-import { addUnitsToFirstLineItem } from '@/lib/shopify/order-edit'
+import {
+  addUnitsToFirstLineItem,
+  replaceUnfulfilledOrderItems,
+} from '@/lib/shopify/order-edit'
 import { searchProducts } from '@/lib/products/search'
+import type { ProductHit } from '@/lib/products/search'
 import { proponerCancelacion, proponerReembolso } from './postventa'
 import { crearLinkDePago } from '@/lib/mercadopago/preference'
 import { emitirCupon } from '@/lib/shopify/discounts'
@@ -92,15 +96,11 @@ export const ESCALATE_TO_CALL_TOOL: Anthropic.Tool = {
   },
 }
 
-/**
- * Tool `update_order` — upsell EN VIVO durante una llamada de confirmación:
- * agrega unidades al pedido existente en Shopify. Sólo se expone en llamadas
- * de confirmación con upsell activo y cuando hay un order_id en contexto.
- */
+/** Edita un pedido únicamente después de confirmar las unidades y variantes. */
 export const UPDATE_ORDER_TOOL: Anthropic.Tool = {
   name: 'update_order',
   description:
-    'Agrega unidades al pedido que la clienta ya hizo, durante la llamada de confirmación, cuando acepta llevar más (upsell). Pasa cuántas unidades sumar. Actualiza el pedido real en Shopify. Llámala una sola vez, sólo cuando la clienta confirmó que quiere las unidades extra.',
+    'Actualiza el pedido real en Shopify después de que el cliente confirmó exactamente qué recibirá. Para corregir una oferta o variantes usa items con los variant_id reales, quantity, free y confirmed=true; esto reemplaza todas las unidades pendientes. Para un upsell simple durante una llamada puedes usar add_units. Llámala una sola vez y nunca antes de la confirmación explícita.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -108,6 +108,33 @@ export const UPDATE_ORDER_TOOL: Anthropic.Tool = {
         type: 'integer',
         minimum: 1,
         description: 'Cuántas unidades extra sumar al pedido.',
+      },
+      items: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 20,
+        description:
+          'Lista final y completa de variantes confirmadas. Reemplaza las unidades aún no despachadas del pedido.',
+        items: {
+          type: 'object',
+          properties: {
+            variant_id: {
+              type: 'string',
+              description: 'ID real de la variante de Shopify devuelto por el catálogo.',
+            },
+            quantity: { type: 'integer', minimum: 1, maximum: 20 },
+            free: {
+              type: 'boolean',
+              description: 'True sólo si esta unidad está cubierta gratis por una oferta vigente.',
+            },
+          },
+          required: ['variant_id', 'quantity'],
+        },
+      },
+      confirmed: {
+        type: 'boolean',
+        description:
+          'Debe ser true para reemplazar variantes: confirma que el cliente aceptó esta lista exacta.',
       },
       order_number: {
         type: 'string',
@@ -119,7 +146,7 @@ export const UPDATE_ORDER_TOOL: Anthropic.Tool = {
         description: 'Nota corta del upsell (opcional).',
       },
     },
-    required: ['add_units'],
+    required: [],
   },
 }
 
@@ -201,6 +228,11 @@ export const BUSCAR_PRODUCTO_TOOL: Anthropic.Tool = {
         minimum: 1,
         maximum: 10,
         description: 'Cuántos traer (por defecto 6). Pide pocos: es un chat, no un listado.',
+      },
+      include_images: {
+        type: 'boolean',
+        description:
+          'Usa true cuando el cliente necesita escoger o comparar colores/modelos visuales. El sistema enviará una sola imagen con las opciones reales disponibles; no las describas únicamente por texto.',
       },
     },
     required: ['query'],
@@ -877,6 +909,7 @@ function instruccionNoEncontrado(usado: { numero?: string; phone?: string; email
 
 export interface LocalOrdersContext {
   queueOrderScreenshot?: (orderNumber: string) => Promise<void>
+  queueProductOptions?: (product: ProductHit) => Promise<void>
   db: SupabaseClient
   workspaceId: string
   contactId: string
@@ -1131,7 +1164,11 @@ export async function runTool(
         message: 'No puedo buscar en el catálogo en esta conversación.',
       })
     }
-    const input = (toolInput ?? {}) as { query?: string; limit?: number }
+    const input = (toolInput ?? {}) as {
+      query?: string
+      limit?: number
+      include_images?: boolean
+    }
     const hits = await searchProducts(localOrders.db, {
       workspaceId: localOrders.workspaceId,
       query: String(input.query ?? ''),
@@ -1149,7 +1186,31 @@ export async function runTool(
           'No hay productos que coincidan. Dile con honestidad que no lo tienes y ofrece buscar otra cosa. NO inventes un producto ni un precio.',
       })
     }
-    return JSON.stringify({ found: true, products: hits })
+    let images: 'queued_with_reply' | 'unavailable' | undefined
+    if (input.include_images) {
+      const visual = hits.find((hit) => hit.visual_options.length >= 2)
+      if (!visual || !localOrders.queueProductOptions || localOrders.simulacion) {
+        images = 'unavailable'
+      } else {
+        try {
+          await localOrders.queueProductOptions(visual)
+          images = 'queued_with_reply'
+        } catch {
+          images = 'unavailable'
+        }
+      }
+    }
+    return JSON.stringify({
+      found: true,
+      products: hits,
+      images,
+      instruction:
+        images === 'unavailable'
+          ? 'No se pudo preparar la imagen. Enumera las opciones reales por texto y no afirmes que enviaste una foto.'
+          : images === 'queued_with_reply'
+            ? 'La imagen comparativa se enviará con tu respuesta. Haz una sola pregunta para que el cliente elija; no repitas una lista larga de colores.'
+            : undefined,
+    })
   }
 
   if (toolName === 'ofrecer_descuento') {
@@ -1424,6 +1485,8 @@ export async function runTool(
       add_units?: number
       reason?: string
       order_number?: string
+      confirmed?: boolean
+      items?: Array<{ variant_id?: string; quantity?: number; free?: boolean }>
     }
     // En una llamada el pedido viene fijado por el bridge de voz, y ahí llega
     // el id interno de Shopify. Por chat el modelo sólo puede decir el número
@@ -1472,6 +1535,126 @@ export async function runTool(
           message: `No encontré el pedido ${numero} a nombre de esta persona. Pídele que verifique el número.`,
         })
       }
+    }
+    if (Array.isArray(input.items) && input.items.length > 0) {
+      if (input.confirmed !== true) {
+        return JSON.stringify({
+          error: 'confirmation_required',
+          message:
+            'Todavía no edites el pedido. Confirma con el cliente la lista exacta de variantes y tallas; después vuelve a llamar esta herramienta con confirmed=true.',
+        })
+      }
+      if (!localOrders) {
+        return JSON.stringify({
+          error: 'no_catalog_context',
+          message: 'No puedo validar las variantes de este pedido en esta conversación.',
+        })
+      }
+      const items = input.items.map((item) => ({
+        variantId: String(item.variant_id ?? '').replace(/\D/g, ''),
+        quantity: Math.floor(Number(item.quantity)),
+        free: item.free === true,
+      }))
+      if (
+        items.some(
+          (item) =>
+            !item.variantId ||
+            !Number.isFinite(item.quantity) ||
+            item.quantity <= 0 ||
+            item.quantity > 20,
+        )
+      ) {
+        return JSON.stringify({
+          error: 'invalid_items',
+          message: 'La lista final contiene una variante o cantidad inválida.',
+        })
+      }
+      const { data: catalog, error: catalogError } = await localOrders.db
+        .from('shopify_products')
+        .select('id,title,raw,allowed_offers')
+        .eq('workspace_id', localOrders.workspaceId)
+        .eq('platform', 'shopify')
+      if (catalogError) {
+        return JSON.stringify({ error: 'catalog_unavailable', message: 'No pude validar el catálogo.' })
+      }
+      const knownVariants = new Set<string>()
+      const offers: Array<{ label: string; conditions: string; units: number }> = []
+      for (const product of catalog ?? []) {
+        const row = product as Record<string, unknown>
+        const raw = row.raw as { variants?: Array<{ id?: string | number }> } | null
+        for (const variant of Array.isArray(raw?.variants) ? raw.variants : []) {
+          if (variant?.id != null) knownVariants.add(String(variant.id).replace(/\D/g, ''))
+        }
+        for (const offer of Array.isArray(row.allowed_offers)
+          ? (row.allowed_offers as Record<string, unknown>[])
+          : []) {
+          const units = Number(offer?.units)
+          if (Number.isFinite(units) && units > 0) {
+            offers.push({
+              label: String(offer?.label ?? ''),
+              conditions: String(offer?.conditions ?? ''),
+              units,
+            })
+          }
+        }
+      }
+      const unknown = items.map((item) => item.variantId).filter((id) => !knownVariants.has(id))
+      if (unknown.length) {
+        return JSON.stringify({
+          error: 'unknown_variants',
+          variant_ids: unknown,
+          message:
+            'Una o más variantes no pertenecen al catálogo actual. Vuelve a consultar el producto; no inventes IDs.',
+        })
+      }
+      const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0)
+      const hasFreeItems = items.some((item) => item.free)
+      const freeOffer = offers.some(
+        (offer) =>
+          offer.units === totalUnits &&
+          /gratis|free|2\s*[x×]\s*1|ll[eé]vate\s*2|segund[oa]/i.test(
+            `${offer.label} ${offer.conditions}`,
+          ),
+      )
+      if (hasFreeItems && !freeOffer) {
+        return JSON.stringify({
+          error: 'offer_not_allowed',
+          message:
+            'El catálogo no tiene una oferta vigente que autorice unidades gratis para esa cantidad. No edites ni prometas el regalo.',
+        })
+      }
+      const result = await replaceUnfulfilledOrderItems(
+        {
+          shopDomain: shopify.shopDomain,
+          accessToken: shopify.accessToken,
+          apiVersion: shopify.apiVersion,
+        },
+        pedido,
+        items,
+        String(input.reason || 'Variantes y oferta confirmadas por el cliente').slice(0, 255),
+      )
+      if (!result.ok && result.error === 'missing_scope') {
+        return JSON.stringify({
+          error: 'missing_scope',
+          scope: result.scope,
+          message:
+            'La tienda no dio permiso para editar pedidos. No afirmes que quedó corregido; avisa que una persona debe revisarlo.',
+        })
+      }
+      if (!result.ok) {
+        return JSON.stringify({
+          error: 'update_failed',
+          detail: result.error,
+          message:
+            'No pude corregir el pedido. No afirmes que quedó listo ni lo envíes a logística.',
+        })
+      }
+      return JSON.stringify({
+        ok: true,
+        items: result.items,
+        message:
+          'Pedido corregido con las variantes confirmadas. Ya puedes resumir exactamente las referencias y tallas que quedaron.',
+      })
     }
     const addUnits = Math.floor(Number(input.add_units))
     if (!Number.isFinite(addUnits) || addUnits <= 0) {
