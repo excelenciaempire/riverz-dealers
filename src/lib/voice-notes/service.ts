@@ -1,3 +1,4 @@
+import { resolveHumanAttention } from '@/lib/inbox/human-attention';
 import { randomUUID } from 'crypto';
 import { parseBuffer } from 'music-metadata';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
@@ -283,6 +284,7 @@ export async function sendVoiceNote(args: {
     .select('*')
     .single();
   if (error) throw new Error('voiceNotes.sentNotSaved');
+  await resolveHumanAttention(db, message);
   await db
     .from('conversations')
     .update({

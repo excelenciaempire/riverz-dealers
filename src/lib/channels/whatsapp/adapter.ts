@@ -1,3 +1,4 @@
+import { resolveHumanAttention } from '@/lib/inbox/human-attention';
 import type {
   ChannelAdapter,
   InboundEvent,
@@ -600,11 +601,14 @@ async function handleWhatsappStatuses(
       patch.delivery_unconfirmed_at = null;
       patch.held_for_quality = false;
     }
-    await db
+    const { data: updatedMessage } = await db
       .from("messages")
       .update(patch)
       .eq("id", fila.id)
-      .in("status", anteriores);
+      .in("status", anteriores)
+      .select('conversation_id,created_at,sender_type,status,origin,held_for_quality')
+      .maybeSingle();
+    await resolveHumanAttention(db, updatedMessage);
   }
 }
 

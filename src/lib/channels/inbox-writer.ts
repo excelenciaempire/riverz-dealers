@@ -1,3 +1,4 @@
+import { resolveHumanAttention } from '@/lib/inbox/human-attention';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Channel,
@@ -378,6 +379,8 @@ export async function ingestInboundEvent(
     console.error("[inbox-writer] insert message failed:", error);
     return null;
   }
+
+  await resolveHumanAttention(db, message);
 
   // 4. Comment metadata sidecar — and resolve ad_id by joining against
   //    the ad_posts cache (populated by the Marketing API sync cron).

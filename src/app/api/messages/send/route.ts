@@ -1,3 +1,4 @@
+import { resolveHumanAttention } from '@/lib/inbox/human-attention';
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdapter } from "@/lib/channels/registry";
@@ -437,6 +438,8 @@ export async function POST(req: Request): Promise<Response> {
     })
     .select()
     .single();
+
+  await resolveHumanAttention(admin, message);
 
   // Guardar el wa_id normalizado que devolvió Meta sobre el contacto (identidad
   // real; el "+54 9" argentino resuelve al mismo wa_id con o sin el 9).
