@@ -306,8 +306,8 @@ export const PREGUNTAS_ESCALADA = {
       inspect: ['`ultimo_mensaje`', '`conversacion`'],
     },
     criteria: {
-      true: 'Cambiar la dirección, la cantidad o el producto de un pedido ya hecho; mandarlo a una sucursal o punto de retiro; coordinar día u horario de entrega; una excepción a la política; un precio, descuento o reembolso fuera de lo ofrecido; combinar pedidos; adelantar una entrega.',
-      false: 'Preguntas normales, elegir producto o medio de pago antes de comprar, pedir el seguimiento, preguntar cuánto tarda o cuánto cuesta.',
+      true: 'Un cambio concreto ya aclarado y confirmado que el asistente no puede ejecutar en un pedido existente; mandarlo a una sucursal o punto de retiro; coordinar día u horario de entrega; una excepción a la política; un precio, descuento o reembolso fuera de lo ofrecido; combinar pedidos; adelantar una entrega.',
+      false: 'Pulsar CORREGIR sin indicar el dato; dudas sobre lo que compró; pedir ver referencias o comparar dos pedidos; aclarar colores, tallas o cantidades antes de confirmar cuál conservar; preguntas normales, elegir producto o medio de pago antes de comprar, pedir el seguimiento, preguntar cuánto tarda o cuánto cuesta.',
     },
   },
   pago_por_confirmar: {
@@ -574,6 +574,8 @@ export async function detectarEscalada(
 ): Promise<Escalada | null> {
   const dura = señalDura(ctx.mensaje);
   if (dura) return dura;
+  // A correction button carries no change details. Ask before classifying.
+  if (/^(corregir|correct)$/i.test(ctx.mensaje.trim())) return null;
   const pago = pagoAsistido(ctx);
   if (pago) return pago;
   // Elegir transferencia antes de comprar es una preferencia de pago, no un

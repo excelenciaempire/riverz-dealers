@@ -3,6 +3,12 @@ import { detectarEscalada, señalDura } from './escalada'
 import { textoDelAviso } from './aviso-escalada'
 
 describe('señalDura', () => {
+  it('asks what to correct before escalating an existing order', async () => {
+    for (const mensaje of ['CORREGIR', ' correct ']) {
+      await expect(detectarEscalada({ mensaje, hayPedido: true, hilo: [], db: {} as never, workspaceId: 'w1' })).resolves.toBeNull();
+    }
+    await expect(detectarEscalada({ mensaje: 'CORREGIR, quiero hablar con una persona', hayPedido: true, hilo: [], db: {} as never, workspaceId: 'w1' })).resolves.toMatchObject({ clase: 'pide_persona' });
+  });
   it('caza lo que no puede esperar', () => {
     expect(señalDura('esto es una estafa, voy a hablar con mi abogado')?.clase).toBe('legal')
     expect(señalDura('voy a hacer la denuncia en defensa del consumidor')?.clase).toBe('legal')

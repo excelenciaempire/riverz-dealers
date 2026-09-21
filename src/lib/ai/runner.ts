@@ -1,5 +1,7 @@
 import type { OtherStoreContext } from '@/lib/ai/tools';
 import { untrustedContext } from './input-security';
+import { captureCustomerOrder, orderScreenshotMessageId, type OrderScreenshot } from './order-screenshot';
+import { appMediaUrl, MEDIA_BUCKET, signMediaPath, OUTBOUND_SIGNED_TTL_SECONDS } from '../channels/media-url';
 import { purchaseConfirmationReply } from './purchase-confirmation-reply';
 import {
   esCanalDeComentarios,
@@ -1199,6 +1201,39 @@ export async function runAiAgent(
     const outboundTarget = await resolveAiOutboundTarget(db, args);
     const adapter = getAdapter(args.channel);
     const insertedIds: string[] = [];
+    for (const shot of reply.screenshots ?? []) {
+      const current = await db.from('conversations').select('ai_enabled,assigned_agent_id,status').eq('id', args.conversation.id).maybeSingle();
+      if (current.error || !current.data || !current.data.ai_enabled || current.data.status === 'closed' || current.data.assigned_agent_id !== freshConv?.assigned_agent_id) return;
+      const newer = await db.from('messages').select('id').eq('conversation_id', args.conversation.id).eq('sender_type', 'customer').gt('created_at', args.inboundMessage.created_at).limit(1);
+      if (newer.error || newer.data?.length) return;
+      await assertStoredConnectionCanSend(db, outboundTarget.connection.id);
+      const path = args.workspaceId + '/' + args.conversation.id + '/order-' + shot.order.replace(/[^0-9]/g, '') + '-' + args.inboundMessage.id + '.png';
+      const uploaded = await db.storage.from(MEDIA_BUCKET).upload(path, shot.png, { contentType: 'image/png', upsert: true });
+      if (uploaded.error) throw new Error('order_screenshot_upload_failed');
+      const url = await signMediaPath(path, OUTBOUND_SIGNED_TTL_SECONDS);
+      if (!url || !adapter.sendMedia) throw new Error('order_screenshot_media_unavailable');
+      // Reserve before sending: an uncertain Meta timeout must not duplicate a photo.
+      const id = orderScreenshotMessageId(args.conversation.id, args.inboundMessage.id, shot.order);
+      const claim = await db.from('messages').insert({
+        id, conversation_id: args.conversation.id, channel: args.channel, sender_type: 'bot', content_type: 'image',
+        content_text: shot.caption, media_url: appMediaUrl(path), media_type: 'image', media_mime: 'image/png',
+        status: 'sending', origin: 'ai_agent', origin_name: agent.name ?? null,
+      });
+      if (claim.error?.code === '23505') continue;
+      if (claim.error) throw claim.error;
+      try {
+        const sent = await adapter.sendMedia({
+          channel: args.channel, connection: outboundTarget.connection, conversation: args.conversation, contact: args.contact,
+          mediaUrl: url, mediaType: 'image', caption: shot.caption, allowHumanAgent: false,
+        });
+        const saved = await db.from('messages').update({ message_id: sent.externalMessageId, status: sent.status ?? 'sent' }).eq('id', id);
+        if (saved.error) throw saved.error;
+        insertedIds.push(id);
+      } catch (error) {
+        await db.from('messages').update({ status: 'failed', error_reason: 'order_screenshot_send_failed' }).eq('id', id);
+        throw error;
+      }
+    }
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       // Recheck every chunk: disconnecting while the model was composing (or
@@ -2099,6 +2134,7 @@ const TONE_INSTRUCTIONS: Record<AiTone, string> = {
 };
 
 interface ReplyResult {
+  screenshots?: OrderScreenshot[];
   text: string;
   promptTokens?: number;
   completionTokens?: number;
@@ -2817,7 +2853,9 @@ async function generateReply(
   // "One brain": on Instagram, feed the reactive agent the same per-person
   // context the proactive engine uses (segment, persona, follow relationship,
   // live campaign + offer) so it never answers an enriched person blind.
-  const extras: string[] = [];
+  const extras: string[] = [
+    'Ante dudas sobre un pedido existente, consulta lookup_order y aclara antes de escalar. Si necesita ver colores, tallas o comparar pedidos, solicita include_screenshot con cada número concreto. No asumas que el último pedido reemplaza al primero. Pregunta cuál conservar y confirma referencias, cantidades y tallas con una pregunta concreta; un sí responde solo a la última pregunta inequívoca. No crees otro pedido ni prometas despacho por mostrar una captura. No confundas confirmación del cliente con pago verificado o despacho ejecutado.',
+  ];
   if (contact.channel === 'instagram' || contact.channel === 'ig_comment') {
     const ig = await loadInstagramContext(db, primaryContact.id).catch(
       () => null
@@ -3005,6 +3043,8 @@ async function generateReply(
       ? recoveryCheckoutAllowed(accionRecuperacion)
       : undefined,
   });
+  const screenshots: OrderScreenshot[] = [];
+  const screenshotRequests = new Map<string, Promise<void>>();
   const opciones = {
     // Mercado Libre no permite consultar pedidos en vivo (comprador
     // anonimizado), así que lookup_order cae a lo ya espejado.
@@ -3024,6 +3064,20 @@ async function generateReply(
           channel: origen.channel,
           // De qué productos puede hablar: lo usa `buscar_producto`.
           permitidos,
+          queueOrderScreenshot: shopify && origen.channel === 'whatsapp' && !agent.requires_approval
+            ? async (orderNumber: string) => {
+                const key = orderNumber.replace(/^#/, '');
+                const existing = screenshotRequests.get(key);
+                if (existing) return existing;
+                if (screenshotRequests.size >= 2) throw new Error('screenshot_limit');
+                const request = captureCustomerOrder({
+                  shopDomain: shopify.shopDomain, accessToken: shopify.accessToken, apiVersion: shopify.apiVersion,
+                  customerPhone: shopify.customerPhone ?? undefined, customerEmail: shopify.customerEmail ?? undefined,
+                  orderNumber, language: agent.language || 'es',
+                }).then(shot => { screenshots.push(shot); });
+                screenshotRequests.set(key, request);
+                await request;
+              } : undefined,
           // Las que el comercio puso "con aprobación". La lista la arma el
           // toolbox para que sea la MISMA en el chat y en los comentarios.
           requiereAprobacion: herramientasQueRequierenAprobacion(agent),
@@ -3217,6 +3271,7 @@ async function generateReply(
 
   return {
     text: trimmed,
+    screenshots,
     promptTokens: result.promptTokens,
     completionTokens: result.completionTokens,
     cacheReadTokens: result.cacheReadTokens,

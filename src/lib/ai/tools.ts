@@ -503,6 +503,7 @@ export const LOOKUP_ORDER_TOOL: Anthropic.Tool = {
   input_schema: {
     type: 'object' as const,
     properties: {
+      include_screenshot: { type: 'boolean', description: 'Si duda de referencias, colores o cantidades, usa true con un order_number concreto para adjuntar una captura de sus productos. Para comparar dos pedidos consulta cada número por separado. Solo disponible en WhatsApp automático; no confirma ni despacha pedidos.' },
       order_number: {
         type: 'string',
         description: 'Número de pedido (ej. "1042" o "#1042"). No pongas aquí un teléfono ni un correo.',
@@ -875,6 +876,7 @@ function instruccionNoEncontrado(usado: { numero?: string; phone?: string; email
 }
 
 export interface LocalOrdersContext {
+  queueOrderScreenshot?: (orderNumber: string) => Promise<void>
   db: SupabaseClient
   workspaceId: string
   contactId: string
@@ -1513,6 +1515,7 @@ export async function runTool(
   }
   if (toolName === 'lookup_order') {
     const input = (toolInput ?? {}) as {
+      include_screenshot?: boolean
       order_number?: string
       customer_phone?: string
       customer_email?: string
@@ -1626,7 +1629,15 @@ export async function runTool(
         }),
       })
     }
-    return JSON.stringify(result)
+    let screenshot: string | undefined
+    if (input.include_screenshot) {
+      if (!numero || !localOrders?.queueOrderScreenshot || localOrders.simulacion) screenshot = 'unavailable'
+      else {
+        try { await localOrders.queueOrderScreenshot(numero); screenshot = 'queued_with_reply' }
+        catch { screenshot = 'unavailable' }
+      }
+    }
+    return JSON.stringify({ ...result, screenshot, instruction: screenshot === 'unavailable' ? 'La captura no está disponible. Explica las referencias por texto; no digas que enviaste una imagen.' : undefined })
   }
   if (toolName === 'create_checkout') {
     // Sin Shopify, el link se arma para la tienda que SÍ tenga el comercio.

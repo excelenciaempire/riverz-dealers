@@ -27,6 +27,7 @@ interface ShopifyLineItem {
   quantity: number;
   variant_title?: string | null;
   variant_id?: number | string | null;
+  product_id?: number | string | null;
   properties?: Array<{ name?: string; value?: unknown }>;
 }
 
@@ -74,6 +75,7 @@ export interface OrderSummary {
     quantity: number;
     variant_title: string | null;
     variant_id: string | null;
+    product_id?: string | null;
     properties: Array<{ name: string; value: string }>;
   }>;
   tracking_number: string | null;
@@ -268,6 +270,7 @@ function toSummary(o: ShopifyOrder): OrderSummary {
           ? li.variant_title
           : null,
       variant_id: li.variant_id == null ? null : String(li.variant_id),
+      product_id: li.product_id == null ? null : String(li.product_id),
       properties: (li.properties ?? []).flatMap((property) => {
         const name = String(property.name ?? '').trim();
         const value = String(property.value ?? '').trim();
