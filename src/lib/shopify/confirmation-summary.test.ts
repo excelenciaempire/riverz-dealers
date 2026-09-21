@@ -24,7 +24,7 @@ describe('confirmationSummary', () => {
         },
       })
     ).toEqual({
-      order_items: '2 × Saltarín (Rana); 1 × Otro producto',
+      order_items: '2 × Saltarín (Rana)\n1 × Otro producto',
       delivery_address: 'Calle 1, Apto 2, Cali, Valle',
       delivery_phone: '+573000000000',
       recipient_name: 'Ana Pérez',

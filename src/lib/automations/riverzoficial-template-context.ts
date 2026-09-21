@@ -22,7 +22,7 @@ export async function requireRiverzoficialTemplateItems(
     vars.order_items = confirmationSummary({ line_items: data?.line_items }).order_items;
   }
   const items = String(vars.order_items ?? '').trim();
-  if (!items || items === '—' || /(?:^|;\s*)\d+\s*×\s*—(?:\s*\(|;|$)/.test(items)) {
+  if (!items || items === '—' || /(?:^|[;\n]\s*)\d+\s*×\s*—(?:\s*\(|;|\n|$)/.test(items)) {
     throw new Error('Product-personalized template requires actual order or checkout items');
   }
 }

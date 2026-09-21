@@ -13,7 +13,7 @@ describe('riverzoficial product-personalized templates', () => {
     const {db,query}=fixture({line_items:[{title:'Pelota LED',variant_title:'Rana Verde',quantity:1},{title:'Botella',variant_title:'Azul',quantity:2}]});
     const vars:Record<string,unknown>={checkout_url:'https://shop.test/cart/a',order_items:'Old item',last_product:'Unrelated item'};
     await requireRiverzoficialTemplateItems(db,RIVERZOFICIAL_WORKSPACE,name,vars);
-    expect(vars.order_items).toBe('1 × Pelota LED (Rana Verde); 2 × Botella (Azul)');
+    expect(vars.order_items).toBe('1 × Pelota LED (Rana Verde)\n2 × Botella (Azul)');
     expect(query.eq).toHaveBeenCalledWith('workspace_id',RIVERZOFICIAL_WORKSPACE);
     expect(query.eq).toHaveBeenCalledWith('abandoned_checkout_url',vars.checkout_url);
   });
@@ -43,6 +43,14 @@ describe('riverzoficial product-personalized templates', () => {
         const rendered=template[language].replace(/\{\{(\d+)\}\}/g,(_,n)=>template.fields[Number(n)-1]==='order_items'?'2 × Botella (Azul)':'Ana');
         expect(rendered).toContain('2 × Botella (Azul)');
         expect(rendered).not.toMatch(/DeUNA Shop|1006|\{\{|saltar[ií]n|bouncing ball/i);
+      }
+    }
+  });
+  it('separates the heading from the product list in every related template',()=>{
+    for(const template of productTemplates){
+      const position=template.fields.indexOf('order_items')+1;
+      for(const language of ['es','en'] as const){
+        expect(template[language]).toContain(`\n\n{{${position}}}`);
       }
     }
   });

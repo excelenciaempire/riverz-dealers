@@ -1,4 +1,4 @@
-/** Single-line template parameters: all items, variants and delivery details. */
+/** Template parameters with every item, variant and delivery detail. */
 export function confirmationSummary(
   order: Record<string, unknown>
 ): Record<string, string> {
@@ -51,7 +51,7 @@ export function confirmationSummary(
           );
           return `${clean(item.quantity) || '1'} × ${title}${details.length ? ` (${details.join(', ')})` : ''}`;
         })
-        .join('; ') || '—',
+        .join('\n') || '—',
     delivery_address:
       [shipping.address1, shipping.address2, shipping.city, shipping.province]
         .map(clean)
