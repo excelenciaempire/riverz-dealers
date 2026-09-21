@@ -16,8 +16,8 @@ export function purchaseConfirmationReply(input: {
   const en = input.language?.toLowerCase().startsWith('en');
   if (action === 'CONFIRMAR' || action === 'CONFIRM') {
     return en
-      ? 'Thank you for confirming your details and for your purchase! If you have any questions, you can message us here.'
-      : '¡Gracias por confirmar tus datos y por tu compra! Si tienes alguna pregunta, puedes escribirnos por aquí.';
+      ? 'Thank you for confirming your order and for choosing us! 😊 We’ll send your tracking number here as soon as your order ships. If you need anything, we’re here to help.'
+      : '¡Gracias por confirmar tu pedido y por confiar en nosotros! 😊 Te enviaremos el número de guía por aquí apenas sea despachado. Si necesitas algo, estamos para ayudarte.';
   }
   if (action === 'CORREGIR' || action === 'CORRECT') {
     return en ? 'Which order detail would you like to change?' : '¿Qué dato de tu pedido necesitas corregir?';

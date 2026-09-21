@@ -5,11 +5,14 @@ const args = { workspaceId: '36f81b96-41b9-4d29-b72e-11be3d3070a3', language: 'e
 describe('existing purchase confirmation buttons', () => {
   it('acknowledges the actual order without repeating it or asking for confirmation again', () => {
     const reply = purchaseConfirmationReply(args)!;
-    expect(reply).toContain('Gracias por confirmar tus datos');
-    expect(reply).not.toMatch(/¿|\?|Cúcuta|36|37|despach|nuevo pedido|\n\n/);
+    expect(reply).toContain('Gracias por confirmar tu pedido');
+    expect(reply).toContain('😊');
+    expect(reply).toContain('Te enviaremos el número de guía por aquí apenas sea despachado');
+    expect(reply).not.toMatch(/¿|\?|Cúcuta|36|37|ya fue despachado|nuevo pedido|\n\n/);
   });
   it('supports English and asks only for the correction when selected', () => {
     expect(purchaseConfirmationReply({ ...args, language: 'en', text: ' confirm ' })).toContain('Thank you for confirming');
+    expect(purchaseConfirmationReply({ ...args, language: 'en', text: ' confirm ' })).toContain('tracking number here as soon as your order ships');
     expect(purchaseConfirmationReply({ ...args, text: 'CORREGIR' })).toBe('¿Qué dato de tu pedido necesitas corregir?');
   });
   it('does not swallow questions, negations, other merchants or recovery flows', () => {
