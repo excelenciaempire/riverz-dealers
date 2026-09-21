@@ -15,6 +15,7 @@ import {
 } from '@/lib/instagram-agent/record-dm';
 import { composeDmText } from './rules';
 import { stripPublicCommentUrls } from '@/lib/ai/url-integrity';
+import { addCommentContextToPrivateReply } from '@/lib/comments/private-reply-context';
 
 /**
  * Comentario → DM (auto-DM on comments) — ManyChat's signature growth tool.
@@ -266,9 +267,12 @@ export async function processCommentForDmRules(
     // Marcado antes de enviar y de persistir: el hilo tiene que mostrar el
     // mismo texto que recibió la persona.
     const dmText = await prepararTextoParaCanal(db, {
-      texto: attachmentFallbackUrl
-        ? `${composeDmText(rule)}\n\n${attachmentFallbackUrl}`
-        : composeDmText(rule),
+      texto: addCommentContextToPrivateReply({
+        reply: attachmentFallbackUrl
+          ? `${composeDmText(rule)}\n\n${attachmentFallbackUrl}`
+          : composeDmText(rule),
+        comment: ev.text,
+      }),
       canal: dmChannel,
       workspaceId: ev.workspaceId,
       contactId: ev.contact.id,

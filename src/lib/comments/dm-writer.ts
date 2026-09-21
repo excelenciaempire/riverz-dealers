@@ -5,6 +5,7 @@ import { getAdapter } from '@/lib/channels/registry';
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { claimCommentPrivateReply } from '@/lib/instagram-agent/private-reply-lock';
 import { recordProactiveDm } from '@/lib/instagram-agent/record-dm';
+import { addCommentContextToPrivateReply } from './private-reply-context';
 
 /**
  * Escribirle al PRIVADO a quien comentó, a mano, desde la bandeja.
@@ -53,7 +54,7 @@ export async function sendCommentDm(
 
   const { data: msgRow } = await db
     .from('messages')
-    .select('id, conversation_id, channel, message_id, sender_type')
+    .select('id, conversation_id, channel, message_id, sender_type, content_text')
     .eq('id', args.messageId)
     .maybeSingle();
   const message = msgRow as {
@@ -61,6 +62,7 @@ export async function sendCommentDm(
     channel: string | null;
     message_id: string | null;
     sender_type: string | null;
+    content_text: string | null;
   } | null;
   if (!message?.conversation_id) throw new CommentDmError('message_not_found');
   if (message.channel !== 'ig_comment' && message.channel !== 'fb_comment') {
@@ -113,8 +115,12 @@ export async function sendCommentDm(
   if (!connection) throw new CommentDmError('channel_not_connected');
 
   const commentExternalId = message.message_id;
+  const contextualText = addCommentContextToPrivateReply({
+    reply: text,
+    comment: message.content_text,
+  });
   const textoPreparado = await prepararTextoParaCanal(db, {
-    texto: text,
+    texto: contextualText,
     canal: dmChannel,
     workspaceId: conversation.workspace_id,
     contactId: contact.id,

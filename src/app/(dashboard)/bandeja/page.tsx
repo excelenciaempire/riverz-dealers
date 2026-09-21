@@ -26,6 +26,7 @@ import {
   visibleChannelsForTab,
 } from "@/components/inbox/inbox-tabs";
 import { ResizablePane } from "@/components/inbox/resizable-pane";
+import { Switch } from "@/components/ui/switch";
 import Link from "@/components/i18n/locale-link";
 import { Plug2, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -915,25 +916,34 @@ export default function InboxPage() {
                 }}
               />
             )}
-            {/* Sólo aparece si hay algo que atender: un filtro permanentemente
-                en cero es ruido. */}
-            {needsHumanCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setNeedsHumanOnly((v) => !v)}
+            {/* Si el último caso se resuelve mientras el filtro está activo, el
+                control permanece visible para poder apagarlo. */}
+            {(needsHumanCount > 0 || needsHumanOnly) && (
+              <div
                 className={cn(
-                  "flex items-center gap-1.5 border-b border-border px-3 py-2 text-xs font-medium transition-colors",
+                  "flex items-center gap-2 border-b border-border px-3 py-2 text-xs font-medium transition-colors",
                   needsHumanOnly
                     ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                    : "text-muted-foreground hover:text-foreground",
+                    : "text-muted-foreground",
                 )}
               >
-                <UserRound className="h-3.5 w-3.5" />
-                {t("inbox.needsHuman")}
-                <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">
-                  {needsHumanCount}
-                </span>
-              </button>
+                <label
+                  htmlFor="needs-human-filter"
+                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5"
+                >
+                  <UserRound className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t("inbox.needsHuman")}</span>
+                  <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">
+                    {needsHumanCount}
+                  </span>
+                </label>
+                <Switch
+                  id="needs-human-filter"
+                  checked={needsHumanOnly}
+                  onCheckedChange={setNeedsHumanOnly}
+                  aria-label={t("inbox.needsHuman")}
+                />
+              </div>
             )}
             <div className="flex-1 overflow-hidden">
               <div className="flex h-full flex-col">

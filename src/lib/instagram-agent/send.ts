@@ -2,6 +2,7 @@ import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
 import { assertStoredConnectionCanSend } from '@/lib/channels/send-guard';
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
+import { addCommentContextToPrivateReply } from '@/lib/comments/private-reply-context';
 import {
   sendToSubscriber,
   type MarketingOptin,
@@ -249,6 +250,8 @@ export async function sendCampaignBatch(
     text: string;
     /** Comment id when the only sanctioned route is a private reply. */
     commentId?: string;
+    /** Texto del comentario que abre este privado. */
+    commentText?: string | null;
     /** Permiso de Marketing Messages: la vía cuando no hay ninguna ventana abierta. */
     subscription?: MarketingOptin;
     /** Set when the row must be skipped instead of sent (e.g. outside window). */
@@ -340,6 +343,7 @@ export async function sendCampaignBatch(
         contact: { id: contact.id, external_id: contact.external_id },
         text,
         commentId: reach.kind === 'private_reply' ? reach.commentId : undefined,
+        commentText: reach.kind === 'private_reply' ? inbound.text : null,
         subscription: subscription ?? undefined,
       };
     })
@@ -408,7 +412,13 @@ export async function sendCampaignBatch(
     try {
       const conn = connByContact.get(p.contact.id) ?? connection;
       const textoPreparado = await prepararTextoParaCanal(db, {
-        texto: p.text,
+        texto: p.commentId
+          ? addCommentContextToPrivateReply({
+              reply: p.text,
+              comment: p.commentText,
+              language: brand?.language,
+            })
+          : p.text,
         canal: 'instagram',
         workspaceId: campaign.workspace_id,
         contactId: p.contact.id,
@@ -458,6 +468,7 @@ export async function sendCampaignBatch(
         connection: connByContact.get(p.contact.id) ?? connection,
         text: textoPreparado,
         dmMessageId: dmExternalId,
+        commentText: p.commentId ? p.commentText : null,
         origin: 'ig_outreach',
         originName: campaign.plan?.campaign_name ?? null,
       });

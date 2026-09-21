@@ -23,6 +23,7 @@ import { assertStoredConnectionCanSend } from '@/lib/channels/send-guard';
 import type { OutboundText } from '@/lib/channels/types';
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { loadCommentConversation } from '@/lib/comments/hilo';
+import { addCommentContextToPrivateReply } from '@/lib/comments/private-reply-context';
 import {
   asksForPrice,
   asksForCurrentOffer,
@@ -622,7 +623,13 @@ export async function maybeInstantOutreach(
     ...personaFields,
   });
   const textoPreparado = await prepararTextoParaCanal(db, {
-    texto: text,
+    texto: opts.commentId
+      ? addCommentContextToPrivateReply({
+          reply: text,
+          comment: opts.engagementText,
+          language: brand?.language,
+        })
+      : text,
     canal: 'instagram',
     workspaceId: opts.workspaceId,
     contactId: opts.contact.id,
@@ -1418,7 +1425,11 @@ async function decidirComentario(
   try {
     if (wonPrivateReply && connection) {
       const dmText = await prepararTextoParaCanal(db, {
-        texto: text,
+        texto: addCommentContextToPrivateReply({
+          reply: text,
+          comment: engagement,
+          language: brand?.language,
+        }),
         canal: dmChannel,
         workspaceId: opts.workspaceId,
         contactId: opts.contact.id,
