@@ -245,10 +245,10 @@ async function textoDelPost(
     return null;
   }
 
-  // Instagram llama `caption` al texto; Facebook, `message`. Se piden los dos
-  // y se usa el que venga — así el mismo camino sirve para las dos redes.
+  // Graph rejects the entire request when a field belongs to the other object type.
+  const field = conversation.channel === 'ig_comment' ? 'caption' : 'message';
   const url = withAppsecretProof(
-    `${GRAPH}/${postId}?fields=caption,message&access_token=${encodeURIComponent(token)}`,
+    `${GRAPH}/${postId}?fields=${field}&access_token=${encodeURIComponent(token)}`,
     token,
   );
   const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
