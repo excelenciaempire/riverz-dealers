@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { toVoiceAudio, inspectVoiceAudio } from './audio';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import ffmpeg from 'ffmpeg-static';
 
 function wav() {
   const buffer = Buffer.alloc(44 + 48000 * 4);
@@ -19,6 +22,16 @@ function wav() {
 }
 
 describe('WhatsApp voice note audio compatibility', () => {
+  it('normalizes browser-style streaming WebM without duration metadata', async () => {
+    const { stdout } = await promisify(execFile)(ffmpeg!, [
+      '-v', 'error', '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=mono',
+      '-t', '1', '-c:a', 'libopus', '-f', 'webm', 'pipe:1',
+    ], { encoding: 'buffer', windowsHide: true });
+    const metadata = await inspectVoiceAudio(await toVoiceAudio(stdout));
+    expect(metadata.container).toBe('Ogg');
+    expect(metadata.numberOfChannels).toBe(1);
+    expect(metadata.duration).toBeCloseTo(1, 1);
+  });
   it('converts stored Ogg to mono MP3 for social, email and web players', async () => {
     const ogg = await toVoiceAudio(wav());
     const mp3 = await toVoiceAudio(ogg, 'mp3');

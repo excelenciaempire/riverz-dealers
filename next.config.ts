@@ -14,9 +14,7 @@ import { ADMIN_SLUGS_RETIRADOS } from "./src/app/admin/sections-list";
  *   - HSTS: only meaningful on HTTPS (no-op on http://localhost).
  *   - X-Content-Type-Options / X-Frame-Options / Referrer-Policy:
  *     baseline OWASP hardening, no behavioural cost.
- *   - Permissions-Policy: we don't use camera / microphone / geolocation,
- *     so deny them. A supply-chain compromise or a forgotten plugin
- *     can't silently opt back in.
+ *   - Permissions-Policy: allow first-party voice recording; deny unused features.
  */
 const SECURITY_HEADERS = [
   {
@@ -27,10 +25,9 @@ const SECURITY_HEADERS = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    // Denegamos features sensibles que la app no usa, para que un script
-    // comprometido o un plugin olvidado no pueda activarlas en silencio.
+    // Voice notes request microphone permission only after a user gesture.
     value:
-      "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), accelerometer=(), gyroscope=(), magnetometer=(), interest-cohort=()",
+      "camera=(), microphone=(self), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), accelerometer=(), gyroscope=(), magnetometer=(), interest-cohort=()",
   },
   // COOP aísla nuestro browsing context (XS-Leaks / window.opener hijacking).
   // `allow-popups` para no romper el popup de FB.login (Embedded Signup),

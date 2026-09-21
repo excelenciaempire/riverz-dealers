@@ -1,6 +1,14 @@
 import type { Namespace } from './types';
 
 export const voiceNotes: Namespace = {
+  record: { es: 'Grabar audio', en: 'Record audio' },
+  recording: { es: 'Grabando', en: 'Recording' },
+  stopRecording: { es: 'Detener', en: 'Stop' },
+  discardRecording: { es: 'Descartar grabación', en: 'Discard recording' },
+  micRequesting: { es: 'Activando micrófono…', en: 'Enabling microphone…' },
+  micDenied: { es: 'Permite el acceso al micrófono en tu navegador e intenta de nuevo.', en: 'Allow microphone access in your browser and try again.' },
+  recordUnsupported: { es: 'Este navegador no permite grabar. Abre Riverz en Chrome, Edge o Safari actualizado.', en: 'Recording is unavailable in this browser. Open Riverz in an up-to-date Chrome, Edge or Safari.' },
+  recordFailed: { es: 'No se pudo grabar. Revisa que el micrófono esté conectado y disponible.', en: 'Recording failed. Check that your microphone is connected and available.' },
   unsupportedChannel: { es: 'Este canal no admite notas de voz. Usa un paso de texto.', en: 'This channel does not support voice notes. Use a text step.' },
   channelAudio: { es: 'Se enviará como audio; en correo, como archivo adjunto.', en: 'Sent as audio; in email, as an attachment.' },
   supportedChannels: { es: 'WhatsApp, Instagram, Messenger, chat web y correo. Meta requiere un mensaje del cliente en las últimas 24 horas. No disponible en comentarios, Mercado Libre ni llamadas.', en: 'WhatsApp, Instagram, Messenger, web chat and email. Meta requires a customer message within the last 24 hours. Unavailable in comments, Mercado Libre or calls.' },

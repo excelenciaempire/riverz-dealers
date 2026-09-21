@@ -8,6 +8,7 @@ import { useT } from '@/hooks/use-locale';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import type { Channel } from '@/types';
 import { voiceRequiresWindow } from '@/lib/voice-notes/channels';
+import { VoiceRecorder } from './voice-recorder';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,6 +26,7 @@ export function VoiceNoteEditor({
   channel,
   voiceOnly = false,
   allowSave = true,
+  defaultMode,
 }: {
   value: VoiceNoteConfig | null;
   onChange: (value: VoiceNoteConfig | null) => void;
@@ -32,6 +34,7 @@ export function VoiceNoteEditor({
   channel?: Channel;
   voiceOnly?: boolean;
   allowSave?: boolean;
+  defaultMode?: 'record';
 }) {
   const { workspace } = useWorkspace();
   const t = useT();
@@ -60,15 +63,17 @@ export function VoiceNoteEditor({
       ? 'saved'
       : value?.media_url
         ? 'upload'
-        : value
+        : defaultMode
+          ? defaultMode
+          : value
           ? 'fish'
           : voiceOnly
             ? 'fish'
             : 'textMode'
   );
   const modes = voiceOnly
-    ? ['fish', 'saved', 'upload']
-    : ['textMode', 'fish', 'saved', 'upload'];
+    ? ['record', 'fish', 'saved', 'upload']
+    : ['textMode', 'record', 'fish', 'saved', 'upload'];
   useEffect(() => {
     if (!workspace) return;
     let active = true;
@@ -103,6 +108,36 @@ export function VoiceNoteEditor({
       .catch(() => {});
     return () => controller.abort();
   }, [workspace, mode]);
+
+  async function upload(file: File) {
+    if (!workspace) return;
+    if (file.size > MAX_VOICE_NOTE_BYTES) {
+      toast.error(t('voiceNotes.invalidAudio'));
+      return;
+    }
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.append('workspace_id', workspace.id);
+      form.append('file', file);
+      const response = await fetchWithCsrf('/api/voice-notes', {
+        method: 'POST',
+        body: form,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      onChange({ media_url: data.url });
+      setPreview(data.url);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t('voiceNotes.failed')
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function act(action: 'preview' | 'save', freeze = false) {
     if (!workspace || !value || busy) return;
@@ -166,6 +201,7 @@ export function VoiceNoteEditor({
           ))}
         </select>
       </label>
+      {mode === 'record' && <VoiceRecorder disabled={busy || !workspace} onStart={() => { onChange(null); setPreview(''); }} onRecorded={file => void upload(file)} />}
       {mode === 'fish' && (
         <>
           {agent ? (
@@ -242,32 +278,7 @@ export function VoiceNoteEditor({
             onChange={async (e) => {
               const file = e.target.files?.[0];
               if (!file || !workspace) return;
-              if (file.size > MAX_VOICE_NOTE_BYTES) {
-                toast.error(t('voiceNotes.invalidAudio'));
-                return;
-              }
-              setBusy(true);
-              try {
-                const form = new FormData();
-                form.append('workspace_id', workspace.id);
-                form.append('file', file);
-                const response = await fetchWithCsrf('/api/voice-notes', {
-                  method: 'POST',
-                  body: form,
-                });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error);
-                onChange({ media_url: data.url });
-                setPreview(data.url);
-              } catch (error) {
-                toast.error(
-                  error instanceof Error
-                    ? error.message
-                    : t('voiceNotes.failed')
-                );
-              } finally {
-                setBusy(false);
-              }
+              await upload(file);
             }}
           />
           <span className="text-muted-foreground text-xs">
@@ -377,7 +388,7 @@ export function VoiceNoteComposer({
       </Button>
       {open && (
         <div className="bg-background absolute bottom-full left-0 z-40 mb-2 max-h-[70vh] w-full max-w-md space-y-4 overflow-auto rounded-xl border p-4 shadow-lg">
-          <VoiceNoteEditor value={value} onChange={setValue} channel={channel} />
+          <VoiceNoteEditor value={value} onChange={setValue} channel={channel} defaultMode="record" />
           <Button
             type="button"
             disabled={

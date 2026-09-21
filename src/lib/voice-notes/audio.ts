@@ -10,7 +10,7 @@ import { MAX_VOICE_NOTE_BYTES } from './types';
 const execute = promisify(execFile);
 
 /** Never trust an extension or MIME supplied by an uploader. */
-export async function inspectVoiceAudio(buffer: Buffer) {
+export async function inspectVoiceAudio(buffer: Buffer, allowStreamingWebm = false) {
   if (!buffer.length || buffer.length > MAX_VOICE_NOTE_BYTES)
     throw new Error('voiceNotes.invalidAudio');
   const metadata = await parseBuffer(buffer, undefined, {
@@ -19,15 +19,16 @@ export async function inspectVoiceAudio(buffer: Buffer) {
   if (
     !metadata?.format.codec ||
     !metadata.format.numberOfChannels ||
-    !metadata.format.duration ||
-    metadata.format.duration > 600
+    (!metadata.format.duration && !(allowStreamingWebm && /webm|matroska/i.test(metadata.format.container ?? ''))) ||
+    (metadata.format.duration ?? 0) > 600
   )
     throw new Error('voiceNotes.invalidAudio');
   return metadata.format;
 }
 
 export async function toVoiceAudio(buffer: Buffer, target: 'ogg' | 'mp3' = 'ogg'): Promise<Buffer> {
-  const format = await inspectVoiceAudio(buffer);
+  // Browser WebM recordings omit duration. Validate the duration after decoding.
+  const format = await inspectVoiceAudio(buffer, true);
   if (
     target === 'ogg' && format.container === 'Ogg' &&
     format.codec?.toLowerCase().includes('opus') &&
@@ -49,7 +50,7 @@ export async function toVoiceAudio(buffer: Buffer, target: 'ogg' | 'mp3' = 'ogg'
         '-protocol_whitelist',
         'file,pipe',
         '-format_whitelist',
-        'wav,mp3,mov,ogg,flac,aac',
+        'wav,mp3,mov,ogg,flac,aac,matroska,webm',
         '-i',
         source,
         '-map',
