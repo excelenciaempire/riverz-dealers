@@ -132,11 +132,14 @@ export async function briefDePublicacionPorOrigen(
   db: SupabaseClient,
   args: {
     workspaceId: string;
-    channel: 'ig_comment' | 'fb_comment';
+    channel: 'ig_comment' | 'fb_comment' | 'tiktok_comment';
     postId: string;
     connectionId?: string | null;
   },
 ): Promise<string | null> {
+  if (args.channel === 'tiktok_comment') {
+    return briefDeVideo(db, args.workspaceId, args.postId);
+  }
   const medio = await briefDeMedio(db, {
     workspaceId: args.workspaceId,
     channel: args.channel,

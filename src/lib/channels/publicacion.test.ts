@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { briefDePublicacionPorOrigen } from './publicacion';
+import { briefDeVideo } from './tiktok_comment/videos';
+vi.mock('./tiktok_comment/videos', () => ({ briefDeVideo: vi.fn(async () => 'Video actual: Puma'), videoDelHilo: vi.fn() }));
 vi.mock('./publicacion-media', () => ({ briefDeMedio: async () => null }));
 vi.mock('./encryption', () => ({ decrypt: () => 'test-token' }));
 vi.mock('./meta-graph', () => ({ withAppsecretProof: (url: string) => url }));
@@ -14,6 +16,11 @@ function database() {
 }
 afterEach(() => vi.unstubAllGlobals());
 describe('publication context across Meta channels', () => {
+  it('uses the current TikTok video instead of an older conversation source', async () => {
+    const db = database();
+    expect(await briefDePublicacionPorOrigen(db, { workspaceId: 'workspace', channel: 'tiktok_comment', postId: 'current-video' })).toBe('Video actual: Puma');
+    expect(briefDeVideo).toHaveBeenCalledWith(db, 'workspace', 'current-video');
+  });
   for (const [channel, field] of [['fb_comment', 'message'], ['ig_comment', 'caption']] as const) {
     it(`reads ${channel} without asking Graph for an unsupported field`, async () => {
       const fetchMock = vi.fn(async (url: string) => {

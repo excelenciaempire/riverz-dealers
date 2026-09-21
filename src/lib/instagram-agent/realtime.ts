@@ -980,6 +980,21 @@ async function decidirComentario(
   // Comentarios (migración 132). Los defaults son la conducta de siempre.
   const commentCfg = await loadCommentSettings(db, opts.workspaceId);
 
+  const priceQuestion = asksForPrice(engagement) && !orderStatus;
+  // “Precio?” no nombra el producto: el producto está en la publicación. Sin
+  // sumar ese contexto, el verificador no sabría qué página comprobar.
+  const postBrief =
+    opts.sourcePostId
+      ? await briefDePublicacionPorOrigen(db, {
+          workspaceId: opts.workspaceId,
+          channel: commentChannel,
+          postId: opts.sourcePostId,
+          connectionId: opts.connection?.id ?? null,
+        }).catch(() => null)
+      : hilo
+        ? await briefDePublicacionPorId(db, hilo.id).catch(() => null)
+        : null;
+
   // ¿Hay algo que atender aunque no quiera comprar? Una crítica a la marca, un
   // reclamo o una pregunta concreta. El 2026-08-28 seis comentarios así —uno
   // pedía la aprobación de ANMAT— se descartaron por no mostrar intención de
@@ -996,7 +1011,7 @@ async function decidirComentario(
       db,
       workspaceId: opts.workspaceId,
       concepto: 'ia_clasificacion',
-    });
+    }, postBrief);
     if (!s) return 'comment_sin_clasificar';
     // El spam se oculta y se calla. DECISIÓN DEL COMERCIO, 2026-08-28.
     //
@@ -1069,6 +1084,7 @@ async function decidirComentario(
       commentCfg.audience === 'intent' &&
       s.score === 'low' &&
       !orderStatus &&
+      !priceQuestion &&
       !motivo
     ) {
       return 'comment_sin_intencion';
@@ -1108,21 +1124,6 @@ async function decidirComentario(
     return 'comment_sin_conexion';
   }
 
-  const priceQuestion = asksForPrice(engagement) && !orderStatus;
-  // “Precio?” no nombra el producto: el producto está en la publicación. Sin
-  // sumar ese contexto, el verificador no sabría qué página comprobar.
-  const postBrief =
-    opts.sourcePostId &&
-    (commentChannel === 'ig_comment' || commentChannel === 'fb_comment')
-      ? await briefDePublicacionPorOrigen(db, {
-          workspaceId: opts.workspaceId,
-          channel: commentChannel,
-          postId: opts.sourcePostId,
-          connectionId: opts.connection?.id ?? null,
-        }).catch(() => null)
-      : hilo
-        ? await briefDePublicacionPorId(db, hilo.id).catch(() => null)
-        : null;
   const [brand, links, profile, customer, thread, product] = await Promise.all([
     loadBrandContext(db, opts.workspaceId, agent.id),
     loadStoreLinks(db, opts.workspaceId, []),
