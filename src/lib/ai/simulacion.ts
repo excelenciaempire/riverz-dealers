@@ -1,5 +1,6 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
-import { purchaseConfirmationReply } from './purchase-confirmation-reply';
+import { ORDER_CONVERSATION_POLICY, orderConversationModel } from './order-conversation-policy';
+import { recoveryHasExistingOrder } from './recovery-policy';
 import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import {
@@ -76,12 +77,6 @@ export async function simularRespuesta(
     automationContext?: Record<string, unknown> | null;
   }
 ): Promise<RespuestaSimulada> {
-  const acknowledgement = purchaseConfirmationReply({
-    workspaceId: a.workspace_id, language: a.language, text: input.message,
-    context: input.automationContext ?? null,
-  });
-  if (acknowledgement) return { reply: acknowledgement, chunks: [acknowledgement], herramientas: [],
-    usage: { input_tokens: 0, output_tokens: 0, iterations: 0 } };
   const resolvedKey = await resolveAnthropicKey(admin, {
     workspaceId: a.workspace_id,
     agentKeyEncrypted: a.api_key_encrypted,
@@ -165,7 +160,7 @@ export async function simularRespuesta(
       registro,
       perfilOperativo,
       input.simulatedChannel
-    ) + bloquesDeEntrega(a, automationContext, input.simulatedChannel);
+    ) + bloquesDeEntrega(a, automationContext, input.simulatedChannel) + '\n\n' + ORDER_CONVERSATION_POLICY;
 
   // La misma lista que produccion, resuelta por la pizarra del comercio.
   // `hayContacto` va en true a propósito: lo que hay que previsualizar es lo
@@ -187,8 +182,9 @@ export async function simularRespuesta(
     origenDeLaClave: resolvedKey?.source,
   });
   const result = await runWithTools(client, {
-    model: a.model || 'claude-haiku-4-5-20251001',
-    max_tokens: Math.max(64, Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2))),
+    model: orderConversationModel({ workspaceId: a.workspace_id, configuredModel: a.model || 'claude-haiku-4-5-20251001', hasOrder: recoveryHasExistingOrder(automationContext), messages: [...input.historial, { content: input.message }] }),
+    reasoningEffort: 'high',
+    max_tokens: 4000 + Math.max(64, Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2))),
     system,
     messages: [...input.historial, { role: 'user' as const, content: input.message }],
     tools,

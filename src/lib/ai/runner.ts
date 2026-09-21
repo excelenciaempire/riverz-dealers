@@ -4,6 +4,8 @@ import { untrustedContext } from './input-security';
 import { captureCustomerOrder, orderScreenshotMessageId, type OrderScreenshot } from './order-screenshot';
 import { appMediaUrl, MEDIA_BUCKET, signMediaPath, OUTBOUND_SIGNED_TTL_SECONDS } from '../channels/media-url';
 import { purchaseConfirmationReply } from './purchase-confirmation-reply';
+import { enrichConversationEvidence, evidenceText, type EvidenceRow } from './conversation-evidence';
+import { DEUNA_WORKSPACE, ORDER_CONVERSATION_POLICY, orderConversationModel } from './order-conversation-policy';
 import {
   esCanalDeComentarios,
   esError as esErrorDestinoComentario,
@@ -321,13 +323,17 @@ export async function runAiAgent(
       return;
     }
 
+    // Understanding attachments is independent of the permission to reply.
+    await enrichConversationEvidence(db, { workspaceId: args.workspaceId, conversationId: args.conversation.id, agentKeyEncrypted: agent.api_key_encrypted });
     const skip = shouldSkip(agent, args);
     if (skip) {
+      await summarizeConversationIfNeeded(db, args.conversation, agent);
       await logReply(db, agent, args, { status: 'skipped', skip_reason: skip });
       return;
     }
 
-    const textoEntrante = args.inboundMessage.content_text ?? '';
+    const { data: enrichedInbound } = await db.from('messages').select('id, content_text, media_url, media_type, media_mime, media_transcription, attachments').eq('id', args.inboundMessage.id).eq('conversation_id', args.conversation.id).maybeSingle();
+    const textoEntrante = [args.inboundMessage.content_text ?? '', enrichedInbound ? evidenceText(enrichedInbound) : ''].filter(Boolean).join('\n');
 
     // AL CONTESTADOR DEL CLIENTE NO SE LE CONTESTA.
     //
@@ -693,7 +699,7 @@ export async function runAiAgent(
     }
 
     const deterministicRecoveryReply =
-      currentRecoveryButton === 'confirm'
+      currentRecoveryButton === 'confirm' && args.workspaceId !== DEUNA_WORKSPACE
         ? recoveryButtonReply(currentRecoveryButton, agent.language)
         : null;
 
@@ -2023,7 +2029,7 @@ export async function loadContext(
   const { data } = await db
     .from('messages')
     .select(
-      'id, sender_type, content_text, media_url, media_type, media_mime, media_transcription, created_at, channel, origin, origin_name, conversation_id'
+      'id, sender_type, content_text, media_url, media_type, media_mime, media_transcription, attachments, created_at, channel, origin, origin_name, conversation_id'
     )
     .in('conversation_id', conversationIds)
     .order('created_at', { ascending: false })
@@ -2087,7 +2093,7 @@ export async function loadContext(
     });
     return {
       role,
-      content: head + (m.content_text ?? '').trim(),
+      content: head + [m.sender_type === 'agent' ? '[Mensaje del equipo humano]' : '', (m.content_text ?? '').trim(), evidenceText(m as EvidenceRow)].filter(Boolean).join('\n'),
       messageId: m.id,
       media,
       at: m.created_at,
@@ -2836,11 +2842,6 @@ async function generateReply(
   priceIntegrity: { priceQuestion: boolean; priceVerified: boolean },
   recoveryContext: Record<string, unknown> | null
 ): Promise<ReplyResult> {
-  const acknowledgement = purchaseConfirmationReply({
-    workspaceId: agent.workspace_id, language: agent.language,
-    text: origen.inboundText, context: recoveryContext,
-  });
-  if (acknowledgement) return { text: acknowledgement, promptTokens: 0, completionTokens: 0, herramientas: [] };
   if (agent.provider !== 'anthropic') {
     throw new Error(`Provider ${agent.provider} not implemented`);
   }
@@ -2947,6 +2948,7 @@ async function generateReply(
     origen.channel
   );
   system += bloquesDeEntrega(agent, recoveryContext, origen.channel);
+  system += '\n\n' + ORDER_CONVERSATION_POLICY;
   const handoffContext = recoveryContext?.retention_handoff ? null : recoveryContext;
 
   const messages = normalizarLimitesDeConversacion(context.messages, {
@@ -3057,6 +3059,7 @@ async function generateReply(
   });
   const screenshots: OrderScreenshot[] = [];
   const screenshotRequests = new Map<string, Promise<void>>();
+  const routedModel = orderConversationModel({ workspaceId: agent.workspace_id, configuredModel: agent.model || MODELO_POR_DEFECTO, hasOrder: recoveryHasExistingOrder(recoveryContext), messages });
   const opciones = {
     // Mercado Libre no permite consultar pedidos en vivo (comprador
     // anonimizado), así que lookup_order cae a lo ya espejado.
@@ -3095,7 +3098,8 @@ async function generateReply(
           requiereAprobacion: herramientasQueRequierenAprobacion(agent),
         }
       : null,
-    model: agent.model || MODELO_POR_DEFECTO,
+    model: routedModel,
+    reasoningEffort: (routedModel === 'claude-opus-5' ? 'high' : 'low') as 'high' | 'low',
     // El techo de la RESPUESTA sale del largo que eligio el comercio. Con un
     // modelo que piensa antes de contestar hay que sumarle aire: lo que piensa
     // sale del mismo presupuesto, y sin margen se queda sin lugar para la
@@ -3104,7 +3108,7 @@ async function generateReply(
       Math.max(
         64,
         Math.min(2048, Math.ceil((agent.max_response_chars || 500) / 2))
-      ) + (reguladoPorEsfuerzo(agent.model || MODELO_POR_DEFECTO) ? 4000 : 0),
+      ) + (reguladoPorEsfuerzo(routedModel) ? 4000 : 0),
     system,
     messages: claudeMessages,
     tools,
@@ -4475,12 +4479,11 @@ async function ultimosTurnos(
 ): Promise<string[]> {
   const { data } = await db
     .from('messages')
-    .select('sender_type, content_text')
+    .select('id, sender_type, content_text, media_url, media_type, media_mime, media_transcription, attachments')
     .eq('conversation_id', conversationId)
-    .not('content_text', 'is', null)
     .order('created_at', { ascending: false })
-    .limit(6);
-  const filas = (data ?? []) as Array<{
+    .limit(30);
+  const filas = (data ?? []) as Array<EvidenceRow & {
     sender_type: string;
     content_text: string;
   }>;
@@ -4488,7 +4491,7 @@ async function ultimosTurnos(
     .reverse()
     .map(
       (m) =>
-        `${m.sender_type === 'customer' ? 'Cliente' : 'Nosotros'}: ${m.content_text}`
+        `${m.sender_type === 'customer' ? 'Cliente' : 'Nosotros'}: ${m.content_text ?? ''}\n${evidenceText(m)}`
     )
     .filter((l) => l.trim().length > 12);
 }

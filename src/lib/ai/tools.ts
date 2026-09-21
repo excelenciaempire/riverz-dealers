@@ -1993,6 +1993,7 @@ export async function runWithTools(
   client: Anthropic,
   args: {
     model: string
+    reasoningEffort?: 'low' | 'high'
     max_tokens: number
     system: string
     messages: Anthropic.MessageParam[]
@@ -2111,7 +2112,7 @@ export async function runWithTools(
         // difícil, y lo que se piensa se cobra y se descuenta de max_tokens.
         // Lo que se busca del modelo grande acá no es que razone más, es que
         // no se saltee las reglas.
-        ...esfuerzo(args.model, { effort: 'low', pensar: 'adaptive' }),
+        ...esfuerzo(args.model, { effort: args.reasoningEffort ?? 'low', pensar: 'adaptive' }),
       })
     } catch (err) {
       // On the FIRST iteration only, retry once after rewriting any

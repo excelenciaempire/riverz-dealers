@@ -1,4 +1,7 @@
 import { resolveHumanAttention } from '@/lib/inbox/human-attention';
+import { enrichConversationEvidence } from '@/lib/ai/conversation-evidence';
+import { motorApagado } from '@/lib/workspaces/motor';
+import { puertaDeIa } from '@/lib/wallet/puerta';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Channel,
@@ -381,6 +384,10 @@ export async function ingestInboundEvent(
   }
 
   await resolveHumanAttention(db, message);
+  // Persist interpretation even when a flow consumes the turn or a human owns the chat.
+  if (!event.historical && event.attachments?.length && !(await motorApagado(db, workspaceId)) && (await puertaDeIa(db, workspaceId)).puede) {
+    await enrichConversationEvidence(db, { workspaceId, conversationId: conversation.id });
+  }
 
   // 4. Comment metadata sidecar — and resolve ad_id by joining against
   //    the ad_posts cache (populated by the Marketing API sync cron).

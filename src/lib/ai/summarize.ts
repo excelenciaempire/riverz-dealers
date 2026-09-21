@@ -28,6 +28,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
 import { resolveAnthropicKey, type KeySource } from './platform-key';
 import type { AiAgent } from './types';
+import { evidenceText, type EvidenceRow } from './conversation-evidence';
 
 const SUMMARY_MODEL = 'claude-haiku-4-5-20251001';
 
@@ -102,7 +103,7 @@ export async function summarizeConversationIfNeeded(
     const oldCount = total - RECENT_TAIL_COUNT;
     const { data: oldRows } = await db
       .from('messages')
-      .select('id, sender_type, content_text, created_at')
+      .select('id, sender_type, content_text, created_at, media_url, media_type, media_mime, media_transcription, attachments')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: true })
       .limit(oldCount);
@@ -113,7 +114,7 @@ export async function summarizeConversationIfNeeded(
         content_text: string | null;
         created_at: string;
       }[]
-    ).filter((r) => r.content_text && r.content_text.trim());
+    ).filter((r) => r.content_text?.trim() || evidenceText(r as EvidenceRow));
     if (rows.length < 5) return;
 
     const lastCoveredId = rows[rows.length - 1].id;
@@ -125,7 +126,7 @@ export async function summarizeConversationIfNeeded(
             : r.sender_type === 'bot'
               ? 'IA'
               : 'Agente';
-        return `${who}: ${r.content_text!.trim()}`;
+        return `${who}: ${r.content_text?.trim() ?? ''}\n${evidenceText(r as EvidenceRow)}`;
       })
       .join('\n');
 
@@ -141,7 +142,7 @@ export async function summarizeConversationIfNeeded(
       model: SUMMARY_MODEL,
       max_tokens: 400,
       system:
-        'Sos un compresor de contexto. Devolvés un único párrafo en español de máximo 200 palabras, sin viñetas.',
+        'Sos un compresor de contexto. Devolvés un único párrafo en español de máximo 200 palabras, sin viñetas. Conserva los datos de audios e imágenes, qué pedido eligió, dudas sin resolver y correcciones posteriores a una confirmación. No conviertas un sí ambiguo, una captura ni un archivo sin interpretar en consentimiento. Distingue dichos del cliente de acciones efectivamente ejecutadas.',
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -209,17 +210,18 @@ export async function summarizeContactIfNeeded(
 
     const { data: msgs } = await db
       .from('messages')
-      .select('sender_type, content_text, created_at')
+      .select('id, sender_type, content_text, created_at, media_url, media_type, media_mime, media_transcription, attachments')
       .in('conversation_id', convIds)
       .order('created_at', { ascending: false })
       .limit(60);
     const rows = (
       (msgs ?? []) as {
+        id: string;
         sender_type: string;
         content_text: string | null;
       }[]
     )
-      .filter((m) => m.content_text && m.content_text.trim())
+      .filter((m) => m.content_text?.trim() || evidenceText(m as EvidenceRow))
       .reverse();
     if (rows.length < 5) return;
 
@@ -231,7 +233,7 @@ export async function summarizeContactIfNeeded(
             : r.sender_type === 'bot'
               ? 'IA'
               : 'Agente';
-        return `${who}: ${r.content_text!.trim()}`;
+        return `${who}: ${r.content_text?.trim() ?? ''}\n${evidenceText(r as EvidenceRow)}`;
       })
       .join('\n');
 

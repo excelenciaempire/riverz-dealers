@@ -1,5 +1,8 @@
 import { resolveHumanAttention } from '@/lib/inbox/human-attention';
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { enrichConversationEvidence } from '@/lib/ai/conversation-evidence';
+import { motorApagado } from '@/lib/workspaces/motor';
+import { puertaDeIa } from '@/lib/wallet/puerta';
 import { createClient } from "@/lib/supabase/server";
 import { getAdapter } from "@/lib/channels/registry";
 import {
@@ -476,6 +479,14 @@ export async function POST(req: Request): Promise<Response> {
     channel,
   }).catch((error) => console.error('[webhook] outbound message delivery failed', error));
 
+  if ((message as Message | null)?.media_url || (message as Message | null)?.attachments?.length) {
+    after(async () => {
+      const workspaceId = (conversation as Conversation).workspace_id;
+      if (!(await motorApagado(admin, workspaceId)) && (await puertaDeIa(admin, workspaceId)).puede) {
+        await enrichConversationEvidence(admin, { workspaceId, conversationId: (conversation as Conversation).id });
+      }
+    });
+  }
   return NextResponse.json({
     ok: true,
     message: message as Message,

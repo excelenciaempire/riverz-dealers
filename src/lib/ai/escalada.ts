@@ -249,6 +249,7 @@ const SISTEMA_CLASIFICADOR = [
   '- pide algo que el asistente no puede hacer (cambiar una dirección ya despachada, hacer una excepción, un descuento fuera de lo permitido)',
   '',
   'NO necesita persona una pregunta difícil, una duda de producto, una queja general sobre publicidad, ni alguien de mal humor sin un problema concreto. Para eso está el asistente.',
+  'Tampoco escales por revisar una compra, comparar dos pedidos, enviar capturas, aclarar colores o tallas, ni por CORREGIR después de CONFIRMAR. Lee los audios transcritos y las imágenes analizadas en su orden; no inventes el contenido pendiente. Primero el asistente aclara qué quiere conservar. Escala si el cliente pide una persona o, una vez aclarado, requiere una operación fuera de sus capacidades. Un sí ambiguo no resuelve la elección.',
   '',
   'Contestá SÓLO un JSON: {"escalar": true|false, "clase": "envio_mal"|"no_llego"|"cobro"|"devolucion"|"otro", "urgencia": "ahora"|"hoy", "porQue": "una línea en español, máximo 90 caracteres, diciendo qué pasa"}',
 ].join('\n');
@@ -295,7 +296,7 @@ export const PREGUNTAS_ESCALADA = {
     },
     criteria: {
       true: 'El envío va a una dirección o ciudad equivocada; el seguimiento no cierra con lo que la persona dice; llegó roto, incompleto, vencido o distinto; pagó y no figura; le cobraron mal; viene reclamando hace días sin solución.',
-      false: 'Pregunta de producto, duda difícil, comparación de precios, queja general sobre la publicidad o el precio, mal humor sin un hecho concreto, conversación de compra normal.',
+      false: 'Pregunta de producto, duda difícil, comparación de precios o pedidos, revisión de colores y tallas antes del despacho, CORREGIR después de CONFIRMAR, capturas o audios que aclaran una elección; queja general sobre la publicidad o el precio, mal humor sin un hecho concreto, conversación de compra normal.',
     },
   },
   pide_fuera_de_alcance: {
@@ -430,7 +431,7 @@ export function escaladaDesdeJev(
  */
 /** `undefined` = Jev no contestó (caído o sin llave): que decida Haiku. */
 async function clasificarConJev(ctx: ContextoEscalada): Promise<Escalada | null | undefined> {
-  const hilo = (ctx.hilo ?? []).slice(-6);
+  const hilo = (ctx.hilo ?? []).slice(-30);
   const resultado = await preguntarJev({
     db: ctx.db,
     workspaceId: ctx.workspaceId,
@@ -512,7 +513,7 @@ async function clasificar(ctx: ContextoEscalada): Promise<Escalada | null> {
 }
 
 async function clasificarConHaiku(ctx: ContextoEscalada): Promise<Escalada | null> {
-  const hilo = (ctx.hilo ?? []).slice(-6).join('\n');
+  const hilo = (ctx.hilo ?? []).slice(-30).join('\n');
   try {
     const salida = await completeTextMedido(ctx.db, {
       workspaceId: ctx.workspaceId,
