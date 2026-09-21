@@ -1,3 +1,4 @@
+import { replyWasSuperseded } from './reply-freshness';
 import type { OtherStoreContext } from '@/lib/ai/tools';
 import { untrustedContext } from './input-security';
 import { captureCustomerOrder, orderScreenshotMessageId, type OrderScreenshot } from './order-screenshot';
@@ -677,7 +678,8 @@ export async function runAiAgent(
       return;
     }
 
-    if (recoveryIntent === 'none' && args.inboundMessage.content_type === 'text' &&
+    const purchaseButtonReply = purchaseConfirmationReply({ workspaceId: args.workspaceId, language: agent.language, text: textoEntrante, context: automationContext });
+    if (!purchaseButtonReply && recoveryIntent === 'none' && args.inboundMessage.content_type === 'text' &&
       !args.inboundMessage.media_url && await sinRespuestaNecesaria(db, {
         workspaceId: args.workspaceId,
         conversationId: args.conversation.id,
@@ -1201,11 +1203,20 @@ export async function runAiAgent(
     const outboundTarget = await resolveAiOutboundTarget(db, args);
     const adapter = getAdapter(args.channel);
     const insertedIds: string[] = [];
-    for (const shot of reply.screenshots ?? []) {
+    const mayContinueSending = async () => {
+      if (await replyWasSuperseded(db, args.conversation.id, args.inboundMessage)) {
+        await logReply(db, agent, args, { status: 'skipped', skip_reason: 'stale_by_newer_inbound' });
+        return false;
+      }
       const current = await db.from('conversations').select('ai_enabled,assigned_agent_id,status').eq('id', args.conversation.id).maybeSingle();
-      if (current.error || !current.data || !current.data.ai_enabled || current.data.status === 'closed' || current.data.assigned_agent_id !== freshConv?.assigned_agent_id) return;
-      const newer = await db.from('messages').select('id').eq('conversation_id', args.conversation.id).eq('sender_type', 'customer').gt('created_at', args.inboundMessage.created_at).limit(1);
-      if (newer.error || newer.data?.length) return;
+      if (current.error) throw current.error;
+      if (!current.data || current.data.assigned_agent_id !== freshConv?.assigned_agent_id) return false;
+      const reason = shouldSkip(agent, { ...args, conversation: { ...args.conversation, ...current.data } as Conversation });
+      if (reason) await logReply(db, agent, args, { status: 'skipped', skip_reason: reason });
+      return !reason;
+    };
+    for (const shot of reply.screenshots ?? []) {
+      if (!await mayContinueSending()) return;
       await assertStoredConnectionCanSend(db, outboundTarget.connection.id);
       const path = args.workspaceId + '/' + args.conversation.id + '/order-' + shot.order.replace(/[^0-9]/g, '') + '-' + args.inboundMessage.id + '.png';
       const uploaded = await db.storage.from(MEDIA_BUCKET).upload(path, shot.png, { contentType: 'image/png', upsert: true });
@@ -1236,6 +1247,7 @@ export async function runAiAgent(
     }
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
+      if (!await mayContinueSending()) return;
       // Recheck every chunk: disconnecting while the model was composing (or
       // between two bubbles) must stop the remaining automatic sends.
       await assertStoredConnectionCanSend(db, outboundTarget.connection.id);

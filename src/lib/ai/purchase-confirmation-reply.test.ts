@@ -13,7 +13,7 @@ describe('existing purchase confirmation buttons', () => {
   it('supports English and asks only for the correction when selected', () => {
     expect(purchaseConfirmationReply({ ...args, language: 'en', text: ' confirm ' })).toContain('Thank you for confirming');
     expect(purchaseConfirmationReply({ ...args, language: 'en', text: ' confirm ' })).toContain('tracking number here as soon as your order ships');
-    expect(purchaseConfirmationReply({ ...args, text: 'CORREGIR' })).toBe('¿Qué dato de tu pedido necesitas corregir?');
+    expect(purchaseConfirmationReply({ ...args, text: 'CORREGIR' })).toBe('Claro, te ayudo 😊 ¿Qué dato de tu pedido necesitas corregir?');
   });
   it('does not swallow questions, negations, other merchants or recovery flows', () => {
     for (const text of ['no confirmar', 'CONFIRMAR, pero cambia la talla', 'sí', '¿ya despacharon?', 'quiero cancelar']) {

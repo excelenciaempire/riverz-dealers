@@ -20,7 +20,7 @@ export function purchaseConfirmationReply(input: {
       : '¡Gracias por confirmar tu pedido y por confiar en nosotros! 😊 Te enviaremos el número de guía por aquí apenas sea despachado. Si necesitas algo, estamos para ayudarte.';
   }
   if (action === 'CORREGIR' || action === 'CORRECT') {
-    return en ? 'Which order detail would you like to change?' : '¿Qué dato de tu pedido necesitas corregir?';
+    return en ? 'Of course, I’m happy to help 😊 Which order detail would you like to change?' : 'Claro, te ayudo 😊 ¿Qué dato de tu pedido necesitas corregir?';
   }
   return null;
 }
