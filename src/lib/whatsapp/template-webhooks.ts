@@ -66,6 +66,17 @@ export async function handleTemplateStatusUpdate(
   const { reconcileWorkspaceAutomationReadiness } = await import('@/lib/automations/activation')
   const workspaces = new Set((data ?? []).map(row => row.workspace_id).filter(Boolean))
   for (const workspaceId of workspaces) {
+    if ((value.event ?? '').toUpperCase() === 'APPROVED') {
+      const { promoteApprovedRiverzoficialTemplate } = await import(
+        '@/lib/automations/riverzoficial-template-promotion'
+      )
+      await promoteApprovedRiverzoficialTemplate(
+        db,
+        workspaceId,
+        name,
+        value.message_template_language ?? 'es',
+      )
+    }
     await reconcileWorkspaceAutomationReadiness(db, workspaceId)
   }
 }

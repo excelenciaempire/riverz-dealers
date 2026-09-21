@@ -1,5 +1,9 @@
 /** Reviewed messages for riverzoficial. Product lists are always transaction data. */
 export { RIVERZOFICIAL_WORKSPACE } from '../src/lib/automations/riverzoficial-template-context';
+import {
+  riverzoficialProductTemplateName,
+  type RiverzoficialProductTemplateKey,
+} from '../src/lib/automations/riverzoficial-template-versions';
 type Copy = { key: string; aliases: string[]; fields: string[]; es: string; en: string };
 export const productTemplates: Copy[] = [
 { key: 'confirmacion', aliases: ['deuna_confirmacion_contraentrega','deuna_confirmacion_datos_v2','deuna_confirmacion_datos_v3','deuna_confirmacion_producto_v1'], fields: ['contact_first_name','order_items','total_price_display','delivery_address','delivery_phone'],
@@ -128,6 +132,35 @@ en: `Your purchase was cancelled:
 {{1}}
 
 If you didn't request the cancellation, message me here and we'll check what happened 😊` },
+{ key: 'compra_pagada', aliases: ['deuna_compra_pagada_producto_v1'], fields: ['contact_first_name','order_items','delivery_address','delivery_phone'],
+es: `Hola, {{1}} 😊
+
+¡Gracias por tu compra!
+
+Ya recibimos tu pago y estamos preparando:
+
+{{2}}
+
+Lo enviamos a: {{3}}
+Tu teléfono: {{4}}
+
+Si necesitas corregir algún dato, toca CORREGIR y dime cuál.
+
+Si tienes alguna pregunta, me avisas por aquí 💛`,
+en: `Hi, {{1}} 😊
+
+Thank you for your purchase!
+
+We received your payment and we're preparing:
+
+{{2}}
+
+Shipping to: {{3}}
+Your phone: {{4}}
+
+If you need to correct any details, tap CORRECT and tell me which one.
+
+If you have any questions, message me here 💛` },
 { key: 'experiencia', aliases: ['riverz_como_te_fue','deuna_experiencia_producto_v1'], fields: ['order_items'],
 es: `¿Cómo te ha ido con esto? 😊
 
@@ -155,17 +188,5 @@ Remember, you pay on delivery. You don't need to transfer money beforehand.
 
 If you received a payment notice you don't understand, send it to me and we'll check it together 😊` },
 ];
-const templateVersions: Record<string, number> = {
-  confirmacion: 2,
-  recordatorio: 3,
-  revision: 3,
-  carrito: 3,
-  carrito_recordatorio: 3,
-  despachado: 2,
-  entregado: 2,
-  cancelado: 2,
-  experiencia: 2,
-  revision_pago: 2,
-};
 export const productTemplateName = (key: string) =>
-  `deuna_${key}_producto_v${templateVersions[key] ?? 1}`;
+  riverzoficialProductTemplateName(key as RiverzoficialProductTemplateKey);

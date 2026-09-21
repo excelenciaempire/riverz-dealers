@@ -3,7 +3,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { handleTemplateStatusUpdate } from './template-webhooks'
 
 const reconcile = vi.hoisted(() => vi.fn().mockResolvedValue([]))
+const promote = vi.hoisted(() => vi.fn().mockResolvedValue(0))
 vi.mock('@/lib/automations/activation', () => ({ reconcileWorkspaceAutomationReadiness: reconcile }))
+vi.mock('@/lib/automations/riverzoficial-template-promotion', () => ({ promoteApprovedRiverzoficialTemplate: promote }))
 
 function fixture(rows: Array<{ workspace_id: string }>, error: { message: string } | null = null) {
   const query = { update: vi.fn(), eq: vi.fn(), select: vi.fn().mockResolvedValue({ data: rows, error }) }
@@ -23,6 +25,16 @@ describe('template status readiness', () => {
     expect(query.eq).toHaveBeenCalledWith('language', 'es')
     expect(query.update).toHaveBeenCalledWith(expect.objectContaining({ meta_status: event }))
     expect(reconcile).toHaveBeenCalledExactlyOnceWith(db, 'workspace-a')
+    if (event === 'APPROVED') {
+      expect(promote).toHaveBeenCalledExactlyOnceWith(
+        db,
+        'workspace-a',
+        'confirmation',
+        'es',
+      )
+    } else {
+      expect(promote).not.toHaveBeenCalled()
+    }
   })
 
   it('does not touch other accounts when the WABA is missing', async () => {
