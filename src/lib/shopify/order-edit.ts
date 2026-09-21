@@ -26,6 +26,14 @@ export interface ReplacementOrderItem {
 export interface ReplaceOrderItemsResult {
   ok: boolean;
   items?: Array<{ variantId: string; quantity: number; free: boolean }>;
+  verifiedItems?: Array<{
+    variantId: string;
+    quantity: number;
+    title: string;
+    variantTitle: string;
+  }>;
+  total?: { amount: string; currencyCode: string };
+  tags?: string[];
   error?: string;
   scope?: string;
 }
@@ -185,10 +193,45 @@ export async function replaceUnfulfilledOrderItems(
   const items = [...grouped.values()];
   if (!items.length || items.length > 20) return { ok: false, error: 'invalid_items' };
 
+  const orderGid = `gid://shopify/Order/${orderId}`;
+  const preflightRes = await gql(
+    admin,
+    `query($id:ID!){order(id:$id){id cancelledAt displayFulfillmentStatus lineItems(first:100){nodes{quantity currentQuantity unfulfilledQuantity}}}}`,
+    { id: orderGid },
+  );
+  if (preflightRes.permiso) {
+    return { ok: false, error: 'missing_scope', scope: preflightRes.permiso };
+  }
+  const preflight = preflightRes.data as {
+    order?: {
+      id?: string;
+      cancelledAt?: string | null;
+      displayFulfillmentStatus?: string | null;
+      lineItems?: {
+        nodes?: Array<{
+          quantity?: number;
+          currentQuantity?: number;
+          unfulfilledQuantity?: number;
+        }>;
+      };
+    };
+  } | null;
+  const liveOrder = preflight?.order;
+  if (!liveOrder?.id) return { ok: false, error: 'order_not_found' };
+  if (liveOrder.cancelledAt) return { ok: false, error: 'order_cancelled' };
+  const alreadyFulfilled = (liveOrder.lineItems?.nodes ?? []).some((line) => {
+    const current = Math.max(0, Number(line.currentQuantity ?? line.quantity ?? 0));
+    const unfulfilled = Math.max(0, Number(line.unfulfilledQuantity ?? current));
+    return current > unfulfilled;
+  });
+  if (alreadyFulfilled || (liveOrder.displayFulfillmentStatus ?? '').toUpperCase() === 'FULFILLED') {
+    return { ok: false, error: 'order_already_fulfilled' };
+  }
+
   const beginRes = await gql(
     admin,
     `mutation($id:ID!){orderEditBegin(id:$id){calculatedOrder{id lineItems(first:100){nodes{id quantity}}} userErrors{message}}}`,
-    { id: `gid://shopify/Order/${orderId}` },
+    { id: orderGid },
   );
   if (beginRes.permiso) return { ok: false, error: 'missing_scope', scope: beginRes.permiso };
   const begin = beginRes.data as {
@@ -289,5 +332,71 @@ export async function replaceUnfulfilledOrderItems(
       error: commitPayload?.orderEditCommit?.userErrors?.[0]?.message ?? 'order_edit_commit_failed',
     };
   }
-  return { ok: true, items };
+
+  // Shopify accepted the edit, but the customer must only hear that the order
+  // was corrected after a fresh read proves which active variants remain.
+  const verifyRes = await gql(
+    admin,
+    `query($id:ID!){order(id:$id){id tags totalPriceSet{shopMoney{amount currencyCode}} lineItems(first:100){nodes{title variantTitle currentQuantity variant{id}}}}}`,
+    { id: orderGid },
+  );
+  if (verifyRes.permiso) {
+    return { ok: false, error: 'updated_but_unverified', scope: verifyRes.permiso };
+  }
+  const verifiedOrder = verifyRes.data as {
+    order?: {
+      id?: string;
+      tags?: string[];
+      totalPriceSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
+      lineItems?: {
+        nodes?: Array<{
+          title?: string;
+          variantTitle?: string;
+          currentQuantity?: number;
+          variant?: { id?: string } | null;
+        }>;
+      };
+    };
+  } | null;
+  if (!verifiedOrder?.order?.id) return { ok: false, error: 'updated_but_unverified' };
+  const verifiedItems = (verifiedOrder.order.lineItems?.nodes ?? [])
+    .map((line) => ({
+      variantId: String(line.variant?.id ?? '').replace(/\D/g, ''),
+      quantity: Math.max(0, Math.floor(Number(line.currentQuantity ?? 0))),
+      title: String(line.title ?? ''),
+      variantTitle: String(line.variantTitle ?? ''),
+    }))
+    .filter((line) => line.variantId && line.quantity > 0);
+  const requestedQuantities = new Map<string, number>();
+  for (const item of items) {
+    requestedQuantities.set(
+      item.variantId,
+      (requestedQuantities.get(item.variantId) ?? 0) + item.quantity,
+    );
+  }
+  const verifiedQuantities = new Map<string, number>();
+  for (const item of verifiedItems) {
+    verifiedQuantities.set(
+      item.variantId,
+      (verifiedQuantities.get(item.variantId) ?? 0) + item.quantity,
+    );
+  }
+  const exact =
+    requestedQuantities.size === verifiedQuantities.size &&
+    [...requestedQuantities].every(
+      ([variantId, quantity]) => verifiedQuantities.get(variantId) === quantity,
+    );
+  if (!exact) {
+    return { ok: false, error: 'updated_but_verification_mismatch', verifiedItems };
+  }
+  const money = verifiedOrder.order.totalPriceSet?.shopMoney;
+  return {
+    ok: true,
+    items,
+    verifiedItems,
+    tags: Array.isArray(verifiedOrder.order.tags) ? verifiedOrder.order.tags : [],
+    ...(money?.amount && money.currencyCode
+      ? { total: { amount: money.amount, currencyCode: money.currencyCode } }
+      : {}),
+  };
 }

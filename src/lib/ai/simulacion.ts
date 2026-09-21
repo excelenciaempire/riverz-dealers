@@ -1,5 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
-import { ORDER_CONVERSATION_POLICY, orderConversationModel } from './order-conversation-policy';
+import { ORDER_CONVERSATION_POLICY, ORDER_OPERATION_POLICY, orderConversationModel } from './order-conversation-policy';
 import { recoveryHasExistingOrder } from './recovery-policy';
 import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
@@ -160,7 +160,7 @@ export async function simularRespuesta(
       registro,
       perfilOperativo,
       input.simulatedChannel
-    ) + bloquesDeEntrega(a, automationContext, input.simulatedChannel) + '\n\n' + ORDER_CONVERSATION_POLICY;
+    ) + bloquesDeEntrega(a, automationContext, input.simulatedChannel) + '\n\n' + ORDER_CONVERSATION_POLICY + '\n\n' + ORDER_OPERATION_POLICY;
 
   // La misma lista que produccion, resuelta por la pizarra del comercio.
   // `hayContacto` va en true a propósito: lo que hay que previsualizar es lo

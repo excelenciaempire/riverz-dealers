@@ -10,7 +10,7 @@ import {
 } from '../products/options-image';
 import { purchaseConfirmationReply } from './purchase-confirmation-reply';
 import { enrichConversationEvidence, evidenceText, type EvidenceRow } from './conversation-evidence';
-import { DEUNA_WORKSPACE, ORDER_CONVERSATION_POLICY, orderConversationModel } from './order-conversation-policy';
+import { DEUNA_WORKSPACE, ORDER_CONVERSATION_POLICY, ORDER_OPERATION_POLICY, orderConversationModel } from './order-conversation-policy';
 import {
   esCanalDeComentarios,
   esError as esErrorDestinoComentario,
@@ -2995,7 +2995,7 @@ async function generateReply(
     origen.channel
   );
   system += bloquesDeEntrega(agent, recoveryContext, origen.channel);
-  system += '\n\n' + ORDER_CONVERSATION_POLICY;
+  system += '\n\n' + ORDER_CONVERSATION_POLICY + '\n\n' + ORDER_OPERATION_POLICY;
   const handoffContext = recoveryContext?.retention_handoff ? null : recoveryContext;
 
   const messages = normalizarLimitesDeConversacion(context.messages, {

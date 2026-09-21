@@ -42,6 +42,7 @@ import { abrirDevolucion, type AbrirDevolucionInput } from '@/lib/returns/open'
 import { registrarHueco } from './answer-gaps'
 import { cerrarConversacion, etiquetarContacto, verContacto, verProducto } from './bandeja'
 import { gestionarRecompra } from './recompras'
+import { aplicarDesenlace } from './desenlace'
 
 /**
  * Cuántas veces puede pedir herramientas antes de tener que contestar.
@@ -1642,18 +1643,38 @@ export async function runTool(
         })
       }
       if (!result.ok) {
+        const committedButUnverified = result.error?.startsWith('updated_but_') === true
         return JSON.stringify({
-          error: 'update_failed',
+          error: committedButUnverified ? 'update_unverified' : 'update_failed',
           detail: result.error,
+          verified_items: result.verifiedItems,
           message:
-            'No pude corregir el pedido. No afirmes que quedó listo ni lo envíes a logística.',
+            committedButUnverified
+              ? 'Shopify recibió una edición, pero la lectura posterior no confirmó exactamente las variantes. No afirmes que quedó listo ni lo envíes a logística; deja el caso para revisión operativa.'
+              : 'No pude corregir el pedido. No afirmes que quedó listo ni lo envíes a logística.',
         })
+      }
+      const alreadyInDropi = (result.tags ?? []).some((tag) =>
+        /order\s+sent\s+to\s+dropi/i.test(tag),
+      )
+      if (alreadyInDropi && localOrders.conversationId) {
+        await aplicarDesenlace(
+          localOrders.db,
+          localOrders.conversationId,
+          'problema_detectado',
+          `Shopify quedó corregido, pero el pedido ${String(input.order_number || pedido)} ya había sido enviado a Dropi. Sincroniza allí las mismas variantes antes de despachar. No agregues notas al proveedor.`,
+        )
       }
       return JSON.stringify({
         ok: true,
         items: result.items,
+        verified_items: result.verifiedItems,
+        verified_total: result.total,
+        logistics_sync: alreadyInDropi ? 'manual_required' : 'not_required_yet',
         message:
-          'Pedido corregido con las variantes confirmadas. Ya puedes resumir exactamente las referencias y tallas que quedaron.',
+          alreadyInDropi
+            ? 'Pedido corregido y verificado en Shopify. Ya estaba enviado a logística, así que dejé una alerta para sincronizar allí las mismas variantes antes del despacho. No afirmes que la sincronización logística terminó.'
+            : 'Pedido corregido y verificado en Shopify con las variantes activas confirmadas. Ya puedes resumir exactamente las referencias, tallas y total verificados.',
       })
     }
     const addUnits = Math.floor(Number(input.add_units))
