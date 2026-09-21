@@ -17,6 +17,7 @@ import {
 import type { ChannelConnection, Contact, Conversation } from "@/types";
 import { dynamicUrlButtons, manualButtonValue, validBodyParams } from '@/lib/whatsapp/manual-template';
 import { createShortLink } from '@/lib/links/short-link';
+import { resolveMediaFetchUrl } from '@/lib/channels/media-url';
 
 /**
  * POST /api/conversations/start-whatsapp
@@ -63,6 +64,14 @@ export async function POST(req: Request): Promise<Response> {
     template_language?: string;
     template_params?: string[];
     template_preview?: string;
+    template_header_image?: {
+      url?: string;
+      mime?: string;
+      name?: string;
+      size?: number;
+    };
+    /** Compatibilidad con clientes del despliegue anterior. */
+    template_header_image_url?: string;
   } | null;
 
   const phone = sanitizePhoneForMeta(String(body?.phone ?? ""));
@@ -235,9 +244,12 @@ export async function POST(req: Request): Promise<Response> {
   let contentType: "text" | "template";
   let contentText: string | null;
   let storedTemplate: string | null = null;
+  let storedHeaderImage:
+    | { url: string; mime?: string; name?: string; size?: number }
+    | null = null;
   try {
     if (templateName) {
-      let query = admin.from('message_templates').select('id, name, language, body_text, buttons')
+      let query = admin.from('message_templates').select('id, name, language, body_text, buttons, header_type')
         .eq('workspace_id', workspaceId).eq('status', 'Approved');
       query = body?.template_id ? query.eq('id', body.template_id)
         : query.eq('name', templateName).eq('language', body?.template_language || 'en_US');
@@ -246,6 +258,26 @@ export async function POST(req: Request): Promise<Response> {
       const params = body?.template_params ?? [];
       if (!validBodyParams(template.body_text ?? '', params))
         return NextResponse.json({ error: translate(locale, 'inbox.templateFieldsRequired') }, { status: 400 });
+      const rawHeaderImageUrl =
+        body?.template_header_image?.url?.trim() ??
+        body?.template_header_image_url?.trim();
+      if (template.header_type === 'image' && !rawHeaderImageUrl) {
+        return NextResponse.json(
+          { error: translate(locale, 'inbox.templateImageRequired') },
+          { status: 400 },
+        );
+      }
+      const headerImageUrl = rawHeaderImageUrl
+        ? await resolveMediaFetchUrl(rawHeaderImageUrl, workspaceId)
+        : undefined;
+      storedHeaderImage = rawHeaderImageUrl
+        ? {
+            url: rawHeaderImageUrl,
+            mime: body?.template_header_image?.mime,
+            name: body?.template_header_image?.name,
+            size: body?.template_header_image?.size,
+          }
+        : null;
       const buttonUrlParams: Array<{ index: number; text: string }> = [];
       // Validate every destination before creating redirect tokens or sending to Meta.
       const destinations = dynamicUrlButtons(template.buttons).map(button => ({
@@ -264,6 +296,7 @@ export async function POST(req: Request): Promise<Response> {
         templateName: template.name,
         language: template.language,
         params,
+        headerImageUrl,
         buttonUrlParams,
       });
       messageId = res.messageId;
@@ -301,6 +334,22 @@ export async function POST(req: Request): Promise<Response> {
       template_name: storedTemplate,
       message_id: messageId,
       status: "sent",
+      ...(storedHeaderImage
+        ? {
+            media_url: storedHeaderImage.url,
+            media_type: "image",
+            media_mime: storedHeaderImage.mime ?? null,
+            media_size: storedHeaderImage.size ?? null,
+            attachments: [
+              {
+                url: storedHeaderImage.url,
+                mime_type: storedHeaderImage.mime,
+                name: storedHeaderImage.name,
+                size: storedHeaderImage.size,
+              },
+            ],
+          }
+        : {}),
     })
     .select()
     .single();

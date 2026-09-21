@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
-  send: vi.fn(), short: vi.fn(), from: vi.fn(), template: {} as Record<string, unknown>,
+  send: vi.fn(), short: vi.fn(), sign: vi.fn(), from: vi.fn(), template: {} as Record<string, unknown>,
   filters: [] as unknown[][],
 }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: { id: 'user' } } }) } }) }));
@@ -14,6 +14,7 @@ vi.mock('@/lib/i18n/server', () => ({ getLocale: async () => 'es' }));
 vi.mock('@/lib/i18n/translate', () => ({ translate: (_: string, key: string) => key }));
 vi.mock('@/lib/rate-limit', () => ({ checkRateLimit: () => ({ success: true }), rateLimitResponse: vi.fn(), RATE_LIMITS: { send: {} } }));
 vi.mock('@/lib/links/short-link', () => ({ createShortLink: mocks.short }));
+vi.mock('@/lib/channels/media-url', () => ({ resolveMediaFetchUrl: mocks.sign }));
 import { POST } from './route';
 
 beforeEach(() => {
@@ -22,6 +23,7 @@ beforeEach(() => {
   mocks.template = { name: 'cart', language: 'es', body_text: 'Hola {{1}}',
     buttons: [{ type: 'URL', text: 'Retomar compra', url: 'https://riverz.co/r/{{1}}' }] };
   mocks.short.mockResolvedValue('customer-token');
+  mocks.sign.mockResolvedValue('https://storage.test/signed-photo.jpg');
   mocks.send.mockResolvedValue({ messageId: 'wamid.test' });
   mocks.from.mockImplementation((table: string) => {
     const rows: Record<string, unknown> = {
@@ -70,5 +72,52 @@ describe('new chat template send', () => {
     expect((await POST(request({}))).status).toBe(200);
     expect(mocks.short).not.toHaveBeenCalled();
     expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ buttonUrlParams: [] }));
+  });
+  it('requires and signs the image of an image-header template', async () => {
+    mocks.template = {
+      name: 'tracking_photo',
+      language: 'es',
+      body_text: 'Estado: {{1}}',
+      buttons: [],
+      header_type: 'image',
+    };
+    expect((await POST(request({ template_name: 'tracking_photo' }))).status).toBe(400);
+    expect(mocks.send).not.toHaveBeenCalled();
+
+    const response = await POST(
+      request({
+        template_name: 'tracking_photo',
+        template_header_image: {
+          url: '/api/media/workspace/conversation/photo.jpg',
+          mime: 'image/jpeg',
+          name: 'tracking.jpg',
+          size: 1200,
+        },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.sign).toHaveBeenCalledWith(
+      '/api/media/workspace/conversation/photo.jpg',
+      'workspace',
+    );
+    expect(mocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headerImageUrl: 'https://storage.test/signed-photo.jpg',
+      }),
+    );
+    expect(mocks.filters).toContainEqual([
+      'messages',
+      'insert',
+      expect.objectContaining({
+        media_url: '/api/media/workspace/conversation/photo.jpg',
+        media_type: 'image',
+        attachments: [
+          expect.objectContaining({
+            url: '/api/media/workspace/conversation/photo.jpg',
+            name: 'tracking.jpg',
+          }),
+        ],
+      }),
+    ]);
   });
 });

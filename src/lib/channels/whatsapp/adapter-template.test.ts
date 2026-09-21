@@ -5,6 +5,9 @@ vi.mock("../meta-graph", () => ({
   withAppsecretProof: (url: string) => url,
 }));
 vi.mock("../admin-client", () => ({ supabaseAdmin: () => ({}) }));
+vi.mock("../media-url", () => ({
+  resolveMediaFetchUrl: vi.fn(async () => "https://storage.test/signed-photo.jpg"),
+}));
 vi.mock("../meta-auth", () => ({
   clearMetaConnectionError: vi.fn(),
   handleMetaGraphError: vi.fn(),
@@ -33,6 +36,7 @@ describe("WhatsApp image-header templates", () => {
       channel: "whatsapp",
       connection: {
         id: "connection-1",
+        workspace_id: "workspace-1",
         status: "connected",
         config: { phone_number_id: "phone-1" },
         secrets: { access_token: "encrypted" },
@@ -42,7 +46,7 @@ describe("WhatsApp image-header templates", () => {
       templateName: "rasmiaw_estado_transportadora_foto_v1",
       language: "es",
       params: ["Tu pedido está en tránsito."],
-      headerImageUrl: "https://riverz.co/api/media/photo.jpg",
+      headerImageUrl: "/api/media/workspace/conversation/photo.jpg",
     });
 
     const init = request.mock.calls[0]?.[1] as RequestInit;
@@ -53,7 +57,7 @@ describe("WhatsApp image-header templates", () => {
         parameters: [
           {
             type: "image",
-            image: { link: "https://riverz.co/api/media/photo.jpg" },
+            image: { link: "https://storage.test/signed-photo.jpg" },
           },
         ],
       },

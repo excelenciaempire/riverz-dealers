@@ -1,7 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+  type KeyboardEvent,
+} from "react";
+import { ImagePlus, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
@@ -26,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { Conversation } from "@/types";
 import { dynamicUrlButtons, manualButtonValue, validBodyParams } from '@/lib/whatsapp/manual-template';
+import { cn } from "@/lib/utils";
 
 interface ApprovedTemplate {
   id: string;
@@ -33,6 +42,7 @@ interface ApprovedTemplate {
   name: string;
   language: string;
   body_text: string;
+  header_type: "text" | "image" | "video" | "document" | null;
 }
 
 interface NewChatModalProps {
@@ -53,6 +63,22 @@ function fillTemplate(body: string, params: string[]): string {
   return body.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => params[Number(n) - 1] ?? `{{${n}}}`);
 }
 
+function imageFromFiles(files: FileList | File[]): File | null {
+  const list = Array.from(files);
+  return (
+    list.find((file) => ["image/jpeg", "image/png"].includes(file.type)) ??
+    list[0] ??
+    null
+  );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toLocaleString(undefined, {
+    maximumFractionDigits: 1,
+  })} MB`;
+}
+
 export function NewChatModal({
   open,
   onOpenChange,
@@ -71,7 +97,22 @@ export function NewChatModal({
   const [templateName, setTemplateName] = useState("");
   const [params, setParams] = useState<string[]>([]);
   const [buttonLinks, setButtonLinks] = useState<Record<string, string>>({});
+  const [conversationId, setConversationId] = useState("");
+  const [headerImage, setHeaderImage] = useState<File | null>(null);
+  const [headerImageError, setHeaderImageError] = useState<string | null>(null);
+  const [draggingHeaderImage, setDraggingHeaderImage] = useState(false);
   const [busy, setBusy] = useState(false);
+  const headerImageInputRef = useRef<HTMLInputElement>(null);
+
+  const headerPreviewUrl = useMemo(
+    () => (headerImage ? URL.createObjectURL(headerImage) : null),
+    [headerImage],
+  );
+
+  useEffect(() => {
+    if (!headerPreviewUrl) return;
+    return () => URL.revokeObjectURL(headerPreviewUrl);
+  }, [headerPreviewUrl]);
 
   function reset() {
     setStep("phone");
@@ -83,6 +124,10 @@ export function NewChatModal({
     setTemplateName("");
     setParams([]);
     setButtonLinks({});
+    setConversationId("");
+    setHeaderImage(null);
+    setHeaderImageError(null);
+    setDraggingHeaderImage(false);
     setBusy(false);
   }
 
@@ -96,7 +141,7 @@ export function NewChatModal({
     const supabase = createClient();
     const { data } = await supabase
       .from("message_templates")
-      .select("id, name, language, body_text, status, buttons")
+      .select("id, name, language, body_text, status, buttons, header_type")
       .eq('workspace_id', workspace.id)
       .eq("status", "Approved")
       .order("name", { ascending: true });
@@ -121,6 +166,7 @@ export function NewChatModal({
         return;
       }
       setWindowOpen(Boolean(payload.window_open));
+      setConversationId(String(payload.conversation?.id ?? ""));
       if (!payload.window_open) await loadTemplates();
       setStep("compose");
     } finally {
@@ -131,6 +177,50 @@ export function NewChatModal({
   const selectedTemplate = templates.find((tpl) => tpl.id === templateName);
   const urlButtons = dynamicUrlButtons(selectedTemplate?.buttons);
   const varCount = selectedTemplate ? countVars(selectedTemplate.body_text) : 0;
+
+  function chooseHeaderImage(file: File | null) {
+    setHeaderImageError(null);
+    if (!file) {
+      setHeaderImage(null);
+      return;
+    }
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      setHeaderImage(null);
+      setHeaderImageError(t("inbox.templateImageTypeError"));
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setHeaderImage(null);
+      setHeaderImageError(t("inbox.fileTooLarge"));
+      return;
+    }
+    setHeaderImage(file);
+  }
+
+  function pasteHeaderImage(event: ClipboardEvent<HTMLDivElement>) {
+    if (selectedTemplate?.header_type !== "image") return;
+    const itemFiles = Array.from(event.clipboardData.items)
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+    const file =
+      imageFromFiles(event.clipboardData.files) ?? imageFromFiles(itemFiles);
+    if (!file) return;
+    event.preventDefault();
+    chooseHeaderImage(file);
+  }
+
+  function dropHeaderImage(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDraggingHeaderImage(false);
+    chooseHeaderImage(imageFromFiles(event.dataTransfer.files));
+  }
+
+  function openHeaderImagePicker(event?: KeyboardEvent<HTMLDivElement>) {
+    if (event && !["Enter", " "].includes(event.key)) return;
+    event?.preventDefault();
+    headerImageInputRef.current?.click();
+  }
 
   async function handleSend() {
     setBusy(true);
@@ -159,6 +249,42 @@ export function NewChatModal({
           toast.error(t(error instanceof Error ? error.message : 'inbox.templateLinkInvalid'));
           return;
         }
+        let templateHeaderImage:
+          | { url: string; mime?: string; name?: string; size?: number }
+          | undefined;
+        if (selectedTemplate.header_type === "image") {
+          if (!headerImage) {
+            toast.error(t("inbox.templateImageRequired"));
+            return;
+          }
+          if (!conversationId) {
+            toast.error(t("inbox.newChatFailed", { reason: "" }));
+            return;
+          }
+          const form = new FormData();
+          form.append("file", headerImage);
+          form.append("conversation_id", conversationId);
+          const upload = await fetchWithCsrf("/api/messages/upload", {
+            method: "POST",
+            body: form,
+          });
+          const uploaded = await upload.json().catch(() => ({}));
+          if (!upload.ok || !uploaded.url) {
+            toast.error(
+              uploaded.error || t("inbox.templateImageUploadFailed"),
+            );
+            return;
+          }
+          templateHeaderImage = {
+            url: String(uploaded.url),
+            mime: uploaded.mime ? String(uploaded.mime) : undefined,
+            name: uploaded.name ? String(uploaded.name) : headerImage.name,
+            size:
+              typeof uploaded.size === "number"
+                ? uploaded.size
+                : headerImage.size,
+          };
+        }
         body = {
           ...base,
           template_name: selectedTemplate.name,
@@ -166,6 +292,7 @@ export function NewChatModal({
           template_button_links: buttonLinks,
           template_language: selectedTemplate.language,
           template_params: filled,
+          template_header_image: templateHeaderImage,
           template_preview: fillTemplate(selectedTemplate.body_text, filled),
         };
       }
@@ -189,7 +316,7 @@ export function NewChatModal({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
-      <DialogContent showCloseButton>
+      <DialogContent showCloseButton onPaste={pasteHeaderImage}>
         <DialogHeader>
           <DialogTitle>{t("inbox.newChatTitle")}</DialogTitle>
           <DialogDescription>{t("inbox.newChatDesc")}</DialogDescription>
@@ -256,6 +383,8 @@ export function NewChatModal({
                       setTemplateName(v ?? "");
                       setParams([]);
                       setButtonLinks({});
+                      setHeaderImage(null);
+                      setHeaderImageError(null);
                     }}
                   >
                     <SelectTrigger>
@@ -276,6 +405,121 @@ export function NewChatModal({
                   <p className="rounded-md bg-muted/40 px-3 py-2 text-xs text-foreground/80">
                     {fillTemplate(selectedTemplate.body_text, params.slice(0, varCount))}
                   </p>
+                )}
+
+                {selectedTemplate?.header_type === "image" && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {t("inbox.templateImage")}
+                    </label>
+                    <input
+                      ref={headerImageInputRef}
+                      id="new-chat-template-header-image"
+                      type="file"
+                      accept="image/jpeg,image/png"
+                      className="hidden"
+                      onChange={(event) => {
+                        chooseHeaderImage(
+                          imageFromFiles(event.target.files ?? []),
+                        );
+                        event.target.value = "";
+                      }}
+                    />
+                    {headerImage ? (
+                      <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/50 p-2.5">
+                        {headerPreviewUrl && (
+                          <div
+                            role="img"
+                            aria-label={headerImage.name}
+                            className="h-12 w-12 shrink-0 rounded-lg bg-cover bg-center"
+                            style={{
+                              backgroundImage: `url(${headerPreviewUrl})`,
+                            }}
+                          />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {headerImage.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatFileSize(headerImage.size)}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => headerImageInputRef.current?.click()}
+                        >
+                          {t("inbox.templateImageChange")}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label={t("inbox.templateImageRemove")}
+                          onClick={() => chooseHeaderImage(null)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        aria-label={t("inbox.templateImageSelect")}
+                        onClick={() => openHeaderImagePicker()}
+                        onKeyDown={openHeaderImagePicker}
+                        onDragEnter={(event) => {
+                          event.preventDefault();
+                          setDraggingHeaderImage(true);
+                        }}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "copy";
+                          setDraggingHeaderImage(true);
+                        }}
+                        onDragLeave={(event) => {
+                          if (
+                            !event.currentTarget.contains(
+                              event.relatedTarget as Node | null,
+                            )
+                          ) {
+                            setDraggingHeaderImage(false);
+                          }
+                        }}
+                        onDrop={dropHeaderImage}
+                        className={cn(
+                          "cursor-pointer rounded-xl border border-dashed px-5 py-5 text-center outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20",
+                          draggingHeaderImage
+                            ? "border-primary bg-primary/10"
+                            : "border-border bg-muted/30 hover:border-primary/60 hover:bg-muted/60",
+                        )}
+                      >
+                        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary/15 text-accent-ink">
+                          <ImagePlus className="h-5 w-5" />
+                        </div>
+                        <p className="mt-3 text-sm font-medium text-foreground">
+                          {t(
+                            draggingHeaderImage
+                              ? "inbox.templateImageDropActive"
+                              : "inbox.templateImageDrop",
+                          )}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {t("inbox.templateImagePaste")}
+                        </p>
+                        <span className="mt-3 inline-flex h-8 items-center rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground">
+                          {t("inbox.templateImageSelect")}
+                        </span>
+                      </div>
+                    )}
+                    {headerImageError && (
+                      <p className="text-xs text-destructive">
+                        {headerImageError}
+                      </p>
+                    )}
+                  </div>
                 )}
 
                 {Array.from({ length: varCount }).map((_, i) => (
@@ -319,7 +563,13 @@ export function NewChatModal({
           ) : (
             <Button
               onClick={handleSend}
-              disabled={busy || (!windowOpen && templates.length === 0)}
+              disabled={
+                busy ||
+                (!windowOpen && templates.length === 0) ||
+                (!windowOpen &&
+                  selectedTemplate?.header_type === "image" &&
+                  !headerImage)
+              }
             >
               {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {busy ? t("inbox.newChatSending") : t("inbox.newChatSend")}

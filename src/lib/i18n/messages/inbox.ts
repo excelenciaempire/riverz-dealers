@@ -602,6 +602,14 @@ export const inbox = {
   },
   templateCustomImage: { es: "Foto personalizada", en: "Custom photo" },
   templateImage: { es: "Foto para este cliente", en: "Photo for this customer" },
+  templateImageRequired: {
+    es: "Selecciona la imagen de esta plantilla.",
+    en: "Select the image for this template.",
+  },
+  templateImageUploadFailed: {
+    es: "No se pudo cargar la imagen.",
+    en: "The image could not be uploaded.",
+  },
   templateImageTypeError: {
     es: "Usa una imagen JPG o PNG",
     en: "Use a JPG or PNG image",

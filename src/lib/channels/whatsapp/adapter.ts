@@ -172,9 +172,16 @@ export const whatsappAdapter: ChannelAdapter = {
 
     const components: Record<string, unknown>[] = [];
     if (input.headerImageUrl) {
+      // Los adjuntos de la bandeja se guardan como `/api/media/...` porque el
+      // bucket es privado. Meta no puede abrir esa ruta con la sesión del
+      // operador: necesita una firma pública temporal para descargarla.
+      const headerImageUrl = await resolveMediaFetchUrl(
+        input.headerImageUrl,
+        input.connection.workspace_id,
+      );
       components.push({
         type: "header",
-        parameters: [{ type: "image", image: { link: input.headerImageUrl } }],
+        parameters: [{ type: "image", image: { link: headerImageUrl } }],
       });
     }
     if (input.params?.length) {
