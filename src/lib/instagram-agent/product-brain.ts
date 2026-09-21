@@ -188,7 +188,7 @@ export async function loadProductBrain(
     }
     if (product.training_material?.trim()) {
       parts.push(
-        `- Lo que sabemos de él:\n${withoutHistoricalPriceLines(product.training_material).slice(0, 1200)}`,
+        `- Contenido vigente de la página y conocimiento del producto:\n${withoutHistoricalPriceLines(product.training_material).slice(0, 14_000)}`,
       );
     }
     if (product.say_guidelines?.trim()) {
@@ -205,7 +205,11 @@ export async function loadProductBrain(
               const r = o as Record<string, unknown>;
               const label = typeof r.label === 'string' ? r.label : '';
               const total = r.total != null ? `: ${r.total}` : '';
-              return label ? `  · ${label}${total}` : '';
+              const conditions =
+                typeof r.conditions === 'string' && r.conditions.trim()
+                  ? ` (${r.conditions.trim()})`
+                  : '';
+              return label ? `  · ${label}${total}${conditions}` : '';
             }
             return typeof o === 'string' ? `  · ${o}` : '';
           })

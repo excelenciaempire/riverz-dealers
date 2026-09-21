@@ -72,7 +72,13 @@ export function parseMoney(raw: unknown): number | null {
 // "+ N gratis/free". Case-insensitive, es + en (+ common LatAm variants).
 // NON-global on purpose so `.test`/`.exec` stay stateless.
 const TIER_RE =
-  /(\d{1,3})\s*(?:unidad(?:es)?|unit(?:s)?|piezas?|pzas?|pcs?|uds?|pack(?:s)?|combos?|kits?|paquetes?)\.?(?:\s*(?:\+|y|más|mas|and|con)\s*(\d{1,3})\s*(?:gratis|de\s*regalo|free|gift|regalo))?/i
+  /(\d{1,3})\s*(?:unidad(?:es)?|unit(?:s)?|piezas?|pzas?|pcs?|uds?|par(?:es)?|pairs?|pack(?:s)?|combos?|kits?|paquetes?)\.?(?:\s*(?:\+|y|más|mas|and|con)\s*(\d{1,3})\s*(?:gratis|de\s*regalo|free|gift|regalo))?/i
+
+// Storefront descriptions often put every tier in one meta-description line:
+// "1 par: $249.900 2 pares: $249.900". Split before each tier so the price
+// beside one offer cannot be attributed to the other.
+const TIER_BOUNDARY_RE =
+  /(?=\b\d{1,3}\s*(?:unidad(?:es)?|unit(?:s)?|piezas?|pzas?|pcs?|uds?|par(?:es)?|pairs?|pack(?:s)?|combos?|kits?|paquetes?)\b)/i
 
 // Fallback for "pack/combo de N" phrasing (number AFTER the noun).
 const PACK_DE_RE = /(?:pack|combo|kit|paquete|caja|bundle|set)\s+de\s+(\d{1,3})/i
@@ -109,6 +115,7 @@ export function offersFromText(text: string): DetectedOffer[] {
   if (!text || typeof text !== 'string') return []
   const lines = text
     .split(/\r?\n/)
+    .flatMap((line) => line.split(TIER_BOUNDARY_RE))
     .map((l) => l.trim())
     .filter(Boolean)
 

@@ -13,6 +13,13 @@ export function asksForPrice(text: string | null | undefined): boolean {
   return PRICE_INTENT.test(text ?? '')
 }
 
+const OFFER_INTENT =
+  /\b(oferta|ofertas|promo(?:ci[oó]n|ciones)?|descuento|beneficio|combo|pack|2\s*[x×]\s*1|pag(?:a|ue|as|ues)\s+(?:un[oa]|\d+)\s+(?:y\s+)?(?:llev(?:a|e|as|es)|recib(?:e|a|es|as))|segund[oa]\s+gratis|gratis)\b/i
+
+export function asksForCurrentOffer(text: string | null | undefined): boolean {
+  return asksForPrice(text) || OFFER_INTENT.test(text ?? '')
+}
+
 /**
  * El material scrapeado es conocimiento útil, pero no es un tarifario: puede
  * tener una oferta de ayer. Los precios se inyectan por separado desde la

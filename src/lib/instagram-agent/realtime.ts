@@ -25,6 +25,7 @@ import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { loadCommentConversation } from '@/lib/comments/hilo';
 import {
   asksForPrice,
+  asksForCurrentOffer,
   replyForUnidentifiedPrice,
   unauthorizedQuotedPrices,
 } from '@/lib/products/price-integrity';
@@ -1137,7 +1138,7 @@ async function decidirComentario(
     // El cerebro del producto del que habla: su conocimiento y sus barreras.
     loadProductBrain(db, opts.workspaceId, {
       text: [engagement, postBrief].filter(Boolean).join('\n'),
-      verifyPricing: priceQuestion,
+      verifyPricing: asksForCurrentOffer(engagement),
     }),
   ]);
 

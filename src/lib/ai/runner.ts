@@ -48,6 +48,7 @@ import { expandirGrupos } from '@/lib/products/agrupar';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import {
   asksForPrice,
+  asksForCurrentOffer,
   authorizedPrices,
   replyForUnidentifiedPrice,
   unauthorizedQuotedPrices,
@@ -740,7 +741,7 @@ export async function runAiAgent(
     // El catálogo sincronizado sirve para describir; para COTIZAR se verifica
     // la página pública en este mismo turno. Esto también cubre Kaching, cuyos
     // paquetes cambian fuera de Shopify y por eso no generan products/update.
-    if (priceQuestion && productMatch) {
+    if (asksForCurrentOffer(textoEntrante) && productMatch) {
       priceVerified = (await refreshLivePricing(db, productMatch.product_id))
         .ok;
     }
@@ -2264,7 +2265,7 @@ export async function loadProductCatalog(
   const { data: products } = await db
     .from('shopify_products')
     .select(
-      'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, master_id, platform, currency, raw'
+      'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, structured_research, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive, master_id, platform, currency, raw'
     )
     .eq('workspace_id', workspaceId)
     .order('synced_at', { ascending: false })
@@ -3852,10 +3853,9 @@ export function buildSystemPrompt(
   }
 
   // ── Productos featured ──
-  // Cap defensivo del training_material para no llevar el system prompt
-  // fuera del budget. Se reparte el presupuesto entre los featured (mín 4k
-  // c/u). El compilador buildTrainingMaterial ya trunca scraped_content a 8k.
-  const TRAINING_MAX = 16_000;
+  // Cap defensivo del training_material. El producto que la persona identifica
+  // conserva la lectura completa de sus páginas; los secundarios quedan breves.
+  const TRAINING_MAX = 20_000;
   const perCap =
     featured.length > 0
       ? Math.max(4_000, Math.floor(TRAINING_MAX / featured.length))
@@ -3863,6 +3863,7 @@ export function buildSystemPrompt(
   for (const p of featured) {
     const isMatch = p.id === matchId;
     const tmRaw = withoutHistoricalPriceLines(p.training_material);
+    const productCap = isMatch ? 20_000 : perCap;
     // Fallback a la línea de catálogo (título/desc/precio) si el producto
     // aún no tiene training_material compilado (manual recién creado).
     // El precio de cada canal va SIEMPRE, tenga o no ficha compilada. La línea
@@ -3884,8 +3885,8 @@ export function buildSystemPrompt(
     // enlace: el agente no lo tenía.
     const enlace = p.url ? `\nEnlace del producto: ${p.url}` : '';
     const body = tmRaw
-      ? (tmRaw.length > perCap
-          ? tmRaw.slice(0, perCap) + '\n…[truncado]'
+      ? (tmRaw.length > productCap
+          ? tmRaw.slice(0, productCap) + '\n…[truncado]'
           : tmRaw) +
         (canales ? `\n${canales.trim()}` : '') +
         (variantes ? `\n${variantes}` : '') +
@@ -4140,9 +4141,29 @@ export function formatProductLine(p: ProductRow): string {
   const otros = lineaDeCanales(p);
   const variantes =
     (p.platform ?? 'shopify') === 'shopify' ? formatShopifyVariants(p.raw) : '';
+  const ofertas = formatCatalogOffers(p.allowed_offers, p.currency);
   return `- ${p.title}${meta ? ` (${meta})` : ''}${desc ? `, ${desc}` : ''}${otros}${
     variantes ? ` [${variantes}]` : ''
-  }${p.url ? ` <${p.url}>` : ''}`;
+  }${ofertas ? ` [ofertas vigentes: ${ofertas}]` : ''}${p.url ? ` <${p.url}>` : ''}`;
+}
+
+function formatCatalogOffers(value: unknown, currency?: string | null): string {
+  if (!Array.isArray(value)) return '';
+  return value
+    .slice(0, 6)
+    .map((offer) => {
+      if (typeof offer === 'string') return offer.trim();
+      if (!offer || typeof offer !== 'object') return '';
+      const row = offer as Record<string, unknown>;
+      const label = typeof row.label === 'string' ? row.label.trim() : '';
+      const total =
+        typeof row.total === 'number' && Number.isFinite(row.total)
+          ? `${row.total}${currency ? ` ${currency}` : ''}`
+          : '';
+      return [label, total].filter(Boolean).join(': ');
+    })
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /**

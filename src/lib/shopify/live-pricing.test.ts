@@ -38,6 +38,23 @@ describe('pricingFromStorefrontHtml', () => {
     })
   })
 
+  it('reads current pair offers from a custom Shopify product description', () => {
+    const html = `
+      <meta name="description" content="Oferta: 1 par: $249.900 2 pares: $249.900 (el segundo par es gratis)">
+      <script>Shopify.currency = {"active":"COP","rate":"1.0"};</script>
+      <script type="application/ld+json">{"@type":"Product","offers":{"@type":"Offer","price":249900,"priceCurrency":"COP"}}</script>`
+    expect(pricingFromStorefrontHtml(html)).toEqual({
+      offers: [
+        { label: '1 par', units: 1, total: 249900 },
+        { label: 'Paga 1 par y llévate 2 (segundo par gratis)', units: 2, total: 249900 },
+      ],
+      priceMin: 249900,
+      priceMax: 249900,
+      currency: 'COP',
+      source: 'storefront',
+    })
+  })
+
   it('verifies custom Shopify templates using pixel monetary amounts without scaling pesos', () => {
     const html = `<script>wpmLoader({initData: ${JSON.stringify({
       productVariants: [

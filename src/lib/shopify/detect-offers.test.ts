@@ -85,6 +85,19 @@ describe('offersFromText — english + pack phrasings', () => {
   })
 })
 
+describe('offersFromText — footwear pairs in a single storefront description', () => {
+  it('keeps each pair tier with the price beside it', () => {
+    const offers = normalizeDetectedOffers(
+      offersFromText('Oferta: 1 par: $249.900 2 pares: $249.900 (el segundo par es gratis)'),
+      'es',
+    )
+    expect(offers).toEqual([
+      { label: '1 par', units: 1, total: 249900 },
+      { label: '2 pares', units: 2, total: 249900 },
+    ])
+  })
+})
+
 describe('offersFromOrderProperties — Kaching __kaching_bundles', () => {
   it('sums line quantities grouped by deal code (BXGY free line included)', () => {
     const order = {

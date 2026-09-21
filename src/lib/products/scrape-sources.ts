@@ -3,6 +3,7 @@ import { firecrawlScrape, FirecrawlError, workspaceDelProducto } from '@/lib/fir
 import { isPublicHttpsUrl } from '@/lib/security/url-guard'
 import { detectOffersFromScrapedContent } from '@/lib/shopify/offer-learning'
 import type { Locale } from '@/lib/i18n/config'
+import { buildTrainingMaterial } from './training-material'
 
 /**
  * Leer la página del producto y guardar lo que dice.
@@ -106,6 +107,20 @@ export async function leerFuentes(
       { markdown, html: htmlChunks.join('\n') },
       locale === 'en' ? 'en' : 'es',
     )
+    // scraped_content is only storage; the assistant reads training_material.
+    // Recompile after offer detection so the very next reply gets the current
+    // page, every source and the current tier values.
+    const { data: refreshed } = await db
+      .from('shopify_products')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+    if (refreshed) {
+      await db
+        .from('shopify_products')
+        .update({ training_material: buildTrainingMaterial(refreshed, locale === 'en' ? 'en' : 'es') })
+        .eq('id', id)
+    }
     return {
       ok: true,
       chars: markdown.length,

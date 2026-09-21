@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   asksForPrice,
+  asksForCurrentOffer,
   authorizedPrices,
   replyForUnidentifiedPrice,
   unauthorizedQuotedPrices,
@@ -31,6 +32,10 @@ describe('integridad de precios', () => {
     expect(asksForPrice('Precio?')).toBe(true)
     expect(asksForPrice('How much does it cost?')).toBe(true)
     expect(asksForPrice('¿Cómo se usa?')).toBe(false)
+  })
+
+  it.each(['¿Cuál es la oferta?', '¿Cómo funciona el 2x1?', '¿El segundo par es gratis?', 'Pague uno lleve dos'])('refreshes current commercial terms for %s', (text) => {
+    expect(asksForCurrentOffer(text)).toBe(true)
   })
 
   it('arma la lista autorizada desde el precio y las ofertas', () => {

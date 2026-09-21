@@ -112,7 +112,10 @@ export function buildTrainingMaterial(
   if (aiResearch) parts.push(`## ${L.research}\n${aiResearch}`);
 
   if (scraped) {
-    parts.push(`## ${L.pageContent}\n${scraped.slice(0, 8_000)}`);
+    // leerFuentes bounds all product + prelanding sources to 14k total. Keep
+    // that complete snapshot so FAQs or guarantees near the bottom do not
+    // disappear from the assistant context.
+    parts.push(`## ${L.pageContent}\n${scraped.slice(0, 14_000)}`);
   }
 
   return parts.join('\n\n');

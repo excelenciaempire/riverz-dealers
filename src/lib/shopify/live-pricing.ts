@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { isPublicHttpsUrl } from '@/lib/security/url-guard'
 import { buildTrainingMaterial } from '@/lib/products/training-material'
-import { extractBalanced, offersFromKachingConfig, type DetectedOffer } from './detect-offers'
+import { extractBalanced, normalizeDetectedOffers, offersFromKachingConfig, offersFromText, type DetectedOffer } from './detect-offers'
 
 export interface LivePricing {
   offers: DetectedOffer[]
@@ -62,6 +62,24 @@ export function pricingFromStorefrontHtml(html: string): LivePricing | null {
       priceMax: Math.max(...totals),
       currency: storefrontCurrency(html),
       source: 'kaching',
+    }
+  }
+
+  // Custom Shopify themes may render bundle cards client-side, while keeping
+  // the same current tiers in the public product description. That metadata
+  // is part of the storefront response and is therefore a live source too.
+  const metadataOffers = offersFromProductMetadata(html).filter(
+    (o): o is DetectedOffer & { total: number } =>
+      typeof o.total === 'number' && Number.isFinite(o.total) && o.total > 0,
+  )
+  if (metadataOffers.length > 1) {
+    const totals = metadataOffers.map((o) => o.total)
+    return {
+      offers: metadataOffers,
+      priceMin: Math.min(...totals),
+      priceMax: Math.max(...totals),
+      currency: storefrontCurrency(html),
+      source: 'storefront',
     }
   }
 
@@ -129,6 +147,38 @@ function storefrontCurrency(html: string): string | null {
   return m?.[1]?.toUpperCase() ?? null
 }
 
+function decodeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)))
+}
+
+/** Visible offer copy that Shopify publishes in the product metadata. */
+function offersFromProductMetadata(html: string): DetectedOffer[] {
+  const tags = html.match(/<meta\b[^>]*>/gi) ?? []
+  for (const tag of tags) {
+    if (!/\bname\s*=\s*["']description["']/i.test(tag)) continue
+    const content = tag.match(/\bcontent\s*=\s*(["'])([\s\S]*?)\1/i)?.[2]
+    if (!content) continue
+    const decoded = decodeHtmlAttribute(content)
+    const offers = normalizeDetectedOffers(offersFromText(decoded), 'es').map((offer) => {
+      const secondFree =
+        offer.units === 2 &&
+        /(?:segund[oa]\s+par\s+(?:es\s+)?gratis|paga\s+1\s+par\s+y\s+ll[eé]vate\s+(?:el\s+)?segundo)/i.test(decoded)
+      return secondFree
+        ? { ...offer, label: 'Paga 1 par y llévate 2 (segundo par gratis)' }
+        : offer
+    })
+    if (offers.length > 0) return offers
+  }
+  return []
+}
+
 export async function readLivePricing(
   url: string,
   fetcher: typeof fetch = fetch,
@@ -164,7 +214,7 @@ export async function refreshLivePricing(
 ): Promise<LivePricingResult> {
   const { data: product } = await db
     .from('shopify_products')
-    .select('id, url, currency, bundle_metadata')
+    .select('id, url, currency, bundle_metadata, allowed_offers, offers_auto_detected')
     .eq('id', productId)
     .maybeSingle()
   const url = typeof product?.url === 'string' ? product.url : ''
@@ -188,8 +238,16 @@ export async function refreshLivePricing(
     },
   }
   if (pricing.offers.length > 0) {
-    update.allowed_offers = pricing.offers
-    update.offers_auto_detected = true
+    const existing = Array.isArray(product.allowed_offers)
+      ? (product.allowed_offers as Array<Record<string, unknown>>)
+      : []
+    // Preserve merchant-authored conditions while updating the label, units
+    // and total from the live storefront.
+    update.allowed_offers = pricing.offers.map((offer) => {
+      const previous = existing.find((row) => Number(row.units) === offer.units)
+      return previous ? { ...previous, ...offer } : offer
+    })
+    update.offers_auto_detected = product.offers_auto_detected === false ? false : true
   }
   const { error } = await db.from('shopify_products').update(update).eq('id', productId)
   if (error) return { ok: false, reason: 'fetch_failed' }

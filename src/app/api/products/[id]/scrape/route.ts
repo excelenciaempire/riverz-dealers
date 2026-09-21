@@ -7,6 +7,7 @@ import { isPublicHttpsUrl } from '@/lib/security/url-guard';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { detectOffersFromScrapedContent } from '@/lib/shopify/offer-learning';
+import { buildTrainingMaterial } from '@/lib/products/training-material';
 
 /**
  * POST /api/products/[id]/scrape
@@ -128,6 +129,22 @@ export async function POST(
       { markdown, html: htmlChunks.join('\n') },
       locale === 'en' ? 'en' : 'es',
     );
+    const { data: refreshed } = await supabase
+      .from('shopify_products')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (refreshed) {
+      await supabase
+        .from('shopify_products')
+        .update({
+          training_material: buildTrainingMaterial(
+            refreshed,
+            locale === 'en' ? 'en' : 'es',
+          ),
+        })
+        .eq('id', id);
+    }
     return NextResponse.json({
       ok: true,
       chars: markdown.length,

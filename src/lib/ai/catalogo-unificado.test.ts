@@ -119,6 +119,19 @@ describe('lo que se le muestra al modelo', () => {
     expect(linea).not.toContain('también se vende');
   });
 
+  it('lists every current offer even when the product is only in the compact catalog', () => {
+    const line = formatProductLine(fila({
+      title: 'Puma Suede XL',
+      currency: 'COP',
+      allowed_offers: [
+        { label: '1 par', units: 1, total: 249900 },
+        { label: 'Paga 1 y llévate 2', units: 2, total: 249900 },
+      ],
+    }));
+    expect(line).toContain('1 par: 249900 COP');
+    expect(line).toContain('Paga 1 y llévate 2: 249900 COP');
+  });
+
   it('incluye cada variante publicada y distingue las agotadas', () => {
     const linea = formatProductLine(
       fila({
