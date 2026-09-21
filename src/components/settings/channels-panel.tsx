@@ -33,6 +33,7 @@ import { KlaviyoCard } from '@/components/settings/klaviyo-card';
 import { MetaPixelCard } from '@/components/settings/meta-pixel-card';
 import { MercadoLibreConnect } from '@/components/settings/mercadolibre-connect';
 import { WebhooksCard } from '@/components/settings/webhooks-card';
+import { AddressValidationCard } from '@/components/settings/address-validation-card';
 import { cn } from '@/lib/utils';
 
 /**
@@ -786,6 +787,7 @@ export function ChannelsPanel() {
         <StoreCard platform="woocommerce" />
         <MercadoPagoCard />
         <MetaPixelCard />
+        <AddressValidationCard />
         <KlaviyoCard />
         {isAdmin && <WebhooksCard />}
       </ul>

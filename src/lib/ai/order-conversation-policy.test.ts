@@ -45,6 +45,8 @@ describe('Efra: retain uncertainty across buttons, screenshots and audio', () =>
     expect(ORDER_OPERATION_POLICY).toContain('verificación posterior');
     expect(ORDER_OPERATION_POLICY).toContain('Nunca uses notas al proveedor');
     expect(ORDER_OPERATION_POLICY).toContain('sin una operación verificada en Dropi');
+    expect(ORDER_CONVERSATION_POLICY).toContain('Después de cualquiera de esos botones');
+    expect(ORDER_CONVERSATION_POLICY).toContain('no menciones la validación');
   });
   it('preserves routine model and other merchants configuration', () => {
     expect(orderConversationModel({ ...base, messages: [{ role: 'assistant', content: 'Toca CONFIRMAR o CORREGIR' }, { role: 'user', content: 'CONFIRMAR' }] })).toBe(base.configuredModel);

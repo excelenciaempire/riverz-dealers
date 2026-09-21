@@ -159,6 +159,14 @@ export const errAccount = {
     es: 'API key inválida',
     en: 'Invalid API key',
   },
+  addressValidationKeyRequired: {
+    es: 'Conecta una API key de Google Maps antes de activar la verificación.',
+    en: 'Connect a Google Maps API key before enabling address verification.',
+  },
+  addressValidationKeyRejected: {
+    es: 'Google rechazó la clave. Activa Address Validation API y revisa las restricciones de la API key.',
+    en: 'Google rejected the key. Enable Address Validation API and check the API key restrictions.',
+  },
   // El ID del píxel es sólo números. Sin esta comprobación, quien pega el
   // NOMBRE del píxel guarda algo que nunca va a recibir una venta, y el fallo
   // no se ve hasta que alguien pregunta por qué no llegan las conversiones.

@@ -43,6 +43,7 @@ import { registrarHueco } from './answer-gaps'
 import { cerrarConversacion, etiquetarContacto, verContacto, verProducto } from './bandeja'
 import { gestionarRecompra } from './recompras'
 import { aplicarDesenlace } from './desenlace'
+import { validateWorkspaceShippingAddress } from '@/lib/addresses/google-validation'
 
 /**
  * Cuántas veces puede pedir herramientas antes de tener que contestar.
@@ -768,6 +769,11 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
         },
       },
     },
+    address_confirmed_by_customer: {
+      type: 'boolean',
+      description:
+        'true sólo si create_order devolvió una dirección sugerida y después la clienta confirmó explícitamente esa sugerencia. No la envíes en la primera validación.',
+    },
     payment_hint: {
       type: 'string',
       enum: ['card_or_mp', 'transfer'],
@@ -947,6 +953,69 @@ export interface LocalOrdersContext {
    * panel que dice "Probar".
    */
   simulacion?: boolean
+}
+
+type AddressGateResult =
+  | { ok: true; address: ShippingAddressInput }
+  | { ok: false; toolResult: string }
+
+/**
+ * El botón CONFIRMAR confirma el resumen, pero no convierte una dirección
+ * dudosa en entregable. Este gate corre después del botón y antes de escribir
+ * el pedido. Si Google la acepta, normaliza en silencio; si no, devuelve una
+ * sola pregunta concreta para que el modelo continúe la conversación.
+ */
+async function validateAddressBeforeOrder(
+  ctx: LocalOrdersContext,
+  address: ShippingAddressInput | undefined,
+  customerConfirmedSuggestion: boolean,
+): Promise<AddressGateResult> {
+  const original = address ?? {}
+  const decision = await validateWorkspaceShippingAddress(
+    ctx.workspaceId,
+    original,
+    ctx.db,
+  )
+  if (decision.status === 'disabled') return { ok: true, address: original }
+  if (decision.status === 'accept') return { ok: true, address: decision.address }
+  if (decision.status === 'confirm' && customerConfirmedSuggestion) {
+    return { ok: true, address: decision.address }
+  }
+  if (decision.status === 'confirm') {
+    return {
+      ok: false,
+      toolResult: JSON.stringify({
+        error: 'address_confirmation_required',
+        suggested_address: decision.address,
+        suggested_text: decision.formattedAddress,
+        reasons: decision.reasons,
+        message:
+          `Todavía no crees el pedido. Pregunta únicamente si la dirección “${decision.formattedAddress}” es correcta. Si la clienta confirma, vuelve a llamar create_order con suggested_address, confirmed=true y address_confirmed_by_customer=true.`,
+      }),
+    }
+  }
+  if (decision.status === 'fix') {
+    return {
+      ok: false,
+      toolResult: JSON.stringify({
+        error: 'address_fix_required',
+        missing: decision.missing,
+        reasons: decision.reasons,
+        suggested_address: decision.suggestedAddress,
+        message:
+          `Todavía no crees el pedido. La dirección necesita corregirse: ${decision.reasons.join(', ')}. Pregunta únicamente por esos datos, conserva lo demás y vuelve a validar después de que la clienta responda.`,
+      }),
+    }
+  }
+  return {
+    ok: false,
+    toolResult: JSON.stringify({
+      error: 'address_validation_unavailable',
+      detail: decision.reason,
+      message:
+        'No pude comprobar la dirección en este momento. No digas que está incorrecta ni crees el pedido; indica que la validación está temporalmente pendiente.',
+    }),
+  }
 }
 
 /**
@@ -1990,7 +2059,8 @@ export async function runTool(
         customer_name?: string
         customer_email?: string
         customer_phone?: string
-        shipping_address?: Record<string, string>
+        shipping_address?: ShippingAddressInput
+        address_confirmed_by_customer?: boolean
         note?: string
         confirmed?: boolean
       }
@@ -2006,6 +2076,13 @@ export async function runTool(
         variant_id: String(i.variant_id ?? ''),
         quantity: Number(i.quantity ?? 1),
       }))
+      const checkedAddress = await validateAddressBeforeOrder(
+        localOrders,
+        input.shipping_address,
+        input.address_confirmed_by_customer === true,
+      )
+      if (!checkedAddress.ok) return checkedAddress.toolResult
+      input.shipping_address = checkedAddress.address
       const res = await crearPedidoLocalConEspejo(
         localOrders.db,
         {
@@ -2018,6 +2095,7 @@ export async function runTool(
             address: input.shipping_address
               ? {
                   address1: input.shipping_address.address1 ?? null,
+                  address2: input.shipping_address.address2 ?? null,
                   city: input.shipping_address.city ?? null,
                   province: input.shipping_address.province ?? null,
                   zip: input.shipping_address.zip ?? null,
@@ -2083,6 +2161,7 @@ export async function runTool(
       customer_phone?: string
       customer_email?: string
       shipping_address?: ShippingAddressInput
+      address_confirmed_by_customer?: boolean
       note?: string
       confirmed?: boolean
     }
@@ -2120,6 +2199,16 @@ export async function runTool(
         message: '(Simulación) En producción crearía el pedido real en Shopify con estos datos. No se creó nada.',
         echo: orderInput,
       })
+    }
+
+    if (localOrders) {
+      const checkedAddress = await validateAddressBeforeOrder(
+        localOrders,
+        input.shipping_address,
+        input.address_confirmed_by_customer === true,
+      )
+      if (!checkedAddress.ok) return checkedAddress.toolResult
+      orderInput.shipping_address = checkedAddress.address
     }
 
     // El pedido en Shopify + su espejo en Riverz (tabla orders y, si vino de

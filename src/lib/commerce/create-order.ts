@@ -32,6 +32,7 @@ export interface DatosDelCliente {
   phone?: string | null
   address?: {
     address1?: string | null
+    address2?: string | null
     city?: string | null
     province?: string | null
     zip?: string | null
@@ -193,7 +194,7 @@ async function crearEnTiendanube(
     ...(dir?.address1
       ? {
           shipping_address: {
-            address: dir.address1,
+            address: [dir.address1, dir.address2].filter(Boolean).join(', '),
             city: dir.city ?? '',
             province: dir.province ?? '',
             zipcode: dir.zip ?? '',
@@ -273,6 +274,7 @@ async function crearEnWoo(
     ...(dir?.address1
       ? {
           address_1: dir.address1,
+          address_2: dir.address2 ?? '',
           city: dir.city ?? '',
           state: dir.province ?? '',
           postcode: dir.zip ?? '',

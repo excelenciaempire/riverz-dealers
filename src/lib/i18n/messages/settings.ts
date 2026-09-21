@@ -41,6 +41,21 @@ export const settings = {
   webhookDeleted: { es: 'Webhook eliminado', en: 'Webhook deleted' },
   title: { es: 'Ajustes', en: 'Settings' },
   integrations: { es: 'Integraciones', en: 'Integrations' },
+  addressValidationTitle: { es: 'Direcciones con Google Maps', en: 'Google Maps addresses' },
+  addressValidationDescription: {
+    es: 'Verifica la dirección antes de crear un pedido contraentrega.',
+    en: 'Verify the address before creating a cash-on-delivery order.',
+  },
+  addressValidationApiKey: { es: 'API key de Google Maps', en: 'Google Maps API key' },
+  addressValidationActive: { es: 'Activo', en: 'Active' },
+  addressValidationInactive: { es: 'Inactivo', en: 'Inactive' },
+  addressValidationToggle: { es: 'Verificar direcciones', en: 'Verify addresses' },
+  addressValidationReplaceKey: { es: 'Reemplazar API key', en: 'Replace API key' },
+  addressValidationKeyRequired: { es: 'Ingresa la API key.', en: 'Enter the API key.' },
+  addressValidationSaveError: { es: 'No se pudo guardar.', en: "Couldn't save." },
+  addressValidationConfigured: { es: 'Verificación configurada', en: 'Address verification configured' },
+  addressValidationEnabled: { es: 'Verificación activada', en: 'Address verification enabled' },
+  addressValidationDisabled: { es: 'Verificación desactivada', en: 'Address verification disabled' },
 
   // Tabs
   tabProfile: { es: 'Perfil', en: 'Profile' },
