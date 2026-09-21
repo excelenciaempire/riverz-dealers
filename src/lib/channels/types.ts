@@ -161,6 +161,8 @@ export interface OutboundTemplate {
   language?: string;
   /** Positional template parameters. */
   params?: string[];
+  /** Public image URL for templates approved with an IMAGE header. */
+  headerImageUrl?: string;
 }
 
 export interface SendResult {

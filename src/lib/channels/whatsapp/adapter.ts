@@ -170,6 +170,20 @@ export const whatsappAdapter: ChannelAdapter = {
     const to = input.contact.phone || input.contact.external_id;
     if (!to) throw new Error("[whatsapp] contact missing phone/wa_id");
 
+    const components: Record<string, unknown>[] = [];
+    if (input.headerImageUrl) {
+      components.push({
+        type: "header",
+        parameters: [{ type: "image", image: { link: input.headerImageUrl } }],
+      });
+    }
+    if (input.params?.length) {
+      components.push({
+        type: "body",
+        parameters: input.params.map((text) => ({ type: "text", text })),
+      });
+    }
+
     const res = await fetch(
       withAppsecretProof(`${GRAPH}/${phoneNumberId}/messages`, accessToken),
       {
@@ -185,14 +199,7 @@ export const whatsappAdapter: ChannelAdapter = {
           template: {
             name: input.templateName,
             language: { code: input.language ?? "es" },
-            components: input.params?.length
-              ? [
-                  {
-                    type: "body",
-                    parameters: input.params.map((text) => ({ type: "text", text })),
-                  },
-                ]
-              : undefined,
+            components: components.length > 0 ? components : undefined,
           },
         }),
       },

@@ -359,6 +359,7 @@ export async function POST(req: Request): Promise<Response> {
         templateName,
         language: body.template_language,
         params: Array.isArray(body.template_params) ? body.template_params : [],
+        headerImageUrl: mediaSendType === "image" ? (media?.url as string) : undefined,
       });
     } else if (media && mediaSendType) {
       if (!adapter.sendMedia) {

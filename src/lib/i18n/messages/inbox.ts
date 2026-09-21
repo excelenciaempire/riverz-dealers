@@ -583,6 +583,21 @@ export const inbox = {
     en: "No matching templates",
   },
   continueTemplate: { es: "Continuar", en: "Continue" },
+  editTemplateName: { es: "Editar nombre interno", en: "Edit internal name" },
+  renameTemplate: { es: "Renombrar", en: "Rename" },
+  templateInternalName: { es: "Nombre interno", en: "Internal name" },
+  saveTemplateName: { es: "Guardar nombre", en: "Save name" },
+  cancelTemplateName: { es: "Cancelar edición", en: "Cancel editing" },
+  templateNameSaveFailed: {
+    es: "No se pudo guardar el nombre interno",
+    en: "Couldn't save the internal name",
+  },
+  templateCustomImage: { es: "Foto personalizada", en: "Custom photo" },
+  templateImage: { es: "Foto para este cliente", en: "Photo for this customer" },
+  templateImageTypeError: {
+    es: "Usa una imagen JPG o PNG",
+    en: "Use a JPG or PNG image",
+  },
   templateCategoryUtility: { es: "Servicio", en: "Utility" },
   templateCategoryMarketing: { es: "Marketing", en: "Marketing" },
   templateCategoryAuthentication: {

@@ -1030,11 +1030,12 @@ export function MessageThread({
   }, []);
 
   const handleSendTemplate = useCallback(
-    async (template: MessageTemplate, params: string[]) => {
+    async (template: MessageTemplate, params: string[], headerImage?: File) => {
       if (!conversation) return;
 
       const renderedBody = renderTemplateBody(template.body_text, params);
       const tempId = `temp-${Date.now()}`;
+      const localImageUrl = headerImage ? URL.createObjectURL(headerImage) : null;
 
       const optimisticMsg: Message = {
         id: tempId,
@@ -1044,12 +1045,58 @@ export function MessageThread({
         content_type: "template",
         content_text: renderedBody,
         template_name: template.name,
+        ...(localImageUrl
+          ? {
+              media_url: localImageUrl,
+              media_type: "image" as const,
+              media_mime: headerImage?.type,
+              media_size: headerImage?.size,
+              attachments: [
+                {
+                  url: localImageUrl,
+                  mime_type: headerImage?.type,
+                  name: headerImage?.name,
+                  size: headerImage?.size,
+                },
+              ],
+            }
+          : {}),
         status: "sending",
         created_at: new Date().toISOString(),
       };
       onNewMessage(optimisticMsg);
 
       try {
+        let uploadedMedia:
+          | {
+              url: string;
+              mediaType: string;
+              mime?: string;
+              name?: string;
+              size?: number;
+            }
+          | undefined;
+        if (headerImage) {
+          const form = new FormData();
+          form.append("file", headerImage);
+          form.append("conversation_id", conversation.id);
+          const upload = await fetchWithCsrf("/api/messages/upload", {
+            method: "POST",
+            body: form,
+          });
+          const uploadBody = await upload.json().catch(() => ({}));
+          if (!upload.ok) {
+            throw new Error(uploadBody?.error || `HTTP ${upload.status}`);
+          }
+          uploadedMedia = {
+            url: uploadBody.url,
+            mediaType: "image",
+            mime: uploadBody.mime,
+            name: uploadBody.name,
+            size: uploadBody.size,
+          };
+        }
+
         const res = await fetchWithCsrf("/api/messages/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1058,6 +1105,7 @@ export function MessageThread({
             template_name: template.name,
             template_language: template.language,
             template_params: params,
+            media: uploadedMedia,
             // Rendered preview — what the thread shows for the sent template.
             text: renderedBody,
           }),
@@ -1076,12 +1124,31 @@ export function MessageThread({
           return;
         }
 
-        onUpdateMessage(tempId, { status: "sent" });
+        onUpdateMessage(tempId, {
+          status: "sent",
+          ...(uploadedMedia
+            ? {
+                media_url: uploadedMedia.url,
+                media_mime: uploadedMedia.mime,
+                media_size: uploadedMedia.size,
+                attachments: [
+                  {
+                    url: uploadedMedia.url,
+                    mime_type: uploadedMedia.mime,
+                    name: uploadedMedia.name,
+                    size: uploadedMedia.size,
+                  },
+                ],
+              }
+            : {}),
+        });
       } catch (err) {
         console.error("Failed to send template:", err);
         const reason = t("inbox.networkErrorReason");
         toast.error(t("inbox.sendFailed", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
+      } finally {
+        if (localImageUrl) URL.revokeObjectURL(localImageUrl);
       }
     },
     [conversation, onNewMessage, onUpdateMessage, fetchWithCsrf, t],
