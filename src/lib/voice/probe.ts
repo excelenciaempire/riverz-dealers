@@ -176,7 +176,7 @@ export async function probarCapa(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: model || 'claude-haiku-4-5',
+          model: model || 'claude-sonnet-5',
           max_tokens: 5,
           messages: [{ role: 'user', content: 'ok' }],
         }),

@@ -78,6 +78,7 @@ async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknow
       // momento en que se crea no le da a nadie la oportunidad de leerlo.
       is_active: false,
       role,
+      model: 'claude-sonnet-5',
       permissions: preset?.permissions ?? null,
       persona: String(args.persona ?? ''),
       knowledge: args.conocimiento ? String(args.conocimiento) : null,

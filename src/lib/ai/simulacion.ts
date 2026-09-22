@@ -182,7 +182,7 @@ export async function simularRespuesta(
     origenDeLaClave: resolvedKey?.source,
   });
   const result = await runWithTools(client, {
-    model: orderConversationModel({ workspaceId: a.workspace_id, configuredModel: a.model || 'claude-haiku-4-5-20251001', hasOrder: recoveryHasExistingOrder(automationContext), messages: [...input.historial, { content: input.message }] }),
+    model: orderConversationModel({ workspaceId: a.workspace_id, configuredModel: a.model || 'claude-sonnet-5', hasOrder: recoveryHasExistingOrder(automationContext), messages: [...input.historial, { content: input.message }] }),
     reasoningEffort: 'high',
     max_tokens: 4000 + Math.max(64, Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2))),
     system,

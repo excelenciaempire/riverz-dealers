@@ -27,9 +27,9 @@ import { redactModelSecrets } from '@/lib/security/model-secrets';
 
 export type LlmTier = 'triage' | 'premium';
 
-/** Anthropic models per tier (triage = fast/cheap, premium = top quality). */
+/** Sonnet is the quality baseline for every Anthropic task. */
 const ANTHROPIC_MODELS: Record<LlmTier, string> = {
-  triage: 'claude-haiku-4-5-20251001',
+  triage: 'claude-sonnet-5',
   premium: 'claude-sonnet-5',
 };
 

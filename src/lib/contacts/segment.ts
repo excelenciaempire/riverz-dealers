@@ -52,10 +52,10 @@ function parseSegment(
 
 /**
  * Generate a segment from the person's messages + optional purchase summary.
- * Uses Haiku (cheap, this runs per-contact on demand). Returns null on any
+ * Uses Sonnet (this runs per-contact on demand). Returns null on any
  * failure so the caller can degrade gracefully.
  */
-const MODELO = 'claude-haiku-4-5-20251001';
+const MODELO = 'claude-sonnet-5';
 
 /** Lo que consumio la llamada, para que el llamador pueda cobrarla. */
 export interface UsoDelModelo {

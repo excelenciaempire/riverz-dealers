@@ -96,5 +96,5 @@ export function anthropicRunner(client: Anthropic): ModelRunner {
 export const MODELOS = {
   orquestador: { model: 'claude-sonnet-5', effort: 'medium' as const, maxTokens: 4096 },
   constructor: { model: 'claude-sonnet-5', effort: 'medium' as const, maxTokens: 4096 },
-  mecanico: { model: 'claude-haiku-4-5-20251001', effort: 'low' as const, maxTokens: 2048 },
+  mecanico: { model: 'claude-sonnet-5', effort: 'low' as const, maxTokens: 2048 },
 }

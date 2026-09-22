@@ -17,7 +17,7 @@
  * Los dos corren en background (fire-and-forget) y fallan en silencio
  * — nunca rompen el flujo de respuesta del runner.
  *
- * Modelo usado: Claude Haiku 4.5 (rápido y barato), reutiliza la API key
+ * Modelo usado: Claude Sonnet 5, reutiliza la API key
  * del agente si la tiene, sino la global ANTHROPIC_API_KEY.
  */
 
@@ -30,7 +30,7 @@ import { resolveAnthropicKey, type KeySource } from './platform-key';
 import type { AiAgent } from './types';
 import { evidenceText, type EvidenceRow } from './conversation-evidence';
 
-const SUMMARY_MODEL = 'claude-haiku-4-5-20251001';
+const SUMMARY_MODEL = 'claude-sonnet-5';
 
 /** Cantidad de mensajes "recientes" que NUNCA se resumen. El resumen
  *  cubre solamente lo MÁS VIEJO que esto. */

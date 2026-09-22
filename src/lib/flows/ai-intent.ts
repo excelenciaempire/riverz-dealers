@@ -63,7 +63,7 @@ export async function classifyIntent(args: {
   const apiKey = resolved?.key;
   if (!apiKey) return null;
 
-  const model = row?.model || 'claude-haiku-4-5-20251001';
+  const model = row?.model || 'claude-sonnet-5';
   const optionList = args.intents
     .map((i) => `- ${i.intent_key}: ${i.description}`)
     .join('\n');

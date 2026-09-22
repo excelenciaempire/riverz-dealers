@@ -82,7 +82,7 @@ Reglas: escribe los CUATRO objetivos, cortos y accionables, adaptados al negocio
       origenDeLaClave: resuelta?.source,
     });
     const resp = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-5',
       max_tokens: 700,
       system,
       messages: [

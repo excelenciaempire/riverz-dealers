@@ -197,7 +197,7 @@ export async function POST(request: Request) {
     role: isAgentRole(body.role) ? body.role : 'general',
     permissions: body.permissions ?? PERMISOS_COMPLETOS,
     provider: body.provider ?? 'anthropic',
-    model: body.model ?? 'claude-haiku-4-5-20251001',
+    model: body.model ?? 'claude-sonnet-5',
     scope: body.scope ?? 'workspace',
     product_scope: body.product_scope ?? 'all',
     priority: body.priority ?? 0,

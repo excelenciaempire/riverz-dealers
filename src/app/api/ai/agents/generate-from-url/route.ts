@@ -404,7 +404,7 @@ export async function POST(request: Request) {
         concepto: 'ia_asistencia',
       });
       const completion = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-sonnet-5',
         max_tokens: 2000,
         system: metaSystem(locale),
         messages: [
@@ -454,7 +454,7 @@ export async function POST(request: Request) {
     escalate_keywords: ['humano', 'agente', 'reembolso'],
     escalate_after_messages: 0,
     provider: 'anthropic',
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-sonnet-5',
     scope: 'workspace',
     product_scope: 'all',
     priority: 0,
