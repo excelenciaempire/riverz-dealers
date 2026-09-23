@@ -128,19 +128,31 @@ export const landingV4 = {
     en: 'Set up post-purchase follow-ups, reorder reminders, and campaigns for segments of your customer base.',
   },
   featureCampaignsTitle: { es: 'Una campaña.', en: 'One campaign.' },
-  featureCampaignsMuted: { es: 'Las personas correctas.', en: 'The right people.' },
+  featureCampaignsMuted: {
+    es: 'Las personas correctas.',
+    en: 'The right people.',
+  },
   featureCampaignsBody: {
     es: 'Elige a quién escribir según sus compras o intereses. Envía novedades y ofertas a contactos con permiso, respetando las reglas de cada canal.',
     en: 'Choose who to reach based on purchases or interests. Send news and offers to opted-in contacts, following each channel’s rules.',
   },
-  featureLiveTitle: { es: 'Mira la conversación.', en: 'See the conversation.' },
-  featureLiveMuted: { es: 'Intervén cuando haga falta.', en: 'Step in when needed.' },
+  featureLiveTitle: {
+    es: 'Mira la conversación.',
+    en: 'See the conversation.',
+  },
+  featureLiveMuted: {
+    es: 'Intervén cuando haga falta.',
+    en: 'Step in when needed.',
+  },
   featureLiveBody: {
     es: 'Revisa lo que responde la IA y toma el control del chat. Tu equipo puede continuar con el historial a la vista.',
     en: 'Review AI replies and take over the chat. Your team can continue with the conversation history in view.',
   },
   featureStoreTitle: { es: 'El pedido se resuelve', en: 'Handle the order' },
-  featureStoreMuted: { es: 'desde la conversación.', en: 'from the conversation.' },
+  featureStoreMuted: {
+    es: 'desde la conversación.',
+    en: 'from the conversation.',
+  },
   featureStoreBody: {
     es: 'Consulta pedidos, corrige una dirección o gestiona una cancelación según la integración. Tú decides qué cambios necesitan aprobación.',
     en: 'Look up orders, correct an address, or handle a cancellation where the integration supports it. You decide which changes need approval.',
@@ -151,8 +163,14 @@ export const landingV4 = {
     es: 'Reúne los mensajes de tus canales conectados en una sola bandeja. Asigna conversaciones y encuentra los casos pendientes.',
     en: 'Bring messages from connected channels into one inbox. Assign conversations and find cases that still need attention.',
   },
-  featureSetupTitle: { es: 'Tu forma de trabajar.', en: 'Your way of working.' },
-  featureSetupMuted: { es: 'Configurada por nosotros.', en: 'Configured by us.' },
+  featureSetupTitle: {
+    es: 'Tu forma de trabajar.',
+    en: 'Your way of working.',
+  },
+  featureSetupMuted: {
+    es: 'Configurada por nosotros.',
+    en: 'Configured by us.',
+  },
   featureSetupBody: {
     es: 'Nos explicas cómo vendes y atiendes. Nosotros preparamos respuestas, conexiones y seguimientos; tú los pruebas antes de activarlos.',
     en: 'Tell us how you sell and support customers. We prepare replies, connections, and follow-ups; you test them before they go live.',
@@ -163,8 +181,14 @@ export const landingV4 = {
     es: 'Consulta conversaciones, datos y etiquetas en la ficha del contacto. Organiza tu base sin depender de notas sueltas.',
     en: 'See conversations, details, and tags in each contact’s profile. Organize your customer base without scattered notes.',
   },
-  featureResultsTitle: { es: 'Revisa qué se resolvió.', en: 'See what got resolved.' },
-  featureResultsMuted: { es: 'Y qué necesita atención.', en: 'And what needs attention.' },
+  featureResultsTitle: {
+    es: 'Revisa qué se resolvió.',
+    en: 'See what got resolved.',
+  },
+  featureResultsMuted: {
+    es: 'Y qué necesita atención.',
+    en: 'And what needs attention.',
+  },
   featureResultsBody: {
     es: 'Consulta conversaciones atendidas, tareas pendientes y resultados de los flujos conectados. Así sabes dónde ajustar, sin revisar cada chat.',
     en: 'Review handled conversations, pending tasks, and results from connected workflows. Know where to make adjustments without opening every chat.',
@@ -277,7 +301,10 @@ export const landingV4 = {
   },
   // Cinco pasos, del lado del comercio. Sin «señal», sin «contexto», sin
   // «ejecuta»: nadie que vende por WhatsApp piensa con esas palabras.
-  loop1Title: { es: 'Llega un mensaje. Empieza a trabajar.', en: 'A message arrives. Work begins.' },
+  loop1Title: {
+    es: 'Llega un mensaje. Empieza a trabajar.',
+    en: 'A message arrives. Work begins.',
+  },
   loop1Body: {
     es: 'Una pregunta por WhatsApp, un comentario en un anuncio o un carrito sin terminar. Cada caso entra al seguimiento que configuramos contigo.',
     en: 'A WhatsApp question, an ad comment, or an unfinished cart. Each case enters the follow-up process we set up with you.',
@@ -798,5 +825,90 @@ export const landingV4 = {
   ctaBody: {
     es: 'Déjanos tu correo y conversemos sobre tu tienda. Revisamos qué puedes delegar, qué conexiones necesitas y cuánto costaría. Sin compromiso.',
     en: 'Leave your email and let’s talk about your store. We’ll review what you can delegate, the connections you need, and what it would cost. No commitment.',
+  },
+  motionReplay: { es: 'Repetir demostración', en: 'Replay demonstration' },
+  motionInbox: { es: 'Conversaciones', en: 'Conversations' },
+  motionAgent: { es: 'Agente de ventas', en: 'Sales agent' },
+  motionQuestion: {
+    es: '¿Tienen el modelo Aura en talla 39?',
+    en: 'Is the Aura available in size 39?',
+  },
+  motionChecked: {
+    es: 'Catálogo y disponibilidad consultados',
+    en: 'Catalog and availability checked',
+  },
+  motionAnswer: {
+    es: 'Sí, está disponible. Te comparto el modelo y el enlace para comprar.',
+    en: 'Yes, it’s available. Here’s the product and your checkout link.',
+  },
+  motionProduct: { es: 'Tenis Aura', en: 'Aura sneakers' },
+  motionVariant: { es: 'Talla 39 · Marfil', en: 'Size 39 · Ivory' },
+  motionCheckout: { es: 'Enlace de compra enviado', en: 'Checkout link sent' },
+  motionContext: { es: 'Contexto de la respuesta', en: 'Answer context' },
+  motionCatalog: { es: 'Catálogo', en: 'Catalog' },
+  motionStock: { es: 'Inventario', en: 'Inventory' },
+  motionAvailable: { es: 'Disponible para comprar', en: 'Available to order' },
+  motionDelivery: { es: 'Envío', en: 'Shipping' },
+  motionShipping: {
+    es: 'Según la dirección del cliente',
+    en: 'Based on the customer’s address',
+  },
+  motionReady: { es: 'Lista para responder', en: 'Ready to reply' },
+  motionGrounded: {
+    es: 'Con información de tu tienda',
+    en: 'Grounded in your store’s data',
+  },
+  motionPermissions: { es: 'Permisos del agente', en: 'Agent permissions' },
+  motionRules: {
+    es: 'Cada acción, bajo control',
+    en: 'Every action, under control',
+  },
+  motionControl: {
+    es: 'Tú decides hasta dónde llega',
+    en: 'You set the boundaries',
+  },
+  motionTracking: { es: 'Consultar seguimiento', en: 'Look up tracking' },
+  motionAddress: { es: 'Cambiar dirección', en: 'Change address' },
+  motionRefund: { es: 'Revisar reembolso', en: 'Review refund' },
+  motionAuto: { es: 'Automático', en: 'Automatic' },
+  motionApproval: { es: 'Con aprobación', en: 'Approval required' },
+  motionHuman: { es: 'Equipo humano', en: 'Human team' },
+  motionWaiting: {
+    es: 'Cambio pendiente de aprobación',
+    en: 'Change awaiting approval',
+  },
+  motionNoChange: {
+    es: 'La dirección aún no se modifica',
+    en: 'The address remains unchanged',
+  },
+  motionOrders: { es: 'Del chat al pedido', en: 'From chat to order' },
+  motionOrder: { es: 'Pedido de ejemplo', en: 'Example order' },
+  motionLink: { es: 'Enlace de compra', en: 'Checkout link' },
+  motionSent: { es: 'Enviado', en: 'Sent' },
+  motionPayment: { es: 'Confirmación de pago', en: 'Payment confirmation' },
+  motionVerified: { es: 'Recibida', en: 'Received' },
+  motionOrderReady: { es: 'Pedido en la tienda', en: 'Order in your store' },
+  motionSynced: { es: 'Sincronizado', en: 'Synced' },
+  motionDone: {
+    es: 'Cliente informado. Pedido registrado.',
+    en: 'Customer notified. Order recorded.',
+  },
+  motionResults: { es: 'Resumen de actividad', en: 'Activity overview' },
+  motionResolved: {
+    es: 'Conversaciones resueltas',
+    en: 'Resolved conversations',
+  },
+  motionWeek: { es: 'Últimos 7 días', en: 'Last 7 days' },
+  motionChart: {
+    es: 'Ejemplo ilustrativo de actividad durante siete días',
+    en: 'Illustrative example of activity over seven days',
+  },
+  motionWeekStart: { es: 'Hace 7 días', en: '7 days ago' },
+  motionToday: { es: 'Hoy', en: 'Today' },
+  motionRecovered: { es: 'Compras recuperadas', en: 'Recovered purchases' },
+  motionToReview: { es: 'Necesitan a tu equipo', en: 'Need your team' },
+  motionTrace: {
+    es: 'Cada resultado, con su conversación',
+    en: 'Every result linked to its conversation',
   },
 } satisfies Namespace;

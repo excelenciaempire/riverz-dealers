@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { Check } from "lucide-react";
-import { useT } from "@/hooks/use-locale";
+import { Check } from 'lucide-react';
+import { useT } from '@/hooks/use-locale';
 import {
-  AgentPanel,
-  CartRecoveryPanel,
-  HeroInbox,
-  MetricsPreview,
-  SupportPreview,
-} from "@/components/landing/landing";
-import { Rise } from "./bits";
+  ConversationDemo,
+  ContextDemo,
+  PermissionsDemo,
+  OrderDemo,
+  ResultsDemo,
+} from './workflow-demos';
+import { Rise } from './bits';
 
 /**
  * Cómo trabaja — el mecanismo, en cinco pasos.
@@ -32,39 +32,39 @@ import { Rise } from "./bits";
 
 const PASOS = [
   {
-    n: "01",
-    title: "landingV4.loop1Title",
-    body: "landingV4.loop1Body",
-    points: ["landingV4.loop1P1", "landingV4.loop1P2"],
-    Panel: HeroInbox,
+    n: '01',
+    title: 'landingV4.loop1Title',
+    body: 'landingV4.loop1Body',
+    points: ['landingV4.loop1P1', 'landingV4.loop1P2'],
+    Panel: ConversationDemo,
   },
   {
-    n: "02",
-    title: "landingV4.loop2Title",
-    body: "landingV4.loop2Body",
-    points: ["landingV4.loop2P1", "landingV4.loop2P2"],
-    Panel: AgentPanel,
+    n: '02',
+    title: 'landingV4.loop2Title',
+    body: 'landingV4.loop2Body',
+    points: ['landingV4.loop2P1', 'landingV4.loop2P2'],
+    Panel: ContextDemo,
   },
   {
-    n: "03",
-    title: "landingV4.loop3Title",
-    body: "landingV4.loop3Body",
-    points: ["landingV4.loop3P1", "landingV4.loop3P2"],
-    Panel: SupportPreview,
+    n: '03',
+    title: 'landingV4.loop3Title',
+    body: 'landingV4.loop3Body',
+    points: ['landingV4.loop3P1', 'landingV4.loop3P2'],
+    Panel: PermissionsDemo,
   },
   {
-    n: "04",
-    title: "landingV4.loop4Title",
-    body: "landingV4.loop4Body",
-    points: ["landingV4.loop4P1", "landingV4.loop4P2"],
-    Panel: CartRecoveryPanel,
+    n: '04',
+    title: 'landingV4.loop4Title',
+    body: 'landingV4.loop4Body',
+    points: ['landingV4.loop4P1', 'landingV4.loop4P2'],
+    Panel: OrderDemo,
   },
   {
-    n: "05",
-    title: "landingV4.loop5Title",
-    body: "landingV4.loop5Body",
-    points: ["landingV4.loop5P1", "landingV4.loop5P2"],
-    Panel: MetricsPreview,
+    n: '05',
+    title: 'landingV4.loop5Title',
+    body: 'landingV4.loop5Body',
+    points: ['landingV4.loop5P1', 'landingV4.loop5P2'],
+    Panel: ResultsDemo,
   },
 ] as const;
 
@@ -72,11 +72,16 @@ export function Scene() {
   const t = useT();
 
   return (
-    <section id="loop" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 lg:py-24">
+    <section
+      id="loop"
+      className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 lg:py-24"
+    >
       <Rise>
         <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
-          <h2 className="sn-h2 max-w-[16ch]">{t("landingV4.loopTitle")}</h2>
-          <p className="sn-body max-w-[44ch] !text-[15px]">{t("landingV4.loopLead")}</p>
+          <h2 className="sn-h2 max-w-[16ch]">{t('landingV4.loopTitle')}</h2>
+          <p className="sn-body max-w-[44ch] !text-[15px]">
+            {t('landingV4.loopLead')}
+          </p>
         </div>
       </Rise>
 
@@ -84,25 +89,30 @@ export function Scene() {
         {PASOS.map((a, i) => (
           <Rise key={a.n} delay={60}>
             <div
-              className={`grid min-w-0 items-center gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:gap-14 ${
+              className={`grid min-w-0 items-center gap-8 lg:grid-cols-2 lg:gap-14 ${
                 // Se alterna el lado de la vista previa. Cinco filas idénticas
                 // con el texto siempre a la izquierda se leen como un
                 // formulario; alternadas, el ojo vuelve a mirar.
-                i % 2 ? "lg:[&>*:first-child]:order-2" : ""
+                i % 2 ? 'lg:[&>*:first-child]:order-2' : ''
               }`}
             >
               <div>
                 <p className="sn-label mb-4">{a.n}</p>
-                <h3 className="sn-h2 max-w-[13ch] !text-[clamp(26px,3vw,42px)]">{t(a.title)}</h3>
+                <h3 className="sn-h2 max-w-[13ch] !text-[clamp(26px,3vw,42px)]">
+                  {t(a.title)}
+                </h3>
                 <p className="sn-body mt-4 max-w-[42ch]">{t(a.body)}</p>
                 <ul className="mt-6 space-y-3">
                   {a.points.map((p) => (
                     <li key={p} className="flex items-start gap-3">
                       <span
                         className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full"
-                        style={{ background: "var(--sn-accent)" }}
+                        style={{ background: 'var(--sn-accent)' }}
                       >
-                        <Check className="size-3" style={{ color: "var(--sn-ink)" }} />
+                        <Check
+                          className="size-3"
+                          style={{ color: 'var(--sn-ink)' }}
+                        />
                       </span>
                       <span className="sn-body !text-[15px]">{t(p)}</span>
                     </li>
@@ -112,8 +122,7 @@ export function Scene() {
 
               {/* min-w-0: la vista previa tiene un ancho mínimo propio y sin
                   esto estira la celda por encima del ancho de la pantalla. */}
-              <div className="sn-card sn-panel min-w-0 overflow-x-auto p-3 sm:p-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <p className="sn-label mb-4">{t("landingV4.demoLabel")}</p>
+              <div className="min-w-0">
                 <a.Panel />
               </div>
             </div>
