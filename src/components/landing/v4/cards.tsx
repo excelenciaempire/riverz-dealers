@@ -8,44 +8,9 @@ import { useReducedMotion } from '@/components/landing/landing';
 import { Rise } from './bits';
 
 /**
- * Qué hace — el mosaico.
- *
- * Trece funcionalidades, trece ilustraciones. Ninguna repetida.
- *
- * Por acá pasaron tres versiones. Trece fichas idénticas con la misma vista
- * previa en el mismo marco de navegador: a la quinta se lee como una lista y se
- * saltea. Fotografía de objetos: linda y muda —una canasta volcada no explica
- * qué es recuperar un carrito—. Diagramas de interfaz dibujados en HTML:
- * precisos, pero al tamaño de una ficha se leen como una captura chica más.
- *
- * Lo que quedó es ilustración editorial plana, en el mismo registro que la del
- * hero: cuatro colores, formas geométricas, grano de risografía y una idea
- * gráfica por función que se entiende antes de leer el título. El carrito que
- * se escapa y el lazo amarillo que lo trae. El reloj cuyas horas son burbujas.
- * La clepsidra con tres granos. Son imágenes, no capturas, así que compiten en
- * el terreno donde una landing se gana: el primer segundo.
- *
- * Ninguna lleva texto adentro, a propósito: las letras generadas salen
- * deformes y además habría que dibujar cada imagen dos veces, una por idioma.
- *
- * Los anchos son cuatro y las filas suman seis columnas de formas distintas,
- * así que el ojo nunca encuentra el mismo ritmo dos veces. Los huecos los
- * rellena `grid-auto-flow: dense`.
- *
- * EL ORDEN NO ES CASUAL. Siete de las trece se mueven, y están puestas para
- * que en escritorio caiga **una animación por fila** —las siete filas de la
- * cuadrícula, una cada una— y en móvil, que es una sola columna, queden
- * alternadas: se mueve, quieta, se mueve, quieta. Trece cosas moviéndose a la
- * vez no se leen como riqueza, se leen como una vidriera de electrodomésticos.
- *
- * Cuáles se mueven: las ILUSTRADAS. Las tres que son interfaz de verdad
- * —bandeja, contactos, en vivo— se quedan quietas a propósito, porque un
- * modelo de video les derrite los logos, y porque una captura que tiembla se
- * lee como un error.
- *
- * Los textos salen del catálogo `landing`: son las trece funciones de la
- * portada principal, con sus palabras. Si mañana se corrige una, se corrige en
- * un solo lugar y las tres portadas quedan iguales.
+ * Trece funciones con copy bilingüe propio de esta portada.
+ * Solo las ilustraciones se animan; las interfaces se conservan legibles.
+ * Los recursos anteriores se mantienen hasta verificar los nuevos clips.
  */
 
 type Tile = {
@@ -125,6 +90,79 @@ const TILES: Tile[] = [
     body: 'landingV4.featureRetentionBody',
     sm: 1,
     lg: 3,
+  },
+  {
+    key: 'sec06',
+    img: '/portada-b/i-campanas.jpg',
+    ratio: '16 / 9',
+    animation: '/portada-b/i-campanas.webp',
+    title: 'landingV4.featureCampaignsTitle',
+    muted: 'landingV4.featureCampaignsMuted',
+    body: 'landingV4.featureCampaignsBody',
+    sm: 2,
+    lg: 4,
+  },
+  {
+    key: 'secLive',
+    img: '/portada-b/i-envivo-2.jpg',
+    ratio: '3 / 4',
+    title: 'landingV4.featureLiveTitle',
+    muted: 'landingV4.featureLiveMuted',
+    body: 'landingV4.featureLiveBody',
+    sm: 1,
+    lg: 2,
+  },
+  {
+    key: 'sec08',
+    img: '/portada-b/i-tienda.jpg',
+    ratio: '4 / 3',
+    title: 'landingV4.featureStoreTitle',
+    muted: 'landingV4.featureStoreMuted',
+    body: 'landingV4.featureStoreBody',
+    sm: 1,
+    lg: 3,
+  },
+  {
+    key: 'sec07',
+    img: '/portada-b/i-bandeja-3.jpg',
+    ratio: '4 / 3',
+    title: 'landingV4.featureInboxTitle',
+    muted: 'landingV4.featureInboxMuted',
+    body: 'landingV4.featureInboxBody',
+    sm: 1,
+    lg: 3,
+  },
+  {
+    key: 'sec09',
+    img: '/portada-b/i-minutos.jpg',
+    ratio: '4 / 3',
+    animation: '/portada-b/i-minutos.webp',
+    title: 'landingV4.featureSetupTitle',
+    muted: 'landingV4.featureSetupMuted',
+    body: 'landingV4.featureSetupBody',
+    sm: 1,
+    lg: 3,
+  },
+  {
+    key: 'secContacts',
+    img: '/portada-b/i-contactos-2.jpg',
+    ratio: '4 / 3',
+    title: 'landingV4.featureContactsTitle',
+    muted: 'landingV4.featureContactsMuted',
+    body: 'landingV4.featureContactsBody',
+    sm: 1,
+    lg: 3,
+  },
+  {
+    key: 'sec10',
+    img: '/portada-b/i-roas.jpg',
+    ratio: '16 / 9',
+    animation: '/portada-b/i-roas.webp',
+    title: 'landingV4.featureResultsTitle',
+    muted: 'landingV4.featureResultsMuted',
+    body: 'landingV4.featureResultsBody',
+    sm: 2,
+    lg: 6,
   },
 ];
 

@@ -11,6 +11,7 @@ import type { Locale } from '@/lib/i18n/config';
 import { WaitlistForm } from '@/components/landing/landing';
 import { Label, LocaleSwitch, Rise } from './bits';
 import { Cards } from './cards';
+import { Scene } from './scene';
 import { Oferta } from './oferta';
 import { Operator } from './operator';
 import { Pricing } from './pricing';
@@ -92,6 +93,7 @@ export function LandingV4({ tiers }: { tiers: PricingTier[] }) {
             poder retirarse sin dejar un hueco. */}
         <Pillars />
         <Operator />
+        <Scene />
         <Capabilities />
         <Setup />
         <Channels />

@@ -113,6 +113,7 @@ export function Scene() {
               {/* min-w-0: la vista previa tiene un ancho mínimo propio y sin
                   esto estira la celda por encima del ancho de la pantalla. */}
               <div className="sn-card sn-panel min-w-0 overflow-x-auto p-3 sm:p-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <p className="sn-label mb-4">{t("landingV4.demoLabel")}</p>
                 <a.Panel />
               </div>
             </div>

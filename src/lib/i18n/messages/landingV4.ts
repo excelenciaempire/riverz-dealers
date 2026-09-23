@@ -127,6 +127,48 @@ export const landingV4 = {
     es: 'Organiza seguimientos de postventa, recordatorios de recompra y campañas para segmentos de tu base de clientes.',
     en: 'Set up post-purchase follow-ups, reorder reminders, and campaigns for segments of your customer base.',
   },
+  featureCampaignsTitle: { es: 'Una campaña.', en: 'One campaign.' },
+  featureCampaignsMuted: { es: 'Las personas correctas.', en: 'The right people.' },
+  featureCampaignsBody: {
+    es: 'Elige a quién escribir según sus compras o intereses. Envía novedades y ofertas a contactos con permiso, respetando las reglas de cada canal.',
+    en: 'Choose who to reach based on purchases or interests. Send news and offers to opted-in contacts, following each channel’s rules.',
+  },
+  featureLiveTitle: { es: 'Mira la conversación.', en: 'See the conversation.' },
+  featureLiveMuted: { es: 'Intervén cuando haga falta.', en: 'Step in when needed.' },
+  featureLiveBody: {
+    es: 'Revisa lo que responde la IA y toma el control del chat. Tu equipo puede continuar con el historial a la vista.',
+    en: 'Review AI replies and take over the chat. Your team can continue with the conversation history in view.',
+  },
+  featureStoreTitle: { es: 'El pedido se resuelve', en: 'Handle the order' },
+  featureStoreMuted: { es: 'desde la conversación.', en: 'from the conversation.' },
+  featureStoreBody: {
+    es: 'Consulta pedidos, corrige una dirección o gestiona una cancelación según la integración. Tú decides qué cambios necesitan aprobación.',
+    en: 'Look up orders, correct an address, or handle a cancellation where the integration supports it. You decide which changes need approval.',
+  },
+  featureInboxTitle: { es: 'Deja de saltar', en: 'Stop switching' },
+  featureInboxMuted: { es: 'entre bandejas.', en: 'between inboxes.' },
+  featureInboxBody: {
+    es: 'Reúne los mensajes de tus canales conectados en una sola bandeja. Asigna conversaciones y encuentra los casos pendientes.',
+    en: 'Bring messages from connected channels into one inbox. Assign conversations and find cases that still need attention.',
+  },
+  featureSetupTitle: { es: 'Tu forma de trabajar.', en: 'Your way of working.' },
+  featureSetupMuted: { es: 'Configurada por nosotros.', en: 'Configured by us.' },
+  featureSetupBody: {
+    es: 'Nos explicas cómo vendes y atiendes. Nosotros preparamos respuestas, conexiones y seguimientos; tú los pruebas antes de activarlos.',
+    en: 'Tell us how you sell and support customers. We prepare replies, connections, and follow-ups; you test them before they go live.',
+  },
+  featureContactsTitle: { es: 'Cada cliente', en: 'Every customer' },
+  featureContactsMuted: { es: 'con su historia.', en: 'with their history.' },
+  featureContactsBody: {
+    es: 'Consulta conversaciones, datos y etiquetas en la ficha del contacto. Organiza tu base sin depender de notas sueltas.',
+    en: 'See conversations, details, and tags in each contact’s profile. Organize your customer base without scattered notes.',
+  },
+  featureResultsTitle: { es: 'Revisa qué se resolvió.', en: 'See what got resolved.' },
+  featureResultsMuted: { es: 'Y qué necesita atención.', en: 'And what needs attention.' },
+  featureResultsBody: {
+    es: 'Consulta conversaciones atendidas, tareas pendientes y resultados de los flujos conectados. Así sabes dónde ajustar, sin revisar cada chat.',
+    en: 'Review handled conversations, pending tasks, and results from connected workflows. Know where to make adjustments without opening every chat.',
+  },
   // ── Metadatos ──
   metaTitle: { es: 'riverz', en: 'riverz' },
   metaDescription: {
@@ -226,8 +268,8 @@ export const landingV4 = {
   // comparación directa y la bajada la prueba con lo único que se nota: quién
   // carga el pedido.
   loopTitle: {
-    es: 'No termina en la respuesta. Sigue hasta el siguiente paso.',
-    en: "It doesn't end with a reply. It continues to the next step.",
+    es: 'Así pasa del mensaje al trabajo resuelto.',
+    en: 'From a message to a task handled.',
   },
   loopLead: {
     es: 'Riverz conecta cada conversación con la acción que corresponde: recomendar, recuperar una compra, confirmar un pedido o entregar el caso a tu equipo.',
@@ -235,10 +277,10 @@ export const landingV4 = {
   },
   // Cinco pasos, del lado del comercio. Sin «señal», sin «contexto», sin
   // «ejecuta»: nadie que vende por WhatsApp piensa con esas palabras.
-  loop1Title: { es: 'Se entera', en: 'It notices' },
+  loop1Title: { es: 'Llega un mensaje. Empieza a trabajar.', en: 'A message arrives. Work begins.' },
   loop1Body: {
-    es: 'Un mensaje, un comentario, un carrito abandonado o un pago pendiente. Riverz reúne las señales que hoy quedan repartidas.',
-    en: 'A message, a comment, an abandoned cart, or a pending payment. Riverz brings together the signals that are now scattered.',
+    es: 'Una pregunta por WhatsApp, un comentario en un anuncio o un carrito sin terminar. Cada caso entra al seguimiento que configuramos contigo.',
+    en: 'A WhatsApp question, an ad comment, or an unfinished cart. Each case enters the follow-up process we set up with you.',
   },
   loop1P1: {
     es: 'Canales, comentarios y chat web',
@@ -250,8 +292,8 @@ export const landingV4 = {
   },
 
   loop2Title: {
-    es: 'Sabe con quién habla',
-    en: "It knows who it's talking to",
+    es: 'Consulta antes de responder.',
+    en: 'Checks before replying.',
   },
   loop2Body: {
     es: 'Antes de responder, consulta el contexto disponible: catálogo, stock, pedidos e historial. Así la conversación no empieza desde cero.',
@@ -267,8 +309,8 @@ export const landingV4 = {
   },
 
   loop3Title: {
-    es: 'Decide hasta dónde llega',
-    en: 'It decides how far to go',
+    es: 'Tú marcas los límites.',
+    en: 'You set the limits.',
   },
   loop3Body: {
     es: 'Tú defines qué puede hacer, qué debe aprobarse y qué debe escalarse. La IA trabaja dentro de esos límites.',
@@ -302,8 +344,8 @@ export const landingV4 = {
   },
 
   loop5Title: {
-    es: 'Te muestra qué ganaste',
-    en: 'It shows you what you earned',
+    es: 'Puedes revisar lo que hizo.',
+    en: 'You can review what it did.',
   },
   loop5Body: {
     es: 'Ves qué resolvió la IA, qué quedó pendiente y qué resultados puedes atribuir a cada flujo cuando la fuente está conectada.',
