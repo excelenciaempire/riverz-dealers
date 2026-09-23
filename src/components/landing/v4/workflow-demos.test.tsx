@@ -24,7 +24,7 @@ import {
   PermissionsDemo,
   OrderDemo,
   ResultsDemo,
-} from './workflow-demos';
+} from './workflow-videos';
 
 describe('workflow demonstrations', () => {
   for (const locale of ['es', 'en'] as const) {
@@ -38,8 +38,11 @@ describe('workflow demonstrations', () => {
         ResultsDemo,
       ]) {
         const html = renderToStaticMarkup(<Demo />);
-        expect(html).toContain(landingV4.motionReplay[locale]);
-        expect(html).toContain(landingV4.demoLabel[locale]);
+        expect(html).toContain(landingV4.videoPlay[locale]);
+        expect(html).toContain(landingV4.videoIllustration[locale]);
+        expect(html).toContain('preload="none"');
+        expect(html).toContain('<video');
+        expect(html).not.toContain('src="');
         expect(html).not.toContain('landingV4.');
         expect(html).not.toContain('opacity:0');
         expect(html).not.toContain('�');
@@ -52,20 +55,36 @@ describe('workflow demonstrations', () => {
     expect(scene).not.toContain('@/components/landing/landing');
     current.locale = 'en';
     expect(renderToStaticMarkup(<PermissionsDemo />)).toContain(
-      'The address remains unchanged'
+      'Sensitive actions wait for your approval.'
     );
   });
   it('limits animation to visible demos and cleans up motion on unmount', () => {
     const source = readFileSync(
-      'src/components/landing/v4/workflow-demos.tsx',
+      'src/components/landing/v4/workflow-videos.tsx',
       'utf8'
     );
     expect(source).toContain('prefers-reduced-motion: reduce');
     expect(source).toContain('document.hidden');
-    expect(source).toContain('a.pause()');
-    expect(source).toContain('a.cancel()');
+    expect(source).toContain('el.pause()');
+    expect(source).toContain("removeEventListener('canplay', sync)");
     expect(source).toContain('observer.disconnect()');
     expect(source).not.toContain('Infinity');
     expect(source).not.toContain('setInterval');
+  });
+  it('ships all five compact clips and static poster fallbacks', () => {
+    for (const scene of [
+      'conversation',
+      'context',
+      'permissions',
+      'order',
+      'results',
+    ]) {
+      const video = readFileSync(`public/portada-b/workflow-${scene}.mp4`);
+      expect(video.subarray(4, 8).toString()).toBe('ftyp');
+      expect(video.byteLength).toBeLessThan(2_000_000);
+      expect(
+        readFileSync(`public/portada-b/workflow-${scene}.jpg`).byteLength
+      ).toBeGreaterThan(1000);
+    }
   });
 });

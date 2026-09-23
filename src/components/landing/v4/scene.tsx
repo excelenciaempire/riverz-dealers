@@ -8,7 +8,7 @@ import {
   PermissionsDemo,
   OrderDemo,
   ResultsDemo,
-} from './workflow-demos';
+} from './workflow-videos';
 import { Rise } from './bits';
 
 /**

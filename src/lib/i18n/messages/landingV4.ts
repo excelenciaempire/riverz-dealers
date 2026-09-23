@@ -225,16 +225,16 @@ export const landingV4 = {
   // vende. La bajada nombra el trabajo que se pierde entre intención y pedido,
   // sin pedirle que aprenda una categoría nueva.
   heroTitleLead: {
-    es: 'Tu equipo de empleados de IA.',
-    en: 'Your team of AI employees.',
+    es: 'Vende y atiende con un equipo de IA.',
+    en: 'An AI team for your store’s sales and support.',
   },
   heroTitleMuted: {
-    es: 'Nosotros lo dejamos funcionando.',
-    en: 'We get it running for you.',
+    es: 'Nosotros lo dejamos listo.',
+    en: 'Set up for you.',
   },
   heroSubtitle: {
-    es: 'Atiende mensajes, recupera carritos y da seguimiento a tus pedidos. Lo configuramos con tu catálogo, tu forma de hablar y las reglas de tu negocio.',
-    en: 'Answer messages, recover carts, and follow up on orders. We set it up with your catalog, your voice, and your business rules.',
+    es: 'Responde consultas, retoma carritos y da seguimiento a pedidos sin montar los flujos tú mismo. Lo configuramos con tu catálogo, tu tono y tus reglas.',
+    en: 'Answer questions, follow up on abandoned carts, and track orders without building workflows yourself. We configure it with your catalog, your voice, and your rules.',
   },
 
   // ── Muro de plataformas ──
@@ -292,22 +292,22 @@ export const landingV4 = {
   // comparación directa y la bajada la prueba con lo único que se nota: quién
   // carga el pedido.
   loopTitle: {
-    es: 'Así pasa del mensaje al trabajo resuelto.',
-    en: 'From a message to a task handled.',
+    es: 'Del primer mensaje al siguiente paso.',
+    en: 'From the first message to the next step.',
   },
   loopLead: {
-    es: 'Riverz conecta cada conversación con la acción que corresponde: recomendar, recuperar una compra, confirmar un pedido o entregar el caso a tu equipo.',
-    en: 'Riverz connects each conversation to the right action: recommend, recover a purchase, confirm an order, or hand the case to your team.',
+    es: 'Así atiende tu equipo de IA: consulta la información, aplica tus reglas y da seguimiento. Tú puedes ver lo que hace e intervenir.',
+    en: 'Your AI team checks the facts, follows your rules, and takes the next step. You can review its work and step in.',
   },
   // Cinco pasos, del lado del comercio. Sin «señal», sin «contexto», sin
   // «ejecuta»: nadie que vende por WhatsApp piensa con esas palabras.
   loop1Title: {
-    es: 'Llega un mensaje. Empieza a trabajar.',
-    en: 'A message arrives. Work begins.',
+    es: 'Atiende sin que estés pendiente.',
+    en: 'Keep conversations moving while you’re busy.',
   },
   loop1Body: {
-    es: 'Una pregunta por WhatsApp, un comentario en un anuncio o un carrito sin terminar. Cada caso entra al seguimiento que configuramos contigo.',
-    en: 'A WhatsApp question, an ad comment, or an unfinished cart. Each case enters the follow-up process we set up with you.',
+    es: 'Una pregunta por WhatsApp o un comentario en un anuncio inicia la conversación. La IA responde y continúa el seguimiento que acordamos contigo.',
+    en: 'A WhatsApp question or an ad comment starts the conversation. AI replies and follows the process we agreed on with you.',
   },
   loop1P1: {
     es: 'Canales, comentarios y chat web',
@@ -323,12 +323,12 @@ export const landingV4 = {
     en: 'Checks before replying.',
   },
   loop2Body: {
-    es: 'Antes de responder, consulta el contexto disponible: catálogo, stock, pedidos e historial. Así la conversación no empieza desde cero.',
-    en: "Before replying, it checks the available context: catalog, stock, orders, and history. So the conversation doesn't start from zero.",
+    es: 'Busca el producto, revisa la disponibilidad y consulta el pedido o el historial del cliente. Responde con la información de tus sistemas conectados.',
+    en: 'It looks up products, checks availability, and reviews the customer’s order or history. Replies use information from your connected systems.',
   },
   loop2P1: {
-    es: 'Catálogo, stock y precios en vivo',
-    en: 'Live catalog, stock, and prices',
+    es: 'Productos, precios y stock de tu tienda',
+    en: 'Your store’s products, prices, and stock',
   },
   loop2P2: {
     es: 'Historial de compras y conversaciones',
@@ -340,8 +340,8 @@ export const landingV4 = {
     en: 'You set the limits.',
   },
   loop3Body: {
-    es: 'Tú defines qué puede hacer, qué debe aprobarse y qué debe escalarse. La IA trabaja dentro de esos límites.',
-    en: 'You define what it can do, what needs approval, and what needs escalation. AI works within those limits.',
+    es: 'Consultar un envío puede ser automático. Cambiar una dirección puede requerir aprobación. Los reembolsos pueden quedar en manos de tu equipo. Tú eliges.',
+    en: 'Tracking an order can be automatic. An address change can require approval. Refunds can stay with your team. You choose.',
   },
   loop3P1: {
     es: 'Cada acción: apagada, con aprobación o automática',
@@ -354,12 +354,12 @@ export const landingV4 = {
 
   // El cuarto es el argumento entero. Si alguien lee un solo paso, que sea este.
   loop4Title: {
-    es: 'Convierte la conversación en una acción',
-    en: 'Turns the conversation into action',
+    es: 'Del interés al pedido.',
+    en: 'From interest to an order.',
   },
   loop4Body: {
-    es: 'Puede recomendar productos, enviar un checkout o link de pago, crear o consultar pedidos y continuar la postventa, según tus conexiones y permisos.',
-    en: 'It can recommend products, send checkout or payment links, create or look up orders, and continue post-purchase support, based on your connections and permissions.',
+    es: 'Recomienda el producto, envía el enlace de compra y gestiona el pedido según la integración. El seguimiento continúa después de la venta.',
+    en: 'Recommend the product, send a checkout link, and handle the order where your integration supports it. Follow-up continues after the sale.',
   },
   loop4P1: {
     es: 'Del chat al pedido, sin cambiar de herramienta',
@@ -371,20 +371,20 @@ export const landingV4 = {
   },
 
   loop5Title: {
-    es: 'Puedes revisar lo que hizo.',
-    en: 'You can review what it did.',
+    es: 'Revisa lo resuelto y lo pendiente.',
+    en: 'See what’s handled and what needs you.',
   },
   loop5Body: {
-    es: 'Ves qué resolvió la IA, qué quedó pendiente y qué resultados puedes atribuir a cada flujo cuando la fuente está conectada.',
-    en: 'See what AI resolved, what remains pending, and which results you can attribute to each flow when the source is connected.',
+    es: 'Consulta conversaciones atendidas, pedidos y casos que necesitan a tu equipo. Cuando hay datos de venta conectados, revisa también los resultados atribuidos.',
+    en: 'Review handled conversations, orders, and cases that need your team. When sales data is connected, you can also review attributed results.',
   },
   loop5P1: {
     es: 'Resultados y conversaciones en un solo lugar',
     en: 'Results and conversations in one place',
   },
   loop5P2: {
-    es: 'Mejora con las respuestas de tu equipo',
-    en: "Improves with your team's answers",
+    es: 'Historial para revisar y ajustar respuestas',
+    en: 'Conversation history to review and refine replies',
   },
 
   // ── Los pilares: el ángulo del chat ya pagado ──
@@ -398,8 +398,8 @@ export const landingV4 = {
     en: 'More sales shouldn’t mean living in your inbox.',
   },
   pillarsLead: {
-    es: 'Una duda sin responder. Un carrito a medias. Otro «¿dónde está mi pedido?». Tu equipo de IA se ocupa del seguimiento para que puedas concentrarte en hacer crecer la tienda.',
-    en: 'An unanswered question. An unfinished cart. Another “Where’s my order?” Your AI team handles follow-ups so you can focus on growing your store.',
+    es: 'Mientras preparas pedidos, llegan preguntas sobre tallas, pagos y entregas. Delega esas conversaciones y sus seguimientos. Tu equipo conserva los casos que necesitan una decisión.',
+    en: 'While you’re preparing orders, questions keep coming about sizes, payments, and deliveries. Delegate those conversations and follow-ups. Your team keeps the cases that need a decision.',
   },
 
   // ── Qué hace (la cuadrícula de fichas) ──
@@ -514,8 +514,8 @@ export const landingV4 = {
   opAsk: { es: '¿Lo activo?', en: 'Shall I turn it on?' },
   opApprove: { es: 'Aprobar', en: 'Approve' },
   opNote: {
-    es: 'Nada le llega a un cliente sin que lo apruebes.',
-    en: 'Nothing reaches a customer without your approval.',
+    es: 'Revisas esta campaña antes de activarla.',
+    en: 'Review this campaign before it goes live.',
   },
 
   // ── Canales ──
@@ -574,7 +574,14 @@ export const landingV4 = {
     es: '≈ {amount} centavos por contacto con el cupo completo',
     en: '≈ {amount} cents per contact at full plan capacity',
   },
-  pricingEverythingIncluded: { es: 'Todo incluido', en: 'Everything included' },
+  pricingEverythingIncluded: {
+    es: 'Incluido en tu plan',
+    en: 'Included in your plan',
+  },
+  pricingExternalFees: {
+    es: 'Mensajería y telefonía de terceros se cobran aparte.',
+    en: 'Third-party messaging and phone charges are separate.',
+  },
   pricingIncludedAgents: {
     es: 'Todos los agentes y consumo de IA',
     en: 'All agents and AI usage',
@@ -600,8 +607,8 @@ export const landingV4 = {
     en: 'Results and attributed sales',
   },
   pricingDetailsNote: {
-    es: 'Cada persona cuenta una vez por período si la IA le responde. Entre canales se une solo con identidad verificada. Sin excedentes automáticos. Mensajería y telefonía de terceros aparte.',
-    en: 'Each person counts once per period if AI replies. Cross-channel contacts merge only with verified identity. No automatic overages. Third-party messaging and telephony are separate.',
+    es: 'Cada persona cuenta una vez por período si la IA le responde. Entre canales se une solo con identidad verificada. No cobramos cada mensaje ni aplicamos excedentes automáticos.',
+    en: 'Each person counts once per period if AI replies. Cross-channel contacts merge only with verified identity. No per-message billing or automatic overages.',
   },
   pricingDetailsSummary: {
     es: 'Cómo se cuentan los contactos',
@@ -823,8 +830,27 @@ export const landingV4 = {
     en: 'Tell us what’s taking up your time.',
   },
   ctaBody: {
-    es: 'Déjanos tu correo y conversemos sobre tu tienda. Revisamos qué puedes delegar, qué conexiones necesitas y cuánto costaría. Sin compromiso.',
-    en: 'Leave your email and let’s talk about your store. We’ll review what you can delegate, the connections you need, and what it would cost. No commitment.',
+    es: 'Déjanos tu correo. Revisamos tus canales, las tareas que quieres delegar y el plan que necesitas. Una conversación, sin compromiso.',
+    en: 'Leave your email. We’ll review your channels, the work you want to delegate, and the plan you need. A conversation, with no commitment.',
+  },
+  videoPlay: { es: 'Reproducir animación', en: 'Play animation' },
+  videoPause: { es: 'Pausar animación', en: 'Pause animation' },
+  videoIllustration: { es: 'Ilustración con IA', en: 'AI illustration' },
+  videoConversation: {
+    es: 'Una consulta. Una respuesta con contexto.',
+    en: 'A question. A reply with context.',
+  },
+  videoPermissions: {
+    es: 'Las acciones sensibles esperan tu aprobación.',
+    en: 'Sensitive actions wait for your approval.',
+  },
+  videoOrder: {
+    es: 'Ayuda a elegir. Facilita la compra.',
+    en: 'Help them choose. Make checkout easier.',
+  },
+  videoResults: {
+    es: 'Lo resuelto y lo que necesita a tu equipo.',
+    en: 'What’s handled and what needs your team.',
   },
   motionReplay: { es: 'Repetir demostración', en: 'Replay demonstration' },
   motionInbox: { es: 'Conversaciones', en: 'Conversations' },
