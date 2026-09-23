@@ -4,7 +4,10 @@ import { useState } from 'react';
 import { Check } from 'lucide-react';
 import { useFormat } from '@/hooks/use-format';
 import { useT } from '@/hooks/use-locale';
-import { FIRST_MONTH_DISCOUNT_PERCENT, firstMonthCents } from '@/lib/billing/first-month-offer';
+import {
+  FIRST_MONTH_DISCOUNT_PERCENT,
+  firstMonthCents,
+} from '@/lib/billing/first-month-offer';
 import { Rise } from './bits';
 import type { PricingTier } from './pricing-tiers';
 
@@ -50,7 +53,9 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
             <p className="sn-label mb-7 text-center">
               {tier.monthly === null
                 ? t('landingV4.pricingFreeSetup')
-                : t('landingV4.pricingOfferBadge', { percent: FIRST_MONTH_DISCOUNT_PERCENT })}
+                : t('landingV4.pricingOfferBadge', {
+                    percent: FIRST_MONTH_DISCOUNT_PERCENT,
+                  })}
             </p>
             <div className="mx-auto max-w-3xl">
               <input
@@ -70,11 +75,12 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
 
               <div className="sn-pricing-tiers mt-3 grid grid-cols-5">
                 {tiers.map((option, index) => {
-                  const label = option.customers === null
-                    ? t('landingV4.pricingTierMore')
-                    : option.customers < 1_000
-                      ? fmt.number(option.customers)
-                      : `${fmt.number(option.customers / 1_000)}k`;
+                  const label =
+                    option.customers === null
+                      ? t('landingV4.pricingTierMore')
+                      : option.customers < 1_000
+                        ? fmt.number(option.customers)
+                        : `${fmt.number(option.customers / 1_000)}k`;
                   return (
                     <button
                       key={option.customers ?? 'custom'}
@@ -82,7 +88,9 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
                       onClick={() => setTierIndex(index)}
                       aria-pressed={index === tierIndex}
                       className={`sn-label min-h-8 px-1 ${
-                        index === tierIndex ? 'underline underline-offset-4' : ''
+                        index === tierIndex
+                          ? 'underline underline-offset-4'
+                          : ''
                       }`}
                       style={{ textTransform: 'none' }}
                       aria-label={
@@ -100,36 +108,63 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
               </div>
             </div>
 
-            <p className="sn-label mt-8">{customerLabel}</p>
+            <div className="mx-auto mt-9 max-w-3xl text-left">
+              <p className="sn-label text-center">{customerLabel}</p>
 
-            {tier.monthly === null ? (
-              <p className="sn-h2 mt-3">{t('landingV4.pricingCustomPrice')}</p>
-            ) : (
-              <>
-                <p className="mt-3 text-sm font-medium text-[var(--sn-ink-2)]">
-                  {t('landingV4.pricingFirstMonth')}
-                </p>
-                <div className="mt-2 flex flex-col items-center justify-center sm:flex-row sm:items-end sm:gap-x-2">
-                  <span className="sn-pricing-amount font-[family-name:var(--font-editorial)] leading-none tracking-[-0.04em]">
-                    {fmt.money(firstMonthCents(tier.monthly * 100) / 100, 'USD')}
-                  </span>
+              {tier.monthly === null ? (
+                <div className="mt-5 rounded-[22px] bg-[var(--sn-accent)] px-6 py-8 text-center sm:px-9">
+                  <p className="sn-h2">{t('landingV4.pricingCustomPrice')}</p>
                 </div>
-                <p className="mt-3 text-[15px] text-[var(--sn-ink-2)]">
-                  {t('landingV4.pricingThenMonthly', { amount: fmt.money(tier.monthly, 'USD') })}
-                </p>
-                {tier.customers !== null && (
-                  <p className="mt-2 text-[13px] text-[var(--sn-ink-2)]">
-                    {t('landingV4.pricingPerContact', {
-                      amount: fmt.number(Math.round(tier.monthly * 100 / tier.customers)),
-                    })}
-                  </p>
-                )}
-              </>
-            )}
+              ) : (
+                <div className="mt-5 grid overflow-hidden rounded-[22px] sm:grid-cols-2">
+                  <div className="bg-[var(--sn-accent)] px-6 py-7 sm:px-9 sm:py-8">
+                    <p className="sn-label">
+                      {t('landingV4.pricingFirstMonth')}
+                    </p>
+                    <p className="sn-pricing-amount mt-4 font-[family-name:var(--font-editorial)] leading-none tracking-[-0.04em]">
+                      {fmt.money(
+                        firstMonthCents(tier.monthly * 100) / 100,
+                        'USD'
+                      )}
+                    </p>
+                  </div>
+                  <div className="bg-[var(--sn-sand)] px-6 py-7 sm:px-9 sm:py-8">
+                    <p className="sn-label">
+                      {t('landingV4.pricingFromSecondMonth')}
+                    </p>
+                    <p className="mt-4 flex items-baseline gap-2 font-[family-name:var(--font-editorial)] text-[clamp(36px,6vw,52px)] leading-none tracking-[-0.03em]">
+                      <span>{fmt.money(tier.monthly, 'USD')}</span>
+                      <span className="font-[family-name:var(--font-grotesk)] text-sm font-normal tracking-normal text-[var(--sn-ink-2)]">
+                        {t('landingV4.pricingPerMonth')}
+                      </span>
+                    </p>
+                    {tier.customers !== null && (
+                      <p className="mt-4 text-[13px] leading-5 text-[var(--sn-ink-2)]">
+                        {t('landingV4.pricingPerContact', {
+                          amount: fmt.number(
+                            Math.round((tier.monthly * 100) / tier.customers)
+                          ),
+                        })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
-            <p className="mt-5 text-sm text-[var(--sn-ink-2)]">
-              {t(tier.monthly === null ? 'landingV4.pricingCustomSetupTerms' : 'landingV4.pricingSetupTerms')}
-            </p>
+              <div className="mt-4 flex items-start gap-3 rounded-2xl bg-[var(--sn-sand)] px-5 py-4 text-sm leading-6 text-[var(--sn-ink-2)] sm:px-6">
+                <Check
+                  className="mt-1 size-4 shrink-0 text-[var(--sn-ink)]"
+                  aria-hidden
+                />
+                <p>
+                  {t(
+                    tier.monthly === null
+                      ? 'landingV4.pricingCustomSetupTerms'
+                      : 'landingV4.pricingSetupTerms'
+                  )}
+                </p>
+              </div>
+            </div>
 
             <div
               id="pricing-details"
@@ -153,7 +188,10 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
               <p className="mt-6 text-center text-[13px] leading-5 text-[var(--sn-ink-2)]">
                 {t('landingV4.pricingDetailsNote')}
               </p>
-              <a href="#acceso" className="sn-pill mx-auto mt-7 w-full sm:w-fit">
+              <a
+                href="#acceso"
+                className="sn-pill mx-auto mt-7 w-full sm:w-fit"
+              >
                 {t('landingV4.pricingCta')}
               </a>
             </div>

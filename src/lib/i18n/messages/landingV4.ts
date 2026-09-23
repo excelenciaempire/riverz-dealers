@@ -396,17 +396,14 @@ export const landingV4 = {
     en: 'Free setup · {percent}% off the first month',
   },
   pricingFirstMonth: { es: 'Primer mes', en: 'First month' },
-  pricingThenMonthly: {
-    es: 'Después {amount} al mes',
-    en: 'Then {amount} per month',
-  },
+  pricingFromSecondMonth: { es: 'Desde el segundo mes', en: 'From month two' },
   pricingSetupTerms: {
-    es: 'Instalamos contigo sin cobrar configuración. Apruebas el sistema y entonces pagas el primer mes.',
-    en: 'We set it up with you at no setup cost. You approve the system, then pay for the first month.',
+    es: 'Lo configuramos contigo. Apruebas el sistema antes de pagar el primer mes.',
+    en: 'We set it up with you. You approve the system before paying for the first month.',
   },
   pricingCustomSetupTerms: {
-    es: 'Instalación gratis. Definimos el precio según tu volumen antes de activar el plan.',
-    en: 'Free setup. We agree on pricing for your volume before activating the plan.',
+    es: 'Definimos el precio según tu volumen antes de activar el plan.',
+    en: 'We agree on pricing for your volume before activating the plan.',
   },
   pricingCta: { es: 'Solicitar instalación gratis', en: 'Request free setup' },
   pricingCalculatorOffer: {
