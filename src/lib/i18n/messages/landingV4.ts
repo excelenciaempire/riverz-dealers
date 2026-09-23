@@ -41,34 +41,54 @@ import type { Namespace } from './types';
  * prometer aumentos que no se puedan atribuir por cuenta.
  */
 export const landingV4 = {
-  setupTitle: {
-    es: 'Tú conoces tu negocio. Nosotros montamos la operación.',
-    en: 'You know your business. We set up the operation.',
+  compareTitle: { es: 'Riverz vs. hacerlo por tu cuenta.', en: 'Riverz vs. doing it yourself.' },
+  compareBody: {
+    es: 'La diferencia está en quién configura y mantiene el sistema.',
+    en: 'The difference is who sets up and maintains the system.',
   },
-  setupBody: {
-    es: 'No tienes que aprender a crear flujos ni empezar con un panel vacío. Te acompañamos desde la configuración hasta la puesta en marcha.',
-    en: 'You don’t have to learn how to build workflows or start with an empty dashboard. We work with you from setup to launch.',
+  compareCriterion: { es: 'Qué cambia', en: 'What changes' },
+  compareSelfService: { es: 'Plataforma de autoservicio', en: 'Self-service platform' },
+  compare1Topic: { es: 'Configuración', en: 'Setup' },
+  compare1Riverz: { es: 'La hacemos contigo.', en: 'We handle it with you.' },
+  compare1SelfService: {
+    es: 'La haces tú o contratas ayuda.',
+    en: 'You do it or hire help.',
   },
-  setup1Title: { es: 'Nos cuentas cómo trabajas', en: 'Tell us how you work' },
-  setup1Body: {
-    es: 'Revisamos tus canales, catálogo y políticas. Elegimos contigo las tareas que más tiempo te quitan.',
-    en: 'We review your channels, catalog, and policies. Together, we choose the tasks taking up the most time.',
+  compare2Topic: { es: 'Tono y reglas', en: 'Voice and rules' },
+  compare2Riverz: {
+    es: 'Los adaptamos a tu marca.',
+    en: 'We adapt them to your brand.',
   },
-  setup2Title: {
-    es: 'Lo configuramos para tu marca',
-    en: 'We configure it for your brand',
+  compare2SelfService: {
+    es: 'Tú defines y pruebas las respuestas.',
+    en: 'You define and test the replies.',
   },
-  setup2Body: {
-    es: 'Conectamos las herramientas disponibles y preparamos respuestas, seguimientos y permisos.',
-    en: 'We connect the available tools and prepare responses, follow-ups, and permissions.',
+  compare3Topic: { es: 'Conexiones', en: 'Connections' },
+  compare3Riverz: {
+    es: 'Conectamos tus canales y sistemas disponibles.',
+    en: 'We connect your available channels and systems.',
   },
-  setup3Title: {
-    es: 'Lo pruebas. Lo apruebas.',
-    en: 'You test it. You approve it.',
+  compare3SelfService: {
+    es: 'Tú configuras cada integración.',
+    en: 'You configure each integration.',
   },
-  setup3Body: {
-    es: 'Revisamos conversaciones contigo antes de activarlo. Después seguimos ajustando la configuración.',
-    en: 'We review conversations with you before going live. Then we keep refining the setup.',
+  compare4Topic: { es: 'Cambios', en: 'Changes' },
+  compare4Riverz: {
+    es: 'Nos pides ajustes y los implementamos.',
+    en: 'You request changes; we implement them.',
+  },
+  compare4SelfService: {
+    es: 'Tu equipo mantiene los flujos.',
+    en: 'Your team maintains the workflows.',
+  },
+  compare5Topic: { es: 'Antes de activar', en: 'Before launch' },
+  compare5Riverz: {
+    es: 'Lo pruebas y apruebas con nosotros.',
+    en: 'You test and approve it with us.',
+  },
+  compare5SelfService: {
+    es: 'Tú revisas y publicas el sistema.',
+    en: 'You review and launch the system.',
   },
   leadSubmit: { es: 'Hablemos', en: 'Let’s talk' },
   leadDone: {
@@ -486,17 +506,14 @@ export const landingV4 = {
   compInvested: { es: 'Invertido', en: 'Spent' },
   compReturned: { es: 'Devuelto', en: 'Returned' },
 
-  // ── Operator ──
-  // Este bloque va a todo el ancho y con la mínima cantidad de texto posible:
-  // la animación tiene que contar la función sola. Un titular, una línea y el
-  // chat. Lo que antes eran tres viñetas ahora lo dice el propio reparto.
+  // Demostración compacta dentro del bloque editorial.
   operatorTitle: {
-    es: 'Pídelo como se lo pedirías a tu equipo.',
-    en: 'Ask it the way you’d ask your team.',
+    es: 'Nosotros lo montamos. Tú puedes dirigirlo.',
+    en: 'We set it up. You can steer it.',
   },
   operatorLead: {
-    es: '«Recupera los carritos de esta semana». Riverz prepara los contactos, el mensaje y el seguimiento. Tú revisas el plan antes de activarlo.',
-    en: '“Recover this week’s abandoned carts.” Riverz prepares contacts, messages, and follow-ups. You review the plan before it goes live.',
+    es: 'El equipo sigue las reglas que configuramos. Si necesitas algo nuevo, pídelo en una frase y aprueba el plan.',
+    en: 'The team follows the rules we configure. When you need something new, ask in one sentence and approve the plan.',
   },
 
   // Lo que se escribe y lo que contesta, dentro de la animación.
@@ -603,8 +620,8 @@ export const landingV4 = {
     en: 'Channels, comments, web chat, and voice',
   },
   pricingIncludedOperator: {
-    es: 'Operator, automatizaciones y aprobaciones',
-    en: 'Operator, automations, and approvals',
+    es: 'Automatizaciones, ajustes y aprobaciones',
+    en: 'Automations, adjustments, and approvals',
   },
   pricingIncludedIntegrations: {
     es: 'Integraciones con tienda, pagos y logística',
@@ -805,24 +822,19 @@ export const landingV4 = {
   // el sello sin estar adentro va contra las normas de marca de Meta y pone en
   // riesgo la app. Lo que sí es cierto —y es lo que de verdad tranquiliza— es
   // que la conexión es por la API oficial y que el App Review está aprobado.
-  // Una frase y una descripción. Nada más.
-  //
-  // Acá hubo primero cuatro bloques de título + párrafo (noventa palabras) y
-  // después cinco insignias de texto. Las dos versiones explicaban; ninguna
-  // tranquilizaba. Quien lee esto no quiere el detalle técnico de cómo nos
-  // conectamos: quiere saber que no se le va a caer nada encima. Eso se dice
-  // en una línea y se prueba con un sello, no con una lista.
+  // No prometemos inmunidad a restricciones: siguen aplicando las políticas
+  // de Meta a cada cuenta.
   trustTitle: {
-    es: 'Habla como tu marca. Trabaja con tus reglas.',
-    en: 'Your brand’s voice. Your rules.',
+    es: 'Tu WhatsApp, por la vía oficial.',
+    en: 'Your WhatsApp, connected the official way.',
   },
   trustBody: {
-    es: 'Tú decides qué puede resolver y cuándo debe pedir ayuda. Los casos sensibles pasan a tu equipo con el contexto de la conversación. Tus cuentas siguen siendo tuyas.',
-    en: 'You decide what it can handle and when to ask for help. Sensitive cases go to your team with the conversation context. Your accounts stay yours.',
+    es: 'Riverz conecta tu WhatsApp mediante la Cloud API oficial de Meta, con App Review aprobado. Evitas depender de accesos no autorizados; tu cuenta sigue sujeta a las políticas de Meta.',
+    en: 'Riverz connects your WhatsApp through Meta’s official Cloud API, with App Review approved. You avoid relying on unauthorized access; your account remains subject to Meta’s policies.',
   },
   trustPill: {
-    es: 'Puedes intervenir cuando lo necesites',
-    en: 'Step in whenever you need to',
+    es: 'Sin sesiones espejo ni bots por QR',
+    en: 'No mirrored sessions or QR bots',
   },
   // Las dos vueltas del sello.
   trustSealTop: { es: 'Conexión oficial', en: 'Official connection' },

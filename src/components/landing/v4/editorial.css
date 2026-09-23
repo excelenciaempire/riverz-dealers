@@ -41,6 +41,87 @@
   letter-spacing: -0.01em;
 }
 
+/* Comparación editorial: Riverz destaca sin convertir la tabla en una cuadrícula pesada. */
+.sn-compare-wrap {
+  overflow: hidden;
+  border: 1px solid var(--sn-line);
+  border-radius: 22px;
+  background: var(--sn-card);
+}
+.sn-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  text-align: left;
+}
+.sn-compare-criterion { width: 24%; }
+.sn-compare-answer { width: 38%; }
+.sn-compare-table th,
+.sn-compare-table td {
+  padding: 20px 24px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--sn-line);
+  font-size: 16px;
+  line-height: 1.4;
+}
+.sn-compare-table thead th {
+  padding-block: 22px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.sn-compare-table thead th:nth-child(2) {
+  color: var(--sn-accent);
+  background: var(--sn-ink);
+}
+.sn-compare-table tbody th {
+  font-weight: 650;
+  color: var(--sn-ink);
+}
+.sn-compare-table tbody td:nth-child(2) {
+  background: color-mix(in srgb, var(--sn-accent) 48%, var(--sn-card));
+  font-weight: 600;
+}
+.sn-compare-table tbody tr:last-child > * { border-bottom: 0; }
+.sn-compare-mobile-label { display: none; }
+
+@media (max-width: 700px) {
+  .sn-compare-wrap { border-radius: 18px; }
+  .sn-compare-table,
+  .sn-compare-table tbody,
+  .sn-compare-table tr,
+  .sn-compare-table th,
+  .sn-compare-table td { display: block; width: 100%; }
+  .sn-compare-table thead,
+  .sn-compare-table colgroup { display: none; }
+  .sn-compare-table tbody tr {
+    padding: 17px;
+    border-bottom: 1px solid var(--sn-line);
+  }
+  .sn-compare-table tbody tr:last-child { border-bottom: 0; }
+  .sn-compare-table tbody th {
+    padding: 0 2px 12px;
+    border: 0;
+    font-size: 17px;
+  }
+  .sn-compare-table tbody td {
+    padding: 14px 16px;
+    border: 0;
+    border-radius: 12px;
+    font-size: 15px;
+  }
+  .sn-compare-table tbody td + td { margin-top: 5px; }
+  .sn-compare-mobile-label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+}
+
 /* ── Tipografía ─────────────────────────────────────────── */
 
 /* Titulares. La clave del registro editorial es la interlínea:
@@ -347,39 +428,78 @@
   max-width: 100%;
 }
 
-/* ── El Operator: la secuencia atada al scroll ─────────────
-   Misma mecánica que la escena, con dos diferencias que
-   importan. Es más corta —una pantalla y media de recorrido
-   alcanza para escribir el pedido y ver entrar tres
-   renglones; con cinco se hace lento y la persona rueda de
-   más buscando el final—. Y el interior se centra en vez de
-   apilar actos, porque acá no hay actos que se crucen: hay
-   una sola pieza que se va armando.
-
-   Debajo de 1024 px no se clava nada. El componente lo sabe
-   y ahí muestra la secuencia terminada, así que la sección
-   mide lo que mide su contenido. */
-
-.sn-op {
-  height: auto;
+/* Demostración compacta dentro de la tarjeta editorial anterior. */
+.sn-operator-demo {
+  overflow: hidden;
+  border-radius: 20px;
+  background: var(--sn-ink);
+  color: var(--sn-card);
+  padding: clamp(22px, 4vw, 38px);
 }
-
-.sn-op-in {
-  position: static;
-  height: auto;
+.sn-operator-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: clamp(22px, 4vw, 52px);
 }
-
-@media (min-width: 1024px) {
-  .sn-op {
-    /* Cuanto más alta, más lento se desarrolla: el mismo recorrido de 0 a 1
-       repartido sobre más scroll. A 420vh cada encargo se alcanza a leer. */
-    height: 420vh;
-  }
-  .sn-op-in {
-    position: sticky;
-    top: 0;
-    height: 100svh;
-  }
+.sn-operator-copy .sn-h2 { font-size: clamp(27px, 3vw, 40px); }
+.sn-operator-screen { min-width: 0; }
+.sn-operator-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(250, 247, 241, 0.16);
+  border-radius: 16px;
+  background: rgba(250, 247, 241, 0.08);
+  font-size: 15px;
+  line-height: 1.4;
+}
+.sn-operator-send,
+.sn-operator-check {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--sn-accent);
+  color: var(--sn-ink);
+}
+.sn-operator-send { width: 30px; height: 30px; }
+.sn-operator-check { width: 19px; height: 19px; margin-top: 2px; }
+.sn-operator-steps { display: grid; gap: 7px; margin-top: 15px; }
+.sn-operator-steps li {
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(250, 247, 241, 0.06);
+}
+.sn-operator-step-label {
+  display: block;
+  color: rgba(250, 247, 241, 0.67);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sn-operator-step-action { display: block; margin-top: 3px; font-size: 14px; line-height: 1.4; }
+.sn-operator-approval {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 15px;
+  font-size: 14px;
+}
+.sn-operator-approve {
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: var(--sn-accent);
+  color: var(--sn-ink);
+  font-weight: 650;
+}
+@media (max-width: 800px) {
+  .sn-operator-grid { grid-template-columns: 1fr; }
 }
 
 /* ── Entrada al scrollear: sube y aparece, una sola vez ──── */

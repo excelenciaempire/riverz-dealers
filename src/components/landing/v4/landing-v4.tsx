@@ -85,17 +85,10 @@ export function LandingV4({ tiers }: { tiers: PricingTier[] }) {
       <main id="contenido">
         <Hero />
         <Wall />
-        {/* El Operator abre el recorrido: es lo único que no tiene nadie más
-            en la categoría, y dejarlo para el final hacía que la página se
-            leyera como «otra plataforma de atención con IA» hasta el minuto
-            tres. La oferta ya no ocupa una sección: vive en la barra de
-            arriba y se despliega en un diálogo, porque es temporal y tiene que
-            poder retirarse sin dejar un hueco. */}
         <Pillars />
-        <Operator />
         <Scene />
         <Capabilities />
-        <Setup />
+        <Comparison />
         <Channels />
         <Confianza />
         <Pricing tiers={tiers} />
@@ -270,6 +263,9 @@ function Pillars() {
           <p className="sn-lead mt-6 max-w-[44ch]">
             {t('landingV4.pillarsLead')}
           </p>
+          <div className="mt-9">
+            <Operator />
+          </div>
         </div>
       </div>
     </section>
@@ -297,9 +293,9 @@ function Capabilities() {
   );
 }
 
-// ── Canales ───────────────────────────────────────────────────────────────
+// ── Comparativa ───────────────────────────────────────────────────────────
 
-function Setup() {
+function Comparison() {
   const t = useT();
   return (
     <section
@@ -308,27 +304,47 @@ function Setup() {
     >
       <div className="sn-card-sand p-6 sm:p-10 lg:p-14">
         <Rise>
-          <h2 className="sn-h2 max-w-[24ch]">{t('landingV4.setupTitle')}</h2>
+          <h2 className="sn-h2 max-w-[24ch]">{t('landingV4.compareTitle')}</h2>
           <p className="sn-body mt-5 max-w-[58ch]">
-            {t('landingV4.setupBody')}
+            {t('landingV4.compareBody')}
           </p>
         </Rise>
-        <ol className="mt-10 grid gap-8 lg:grid-cols-3">
-          {[1, 2, 3].map((step) => (
-            <li key={step} className="border-t border-[var(--sn-line)] pt-5">
-              <span
-                aria-hidden
-                className="font-[family-name:var(--font-editorial)] text-4xl text-[var(--sn-ink-accent)]"
-              >
-                0{step}
-              </span>
-              <h3 className="sn-h3 mt-4">{t(`landingV4.setup${step}Title`)}</h3>
-              <p className="sn-body mt-3 !text-[15px]">
-                {t(`landingV4.setup${step}Body`)}
-              </p>
-            </li>
-          ))}
-        </ol>
+        <Rise delay={80}>
+          <div className="sn-compare-wrap mt-10">
+            <table className="sn-compare-table">
+              <caption className="sr-only">{t('landingV4.compareTitle')}</caption>
+              <colgroup>
+                <col className="sn-compare-criterion" />
+                <col className="sn-compare-answer" />
+                <col className="sn-compare-answer" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">{t('landingV4.compareCriterion')}</th>
+                  <th scope="col">Riverz</th>
+                  <th scope="col">{t('landingV4.compareSelfService')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[1, 2, 3, 4, 5].map((row) => (
+                  <tr key={row}>
+                    <th scope="row">{t(`landingV4.compare${row}Topic`)}</th>
+                    <td>
+                      <span className="sn-compare-mobile-label" aria-hidden="true">Riverz</span>
+                      {t(`landingV4.compare${row}Riverz`)}
+                    </td>
+                    <td>
+                      <span className="sn-compare-mobile-label" aria-hidden="true">
+                        {t('landingV4.compareSelfService')}
+                      </span>
+                      {t(`landingV4.compare${row}SelfService`)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Rise>
         <a href="#acceso" className="sn-pill mt-9">
           {t('landingV4.navCta')}
         </a>
