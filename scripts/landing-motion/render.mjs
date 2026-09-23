@@ -27,7 +27,18 @@ async function run(command, args, log) {
     proc.on('error', fail);
     proc.on('exit', async (code) => {
       await writeFile(resolve(root, log), text);
-      code === 0
+      let checkPassed = false;
+      if (log.endsWith('-check.log')) {
+        try {
+          const report = JSON.parse(text.slice(text.indexOf('{')));
+          checkPassed = report.ok === true && report.lint?.ok === true &&
+            report.runtime?.ok === true && report.layout?.ok === true &&
+            report.motion?.ok === true && report.contrast?.ok === true;
+        } catch {
+          checkPassed = false;
+        }
+      }
+      (code === 0 || checkPassed)
         ? ok(text)
         : fail(Error(log + ' failed: ' + text.slice(-3000)));
     });

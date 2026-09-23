@@ -16,6 +16,7 @@ describe('reviewed landing media', () => {
     expect(hero.split('function Nav()')[1].split('function Hero()')[0]).not.toContain('href="#acceso"');
     expect(hero).not.toContain('/portada-b/hero.jpg');
     expect(hero).toContain('sn-display sn-hero-title');
+    expect(hero).not.toContain('sn-hero-team-labels');
     expect(hero).toContain('fetchPriority="high"');
     const asset = resolve('public/portada-b/hero-agents-brand.webp');
     const meta = await sharp(asset).metadata();

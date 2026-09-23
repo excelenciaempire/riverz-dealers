@@ -178,9 +178,6 @@ function Hero() {
             className="sn-hero-banner-image"
           />
         </div>
-        <div className="sn-hero-team-labels sn-label">
-          {t('landingV4.heroAgentRoles')}
-        </div>
       </div>
     </section>
   );

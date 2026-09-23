@@ -49,7 +49,7 @@ describe('workflow demonstrations', () => {
         expect(html).toContain('preload="none"');
         expect(html).toContain('<video');
         expect(html).toContain(`-${locale}.jpg`);
-        expect(html).toContain('workflow-chat-v2-');
+        expect(html).toContain('workflow-chat-v3-');
         expect(html).not.toContain('workflow-mascot-');
         expect(html).not.toContain('workflow-ui-');
         expect(html).not.toContain('src="');
@@ -92,13 +92,13 @@ describe('workflow demonstrations', () => {
     ]) {
       for (const lang of ['es', 'en']) {
         const video = readFileSync(
-          `public/portada-b/workflow-chat-v2-${scene}-${lang}.mp4`
+          `public/portada-b/workflow-chat-v3-${scene}-${lang}.mp4`
         );
         expect(video.subarray(4, 8).toString()).toBe('ftyp');
         hashes.add(createHash('sha256').update(video).digest('hex'));
         expect(video.byteLength).toBeLessThan(2_000_000);
         expect(
-          readFileSync(`public/portada-b/workflow-chat-v2-${scene}-${lang}.jpg`).byteLength
+          readFileSync(`public/portada-b/workflow-chat-v3-${scene}-${lang}.jpg`).byteLength
         ).toBeGreaterThan(1000);
       }
     }

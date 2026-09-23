@@ -55,7 +55,7 @@ function WorkflowVideoPlayer({
   const [ended, setEnded] = useState(false);
   const [failed, setFailed] = useState(false);
   const content = SCENES[scene];
-  const mediaPath = `/portada-b/workflow-chat-v2-${scene}-${locale}`;
+  const mediaPath = `/portada-b/workflow-chat-v3-${scene}-${locale}`;
 
   useEffect(() => {
     const el = video.current;
