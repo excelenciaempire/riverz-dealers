@@ -1,15 +1,13 @@
 .rz-film {
   margin: 0;
   overflow: hidden;
-  border: 1px solid rgb(21 43 37 / 10%);
-  border-radius: 24px;
-  background: #faf8f3;
-  box-shadow: 0 18px 45px -32px rgb(17 37 31 / 32%);
+  border: 0;
+  background: transparent;
 }
 .rz-film-stage {
   position: relative;
-  aspect-ratio: 16 / 9;
-  background: #f5f2e9;
+  aspect-ratio: 10 / 9;
+  background: #f3f0eb;
 }
 .rz-film-stage video {
   display: block;

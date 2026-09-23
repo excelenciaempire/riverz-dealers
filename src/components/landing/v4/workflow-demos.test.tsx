@@ -6,6 +6,7 @@ import { landingV4 } from '@/lib/i18n/messages/landingV4';
 
 const current = vi.hoisted(() => ({ locale: 'es' as 'es' | 'en' }));
 vi.mock('@/hooks/use-locale', () => ({
+  useLocale: () => ({ locale: current.locale }),
   useT: () => (key: string) => {
     const value =
       landingV4[key.replace('landingV4.', '') as keyof typeof landingV4];
@@ -42,6 +43,8 @@ describe('workflow demonstrations', () => {
         expect(html).toContain(landingV4.videoIllustration[locale]);
         expect(html).toContain('preload="none"');
         expect(html).toContain('<video');
+        expect(html).toContain(`-${locale}.jpg`);
+        expect(html).toContain('workflow-ui-');
         expect(html).not.toContain('src="');
         expect(html).not.toContain('landingV4.');
         expect(html).not.toContain('opacity:0');
@@ -79,12 +82,17 @@ describe('workflow demonstrations', () => {
       'order',
       'results',
     ]) {
-      const video = readFileSync(`public/portada-b/workflow-${scene}.mp4`);
-      expect(video.subarray(4, 8).toString()).toBe('ftyp');
-      expect(video.byteLength).toBeLessThan(2_000_000);
-      expect(
-        readFileSync(`public/portada-b/workflow-${scene}.jpg`).byteLength
-      ).toBeGreaterThan(1000);
+      for (const locale of ['es', 'en']) {
+        const video = readFileSync(
+          `public/portada-b/workflow-ui-${scene}-${locale}.mp4`
+        );
+        expect(video.subarray(4, 8).toString()).toBe('ftyp');
+        expect(video.byteLength).toBeLessThan(2_000_000);
+        expect(
+          readFileSync(`public/portada-b/workflow-ui-${scene}-${locale}.jpg`)
+            .byteLength
+        ).toBeGreaterThan(1000);
+      }
     }
   });
 });

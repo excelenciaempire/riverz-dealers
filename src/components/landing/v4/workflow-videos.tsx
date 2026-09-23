@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Pause, Play, RotateCcw } from 'lucide-react';
-import { useT } from '@/hooks/use-locale';
+import { useLocale, useT } from '@/hooks/use-locale';
 import './workflow-videos.css';
 
 const SCENES = {
@@ -25,9 +25,26 @@ const SCENES = {
   },
 } as const;
 
-/** AI footage is intentionally text-free. Live localized typography remains crisp
- * at any viewport size. Load on approach, play once in view, never loop forever. */
+/** Rendered interface demonstrations, in the active language. Remount on locale
+ * changes so playback and errors cannot leak between localized sources. */
 export function WorkflowVideo({ scene }: { scene: keyof typeof SCENES }) {
+  const { locale } = useLocale();
+  return (
+    <WorkflowVideoPlayer
+      key={`${scene}-${locale}`}
+      scene={scene}
+      locale={locale}
+    />
+  );
+}
+
+function WorkflowVideoPlayer({
+  scene,
+  locale,
+}: {
+  scene: keyof typeof SCENES;
+  locale: 'es' | 'en';
+}) {
   const t = useT();
   const root = useRef<HTMLElement>(null);
   const video = useRef<HTMLVideoElement>(null);
@@ -39,6 +56,7 @@ export function WorkflowVideo({ scene }: { scene: keyof typeof SCENES }) {
   const [ended, setEnded] = useState(false);
   const [failed, setFailed] = useState(false);
   const content = SCENES[scene];
+  const mediaPath = `/portada-b/workflow-ui-${scene}-${locale}`;
 
   useEffect(() => {
     const el = video.current;
@@ -117,7 +135,7 @@ export function WorkflowVideo({ scene }: { scene: keyof typeof SCENES }) {
     userStarted.current = true;
     if (!loaded) {
       // Explicit playback also works with reduced motion enabled.
-      el.src = `/portada-b/workflow-${scene}.mp4`;
+      el.src = `${mediaPath}.mp4`;
       setLoaded(true);
     }
     if (el.ended) el.currentTime = 0;
@@ -134,12 +152,12 @@ export function WorkflowVideo({ scene }: { scene: keyof typeof SCENES }) {
       <div className="rz-film-stage">
         <video
           ref={video}
-          src={loaded ? `/portada-b/workflow-${scene}.mp4` : undefined}
-          poster={`/portada-b/workflow-${scene}.jpg`}
+          src={loaded ? `${mediaPath}.mp4` : undefined}
+          poster={`${mediaPath}.jpg`}
           muted
           playsInline
           preload="none"
-          width={1280}
+          width={800}
           height={720}
           aria-label={t(content.title)}
           onPlay={() => {
@@ -156,9 +174,6 @@ export function WorkflowVideo({ scene }: { scene: keyof typeof SCENES }) {
             setPlaying(false);
           }}
         />
-        <span className="rz-film-brand" aria-hidden="true">
-          r<span>·</span>
-        </span>
         {!failed && (
           <button
             type="button"
@@ -177,7 +192,7 @@ export function WorkflowVideo({ scene }: { scene: keyof typeof SCENES }) {
           </button>
         )}
       </div>
-      <figcaption className="rz-film-caption">
+      <figcaption className="sr-only">
         <span className="rz-film-title">{t(content.title)}</span>
         <span className="rz-film-detail">{t(content.detail)}</span>
         <span className="rz-film-note">{t('landingV4.videoIllustration')}</span>

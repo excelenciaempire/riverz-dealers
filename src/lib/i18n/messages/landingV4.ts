@@ -833,9 +833,49 @@ export const landingV4 = {
     es: 'Déjanos tu correo. Revisamos tus canales, las tareas que quieres delegar y el plan que necesitas. Una conversación, sin compromiso.',
     en: 'Leave your email. We’ll review your channels, the work you want to delegate, and the plan you need. A conversation, with no commitment.',
   },
+  uiFilmQuestion: {
+    es: '¿Tienen el perfume Solé?',
+    en: 'Is Solé perfume available?',
+  },
+  uiFilmAnswer: {
+    es: 'Sí, está disponible. ¿Te ayudo a pedirlo?',
+    en: 'Yes, it’s available. Shall I help you order?',
+  },
+  uiFilmCheckout: {
+    es: 'Aquí tienes el enlace para comprar.',
+    en: 'Here’s your checkout link.',
+  },
+  uiFilmCheck: {
+    es: 'Primero, consulta tu tienda.',
+    en: 'First, check your store.',
+  },
+  uiFilmProduct: { es: 'Perfume Solé', en: 'Solé perfume' },
+  uiFilmDestination: { es: 'Dirección del cliente', en: 'Customer’s address' },
+  uiFilmAddressRequest: {
+    es: '¿Aplicar la nueva dirección?',
+    en: 'Apply the new address?',
+  },
+  uiFilmApproved: {
+    es: 'Aprobado. Dirección actualizada.',
+    en: 'Approved. Address updated.',
+  },
+  uiFilmToday: {
+    es: 'La actividad, a la vista.',
+    en: 'Your activity, in view.',
+  },
+  uiFilmHandled: { es: 'Atendidas', en: 'Handled' },
+  uiFilmReview: { es: 'Por revisar', en: 'To review' },
+  uiFilmExample: {
+    es: 'Datos de ejemplo, no resultados reales.',
+    en: 'Sample data, not actual results.',
+  },
+  uiFilmDemo: { es: 'Ejemplo', en: 'Example' },
   videoPlay: { es: 'Reproducir animación', en: 'Play animation' },
   videoPause: { es: 'Pausar animación', en: 'Pause animation' },
-  videoIllustration: { es: 'Ilustración con IA', en: 'AI illustration' },
+  videoIllustration: {
+    es: 'Ejemplo de funcionamiento',
+    en: 'Illustrative workflow',
+  },
   videoConversation: {
     es: 'Una consulta. Una respuesta con contexto.',
     en: 'A question. A reply with context.',
