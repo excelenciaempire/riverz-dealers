@@ -43,6 +43,7 @@ interface Estado {
     totalCentavos: number;
     moneda: string;
   };
+  siguientesPlanes: { id: string; slug: string; incluidas: number; precioCentavos: number }[];
   tratoPropio: boolean;
   /** Lo que paga por mes, ya con el trato de esta cuenta. */
   precioCentavos: number;
@@ -66,6 +67,34 @@ export function BillingPanel() {
   const [e, setE] = useState<Estado | null>(null);
   const [cargando, setCargando] = useState(true);
   const [yendo, setYendo] = useState(false);
+  const [mejorando, setMejorando] = useState(false);
+  const [planElegido, setPlanElegido] = useState('');
+
+  const recargar = useCallback(async () => {
+    const res = await fetch('/api/billing/estado', { cache: 'no-store' });
+    if (res.ok) setE((await res.json()) as Estado);
+  }, []);
+
+  const mejorar = useCallback(async (planId: string) => {
+    if (!planId) return;
+    setMejorando(true);
+    try {
+      const res = await fetchWithCsrf('/api/billing/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId }),
+      });
+      const json = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(json.error ?? t('settings.billingUpgradeFailed'));
+      await recargar();
+      setPlanElegido('');
+      toast.success(t('settings.billingUpgradeSuccess'));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('settings.billingUpgradeFailed'));
+    } finally {
+      setMejorando(false);
+    }
+  }, [fetchWithCsrf, recargar, t]);
 
   useEffect(() => {
     void (async () => {
@@ -176,7 +205,7 @@ export function BillingPanel() {
         )}
       </div>
 
-      {e.estado !== 'cortesia' && <div className="space-y-2 border-t border-border pt-3 text-sm">
+      {(e.estado !== 'cortesia' || e.modeloCobro === 'oficial') && <div className="space-y-2 border-t border-border pt-3 text-sm">
         <div className="flex items-baseline justify-between gap-4">
           <span className="text-muted-foreground">{t('settings.billingModelLabel')}</span>
           <span className="font-medium text-foreground">
@@ -191,10 +220,53 @@ export function BillingPanel() {
                 {t('settings.billingContactsOf', { n: cuenta.uso.contactos, total: cuenta.incluidas })}
               </span>
             </div>
-            {cuenta.excedidas > 0 && (
+            <div
+              role="progressbar"
+              aria-label={t('settings.billingServedContacts')}
+              aria-valuenow={Math.min(cuenta.uso.contactos, cuenta.incluidas)}
+              aria-valuemin={0}
+              aria-valuemax={cuenta.incluidas}
+              className="h-1.5 overflow-hidden rounded-full bg-muted"
+            >
+              <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, cuenta.uso.contactos * 100 / cuenta.incluidas)}%` }} />
+            </div>
+            {cuenta.uso.contactos >= cuenta.incluidas && (
               <p className="text-amber-600 dark:text-amber-400">
                 {t('settings.billingVolumeExceeded')}
               </p>
+            )}
+            {cuenta.uso.contactos >= Math.ceil(cuenta.incluidas * 0.8) && cuenta.uso.contactos < cuenta.incluidas && (
+              <p className="text-amber-600 dark:text-amber-400">{t('settings.billingNearLimit')}</p>
+            )}
+            {e.siguientesPlanes?.length > 0 && cuenta.uso.contactos >= Math.ceil(cuenta.incluidas * 0.8) && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <select
+                  aria-label={t('settings.billingUpgradePlan')}
+                  value={planElegido || e.siguientesPlanes[0].id}
+                  onChange={(event) => setPlanElegido(event.target.value)}
+                  className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
+                >
+                  {e.siguientesPlanes.map((plan) => (
+                    <option key={plan.id} value={plan.id}>
+                      {t('settings.billingUpgradeOption', { n: plan.incluidas, price: plata(plan.precioCentavos, cuenta.moneda) })}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={mejorando}
+                  onClick={() => void mejorar(planElegido || e.siguientesPlanes[0].id)}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                >
+                  {mejorando ? <Loader2 className="size-4 animate-spin" /> : t('settings.billingUpgrade')}
+                </button>
+                <p className="w-full text-xs text-muted-foreground">{t('settings.billingUpgradeTiming')}</p>
+              </div>
+            )}
+            {e.siguientesPlanes?.length === 0 && cuenta.uso.contactos >= cuenta.incluidas && (
+              <a href="mailto:riverzoficial@gmail.com" className="inline-block font-medium underline underline-offset-2">
+                {t('settings.billingContactForUpgrade')}
+              </a>
             )}
           </>
         )}

@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 
 import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { acceso, asegurarSuscripcion } from '@/lib/billing/plan'
+import { acceso, asegurarSuscripcion, listarPlanes } from '@/lib/billing/plan'
 import { cuentaDelPeriodo, periodoDe, usoDelPeriodo } from '@/lib/billing/uso'
 import { stripeDisponible } from '@/lib/billing/stripe'
 import { createClient } from '@/lib/supabase/server'
-import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { isWorkspaceAdmin, resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 
 /**
  * Cómo está la cuenta con la facturación.
@@ -31,6 +31,15 @@ export async function GET() {
   const sus = await asegurarSuscripcion(admin, workspaceId)
   const periodo = periodoDe(sus)
   const uso = await usoDelPeriodo(admin, workspaceId, periodo, sus.modeloCobro === 'oficial')
+  const puedeMejorar = sus.modeloCobro === 'oficial' && !sus.tratoPropio &&
+    ['activa', 'prueba'].includes(sus.estado) && !sus.cancelarAlFinal &&
+    await isWorkspaceAdmin(admin, user.id, workspaceId)
+  const siguientesPlanes = puedeMejorar
+    ? (await listarPlanes(admin)).filter((plan) => plan.activo &&
+      plan.moneda === sus.plan?.moneda && plan.incluidas > sus.incluidas &&
+      plan.precioCentavos > sus.precioAcuerdoCentavos)
+      .map((plan) => ({ id: plan.id, slug: plan.slug, incluidas: plan.incluidas, precioCentavos: plan.precioCentavos }))
+    : []
 
   return NextResponse.json(
     {
@@ -39,6 +48,7 @@ export async function GET() {
       plan: sus.plan ? { nombre: sus.plan.nombre, slug: sus.plan.slug } : null,
       acceso: acceso(sus),
       cuenta: cuentaDelPeriodo(sus, uso),
+      siguientesPlanes,
       tratoPropio: sus.tratoPropio,
       // Lo que paga y cuándo vuelve a pagarlo: es lo primero que alguien busca
       // en esta pantalla y no estaba en ningún lado.

@@ -941,6 +941,10 @@ export const admin = {
     es: 'Acumula el consumo de cada cuenta para facturar',
     en: "Rolls up each account's usage for billing",
   },
+  cronBillingVolumeAlerts: {
+    es: 'Avisa al alcanzar el volumen del plan',
+    en: 'Alerts accounts when plan volume is reached',
+  },
   cronIssuesAlert: {
     es: 'Avisa al comercio lo que se rompió en silencio',
     en: 'Emails each account what broke silently',

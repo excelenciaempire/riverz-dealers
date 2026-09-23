@@ -406,6 +406,12 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     path: '/api/cron/billing-usage',
     schedule: '15 * * * *',
   },
+  {
+    name: 'billing-volume-alerts',
+    whatKey: 'admin.cronBillingVolumeAlerts',
+    path: '/api/cron/billing-volume-alerts',
+    schedule: '*/15 * * * *',
+  },
   // Avisa por correo lo que se rompió en silencio. Una vez por día: la
   // frecuencia es la deduplicación, y si sigue roto mañana vuelve a avisar.
   {
