@@ -4,7 +4,10 @@ import { useState } from 'react';
 import { Check } from 'lucide-react';
 import { useFormat } from '@/hooks/use-format';
 import { useT } from '@/hooks/use-locale';
-import { firstMonthCents } from '@/lib/billing/first-month-offer';
+import {
+  FIRST_MONTH_DISCOUNT_PERCENT,
+  firstMonthCents,
+} from '@/lib/billing/first-month-offer';
 import { Rise } from './bits';
 import type { PricingTier } from './pricing-tiers';
 
@@ -47,7 +50,7 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
         </Rise>
 
         <Rise delay={90} className="mt-10 lg:mt-14">
-          <div className="sn-card mx-auto max-w-5xl p-3 sm:p-4">
+          <div className="sn-card sn-pricing-card mx-auto max-w-5xl p-3 sm:p-4">
             <div className="px-3 pt-8 pb-7 sm:px-7 sm:pt-9 sm:pb-8">
               <input
                 type="range"
@@ -102,8 +105,8 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
               </p>
             </div>
 
-            <div className="grid border-t border-[var(--sn-line)] lg:grid-cols-[1.18fr_0.82fr]">
-              <div className="flex min-w-0 flex-col justify-center p-6 sm:p-9 lg:p-11">
+            <div className="grid overflow-hidden rounded-[22px] lg:grid-cols-[1.18fr_0.82fr]">
+              <div className="flex min-w-0 flex-col justify-center bg-[var(--sn-sand)] p-6 sm:p-9 lg:p-11">
                 {tier.monthly === null ? (
                   <>
                     <p className="sn-label">{customerLabel}</p>
@@ -117,9 +120,16 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
                 ) : (
                   <>
                     <div>
-                      <p className="sn-label">
-                        {t('landingV4.pricingFirstMonth')}
-                      </p>
+                      <div className="mb-4 flex flex-wrap items-center gap-3">
+                        <p className="sn-label">
+                          {t('landingV4.pricingFirstMonth')}
+                        </p>
+                        <span className="sn-pricing-discount">
+                          {t('landingV4.pricingDiscountShort', {
+                            percent: FIRST_MONTH_DISCOUNT_PERCENT,
+                          })}
+                        </span>
+                      </div>
                       <p className="sn-pricing-amount mt-2 font-[family-name:var(--font-editorial)] leading-none tracking-[-0.05em]">
                         {fmt.money(
                           firstMonthCents(tier.monthly * 100) / 100,
@@ -155,7 +165,7 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
                       key={key}
                       className="flex items-start gap-3 py-3.5 text-[15px] leading-5 first:pt-0"
                     >
-                      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center">
+                      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--sn-sand)]">
                         <Check
                           className="size-3"
                           strokeWidth={2.5}

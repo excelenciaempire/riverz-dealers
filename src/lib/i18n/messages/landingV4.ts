@@ -396,6 +396,7 @@ export const landingV4 = {
     en: '{percent}% off the first month',
   },
   pricingFirstMonth: { es: 'Primer mes', en: 'First month' },
+  pricingDiscountShort: { es: '{percent}% OFF', en: '{percent}% OFF' },
   pricingFromSecondMonth: { es: 'Desde el segundo mes', en: 'From month two' },
   pricingSetupTerms: {
     es: 'Lo configuramos contigo. Apruebas antes de pagar.',
