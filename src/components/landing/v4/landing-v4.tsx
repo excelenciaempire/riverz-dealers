@@ -175,26 +175,28 @@ function Hero() {
       {/* El titular, el subtítulo y la llamada a la acción salen del catálogo
           `landing`: son los de la portada principal, palabra por palabra. Esta
           portada cambia el diseño, no lo que promete. */}
-      <div className="relative mx-auto max-w-6xl px-5 pt-14 pb-14 text-center sm:pt-20 lg:pt-28 lg:pb-24">
-        <Rise>
-          <h1 className="sn-display mx-auto max-w-[16ch]">
-            {t('landingV4.heroTitleLead')}{' '}
-            <span style={{ color: 'var(--sn-muted)' }}>
-              {t('landingV4.heroTitleMuted')}
-            </span>
-          </h1>
-        </Rise>
-        <Rise delay={90}>
-          <p className="sn-body mx-auto mt-7 max-w-[58ch]">
-            {t('landingV4.heroSubtitle')}
-          </p>
-        </Rise>
-        <Rise delay={180}>
-          <a href="#acceso" className="sn-pill group mt-9">
-            {t('landingV4.navCta')}
-            <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-          </a>
-        </Rise>
+      <div className="relative mx-auto max-w-6xl px-5 pt-14 pb-14 text-center sm:pt-20 lg:pt-28 lg:pb-24 lg:text-left">
+        <div className="lg:w-[58%]">
+          <Rise>
+            <h1 className="sn-display mx-auto max-w-[16ch] lg:mx-0">
+              {t('landingV4.heroTitleLead')}{' '}
+              <span style={{ color: 'var(--sn-muted)' }}>
+                {t('landingV4.heroTitleMuted')}
+              </span>
+            </h1>
+          </Rise>
+          <Rise delay={90}>
+            <p className="sn-body mx-auto mt-7 max-w-[58ch] lg:mx-0 lg:max-w-[46ch]">
+              {t('landingV4.heroSubtitle')}
+            </p>
+          </Rise>
+          <Rise delay={180}>
+            <a href="#acceso" className="sn-pill group mt-9">
+              {t('landingV4.navCta')}
+              <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+            </a>
+          </Rise>
+        </div>
       </div>
 
       {/* En pantalla chica la ilustración va debajo del titular y ENTERA: es un
@@ -490,10 +492,10 @@ function Sello({ anillo, arriba }: { anillo: string; arriba: string }) {
         return (
           <line
             key={i}
-            x1={110 + Math.cos(a) * 103}
-            y1={110 + Math.sin(a) * 103}
-            x2={110 + Math.cos(a) * 108}
-            y2={110 + Math.sin(a) * 108}
+            x1={(110 + Math.cos(a) * 103).toFixed(4)}
+            y1={(110 + Math.sin(a) * 103).toFixed(4)}
+            x2={(110 + Math.cos(a) * 108).toFixed(4)}
+            y2={(110 + Math.sin(a) * 108).toFixed(4)}
             stroke="var(--sn-ink)"
             strokeWidth={i % 5 === 0 ? 2 : 1}
             opacity={i % 5 === 0 ? 0.55 : 0.28}

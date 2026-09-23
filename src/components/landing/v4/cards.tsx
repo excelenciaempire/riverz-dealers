@@ -10,7 +10,7 @@ import { Rise } from './bits';
 /**
  * Trece funciones con copy bilingüe propio de esta portada.
  * Solo las ilustraciones se animan; las interfaces se conservan legibles.
- * Los recursos anteriores se mantienen hasta verificar los nuevos clips.
+ * Solo se publican clips revisados; el resto conserva su ilustración original.
  */
 
 type Tile = {
@@ -26,14 +26,17 @@ type Tile = {
   ratio: string;
   /** Animación sin controles de video, compatible con Safari en ahorro de energía. */
   animation?: string;
+  /** Imagen estática de respaldo para los nuevos clips, sin descargar un GIF. */
+  staticFallback?: boolean;
 };
 
 const TILES: Tile[] = [
   {
     key: 'sec01',
-    img: '/portada-b/i-vendedor.jpg',
+    img: '/portada-b/seedance-sales.jpg',
     ratio: '16 / 9',
-    animation: '/portada-b/i-vendedor.webp',
+    animation: '/portada-b/seedance-sales.webp',
+    staticFallback: true,
     title: 'landingV4.featureSalesTitle',
     muted: 'landingV4.featureSalesMuted',
     body: 'landingV4.featureSalesBody',
@@ -52,9 +55,10 @@ const TILES: Tile[] = [
   },
   {
     key: 'sec02',
-    img: '/portada-b/i-carritos.jpg',
-    ratio: '4 / 3',
-    animation: '/portada-b/i-carritos.webp',
+    img: '/portada-b/seedance-recovery.jpg',
+    ratio: '16 / 9',
+    animation: '/portada-b/seedance-recovery.webp',
+    staticFallback: true,
     title: 'landingV4.featureRecoveryTitle',
     muted: 'landingV4.featureRecoveryMuted',
     body: 'landingV4.featureRecoveryBody',
@@ -134,9 +138,10 @@ const TILES: Tile[] = [
   },
   {
     key: 'sec09',
-    img: '/portada-b/i-minutos.jpg',
-    ratio: '4 / 3',
-    animation: '/portada-b/i-minutos.webp',
+    img: '/portada-b/seedance-setup.jpg',
+    ratio: '16 / 9',
+    animation: '/portada-b/seedance-setup.webp',
+    staticFallback: true,
     title: 'landingV4.featureSetupTitle',
     muted: 'landingV4.featureSetupMuted',
     body: 'landingV4.featureSetupBody',
@@ -271,7 +276,11 @@ function Ilustracion({ tile }: { tile: Tile }) {
         <picture className="absolute inset-0 block">
           <source srcSet={tile.animation} type="image/webp" />
           <Image
-            src={tile.animation.replace(/\.webp$/, '.gif')}
+            src={
+              tile.staticFallback
+                ? tile.img
+                : tile.animation.replace(/\.webp$/, '.gif')
+            }
             alt=""
             fill
             unoptimized
