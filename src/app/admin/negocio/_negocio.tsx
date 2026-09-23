@@ -21,6 +21,13 @@ import {
   type Tone,
 } from "../_components/admin-ui";
 import { RangePicker, RefreshButton, fromDays, toDays } from "../_components/filters";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 /**
  * El negocio: cuánto entra, cuánto sale y qué paga cada comercio.
@@ -301,21 +308,25 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         cell: (c) => (
           <button
             type="button"
-            onClick={() => setEditando(editando === c.workspaceId ? null : c.workspaceId)}
-            className="text-xs text-accent-ink hover:underline"
+            onClick={() => {
+              setErrorCuenta(null);
+              setEditando(c.workspaceId);
+            }}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
           >
             {t("admin.billingEdit")}
           </button>
         ),
       },
     ],
-    [data, editando, t],
+    [data, t],
   );
 
   if (loading && !data) return <Loading />;
   if (error || !data) return <LoadError onRetry={reload} />;
 
   const { negocio, planes, tarifas } = data;
+  const cuentaEditada = negocio.cuentas.find((c) => c.workspaceId === editando);
 
   return (
     <div className="space-y-6">
@@ -423,31 +434,6 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
             </div>
           )}
           <DataTable rows={negocio.cuentas} columns={columns} rowKey={(c) => c.workspaceId} />
-          {editando && (
-            <div className="border-t border-border p-4">
-              <FormularioCuenta
-                cuenta={negocio.cuentas.find((c) => c.workspaceId === editando)!}
-                planes={planes}
-                guardando={guardando}
-                error={errorCuenta}
-                onGuardar={guardarCuenta}
-                onCerrar={() => setEditando(null)}
-              />
-              {negocio.cuentas.find((c) => c.workspaceId === editando)!.modeloCobro ===
-              "saldo" ? (
-                <BloqueBilletera
-                  cuenta={negocio.cuentas.find((c) => c.workspaceId === editando)!}
-                  guardando={guardando}
-                  onMover={moverSaldo}
-                  onBloqueo={cambiarBloqueo}
-                />
-              ) : (
-                <p className="mt-3 rounded-xl border border-border p-3 text-sm text-muted-foreground">
-                  {t("admin.billingModelOfficialNote")}
-                </p>
-              )}
-            </div>
-          )}
         </Panel>
       ) : (
         <>
@@ -475,6 +461,45 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
           </Panel>
         </>
       )}
+
+      <Dialog
+        open={Boolean(editando) && vista === "cuentas"}
+        onOpenChange={(open) => {
+          if (!open && !guardando) setEditando(null);
+        }}
+      >
+        {cuentaEditada && (
+          <DialogContent className="gap-0 p-0 sm:max-w-2xl" showCloseButton={!guardando}>
+            <DialogHeader className="border-b border-border px-5 py-4 pr-12">
+              <DialogTitle>{t("admin.billingEditTitle")}</DialogTitle>
+              <DialogDescription>{cuentaEditada.nombre}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-5 p-5">
+              <FormularioCuenta
+                key={cuentaEditada.workspaceId}
+                cuenta={cuentaEditada}
+                planes={planes}
+                guardando={guardando}
+                error={errorCuenta}
+                onGuardar={guardarCuenta}
+                onCerrar={() => setEditando(null)}
+              />
+              {cuentaEditada.modeloCobro === "saldo" ? (
+                <BloqueBilletera
+                  cuenta={cuentaEditada}
+                  guardando={guardando}
+                  onMover={moverSaldo}
+                  onBloqueo={cambiarBloqueo}
+                />
+              ) : (
+                <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                  {t("admin.billingModelOfficialNote")}
+                </p>
+              )}
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }
@@ -776,11 +801,31 @@ function FormularioCuenta({
     incluidas: "",
     nota: cuenta.nota ?? "",
   });
+  const planActual = planes.find((p) => p.slug === cuenta.planSlug);
+  const planPredeterminado = planes.find((p) => p.activo && p.incluidas > 0);
+  const precioValido = f.precio === "" || (Number.isFinite(Number(f.precio.replace(",", "."))) && Number(f.precio.replace(",", ".")) >= 0);
+  const incluidasValidas = f.incluidas === "" || (Number.isInteger(Number(f.incluidas)) && Number(f.incluidas) >= 0);
+
+  const guardar = () => {
+    if (!precioValido || !incluidasValidas) return;
+    onGuardar({
+      workspace_id: cuenta.workspaceId,
+      estado: f.estado,
+      modelo_cobro: f.modelo,
+      ...(f.plan_id ? { plan_id: f.plan_id } : {}),
+      ...(f.precio !== ""
+        ? { precio_centavos_override: Math.round(Number(f.precio.replace(",", ".")) * 100) }
+        : f.plan_id ? { precio_centavos_override: null } : {}),
+      ...(f.incluidas !== ""
+        ? { incluidas_override: Number(f.incluidas) }
+        : f.plan_id ? { incluidas_override: null, excedente_centavos_override: null } : {}),
+      nota: f.nota,
+    });
+  };
 
   return (
-    <div className="space-y-3">
-      <p className="text-sm font-medium text-foreground">{cuenta.nombre}</p>
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Campo label={t("admin.billingState")}>
           <select
             className={INPUT}
@@ -798,26 +843,39 @@ function FormularioCuenta({
           <select
             className={INPUT}
             value={f.modelo}
-            onChange={(e) => setF({ ...f, modelo: e.target.value as typeof f.modelo })}
+            onChange={(e) => {
+              const modelo = e.target.value as typeof f.modelo;
+              setF({
+                ...f,
+                modelo,
+                plan_id: modelo === "oficial" && !(f.plan_id
+                  ? planes.find((p) => p.id === f.plan_id)?.activo
+                  : planActual?.activo)
+                  ? planPredeterminado?.id ?? ""
+                  : f.plan_id,
+              });
+            }}
           >
             <option value="oficial">{t("admin.billingModel_oficial")}</option>
             <option value="saldo">{t("admin.billingModel_saldo")}</option>
           </select>
         </Campo>
-        <Campo label={t("admin.billingPlans")}>
-          <select
-            className={INPUT}
-            value={f.plan_id}
-            onChange={(e) => setF({ ...f, plan_id: e.target.value })}
-          >
-            <option value="">{t("admin.billingKeep")}</option>
-            {planes.map((p) => (
-              <option key={p.id} value={p.id}>
-                {nombrePlan(p, t)}
-              </option>
-            ))}
-          </select>
-        </Campo>
+        <div className="sm:col-span-2">
+          <Campo label={t("admin.billingPlan")}>
+            <select
+              className={INPUT}
+              value={f.plan_id}
+              onChange={(e) => setF({ ...f, plan_id: e.target.value })}
+            >
+              <option value="">{planActual ? `${t("admin.billingKeep")} · ${nombrePlan(planActual, t)}` : t("admin.billingKeep")}</option>
+              {planes.filter((p) => f.modelo === "saldo" || p.activo).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {nombrePlan(p, t)}
+                </option>
+              ))}
+            </select>
+          </Campo>
+        </div>
         <Campo label={t("admin.billingOwnPrice")}>
           <input
             className={INPUT}
@@ -836,45 +894,34 @@ function FormularioCuenta({
             onChange={(e) => setF({ ...f, incluidas: e.target.value })}
           />
         </Campo>
-        <Campo label={t("admin.billingNote")}>
-          <input
-            className={INPUT}
-            value={f.nota}
-            onChange={(e) => setF({ ...f, nota: e.target.value })}
-          />
-        </Campo>
+        <div className="sm:col-span-2">
+          <Campo label={t("admin.billingNote")}>
+            <input
+              className={INPUT}
+              value={f.nota}
+              onChange={(e) => setF({ ...f, nota: e.target.value })}
+            />
+          </Campo>
+        </div>
       </div>
       <LinkDePago workspaceId={cuenta.workspaceId} />
       {error && <p className="text-xs text-destructive">{error}</p>}
-      <div className="flex gap-2">
+      <div className="flex justify-end gap-2 border-t border-border pt-4">
         <button
           type="button"
           disabled={guardando}
-          onClick={() =>
-            onGuardar({
-              workspace_id: cuenta.workspaceId,
-              estado: f.estado,
-              modelo_cobro: f.modelo,
-              ...(f.plan_id ? { plan_id: f.plan_id } : {}),
-              ...(f.precio !== ""
-                ? { precio_centavos_override: Math.round(Number(f.precio) * 100) }
-                : f.plan_id ? { precio_centavos_override: null } : {}),
-              ...(f.incluidas !== ""
-                ? { incluidas_override: Number(f.incluidas) }
-                : f.plan_id ? { incluidas_override: null, excedente_centavos_override: null } : {}),
-              nota: f.nota,
-            })
-          }
-          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+          onClick={onCerrar}
+          className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
         >
-          {t("admin.billingSave")}
+          {t("admin.billingCancel")}
         </button>
         <button
           type="button"
-          onClick={onCerrar}
-          className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+          disabled={guardando || !precioValido || !incluidasValidas}
+          onClick={guardar}
+          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
         >
-          {t("admin.billingCancel")}
+          {t("admin.billingSave")}
         </button>
       </div>
     </div>
