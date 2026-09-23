@@ -149,36 +149,11 @@ function Nav() {
 function Hero() {
   const t = useT();
   return (
-    <section className="relative overflow-hidden">
-      {/* La ilustración sangra por el borde derecho, como en el registro
-          editorial: no es una captura de producto, es una imagen que da tono.
-          Se disuelve hacia la izquierda para que el titular caiga sobre papel
-          limpio a cualquier ancho. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 right-0 hidden w-[44%] lg:block"
-        style={{
-          maskImage: 'linear-gradient(to left, #000 58%, transparent)',
-          WebkitMaskImage: 'linear-gradient(to left, #000 58%, transparent)',
-        }}
-      >
-        <Image
-          src="/portada-b/hero.jpg"
-          alt=""
-          fill
-          priority
-          sizes="44vw"
-          className="object-cover object-right"
-        />
-      </div>
-
-      {/* El titular, el subtítulo y la llamada a la acción salen del catálogo
-          `landing`: son los de la portada principal, palabra por palabra. Esta
-          portada cambia el diseño, no lo que promete. */}
-      <div className="relative mx-auto max-w-6xl px-5 pt-14 pb-14 text-center sm:pt-20 lg:pt-28 lg:pb-24 lg:text-left">
-        <div className="lg:w-[58%]">
+    <section className="sn-hero" aria-labelledby="hero-title">
+      <div className="sn-hero-grid">
+        <div className="sn-hero-copy">
           <Rise>
-            <h1 className="sn-display mx-auto max-w-[16ch] lg:mx-0">
+            <h1 id="hero-title" className="sn-display sn-hero-title">
               {t('landingV4.heroTitleLead')}{' '}
               <span style={{ color: 'var(--sn-muted)' }}>
                 {t('landingV4.heroTitleMuted')}
@@ -186,32 +161,29 @@ function Hero() {
             </h1>
           </Rise>
           <Rise delay={90}>
-            <p className="sn-body mx-auto mt-7 max-w-[58ch] lg:mx-0 lg:max-w-[46ch]">
+            <p className="sn-body sn-hero-description">
               {t('landingV4.heroSubtitle')}
             </p>
           </Rise>
           <Rise delay={180}>
-            <a href="#acceso" className="sn-pill group mt-9">
+            <a href="#acceso" className="sn-pill sn-hero-cta group">
               {t('landingV4.navCta')}
               <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
             </a>
           </Rise>
         </div>
-      </div>
-
-      {/* En pantalla chica la ilustración va debajo del titular y ENTERA: es un
-          dibujo, no una foto, y recortarlo para llenar una franja le corta la
-          cabeza a la figura. Con la proporción original se ve completo y el
-          crema del dibujo se funde con el de la página. */}
-      <div aria-hidden className="relative -mt-2 w-full lg:hidden">
-        <Image
-          src="/portada-b/hero.jpg"
-          alt=""
-          width={1400}
-          height={1045}
-          sizes="100vw"
-          className="h-auto w-full"
-        />
+        <div aria-hidden className="sn-hero-art">
+          <Image
+            src="/portada-b/hero-team.webp"
+            alt=""
+            width={1024}
+            height={1024}
+            loading="eager"
+            fetchPriority="high"
+            sizes="(min-width: 1200px) 520px, (min-width: 900px) 44vw, (min-width: 560px) 480px, 100vw"
+            className="h-auto w-full object-contain"
+          />
+        </div>
       </div>
     </section>
   );
@@ -389,7 +361,7 @@ function Channels() {
         <Rise delay={90}>
           <div className="sn-card p-6 sm:p-9">
             <Label>{t('landingV4.channelsInboxes')}</Label>
-            <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+            <div className="sn-channel-grid mt-5 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
               {CHANNELS.map((c) => (
                 <span
                   key={c.id}
@@ -410,7 +382,7 @@ function Channels() {
               style={{ borderColor: 'var(--sn-line)' }}
             >
               <Label>{t('landingV4.channelsStores')}</Label>
-              <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+              <div className="sn-channel-grid mt-5 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
                 {STORES.map((s) => (
                   <span
                     key={s.label}

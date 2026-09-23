@@ -55,6 +55,51 @@
   text-wrap: balance;
 }
 
+/* A real two-column layout: artwork never covers copy or crops a teammate.
+   Height-aware sizing keeps the CTA visible on ordinary laptop viewports. */
+.sn-hero-grid {
+  display: grid;
+  align-items: center;
+  gap: 24px;
+  max-width: 1152px;
+  margin-inline: auto;
+  padding: clamp(28px, 5svh, 56px) 20px 32px;
+}
+.sn-hero-copy { min-width: 0; }
+.sn-hero-title {
+  font-size: clamp(40px, 6vw, 64px);
+  max-width: 18ch;
+  margin-inline: auto;
+}
+.sn-hero-title span { display: block; }
+.sn-hero-description {
+  max-width: 48ch;
+  margin: 22px auto 0;
+}
+.sn-hero-cta { margin-top: 26px; max-width: 100%; }
+.sn-hero { text-align: center; }
+.sn-hero-art {
+  width: 100%;
+  max-width: 480px;
+  margin-inline: auto;
+  /* Blend the generated paper perimeter into the live page. */
+  mask-image: linear-gradient(transparent, #000 8%, #000 92%, transparent);
+}
+@media (min-width: 900px) {
+  .sn-hero { text-align: left; }
+  .sn-hero-grid { grid-template-columns: 1.08fr 1fr; gap: 28px; }
+  .sn-hero-title {
+    font-size: clamp(48px, min(5.3vw, 8.5svh), 72px);
+    margin-inline: 0;
+  }
+  .sn-hero-description { margin-inline: 0; }
+  .sn-hero-art { max-width: 520px; }
+}
+@media (max-width: 379px) {
+  .sn-channel-grid { grid-template-columns: minmax(0, 1fr); }
+  .sn-hero-cta { padding-inline: 18px; }
+}
+
 .sn-h2 {
   font-family: var(--font-editorial), ui-serif, Georgia, serif;
   font-weight: 400;

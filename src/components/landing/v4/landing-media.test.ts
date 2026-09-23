@@ -9,6 +9,19 @@ const source = readFileSync(
 );
 
 describe('reviewed landing media', () => {
+  it('uses one lightweight, uncropped team illustration across hero breakpoints', async () => {
+    const hero = readFileSync(resolve('src/components/landing/v4/landing-v4.tsx'), 'utf8');
+    expect(hero.match(/src="\/portada-b\/hero-team.webp"/g)).toHaveLength(1);
+    expect(hero).not.toContain('/portada-b/hero.jpg');
+    expect(hero).toContain('sn-display sn-hero-title');
+    expect(hero).toContain('fetchPriority="high"');
+    const asset = resolve('public/portada-b/hero-team.webp');
+    const meta = await sharp(asset).metadata();
+    expect(meta.width).toBe(1024);
+    expect(meta.height).toBe(1024);
+    expect(statSync(asset).size).toBeLessThan(100_000);
+  });
+
   it('retains thirteen cards and five animated sections', () => {
     expect(source.match(/key: 'sec/g)).toHaveLength(13);
     expect(source.match(/animation: '\/portada-b\//g)).toHaveLength(5);
