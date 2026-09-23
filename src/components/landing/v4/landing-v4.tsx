@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight, PhoneCall } from 'lucide-react';
+import { ArrowRight, Check, PhoneCall, Settings2, MessageCircle, Cable, RefreshCw, CircleCheck } from 'lucide-react';
 import { ChannelLogo } from '@/components/inbox/channel-logo';
 import { useLocale, useT } from '@/hooks/use-locale';
 import { localizePath } from '@/lib/i18n/routes';
@@ -237,14 +237,6 @@ function Pillars() {
   const t = useT();
 
   return (
-    // El campo de color va a todo el ancho y la tarjeta flota encima. Es el
-    // recurso que usa Siena en su bloque de dato, y el que le da a una página
-    // de puro papel el único momento de color que necesita.
-    //
-    // Es la sección más corta de la portada a propósito: dice el problema y se
-    // calla. Tenía tres pilares —Recupera, Ejecuta, Delega— que repetían, uno
-    // por uno, el titular de acá mismo, el de «La diferencia» y una viñeta del
-    // paso 03. En un teléfono eran media pantalla de texto ya leído.
     <section className="sn-full relative overflow-hidden py-16 lg:py-24">
       <Image
         src="/portada-b/fondo-arena.jpg"
@@ -255,17 +247,14 @@ function Pillars() {
         aria-hidden
       />
       <div className="relative mx-auto max-w-6xl px-5">
-        <div
-          className="rounded-[26px] px-6 py-12 backdrop-blur-[2px] sm:px-12 sm:py-16"
-          style={{ background: 'rgba(250,247,241,0.9)' }}
-        >
-          <h2 className="sn-h2 max-w-[16ch]">{t('landingV4.pillarsTitle')}</h2>
-          <p className="sn-lead mt-6 max-w-[44ch]">
-            {t('landingV4.pillarsLead')}
-          </p>
-          <div className="mt-9">
-            <Operator />
+        <div className="sn-team-grid">
+          <div>
+            <h2 className="sn-h2 max-w-[17ch]">{t('landingV4.pillarsTitle')}</h2>
+            <p className="sn-body mt-5 max-w-[38ch]">
+              {t('landingV4.pillarsLead')}
+            </p>
           </div>
+          <Operator />
         </div>
       </div>
     </section>
@@ -297,21 +286,19 @@ function Capabilities() {
 
 function Comparison() {
   const t = useT();
+  const icons = [Settings2, MessageCircle, Cable, RefreshCw, CircleCheck];
   return (
     <section
       id="instalacion"
       className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 lg:py-24"
     >
-      <div className="sn-card-sand p-6 sm:p-10 lg:p-14">
+      <div className="sn-comparison">
         <Rise>
-          <h2 className="sn-h2 max-w-[24ch]">{t('landingV4.compareTitle')}</h2>
-          <p className="sn-body mt-5 max-w-[58ch]">
-            {t('landingV4.compareBody')}
-          </p>
+          <h2 className="sn-h2 sn-compare-title">{t('landingV4.compareTitle')}</h2>
         </Rise>
         <Rise delay={80}>
           <div className="sn-compare-wrap mt-10">
-            <table className="sn-compare-table">
+            <table className="sn-compare-table" role="table">
               <caption className="sr-only">{t('landingV4.compareTitle')}</caption>
               <colgroup>
                 <col className="sn-compare-criterion" />
@@ -319,35 +306,47 @@ function Comparison() {
                 <col className="sn-compare-answer" />
               </colgroup>
               <thead>
-                <tr>
-                  <th scope="col">{t('landingV4.compareCriterion')}</th>
-                  <th scope="col">Riverz</th>
-                  <th scope="col">{t('landingV4.compareSelfService')}</th>
+                <tr role="row">
+                  <th scope="col" className="sn-compare-corner" role="columnheader">
+                    <span className="sr-only">{t('landingV4.compareCriterion')}</span>
+                  </th>
+                  <th scope="col" id="compare-riverz" role="columnheader">
+                    <span className="sn-compare-brand" aria-label="Riverz">
+                      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+                        <rect width="32" height="32" rx="8" fill="var(--sn-ink)" />
+                        <path d="M11.5 7V25M11.5 12.5C13 8.8 16.5 7.6 21.5 8.6" stroke="var(--sn-accent)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span>riverz</span>
+                    </span>
+                  </th>
+                  <th scope="col" id="compare-others" role="columnheader">{t('landingV4.compareOthers')}</th>
                 </tr>
               </thead>
               <tbody>
-                {[1, 2, 3, 4, 5].map((row) => (
-                  <tr key={row}>
-                    <th scope="row">{t(`landingV4.compare${row}Topic`)}</th>
-                    <td>
-                      <span className="sn-compare-mobile-label" aria-hidden="true">Riverz</span>
-                      {t(`landingV4.compare${row}Riverz`)}
+                {icons.map((Icon, index) => {
+                  const row = index + 1;
+                  return (
+                  <tr key={row} role="row">
+                    <th scope="row" id={`compare-topic-${row}`} role="rowheader">
+                      <span className="sn-compare-topic"><Icon size={18} aria-hidden="true" />{t(`landingV4.compare${row}Topic`)}</span>
+                    </th>
+                    <td headers={`compare-topic-${row} compare-riverz`} role="cell">
+                      <span className="sn-compare-value"><span className="sn-compare-check" aria-hidden="true"><Check size={14} strokeWidth={2.5} /></span><span>{t(`landingV4.compare${row}Riverz`)}</span></span>
                     </td>
-                    <td>
-                      <span className="sn-compare-mobile-label" aria-hidden="true">
-                        {t('landingV4.compareSelfService')}
-                      </span>
+                    <td headers={`compare-topic-${row} compare-others`} role="cell">
                       {t(`landingV4.compare${row}SelfService`)}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </Rise>
-        <a href="#acceso" className="sn-pill mt-9">
-          {t('landingV4.navCta')}
-        </a>
+        <div className="sn-compare-footer">
+          <p>{t('landingV4.compareScope')}</p>
+          <a href="#acceso" className="sn-pill">{t('landingV4.navCta')}<ArrowRight size={16} aria-hidden="true" /></a>
+        </div>
       </div>
     </section>
   );

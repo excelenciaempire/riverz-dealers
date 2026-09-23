@@ -6,9 +6,9 @@ import { useT } from '@/hooks/use-locale';
 import { useReducedMotion } from '@/components/landing/landing';
 
 const STEPS = [
-  { team: 'operation.subContactos', action: 'landingV4.opLine1' },
-  { team: 'operation.subPlantillas', action: 'landingV4.opLine2' },
-  { team: 'operation.subAutomatizaciones', action: 'landingV4.opLine3' },
+  'landingV4.opLine1',
+  'landingV4.opLine2',
+  'landingV4.opLine3',
 ] as const;
 
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
@@ -29,7 +29,7 @@ export function Operator() {
         observer.disconnect();
         const started = performance.now();
         const tick = (now: number) => {
-          const next = clamp((now - started) / 4200);
+          const next = clamp((now - started) / 6000);
           setProgress(0.5 + next * 0.5);
           if (next < 1) frame = requestAnimationFrame(tick);
         };
@@ -48,14 +48,6 @@ export function Operator() {
 
   return (
     <div ref={root} id="operator" className="sn-operator-demo scroll-mt-24">
-      <div className="sn-operator-grid">
-        <div className="sn-operator-copy">
-          <h3 className="sn-h2">{t('landingV4.operatorTitle')}</h3>
-          <p className="mt-4 text-[15px] leading-relaxed text-[var(--sn-card)]/80">
-            {t('landingV4.operatorLead')}
-          </p>
-        </div>
-
         <div className="sn-operator-screen" aria-label={t('landingV4.operatorTitle')}>
           <div className="sn-operator-prompt">
             <span>{t('landingV4.opPrompt')}</span>
@@ -68,7 +60,7 @@ export function Operator() {
               const reveal = clamp((p - (0.47 + index * 0.13)) / 0.16);
               return (
                 <li
-                  key={step.action}
+                  key={step}
                   style={{
                     opacity: 0.72 + reveal * 0.28,
                     transform: `translateY(${(1 - reveal) * 4}px)`,
@@ -77,10 +69,7 @@ export function Operator() {
                   <span className="sn-operator-check" aria-hidden="true">
                     <Check size={12} />
                   </span>
-                  <span>
-                    <span className="sn-operator-step-label">{t(step.team)}</span>
-                    <span className="sn-operator-step-action">{t(step.action)}</span>
-                  </span>
+                  <span className="sn-operator-step-action">{t(step)}</span>
                 </li>
               );
             })}
@@ -95,7 +84,6 @@ export function Operator() {
             </span>
           </div>
         </div>
-      </div>
     </div>
   );
 }

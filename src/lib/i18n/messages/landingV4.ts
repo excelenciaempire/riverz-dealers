@@ -41,54 +41,54 @@ import type { Namespace } from './types';
  * prometer aumentos que no se puedan atribuir por cuenta.
  */
 export const landingV4 = {
-  compareTitle: { es: 'Riverz vs. hacerlo por tu cuenta.', en: 'Riverz vs. doing it yourself.' },
-  compareBody: {
-    es: 'La diferencia está en quién configura y mantiene el sistema.',
-    en: 'The difference is who sets up and maintains the system.',
-  },
+  compareTitle: { es: 'La diferencia está en quién lo hace.', en: 'The difference is who does the work.' },
   compareCriterion: { es: 'Qué cambia', en: 'What changes' },
-  compareSelfService: { es: 'Plataforma de autoservicio', en: 'Self-service platform' },
-  compare1Topic: { es: 'Configuración', en: 'Setup' },
-  compare1Riverz: { es: 'La hacemos contigo.', en: 'We handle it with you.' },
+  compareOthers: { es: 'Otras plataformas', en: 'Other platforms' },
+  compareScope: {
+    es: 'Comparación con configuración propia. Los servicios varían según proveedor y plan.',
+    en: 'Compared with self-managed setup. Services vary by provider and plan.',
+  },
+  compare1Topic: { es: 'Puesta en marcha', en: 'Getting started' },
+  compare1Riverz: { es: 'Hecha por nosotros', en: 'We handle it' },
   compare1SelfService: {
-    es: 'La haces tú o contratas ayuda.',
-    en: 'You do it or hire help.',
+    es: 'La configuras tú',
+    en: 'You set it up',
   },
   compare2Topic: { es: 'Tono y reglas', en: 'Voice and rules' },
   compare2Riverz: {
-    es: 'Los adaptamos a tu marca.',
-    en: 'We adapt them to your brand.',
+    es: 'Adaptados a tu marca',
+    en: 'Tailored to your brand',
   },
   compare2SelfService: {
-    es: 'Tú defines y pruebas las respuestas.',
-    en: 'You define and test the replies.',
+    es: 'Los defines tú',
+    en: 'You define them',
   },
-  compare3Topic: { es: 'Conexiones', en: 'Connections' },
+  compare3Topic: { es: 'Integraciones', en: 'Integrations' },
   compare3Riverz: {
-    es: 'Conectamos tus canales y sistemas disponibles.',
-    en: 'We connect your available channels and systems.',
+    es: 'Las conectamos',
+    en: 'We connect them',
   },
   compare3SelfService: {
-    es: 'Tú configuras cada integración.',
-    en: 'You configure each integration.',
+    es: 'Las conectas tú',
+    en: 'You connect them',
   },
-  compare4Topic: { es: 'Cambios', en: 'Changes' },
+  compare4Topic: { es: 'Ajustes', en: 'Adjustments' },
   compare4Riverz: {
-    es: 'Nos pides ajustes y los implementamos.',
-    en: 'You request changes; we implement them.',
+    es: 'Nos encargamos',
+    en: 'We take care of them',
   },
   compare4SelfService: {
-    es: 'Tu equipo mantiene los flujos.',
-    en: 'Your team maintains the workflows.',
+    es: 'Editas los flujos',
+    en: 'You edit the workflows',
   },
-  compare5Topic: { es: 'Antes de activar', en: 'Before launch' },
+  compare5Topic: { es: 'Pruebas y activación', en: 'Testing and launch' },
   compare5Riverz: {
-    es: 'Lo pruebas y apruebas con nosotros.',
-    en: 'You test and approve it with us.',
+    es: 'Te acompañamos',
+    en: 'We guide you through',
   },
   compare5SelfService: {
-    es: 'Tú revisas y publicas el sistema.',
-    en: 'You review and launch the system.',
+    es: 'Revisión por tu equipo',
+    en: 'Your team reviews it',
   },
   leadSubmit: { es: 'Hablemos', en: 'Let’s talk' },
   leadDone: {
@@ -426,8 +426,8 @@ export const landingV4 = {
     en: 'More sales shouldn’t mean living in your inbox.',
   },
   pillarsLead: {
-    es: 'Mientras preparas pedidos, llegan preguntas sobre tallas, pagos y entregas. Delega esas conversaciones y sus seguimientos. Tu equipo conserva los casos que necesitan una decisión.',
-    en: 'While you’re preparing orders, questions keep coming about sizes, payments, and deliveries. Delegate those conversations and follow-ups. Your team keeps the cases that need a decision.',
+    es: 'Configuramos tu equipo de IA. Tú apruebas las reglas y puedes pedir cambios cuando lo necesites.',
+    en: 'We set up your AI team. You approve the rules and request changes whenever you need them.',
   },
 
   // ── Qué hace (la cuadrícula de fichas) ──
@@ -522,19 +522,16 @@ export const landingV4 = {
     en: "Recover this week's abandoned carts",
   },
   opLine1: {
-    es: 'Seleccioné los carritos pendientes de esta semana',
-    en: 'Selected this week’s unfinished carts',
+    es: 'Carritos seleccionados',
+    en: 'Carts selected',
   },
-  // "Escribí" acá es pretérito de primera persona —el Operador contando lo que
-  // hizo, junto a "Segmenté" y "Programé"—, no voseo rioplatense. Se marca para
-  // que el barrido no lo confunda; cambiarlo rompería la frase.
   opLine2: {
-    es: 'Preparé un mensaje con el producto de cada cliente',
-    en: 'Prepared a message with each customer’s product',
-  }, // no es voseo rioplatense: pretérito de 1ª persona
+    es: 'Mensaje personalizado',
+    en: 'Message personalized',
+  },
   opLine3: {
-    es: 'Dejé listo el seguimiento para tu aprobación',
-    en: 'Prepared the follow-up for your approval',
+    es: 'Seguimiento preparado',
+    en: 'Follow-up prepared',
   },
   opAsk: { es: '¿Lo activo?', en: 'Shall I turn it on?' },
   opApprove: { es: 'Aprobar', en: 'Approve' },
