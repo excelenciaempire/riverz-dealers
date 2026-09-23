@@ -677,7 +677,7 @@ function LandingThemeToggle() {
 
 // Pre-launch waitlist signup. Posts to /api/waitlist, which stores the lead
 // and emails the owner. Works on light (hero) and dark (CTA) backgrounds.
-export function WaitlistForm({ tone = "light" }: { tone?: "light" | "dark" }) {
+export function WaitlistForm({ tone = "light", submitLabel, doneLabel }: { tone?: "light" | "dark"; submitLabel?: string; doneLabel?: string }) {
   const t = useCopy();
   const dark = tone === "dark";
   const [email, setEmail] = useState("");
@@ -707,7 +707,7 @@ export function WaitlistForm({ tone = "light" }: { tone?: "light" | "dark" }) {
           dark ? "bg-white/10 text-white" : "bg-primary/15 text-accent-ink"
         }`}
       >
-        <Check className="size-4" /> {t("landing.waitlistDone")}
+        <Check className="size-4" /> {doneLabel ?? t("landing.waitlistDone")}
       </div>
     );
   }
@@ -743,7 +743,7 @@ export function WaitlistForm({ tone = "light" }: { tone?: "light" | "dark" }) {
           disabled={status === "loading"}
           className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-transform hover:scale-[1.03] disabled:opacity-60"
         >
-          {status === "loading" ? t("landing.waitlistSending") : t("landing.waitlistSubmit")}
+          {status === "loading" ? t("landing.waitlistSending") : (submitLabel ?? t("landing.waitlistSubmit"))}
           {status !== "loading" && (
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
           )}

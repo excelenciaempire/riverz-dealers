@@ -41,6 +41,92 @@ import type { Namespace } from './types';
  * prometer aumentos que no se puedan atribuir por cuenta.
  */
 export const landingV4 = {
+  setupTitle: {
+    es: 'Tú conoces tu negocio. Nosotros montamos la operación.',
+    en: 'You know your business. We set up the operation.',
+  },
+  setupBody: {
+    es: 'No tienes que aprender a crear flujos ni empezar con un panel vacío. Te acompañamos desde la configuración hasta la puesta en marcha.',
+    en: 'You don’t have to learn how to build workflows or start with an empty dashboard. We work with you from setup to launch.',
+  },
+  setup1Title: { es: 'Nos cuentas cómo trabajas', en: 'Tell us how you work' },
+  setup1Body: {
+    es: 'Revisamos tus canales, catálogo y políticas. Elegimos contigo las tareas que más tiempo te quitan.',
+    en: 'We review your channels, catalog, and policies. Together, we choose the tasks taking up the most time.',
+  },
+  setup2Title: {
+    es: 'Lo configuramos para tu marca',
+    en: 'We configure it for your brand',
+  },
+  setup2Body: {
+    es: 'Conectamos las herramientas disponibles y preparamos respuestas, seguimientos y permisos.',
+    en: 'We connect the available tools and prepare responses, follow-ups, and permissions.',
+  },
+  setup3Title: {
+    es: 'Lo pruebas. Lo apruebas.',
+    en: 'You test it. You approve it.',
+  },
+  setup3Body: {
+    es: 'Revisamos conversaciones contigo antes de activarlo. Después seguimos ajustando la configuración.',
+    en: 'We review conversations with you before going live. Then we keep refining the setup.',
+  },
+  leadSubmit: { es: 'Hablemos', en: 'Let’s talk' },
+  leadDone: {
+    es: 'Gracias. Recibimos tu solicitud.',
+    en: 'Thanks. We received your request.',
+  },
+  demoLabel: { es: 'Ejemplo de funcionamiento', en: 'How it works · example' },
+  featureSalesTitle: { es: 'Responde dudas.', en: 'Answer questions.' },
+  featureSalesMuted: { es: 'Ayuda a comprar.', en: 'Help customers buy.' },
+  featureSalesBody: {
+    es: 'Consulta productos, precios y disponibilidad. Recomienda opciones y envía el enlace de compra cuando el cliente está listo.',
+    en: 'Check products, prices, and availability. Recommend options and send a checkout link when the customer is ready.',
+  },
+  featureRecoveryTitle: { es: 'Dale seguimiento', en: 'Follow up' },
+  featureRecoveryMuted: {
+    es: 'a la compra pendiente.',
+    en: 'on unfinished purchases.',
+  },
+  featureRecoveryBody: {
+    es: 'Retoma carritos abandonados y pagos pendientes con mensajes sobre los productos que el cliente dejó en la tienda.',
+    en: 'Follow up on abandoned carts and pending payments with messages about the products the customer left behind.',
+  },
+  featureSupportTitle: {
+    es: '«¿Dónde está mi pedido?»',
+    en: '“Where’s my order?”',
+  },
+  featureSupportMuted: {
+    es: 'Una interrupción menos.',
+    en: 'One less interruption.',
+  },
+  featureSupportBody: {
+    es: 'Consulta el pedido, comparte el seguimiento disponible y atiende dudas de entrega. Las excepciones pasan a tu equipo.',
+    en: 'Look up orders, share available tracking, and handle delivery questions. Exceptions go to your team.',
+  },
+  featureVoiceTitle: { es: 'También puede llamar.', en: 'It can call, too.' },
+  featureVoiceMuted: {
+    es: 'Con una voz natural.',
+    en: 'With a natural voice.',
+  },
+  featureVoiceBody: {
+    es: 'Confirma pedidos o da seguimiento por teléfono. También puede atender llamadas entrantes. Puedes revisar la transcripción y el resultado.',
+    en: 'Confirm orders or follow up by phone. It can also handle incoming calls. Review the transcript and outcome.',
+  },
+  featureCommentsTitle: { es: 'Tus comentarios', en: 'Your comments' },
+  featureCommentsMuted: { es: 'también cuentan.', en: 'matter too.' },
+  featureCommentsBody: {
+    es: 'Atiende preguntas en publicaciones y anuncios de los canales conectados. Continúa por mensaje privado cuando el canal lo permite.',
+    en: 'Answer questions on posts and ads across connected channels. Continue in private messages when the channel allows it.',
+  },
+  featureRetentionTitle: { es: 'Vuelve a conversar', en: 'Reconnect' },
+  featureRetentionMuted: {
+    es: 'con quienes ya te compraron.',
+    en: 'with past customers.',
+  },
+  featureRetentionBody: {
+    es: 'Organiza seguimientos de postventa, recordatorios de recompra y campañas para segmentos de tu base de clientes.',
+    en: 'Set up post-purchase follow-ups, reorder reminders, and campaigns for segments of your customer base.',
+  },
   // ── Metadatos ──
   metaTitle: { es: 'riverz', en: 'riverz' },
   metaDescription: {
@@ -50,7 +136,10 @@ export const landingV4 = {
 
   // ── Barra de aviso: la oferta, que es lo más fuerte que tenemos ──
   bannerLead: { es: 'Instalación gratis', en: 'Free setup' },
-  bannerDiscount: { es: '{percent} % menos el primer mes', en: '{percent}% off month one' },
+  bannerDiscount: {
+    es: '{percent} % menos el primer mes',
+    en: '{percent}% off month one',
+  },
   bannerText: {
     es: 'la configuramos contigo; apruebas el sistema y activas tu plan.',
     en: 'we set it up with you; you approve the system and activate your plan.',
@@ -62,7 +151,7 @@ export const landingV4 = {
   // El enlace dice lo mismo que la etiqueta de la sección a la que lleva: si
   // no coinciden, quien hace clic cree que aterrizó en otro lado.
   navChannels: { es: 'Canales', en: 'Channels' },
-  navCta: { es: 'Solicitar acceso', en: 'Request access' },
+  navCta: { es: 'Hablemos de tu tienda', en: 'Let’s talk about your store' },
   skipToContent: { es: 'Ir al contenido', en: 'Skip to content' },
 
   // ── Hero ──
@@ -74,12 +163,12 @@ export const landingV4 = {
     en: 'Your team of AI employees.',
   },
   heroTitleMuted: {
-    es: 'Para vender, recuperar y atender.',
-    en: 'Built to sell, recover, and support.',
+    es: 'Nosotros lo dejamos funcionando.',
+    en: 'We get it running for you.',
   },
   heroSubtitle: {
-    es: 'Convierte mensajes, carritos y pagos pendientes en el siguiente paso: vender, recuperar o atender. Todo con tu catálogo, tus pedidos y tus reglas.',
-    en: 'Turn messages, abandoned carts, and pending payments into the next step: sell, recover, or support. All with your catalog, orders, and rules.',
+    es: 'Atiende mensajes, recupera carritos y da seguimiento a tus pedidos. Lo configuramos con tu catálogo, tu forma de hablar y las reglas de tu negocio.',
+    en: 'Answer messages, recover carts, and follow up on orders. We set it up with your catalog, your voice, and your business rules.',
   },
 
   // ── Muro de plataformas ──
@@ -236,22 +325,22 @@ export const landingV4 = {
   // 03. Se fueron los tres: en un teléfono eran media pantalla de texto ya
   // leído.
   pillarsTitle: {
-    es: 'No pierdas la demanda que ya pagaste',
-    en: "Don't lose the demand you already paid for",
+    es: 'Que vender más no signifique vivir pendiente del chat.',
+    en: 'More sales shouldn’t mean living in your inbox.',
   },
   pillarsLead: {
-    es: 'Tu publicidad ya trajo conversaciones. Riverz les da continuidad para que una duda, un carrito o un pago pendiente no se enfríen sin seguimiento.',
-    en: "Your ads already brought conversations. Riverz follows through so a question, cart, or pending payment doesn't go cold without follow-up.",
+    es: 'Una duda sin responder. Un carrito a medias. Otro «¿dónde está mi pedido?». Tu equipo de IA se ocupa del seguimiento para que puedas concentrarte en hacer crecer la tienda.',
+    en: 'An unanswered question. An unfinished cart. Another “Where’s my order?” Your AI team handles follow-ups so you can focus on growing your store.',
   },
 
   // ── Qué hace (la cuadrícula de fichas) ──
   capsTitle: {
-    es: 'Una operación de e-commerce que sigue trabajando',
-    en: 'An ecommerce operation that keeps working',
+    es: 'El trabajo que hoy te llena el día.',
+    en: 'The work that fills your day.',
   },
   capsBody: {
-    es: 'Ventas, recuperación, pedidos y postventa, bajo el control de tu equipo.',
-    en: "Sales, recovery, orders, and post-purchase support, under your team's control.",
+    es: 'Desde la primera pregunta hasta después de la entrega. Elige qué delegar y qué necesita a tu equipo.',
+    en: 'From the first question to after delivery. Choose what to delegate and what needs your team.',
   },
   capsZeroLabel: { es: 'líneas de código', en: 'lines of code' },
 
@@ -325,12 +414,12 @@ export const landingV4 = {
   // la animación tiene que contar la función sola. Un titular, una línea y el
   // chat. Lo que antes eran tres viñetas ahora lo dice el propio reparto.
   operatorTitle: {
-    es: 'Pide el resultado. Riverz coordina el trabajo.',
-    en: 'Ask for the result. Riverz coordinates the work.',
+    es: 'Pídelo como se lo pedirías a tu equipo.',
+    en: 'Ask it the way you’d ask your team.',
   },
   operatorLead: {
-    es: 'Describe lo que necesitas en lenguaje simple. Riverz prepara el trabajo, coordina las acciones y te pide aprobación cuando hace falta.',
-    en: 'Describe what you need in plain language. Riverz prepares the work, coordinates actions, and asks for approval when needed.',
+    es: '«Recupera los carritos de esta semana». Riverz prepara los contactos, el mensaje y el seguimiento. Tú revisas el plan antes de activarlo.',
+    en: '“Recover this week’s abandoned carts.” Riverz prepares contacts, messages, and follow-ups. You review the plan before it goes live.',
   },
 
   // Lo que se escribe y lo que contesta, dentro de la animación.
@@ -339,19 +428,19 @@ export const landingV4 = {
     en: "Recover this week's abandoned carts",
   },
   opLine1: {
-    es: 'Segmenté 1.284 carritos de 7 días',
-    en: 'Segmented 1,284 carts from the last 7 days',
+    es: 'Seleccioné los carritos pendientes de esta semana',
+    en: 'Selected this week’s unfinished carts',
   },
   // "Escribí" acá es pretérito de primera persona —el Operador contando lo que
   // hizo, junto a "Segmenté" y "Programé"—, no voseo rioplatense. Se marca para
   // que el barrido no lo confunda; cambiarlo rompería la frase.
   opLine2: {
-    es: 'Escribí el mensaje con el producto', // no es voseo rioplatense: pretérito de 1ª persona
-    en: 'Wrote the message with the product',
+    es: 'Preparé un mensaje con el producto de cada cliente',
+    en: 'Prepared a message with each customer’s product',
   }, // no es voseo rioplatense: pretérito de 1ª persona
   opLine3: {
-    es: 'Programé el envío a las 3 horas',
-    en: 'Scheduled the send for 3 hours later',
+    es: 'Dejé listo el seguimiento para tu aprobación',
+    en: 'Prepared the follow-up for your approval',
   },
   opAsk: { es: '¿Lo activo?', en: 'Shall I turn it on?' },
   opApprove: { es: 'Aprobar', en: 'Approve' },
@@ -362,12 +451,12 @@ export const landingV4 = {
 
   // ── Canales ──
   channelsTitle: {
-    es: 'Donde ya te escriben tus clientes',
-    en: 'Where your customers already write you',
+    es: 'Tus canales. Tu tienda. Todo conectado.',
+    en: 'Your channels. Your store. All connected.',
   },
   channelsBody: {
-    es: 'Siete bandejas, los comentarios de tus anuncios y las llamadas, en una sola pantalla. Y del otro lado, tu tienda y tus pagos.',
-    en: 'Seven inboxes, the comments on your ads, and the calls, on one screen. And on the other side, your store and your payments.',
+    es: 'Mensajes y comentarios en un mismo lugar, con los datos de tu tienda a mano. Revisamos contigo las conexiones que necesita tu operación.',
+    en: 'Messages and comments in one place, with your store’s data at hand. We review the connections your business needs together.',
   },
   channelsInboxes: { es: 'Bandejas', en: 'Inboxes' },
   channelsStores: { es: 'Tiendas y logística', en: 'Stores and logistics' },
@@ -453,21 +542,42 @@ export const landingV4 = {
     es: 'Calcula el retorno posible',
     en: 'Estimate your potential return',
   },
-  roiMetaTitle: { es: 'Calculadora de ROI de Riverz', en: 'Riverz ROI calculator' },
+  roiMetaTitle: {
+    es: 'Calculadora de ROI de Riverz',
+    en: 'Riverz ROI calculator',
+  },
   roiMetaDescription: {
     es: 'Estima el retorno posible de Riverz con tus pedidos, ticket promedio y margen bruto.',
     en: 'Estimate Riverz’s potential return using your orders, average order value, and gross margin.',
   },
-  roiPlanLabel: { es: 'Elige el volumen de contactos', en: 'Choose contact volume' },
+  roiPlanLabel: {
+    es: 'Elige el volumen de contactos',
+    en: 'Choose contact volume',
+  },
   roiBackToPricing: { es: 'Volver a precios', en: 'Back to pricing' },
-  roiOrdersLabel: { es: 'Pedidos actuales al mes', en: 'Current monthly orders' },
-  roiTicketLabel: { es: 'Ticket promedio (US$)', en: 'Average order value (US$)' },
+  roiOrdersLabel: {
+    es: 'Pedidos actuales al mes',
+    en: 'Current monthly orders',
+  },
+  roiTicketLabel: {
+    es: 'Ticket promedio (US$)',
+    en: 'Average order value (US$)',
+  },
   roiMarginLabel: { es: 'Margen bruto (%)', en: 'Gross margin (%)' },
-  roiUpliftLabel: { es: 'Aumento hipotético de pedidos (%)', en: 'Hypothetical order increase (%)' },
-  roiCustomPriceLabel: { es: 'Precio mensual acordado (US$)', en: 'Agreed monthly price (US$)' },
+  roiUpliftLabel: {
+    es: 'Aumento hipotético de pedidos (%)',
+    en: 'Hypothetical order increase (%)',
+  },
+  roiCustomPriceLabel: {
+    es: 'Precio mensual acordado (US$)',
+    en: 'Agreed monthly price (US$)',
+  },
   roiEstimatedReturn: { es: 'ROI posible al mes', en: 'Potential monthly ROI' },
   roiExtraOrders: { es: 'Pedidos adicionales', en: 'Additional orders' },
-  roiAdditionalMargin: { es: 'Margen adicional', en: 'Additional gross profit' },
+  roiAdditionalMargin: {
+    es: 'Margen adicional',
+    en: 'Additional gross profit',
+  },
   roiInvestment: { es: 'Precio del plan', en: 'Plan price' },
   roiBreakEven: {
     es: '{count} pedidos adicionales al mes cubren el plan.',
@@ -480,25 +590,37 @@ export const landingV4 = {
   faqTitle: { es: 'Preguntas frecuentes', en: 'Frequently asked questions' },
   // Cada respuesta afirma sólo lo que el producto hace hoy. La seguridad viene
   // de decirlo sin rodeos, no de prometer lo que no se puede mostrar.
-  faqIncludedQuestion: { es: '¿Qué incluye el plan?', en: 'What does the plan include?' },
-  faqIncludedAnswer: {
-    es: 'Todo. No hay módulos ni escalones: cada plan trae los agentes de ventas, recuperación, soporte y postventa; todos los canales, el chat web y la voz; el Operator, las automatizaciones y las aprobaciones; las integraciones con tu tienda, tus pagos y tu logística; y las ventas atribuidas a cada flujo. El consumo de IA va incluido, sin importar cuánto conversen tus clientes. Lo único aparte son los cargos externos de mensajería y telefonía, que te mostramos al centavo.',
-    en: 'Everything. There are no modules or tiers of features: every plan includes the sales, recovery, support, and post-purchase agents; every channel, web chat, and voice; the Operator, automations, and approvals; integrations with your store, payments, and logistics; and sales attributed to each workflow. AI usage is included no matter how much your customers talk. The only separate items are external messaging and telephony charges, which we show you to the cent.',
+  faqIncludedQuestion: {
+    es: '¿Qué incluye el plan?',
+    en: 'What does the plan include?',
   },
-  faqWhyQuestion: { es: '¿Por qué Riverz y no un chatbot o un CRM de WhatsApp?', en: 'Why Riverz instead of a chatbot or a WhatsApp CRM?' },
+  faqIncludedAnswer: {
+    es: 'Incluye los agentes, el consumo de IA, ventas, recuperación, atención, automatizaciones e integraciones disponibles. El precio depende de los contactos atendidos. Mensajería y telefonía de terceros se cobran aparte.',
+    en: 'Includes agents, AI usage, sales, recovery, support, automations, and available integrations. Pricing depends on contacts served. Third-party messaging and telephony charges are separate.',
+  },
+  faqWhyQuestion: {
+    es: '¿Por qué Riverz y no un chatbot o un CRM de WhatsApp?',
+    en: 'Why Riverz instead of a chatbot or a WhatsApp CRM?',
+  },
   faqWhyAnswer: {
     es: 'Porque casi todo lo demás termina en “respuesta enviada” y deja la venta para que la cierre una persona. Riverz atiende la conversación completa hasta el resultado: cotiza con el precio real de tu catálogo, arma el pedido, manda el link de pago, registra el comprobante, recupera el carrito abandonado y avisa cuando el envío sale. Un CRM te ordena el trabajo; Riverz lo hace.',
     en: 'Because almost everything else stops at “reply sent” and leaves the sale for a person to close. Riverz takes the whole conversation to the outcome: it quotes the real price from your catalog, builds the order, sends the payment link, records the receipt, recovers the abandoned cart, and lets the customer know when the shipment leaves. A CRM organizes the work; Riverz does it.',
   },
-  faqSellsQuestion: { es: '¿Vende de verdad o solo contesta?', en: 'Does it actually sell, or just reply?' },
+  faqSellsQuestion: {
+    es: '¿Vende de verdad o solo contesta?',
+    en: 'Does it actually sell, or just reply?',
+  },
   faqSellsAnswer: {
     es: 'Vende. El agente tiene manos, no solo voz: consulta el pedido en tu tienda, crea el checkout con la oferta correcta, genera links de pago, registra transferencias, aplica solo los descuentos que tú autorizaste y, si hace falta, llama por teléfono. Cada venta queda atribuida a la conversación que la cerró, así que ves exactamente qué produjo.',
     en: 'It sells. The agent has hands, not just a voice: it looks up the order in your store, creates the checkout with the right offer, generates payment links, records bank transfers, applies only the discounts you authorized and, when needed, places a phone call. Every sale is attributed to the conversation that closed it, so you see exactly what it produced.',
   },
-  faqSetupQuestion: { es: '¿Cuánto tarda en estar funcionando?', en: 'How long until it is running?' },
+  faqSetupQuestion: {
+    es: '¿Cuánto tarda en estar funcionando?',
+    en: 'How long until it is running?',
+  },
   faqSetupAnswer: {
-    es: 'Días, no meses. La instalación la hacemos nosotros: conectamos tus canales, tu tienda y tus pagos, cargamos tu catálogo y tus reglas, y activamos primero el flujo que más plata mueve en tu operación. Tú apruebas cómo habla el agente antes de que atienda a un solo cliente.',
-    en: 'Days, not months. We do the setup: we connect your channels, store, and payments, load your catalog and rules, and switch on the workflow that moves the most money in your operation first. You approve how the agent talks before it serves a single customer.',
+    es: 'Revisamos tu tienda y lo que quieres delegar. Configuramos los agentes y probamos contigo antes de activarlos. Confirmamos el plazo según las conexiones y ajustes necesarios antes de empezar.',
+    en: 'We review your store and the work you want to delegate. We configure and test agents with you before activation. We confirm timing based on the connections and adjustments needed before starting.',
   },
   faqFirstMonthQuestion: {
     es: '¿Qué pago al comenzar?',
@@ -508,52 +630,82 @@ export const landingV4 = {
     es: 'La instalación y configuración son gratis. Cuando apruebas lo que montamos, pagas el primer mes con {percent} % de descuento. Desde el segundo mes pagas el precio normal de tu plan. No hay permanencia.',
     en: 'Setup and configuration are free. Once you approve what we built, you pay the first month at {percent}% off. From month two, you pay your plan’s regular price. There is no lock-in.',
   },
-  faqCountingQuestion: { es: '¿Qué significa “contactos atendidos al mes”?', en: 'What does “contacts served per month” mean?' },
+  faqCountingQuestion: {
+    es: '¿Qué significa “contactos atendidos al mes”?',
+    en: 'What does “contacts served per month” mean?',
+  },
   faqCountingAnswer: {
     es: 'Contamos cada contacto al que la IA envía al menos una respuesta durante tu período de facturación. Si usa varios canales y podemos verificar que es la misma persona, cuenta una sola vez. No cobramos cada mensaje ni cada conversación.',
     en: 'We count each contact who receives at least one AI reply during your billing period. If they use multiple channels and we can verify they are the same person, they count once. We do not charge per message or conversation.',
   },
-  faqGrowthQuestion: { es: '¿Qué pasa si mi tienda crece?', en: 'What happens if my store grows?' },
+  faqGrowthQuestion: {
+    es: '¿Qué pasa si mi tienda crece?',
+    en: 'What happens if my store grows?',
+  },
   faqGrowthAnswer: {
     es: 'Los rangos son 500, 2.000, 5.000 y 10.000 contactos por período. Te avisamos al 80 % y al llegar al límite. Puedes ampliar el plan desde tu cuenta: tienes más capacidad de inmediato y el nuevo precio se cobra en la siguiente renovación. No hay cargos automáticos por exceso ni se corta la atención de golpe.',
     en: 'The tiers cover 500, 2,000, 5,000, and 10,000 contacts per period. We alert you at 80% and at the limit. You can upgrade in your account: capacity increases immediately and the new price starts at the next renewal. There are no automatic overage charges or sudden service cutoffs.',
   },
-  faqTeamQuestion: { es: '¿Riverz reemplaza a mi equipo?', en: 'Does Riverz replace my team?' },
+  faqTeamQuestion: {
+    es: '¿Riverz reemplaza a mi equipo?',
+    en: 'Does Riverz replace my team?',
+  },
   faqTeamAnswer: {
-    es: 'Reemplaza lo repetitivo y multiplica lo demás. El agente atiende a las tres de la mañana, a cincuenta personas a la vez, sin dejar a nadie en visto. Cuando un caso necesita criterio, lo entrega a tu equipo con todo el contexto y un resumen de qué pasó. Tú fijas los límites, qué requiere aprobación y en qué momento exacto interviene una persona.',
-    en: 'It replaces the repetitive part and multiplies the rest. The agent serves customers at three in the morning, fifty at a time, without leaving anyone on read. When a case needs judgment, it hands it to your team with full context and a summary of what happened. You set the limits, what requires approval, and the exact moment a person steps in.',
+    es: 'Se ocupa de tareas repetitivas y seguimientos. Tu equipo conserva las decisiones que requieren criterio y puede intervenir en las conversaciones. Definimos contigo qué queda automático y qué necesita aprobación.',
+    en: 'It handles repetitive tasks and follow-ups. Your team keeps decisions that need judgment and can join conversations. Together, we define what runs automatically and what needs approval.',
   },
-  faqMistakesQuestion: { es: '¿Qué pasa si el agente no sabe qué responder?', en: 'What happens when the agent does not know the answer?' },
+  faqMistakesQuestion: {
+    es: '¿Qué pasa si el agente no sabe qué responder?',
+    en: 'What happens when the agent does not know the answer?',
+  },
   faqMistakesAnswer: {
-    es: 'Lo dice, y lo confirma con alguien. Riverz no inventa precios, ingredientes, plazos ni aprobaciones sanitarias: trabaja solo con el conocimiento y las reglas que aprobaste, y un control aparte verifica cada precio que cita contra tu catálogo antes de enviarlo. Si falta un dato o aparece una excepción, pide aprobación o pasa el caso a una persona con todo el contexto.',
-    en: 'It says so, and confirms with someone. Riverz does not make up prices, ingredients, delivery times, or regulatory approvals: it works only with the knowledge and rules you approved, and a separate check verifies every price it quotes against your catalog before sending. When data is missing or an exception appears, it requests approval or hands the case to a person with full context.',
+    es: 'Trabaja con tu catálogo, tus políticas y tus reglas. Si falta información o el caso requiere una decisión sensible, puede pasar a tu equipo. Probamos contigo las respuestas y los límites antes de activarlo.',
+    en: 'It works with your catalog, policies, and rules. Missing information or sensitive decisions can go to your team. We test responses and limits with you before activation.',
   },
-  faqVoiceQuestion: { es: '¿Va a sonar como mi marca?', en: 'Will it sound like my brand?' },
+  faqVoiceQuestion: {
+    es: '¿Va a sonar como mi marca?',
+    en: 'Will it sound like my brand?',
+  },
   faqVoiceAnswer: {
     es: 'Sí, y como tu cliente. Defines la persona, el tono y las reglas de tu negocio; el agente escribe en el español del cliente que atiende (de vos en Buenos Aires, de tú en Bogotá), en mensajes cortos, sin listas ni formato de robot. Puedes probarlo con conversaciones reales y ajustarlo antes de publicarlo.',
     en: 'Yes, and like your customer. You define the persona, tone, and business rules; the agent writes in your customer’s own language and register, in short messages with no lists or robotic formatting. You can test it against real conversations and adjust it before publishing.',
   },
-  faqChangeQuestion: { es: '¿Tengo que cambiar mi tienda o mis sistemas?', en: 'Do I have to replace my store or systems?' },
-  faqChangeAnswer: {
-    es: 'No. Riverz se conecta a lo que ya usas: Shopify, Tiendanube, WooCommerce y Mercado Libre; WhatsApp, Instagram, Messenger, TikTok, correo y chat web; tus pagos y tu logística. Tu operación actual sigue siendo la base; nosotros le ponemos el equipo encima.',
-    en: 'No. Riverz connects to what you already use: Shopify, Tiendanube, WooCommerce, and Mercado Libre; WhatsApp, Instagram, Messenger, TikTok, email, and web chat; your payments and logistics. Your current operation remains the foundation; we put the team on top of it.',
+  faqChangeQuestion: {
+    es: '¿Tengo que cambiar mi tienda o mis sistemas?',
+    en: 'Do I have to replace my store or systems?',
   },
-  faqControlQuestion: { es: '¿Quién controla mis cuentas y permisos?', en: 'Who controls my accounts and permissions?' },
+  faqChangeAnswer: {
+    es: 'Trabajamos con las conexiones disponibles para tu tienda y tus canales. Si necesitas una integración personalizada, revisamos su viabilidad, alcance y plazo antes de acordarla.',
+    en: 'We work with available connections for your store and channels. For custom integrations, we review feasibility, scope, and timing before agreeing on the work.',
+  },
+  faqControlQuestion: {
+    es: '¿Quién controla mis cuentas y permisos?',
+    en: 'Who controls my accounts and permissions?',
+  },
   faqControlAnswer: {
     es: 'Tú. Las cuentas siguen siendo de tu negocio; Riverz se conecta por las APIs oficiales de Meta, con App Review aprobado, y tú decides qué puede hacer solo, qué requiere aprobación y quién de tu equipo tiene acceso. Cada acción queda registrada y se puede deshacer.',
     en: 'You do. Your business keeps ownership of its accounts; Riverz connects through Meta’s official APIs, with App Review approved, and you decide what it can do on its own, what requires approval, and who on your team has access. Every action is logged and can be undone.',
   },
-  faqMeasureQuestion: { es: '¿Cómo sé si Riverz está funcionando?', en: 'How do I know Riverz is working?' },
+  faqMeasureQuestion: {
+    es: '¿Cómo sé si Riverz está funcionando?',
+    en: 'How do I know Riverz is working?',
+  },
   faqMeasureAnswer: {
     es: 'Con números, no con sensaciones. Ves conversaciones resueltas, pedidos creados y ventas atribuidas a cada flujo, al lado de lo que pagas. Si un flujo no produce, se nota en la primera semana y se ajusta. La calculadora sirve para explorar escenarios; el panel muestra lo que pasó de verdad.',
     en: 'With numbers, not feelings. You see resolved conversations, orders created, and sales attributed to each workflow, next to what you pay. If a workflow does not produce, it shows within the first week and gets adjusted. The calculator explores scenarios; the dashboard shows what actually happened.',
   },
-  faqModelQuestion: { es: '¿Qué inteligencia artificial usa?', en: 'Which AI does it use?' },
+  faqModelQuestion: {
+    es: '¿Qué inteligencia artificial usa?',
+    en: 'Which AI does it use?',
+  },
   faqModelAnswer: {
     es: 'Los modelos de Anthropic (Claude), que hoy son los mejores del mercado para seguir reglas y no inventar. Y no nos casamos con uno: cada vez que aparece un modelo mejor lo medimos contra conversaciones reales de nuestros clientes antes de activarlo. Tú no tienes que elegir ni configurar nada; siempre atiende con lo mejor disponible.',
     en: 'Anthropic’s Claude models, which today are the best on the market at following rules and not making things up. And we are not married to one: whenever a better model appears, we measure it against our customers’ real conversations before switching it on. You never have to choose or configure anything; it always serves with the best available.',
   },
-  faqCallsQuestion: { es: '¿Las llamadas están incluidas?', en: 'Are calls included?' },
+  faqCallsQuestion: {
+    es: '¿Las llamadas están incluidas?',
+    en: 'Are calls included?',
+  },
   faqCallsAnswer: {
     es: 'El agente de voz sí, en todos los planes: confirma pedidos, recupera carritos y atiende llamadas entrantes con la misma información que el chat. El número y los minutos van aparte porque cambian según el país; los ves por separado y puedes fijar un límite mensual antes de escalar.',
     en: 'The voice agent is, on every plan: it confirms orders, recovers carts, and answers inbound calls with the same information as the chat. The number and minutes are separate because they vary by country; you see them itemized and can set a monthly cap before scaling.',
@@ -577,16 +729,16 @@ export const landingV4 = {
   // conectamos: quiere saber que no se le va a caer nada encima. Eso se dice
   // en una línea y se prueba con un sello, no con una lista.
   trustTitle: {
-    es: 'Conexiones oficiales. Control real.',
-    en: 'Official connections. Real control.',
+    es: 'Habla como tu marca. Trabaja con tus reglas.',
+    en: 'Your brand’s voice. Your rules.',
   },
   trustBody: {
-    es: 'Riverz conecta los canales de Meta mediante sus APIs oficiales. Tu negocio conserva sus cuentas y tú defines permisos, aprobaciones y acceso del equipo.',
-    en: 'Riverz connects Meta channels through their official APIs. Your business keeps its accounts, and you define permissions, approvals, and team access.',
+    es: 'Tú decides qué puede resolver y cuándo debe pedir ayuda. Los casos sensibles pasan a tu equipo con el contexto de la conversación. Tus cuentas siguen siendo tuyas.',
+    en: 'You decide what it can handle and when to ask for help. Sensitive cases go to your team with the conversation context. Your accounts stay yours.',
   },
   trustPill: {
-    es: 'Tú defines los límites',
-    en: 'You define the limits',
+    es: 'Puedes intervenir cuando lo necesites',
+    en: 'Step in whenever you need to',
   },
   // Las dos vueltas del sello.
   trustSealTop: { es: 'Conexión oficial', en: 'Official connection' },
@@ -598,11 +750,11 @@ export const landingV4 = {
   // ── Cierre ──
   // Sin promesa de instalación: eso vive en la oferta, que es temporal.
   ctaTitle: {
-    es: 'Conecta lo que ya tienes. Nosotros montamos la operación.',
-    en: "Connect what you already use. We'll build the operation.",
+    es: 'Cuéntanos qué te está quitando tiempo.',
+    en: 'Tell us what’s taking up your time.',
   },
   ctaBody: {
-    es: 'Déjanos tu correo. Revisamos tu operación y configuramos el primer flujo que tenga sentido para tu tienda.',
-    en: "Leave your email. We'll review your operation and configure the first flow that makes sense for your store.",
+    es: 'Déjanos tu correo y conversemos sobre tu tienda. Revisamos qué puedes delegar, qué conexiones necesitas y cuánto costaría. Sin compromiso.',
+    en: 'Leave your email and let’s talk about your store. We’ll review what you can delegate, the connections you need, and what it would cost. No commitment.',
   },
 } satisfies Namespace;

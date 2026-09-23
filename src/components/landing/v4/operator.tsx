@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Check } from "lucide-react";
-import { useT } from "@/hooks/use-locale";
-import { useReducedMotion } from "@/components/landing/landing";
+import { useEffect, useRef, useState } from 'react';
+import { ArrowUp, Check } from 'lucide-react';
+import { useT } from '@/hooks/use-locale';
+import { useReducedMotion } from '@/components/landing/landing';
 
 /**
  * Operator — la secuencia que se desarrolla con el scroll.
@@ -28,9 +28,9 @@ import { useReducedMotion } from "@/components/landing/landing";
  */
 
 const PASOS = [
-  { who: "operation.subContactos", line: "landingV4.opLine1" },
-  { who: "operation.subPlantillas", line: "landingV4.opLine2" },
-  { who: "operation.subAutomatizaciones", line: "landingV4.opLine3" },
+  { who: 'operation.subContactos', line: 'landingV4.opLine1' },
+  { who: 'operation.subPlantillas', line: 'landingV4.opLine2' },
+  { who: 'operation.subAutomatizaciones', line: 'landingV4.opLine3' },
 ] as const;
 
 // Los cortes del recorrido, juntos para poder leer el ritmo de un vistazo.
@@ -53,7 +53,7 @@ export function Operator() {
 
     // La secuencia solo se ata al scroll donde la sección se clava. Si no,
     // avanzar movería cosas que ya están todas a la vista y se vería roto.
-    const mq = window.matchMedia("(min-width: 1024px)");
+    const mq = window.matchMedia('(min-width: 1024px)');
     let raf = 0;
 
     const leer = () => {
@@ -70,21 +70,21 @@ export function Operator() {
 
     onMedia();
     leer();
-    mq.addEventListener?.("change", onMedia);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
+    mq.addEventListener?.('change', onMedia);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
     return () => {
       if (raf) cancelAnimationFrame(raf);
-      mq.removeEventListener?.("change", onMedia);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
+      mq.removeEventListener?.('change', onMedia);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
     };
   }, [reduced]);
 
   // Sin clavado, la secuencia se muestra terminada.
   const q = fijo ? p : 1;
 
-  const prompt = t("landingV4.opPrompt");
+  const prompt = t('landingV4.opPrompt');
   const escritas = Math.round(prompt.length * recorte(q / ESCRIBE_HASTA));
   const escribiendo = q < SUBE_HASTA;
   const planVisible = q >= SUBE_HASTA;
@@ -92,7 +92,8 @@ export function Operator() {
   // Cada encargo tiene su tramo del recorrido, y dentro del tramo su propia
   // curva: así entran de a uno y no los tres de golpe.
   const tramo = (REPARTO_HASTA - SUBE_HASTA) / PASOS.length;
-  const avanceDe = (i: number) => recorte((q - (SUBE_HASTA + tramo * i)) / (tramo * 0.7));
+  const avanceDe = (i: number) =>
+    recorte((q - (SUBE_HASTA + tramo * i)) / (tramo * 0.7));
 
   const preguntando = q >= REPARTO_HASTA;
   const aprobado = q >= 0.95;
@@ -102,7 +103,7 @@ export function Operator() {
       ref={outer}
       id="operator"
       className="sn-full sn-op relative scroll-mt-24"
-      style={{ background: "var(--sn-ink)" }}
+      style={{ background: 'var(--sn-ink)' }}
     >
       <div className="sn-op-in flex flex-col justify-center overflow-hidden">
         {/* El resplandor crece con el avance: al principio la pantalla está
@@ -113,7 +114,7 @@ export function Operator() {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(58% 46% at 50% 42%, rgba(247,255,158,0.14), rgba(247,255,158,0) 70%)",
+              'radial-gradient(58% 46% at 50% 42%, rgba(247,255,158,0.14), rgba(247,255,158,0) 70%)',
             opacity: 0.25 + q * 0.75,
           }}
         />
@@ -121,25 +122,37 @@ export function Operator() {
         <div className="relative mx-auto w-full max-w-6xl px-5 py-20 lg:py-0">
           <div className="grid items-center gap-12 lg:grid-cols-[0.82fr_1.18fr] lg:gap-16">
             <div>
-              <h2 className="sn-h2 max-w-[14ch]" style={{ color: "var(--sn-card)" }}>
-                {t("landingV4.operatorTitle")}
+              <p
+                className="sn-label mb-4"
+                style={{ color: 'var(--sn-accent)' }}
+              >
+                {t('landingV4.demoLabel')}
+              </p>
+              <h2
+                className="sn-h2 max-w-[14ch]"
+                style={{ color: 'var(--sn-card)' }}
+              >
+                {t('landingV4.operatorTitle')}
               </h2>
               <p
                 className="mt-5 max-w-[42ch] text-[16px] leading-relaxed"
-                style={{ color: "rgba(250,247,241,0.82)" }}
+                style={{ color: 'rgba(250,247,241,0.82)' }}
               >
-                {t("landingV4.operatorLead")}
+                {t('landingV4.operatorLead')}
               </p>
 
               {/* El riel: dice cuánto falta sin escribir «paso 2 de 4». */}
               <div
                 aria-hidden
                 className="mt-10 hidden h-[3px] w-40 overflow-hidden rounded-full lg:block"
-                style={{ background: "rgba(250,247,241,0.12)" }}
+                style={{ background: 'rgba(250,247,241,0.12)' }}
               >
                 <i
                   className="block h-full rounded-full"
-                  style={{ width: `${q * 100}%`, background: "var(--sn-accent)" }}
+                  style={{
+                    width: `${q * 100}%`,
+                    background: 'var(--sn-accent)',
+                  }}
                 />
               </div>
             </div>
@@ -153,10 +166,12 @@ export function Operator() {
                 style={
                   fijo
                     ? {
-                        top: escribiendo ? "38%" : "0%",
-                        transform: escribiendo ? "translateY(-50%)" : "translateY(0)",
+                        top: escribiendo ? '38%' : '0%',
+                        transform: escribiendo
+                          ? 'translateY(-50%)'
+                          : 'translateY(0)',
                         transition:
-                          "top 0.6s cubic-bezier(0.16,1,0.3,1), transform 0.6s cubic-bezier(0.16,1,0.3,1)",
+                          'top 0.6s cubic-bezier(0.16,1,0.3,1), transform 0.6s cubic-bezier(0.16,1,0.3,1)',
                       }
                     : undefined
                 }
@@ -164,18 +179,22 @@ export function Operator() {
                 <div
                   className="flex items-center gap-3 rounded-[20px] px-4 py-3.5"
                   style={{
-                    background: escribiendo ? "rgba(250,247,241,0.06)" : "rgba(250,247,241,0.1)",
-                    boxShadow: escribiendo ? "0 0 0 1px rgba(250,247,241,0.1)" : "none",
-                    width: escribiendo ? "100%" : "fit-content",
-                    marginLeft: "auto",
-                    maxWidth: "100%",
+                    background: escribiendo
+                      ? 'rgba(250,247,241,0.06)'
+                      : 'rgba(250,247,241,0.1)',
+                    boxShadow: escribiendo
+                      ? '0 0 0 1px rgba(250,247,241,0.1)'
+                      : 'none',
+                    width: escribiendo ? '100%' : 'fit-content',
+                    marginLeft: 'auto',
+                    maxWidth: '100%',
                     transition:
-                      "width 0.6s cubic-bezier(0.16,1,0.3,1), background-color 0.4s ease, box-shadow 0.4s ease",
+                      'width 0.6s cubic-bezier(0.16,1,0.3,1), background-color 0.4s ease, box-shadow 0.4s ease',
                   }}
                 >
                   <span
                     className="min-w-0 flex-1 text-[15px] leading-snug"
-                    style={{ color: "rgba(250,247,241,0.92)" }}
+                    style={{ color: 'rgba(250,247,241,0.92)' }}
                   >
                     {fijo ? prompt.slice(0, escritas) : prompt}
                     {fijo && escritas < prompt.length && (
@@ -187,12 +206,15 @@ export function Operator() {
                   <span
                     className="flex size-8 shrink-0 items-center justify-center rounded-full"
                     style={{
-                      background: "var(--sn-accent)",
+                      background: 'var(--sn-accent)',
                       opacity: escribiendo ? 1 : 0.5,
-                      transition: "opacity 0.4s ease",
+                      transition: 'opacity 0.4s ease',
                     }}
                   >
-                    <ArrowUp className="size-4" style={{ color: "var(--sn-ink)" }} />
+                    <ArrowUp
+                      className="size-4"
+                      style={{ color: 'var(--sn-ink)' }}
+                    />
                   </span>
                 </div>
               </div>
@@ -221,19 +243,25 @@ export function Operator() {
                         <span
                           className="mt-[3px] flex size-[18px] shrink-0 items-center justify-center rounded-full"
                           style={{
-                            background: "var(--sn-accent)",
+                            background: 'var(--sn-accent)',
                             transform: `scale(${0.6 + a * 0.4})`,
                           }}
                         >
-                          <Check className="size-2.5" style={{ color: "var(--sn-ink)" }} />
+                          <Check
+                            className="size-2.5"
+                            style={{ color: 'var(--sn-ink)' }}
+                          />
                         </span>
                         <span className="min-w-0">
-                          <span className="sn-label" style={{ color: "rgba(250,247,241,0.72)" }}>
+                          <span
+                            className="sn-label"
+                            style={{ color: 'rgba(250,247,241,0.72)' }}
+                          >
                             {t(s.who)}
                           </span>
                           <span
                             className="mt-1 block text-[15px] leading-snug"
-                            style={{ color: "rgba(250,247,241,0.9)" }}
+                            style={{ color: 'rgba(250,247,241,0.9)' }}
                           >
                             {t(s.line)}
                           </span>
@@ -251,25 +279,34 @@ export function Operator() {
                           opacity: preguntando ? 1 : 0,
                           transform: `translateY(${preguntando ? 0 : 10}px)`,
                           transition:
-                            "opacity 0.4s ease, transform 0.5s cubic-bezier(0.16,1,0.3,1)",
+                            'opacity 0.4s ease, transform 0.5s cubic-bezier(0.16,1,0.3,1)',
                         }
                       : undefined
                   }
                 >
-                  <span className="text-[15px]" style={{ color: "rgba(250,247,241,0.9)" }}>
-                    {t("landingV4.opAsk")}
+                  <span
+                    className="text-[15px]"
+                    style={{ color: 'rgba(250,247,241,0.9)' }}
+                  >
+                    {t('landingV4.opAsk')}
                   </span>
                   <span
                     className="rounded-full px-4 py-2 text-[13px] font-medium"
                     style={{
-                      background: aprobado ? "rgba(250,247,241,0.12)" : "var(--sn-accent)",
-                      color: aprobado ? "rgba(250,247,241,0.82)" : "var(--sn-ink)",
-                      boxShadow: aprobado ? "none" : "0 0 34px 2px rgba(247,255,158,0.34)",
+                      background: aprobado
+                        ? 'rgba(250,247,241,0.12)'
+                        : 'var(--sn-accent)',
+                      color: aprobado
+                        ? 'rgba(250,247,241,0.82)'
+                        : 'var(--sn-ink)',
+                      boxShadow: aprobado
+                        ? 'none'
+                        : '0 0 34px 2px rgba(247,255,158,0.34)',
                       transition:
-                        "background-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease",
+                        'background-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease',
                     }}
                   >
-                    {t("landingV4.opApprove")}
+                    {t('landingV4.opApprove')}
                   </span>
                 </div>
               </div>

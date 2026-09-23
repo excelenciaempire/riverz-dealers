@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
+import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 
-import { useT } from "@/hooks/use-locale";
-import { useReducedMotion } from "@/components/landing/landing";
-import { Rise } from "./bits";
+import { useT } from '@/hooks/use-locale';
+import { useReducedMotion } from '@/components/landing/landing';
+import { Rise } from './bits';
 
 /**
  * Qué hace — el mosaico.
@@ -65,157 +65,84 @@ type Tile = {
 
 const TILES: Tile[] = [
   {
-    key: "sec01",
-    img: "/portada-b/i-vendedor.jpg",
-    ratio: "16 / 9",
-    animation: "/portada-b/i-vendedor.webp",
-    title: "landing.sec01Title",
-    muted: "landing.sec01TitleMuted",
-    body: "landing.sec01Body",
+    key: 'sec01',
+    img: '/portada-b/i-vendedor.jpg',
+    ratio: '16 / 9',
+    animation: '/portada-b/i-vendedor.webp',
+    title: 'landingV4.featureSalesTitle',
+    muted: 'landingV4.featureSalesMuted',
+    body: 'landingV4.featureSalesBody',
     sm: 2,
     lg: 4,
   },
   {
-    key: "secVoice",
-    img: "/portada-b/i-llamadas.jpg",
-    ratio: "3 / 4",
-    title: "landing.secVoiceTitle",
-    muted: "landing.secVoiceTitleMuted",
-    body: "landing.secVoiceBody",
+    key: 'secVoice',
+    img: '/portada-b/i-llamadas.jpg',
+    ratio: '3 / 4',
+    title: 'landingV4.featureVoiceTitle',
+    muted: 'landingV4.featureVoiceMuted',
+    body: 'landingV4.featureVoiceBody',
     sm: 1,
     lg: 2,
   },
   {
-    key: "sec02",
-    img: "/portada-b/i-carritos.jpg",
-    ratio: "4 / 3",
-    animation: "/portada-b/i-carritos.webp",
-    title: "landing.sec02Title",
-    muted: "landing.sec02TitleMuted",
-    body: "landing.sec02Body",
+    key: 'sec02',
+    img: '/portada-b/i-carritos.jpg',
+    ratio: '4 / 3',
+    animation: '/portada-b/i-carritos.webp',
+    title: 'landingV4.featureRecoveryTitle',
+    muted: 'landingV4.featureRecoveryMuted',
+    body: 'landingV4.featureRecoveryBody',
     sm: 1,
     lg: 3,
   },
   {
-    key: "sec04",
-    img: "/portada-b/i-atencion.jpg",
-    ratio: "4 / 3",
-    title: "landing.sec04Title",
-    muted: "landing.sec04TitleMuted",
-    body: "landing.sec04Body",
+    key: 'sec04',
+    img: '/portada-b/i-atencion.jpg',
+    ratio: '4 / 3',
+    title: 'landingV4.featureSupportTitle',
+    muted: 'landingV4.featureSupportMuted',
+    body: 'landingV4.featureSupportBody',
     sm: 1,
     lg: 3,
   },
   {
-    key: "sec03",
-    img: "/portada-b/i-recompras-2.jpg",
-    ratio: "4 / 3",
-    title: "landing.sec03Title",
-    muted: "landing.sec03TitleMuted",
-    body: "landing.sec03Body",
+    key: 'sec05',
+    img: '/portada-b/i-comentarios.jpg',
+    ratio: '4 / 3',
+    title: 'landingV4.featureCommentsTitle',
+    muted: 'landingV4.featureCommentsMuted',
+    body: 'landingV4.featureCommentsBody',
     sm: 1,
     lg: 3,
   },
   {
-    key: "sec05",
-    img: "/portada-b/i-comentarios.jpg",
-    ratio: "4 / 3",
-    title: "landing.sec05Title",
-    muted: "landing.sec05TitleMuted",
-    body: "landing.sec05Body",
+    key: 'sec03',
+    img: '/portada-b/i-recompras-2.jpg',
+    ratio: '4 / 3',
+    title: 'landingV4.featureRetentionTitle',
+    muted: 'landingV4.featureRetentionMuted',
+    body: 'landingV4.featureRetentionBody',
     sm: 1,
     lg: 3,
-  },
-  {
-    key: "sec06",
-    img: "/portada-b/i-campanas.jpg",
-    ratio: "16 / 9",
-    animation: "/portada-b/i-campanas.webp",
-    title: "landing.sec06Title",
-    muted: "landing.sec06TitleMuted",
-    body: "landing.sec06Body",
-    sm: 2,
-    lg: 4,
-  },
-  {
-    key: "secLive",
-    img: "/portada-b/i-envivo-2.jpg",
-    ratio: "3 / 4",
-    title: "landing.secLiveTitle",
-    muted: "landing.secLiveTitleMuted",
-    body: "landing.secLiveBody",
-    sm: 1,
-    lg: 2,
-  },
-  {
-    key: "sec08",
-    img: "/portada-b/i-tienda.jpg",
-    ratio: "4 / 3",
-    title: "landing.sec08Title",
-    muted: "landing.sec08TitleMuted",
-    body: "landing.sec08Body",
-    sm: 1,
-    lg: 3,
-  },
-  {
-    key: "sec07",
-    img: "/portada-b/i-bandeja-3.jpg",
-    ratio: "4 / 3",
-    title: "landing.sec07Title",
-    muted: "landing.sec07TitleMuted",
-    body: "landing.sec07Body",
-    sm: 1,
-    lg: 3,
-  },
-  {
-    key: "sec09",
-    img: "/portada-b/i-minutos.jpg",
-    ratio: "4 / 3",
-    animation: "/portada-b/i-minutos.webp",
-    title: "landing.sec09Title",
-    muted: "landing.sec09TitleMuted",
-    body: "landing.sec09Body",
-    sm: 1,
-    lg: 3,
-  },
-  {
-    key: "secContacts",
-    img: "/portada-b/i-contactos-2.jpg",
-    ratio: "4 / 3",
-    title: "landing.secContactsTitle",
-    muted: "landing.secContactsTitleMuted",
-    body: "landing.secContactsBody",
-    sm: 1,
-    lg: 3,
-  },
-  {
-    key: "sec10",
-    img: "/portada-b/i-roas.jpg",
-    ratio: "16 / 9",
-    animation: "/portada-b/i-roas.webp",
-    title: "landing.sec10Title",
-    muted: "landing.sec10TitleMuted",
-    body: "landing.sec10Body",
-    sm: 2,
-    lg: 6,
   },
 ];
 
 // Tailwind necesita las clases enteras en el archivo para poder verlas; por eso
 // van en un mapa y no armadas con plantillas de texto.
-const SM = { 1: "sm:col-span-1", 2: "sm:col-span-2" } as const;
+const SM = { 1: 'sm:col-span-1', 2: 'sm:col-span-2' } as const;
 const LG = {
-  2: "lg:col-span-2",
-  3: "lg:col-span-3",
-  4: "lg:col-span-4",
-  6: "lg:col-span-6",
+  2: 'lg:col-span-2',
+  3: 'lg:col-span-3',
+  4: 'lg:col-span-4',
+  6: 'lg:col-span-6',
 } as const;
 
 export function Cards() {
   const t = useT();
 
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-6 lg:gap-6 lg:[grid-auto-flow:dense]">
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:[grid-auto-flow:dense] lg:grid-cols-6 lg:gap-6">
       {TILES.map((tile, i) => (
         <Rise
           key={tile.key}
@@ -225,10 +152,15 @@ export function Cards() {
           <article className="sn-card flex h-full min-w-0 flex-col overflow-hidden">
             <div className="flex min-w-0 flex-1 flex-col p-5 sm:p-8">
               <h3 className="sn-h3 max-w-[20ch]">
-                {t(tile.title)} <span style={{ color: "var(--sn-muted)" }}>{t(tile.muted)}</span>
+                {t(tile.title)}{' '}
+                <span style={{ color: 'var(--sn-muted)' }}>
+                  {t(tile.muted)}
+                </span>
               </h3>
 
-              <p className="sn-body mt-3 max-w-[48ch] !text-[15px]">{t(tile.body)}</p>
+              <p className="sn-body mt-3 max-w-[48ch] !text-[15px]">
+                {t(tile.body)}
+              </p>
 
               {/* La ilustración va al pie y crece con la ficha. `mt-auto` la
                   empuja abajo, así que las fichas de una misma fila alinean la
@@ -268,7 +200,7 @@ function Ilustracion({ tile }: { tile: Tile }) {
     const el = caja.current;
     if (!el || !tile.animation || reduced) return;
 
-    if (!("IntersectionObserver" in window)) {
+    if (!('IntersectionObserver' in window)) {
       const frame = requestAnimationFrame(() => setCerca(true));
       return () => cancelAnimationFrame(frame);
     }
@@ -277,7 +209,7 @@ function Ilustracion({ tile }: { tile: Tile }) {
       ([e]) => {
         setCerca(e.isIntersecting);
       },
-      { rootMargin: "300px 0px" },
+      { rootMargin: '300px 0px' }
     );
     io.observe(el);
     return () => io.disconnect();
@@ -287,7 +219,7 @@ function Ilustracion({ tile }: { tile: Tile }) {
     <div
       ref={caja}
       className="relative w-full overflow-hidden rounded-2xl"
-      style={{ aspectRatio: tile.ratio, background: "var(--sn-sand)" }}
+      style={{ aspectRatio: tile.ratio, background: 'var(--sn-sand)' }}
     >
       <Image
         src={tile.img}
@@ -301,7 +233,7 @@ function Ilustracion({ tile }: { tile: Tile }) {
         <picture className="absolute inset-0 block">
           <source srcSet={tile.animation} type="image/webp" />
           <Image
-            src={tile.animation.replace(/\.webp$/, ".gif")}
+            src={tile.animation.replace(/\.webp$/, '.gif')}
             alt=""
             fill
             unoptimized

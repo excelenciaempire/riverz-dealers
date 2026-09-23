@@ -1,23 +1,22 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import Link from "next/link";
-import { ArrowRight, PhoneCall } from "lucide-react";
-import { ChannelLogo } from "@/components/inbox/channel-logo";
-import { useLocale, useT } from "@/hooks/use-locale";
-import { localizePath } from "@/lib/i18n/routes";
-import type { Channel } from "@/types";
-import type { Locale } from "@/lib/i18n/config";
-import { WaitlistForm } from "@/components/landing/landing";
-import { Label, LocaleSwitch, Rise } from "./bits";
-import { Scene } from "./scene";
-import { Cards } from "./cards";
-import { Oferta } from "./oferta";
-import { Operator } from "./operator";
-import { Pricing } from "./pricing";
-import { Faq } from "./faq";
-import type { PricingTier } from "./pricing-tiers";
-import "./editorial.css";
+import Image from 'next/image';
+import Link from 'next/link';
+import { ArrowRight, PhoneCall } from 'lucide-react';
+import { ChannelLogo } from '@/components/inbox/channel-logo';
+import { useLocale, useT } from '@/hooks/use-locale';
+import { localizePath } from '@/lib/i18n/routes';
+import type { Channel } from '@/types';
+import type { Locale } from '@/lib/i18n/config';
+import { WaitlistForm } from '@/components/landing/landing';
+import { Label, LocaleSwitch, Rise } from './bits';
+import { Cards } from './cards';
+import { Oferta } from './oferta';
+import { Operator } from './operator';
+import { Pricing } from './pricing';
+import { Faq } from './faq';
+import type { PricingTier } from './pricing-tiers';
+import './editorial.css';
 
 /**
  * Portada editorial — riverz.co/portada-b
@@ -39,24 +38,30 @@ import "./editorial.css";
  * `/`, `/landing` y `/portada` quedan intactas.
  */
 
-type Ch = "whatsapp" | "instagram" | "messenger" | "gmail" | "mercadolibre" | "tiktok_comment";
+type Ch =
+  | 'whatsapp'
+  | 'instagram'
+  | 'messenger'
+  | 'gmail'
+  | 'mercadolibre'
+  | 'tiktok_comment';
 
 // Bandejas donde el agente atiende. `label` es marca (va tal cual) salvo el
 // correo, que es una etiqueta traducible y se resuelve con t().
 const CHANNELS: { id: Ch; label: string }[] = [
-  { id: "whatsapp", label: "WhatsApp" },
-  { id: "instagram", label: "Instagram" },
-  { id: "messenger", label: "Messenger" },
-  { id: "gmail", label: "landing.channelEmail" },
-  { id: "mercadolibre", label: "Mercado Libre" },
-  { id: "tiktok_comment", label: "TikTok" },
+  { id: 'whatsapp', label: 'WhatsApp' },
+  { id: 'instagram', label: 'Instagram' },
+  { id: 'messenger', label: 'Messenger' },
+  { id: 'gmail', label: 'landing.channelEmail' },
+  { id: 'mercadolibre', label: 'Mercado Libre' },
+  { id: 'tiktok_comment', label: 'TikTok' },
 ];
 
 // De dónde salen el stock y los precios, y a dónde va el pedido.
 const STORES: { src: string; label: string }[] = [
-  { src: "/channels/shopify.svg", label: "Shopify" },
-  { src: "/channels/woocommerce.svg", label: "WooCommerce" },
-  { src: "/channels/tiendanube.svg", label: "Tiendanube" },
+  { src: '/channels/shopify.svg', label: 'Shopify' },
+  { src: '/channels/woocommerce.svg', label: 'WooCommerce' },
+  { src: '/channels/tiendanube.svg', label: 'Tiendanube' },
 ];
 
 export function LandingV4({ tiers }: { tiers: PricingTier[] }) {
@@ -67,10 +72,10 @@ export function LandingV4({ tiers }: { tiers: PricingTier[] }) {
     <div className="sn min-h-screen">
       <a
         href="#contenido"
-        className="sn-label sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:px-4 focus:py-2"
-        style={{ background: "var(--sn-accent)", color: "var(--sn-ink)" }}
+        className="sn-label sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-full focus:px-4 focus:py-2"
+        style={{ background: 'var(--sn-accent)', color: 'var(--sn-ink)' }}
       >
-        {t("landingV4.skipToContent")}
+        {t('landingV4.skipToContent')}
       </a>
 
       <Oferta />
@@ -85,10 +90,10 @@ export function LandingV4({ tiers }: { tiers: PricingTier[] }) {
             tres. La oferta ya no ocupa una sección: vive en la barra de
             arriba y se despliega en un diálogo, porque es temporal y tiene que
             poder retirarse sin dejar un hueco. */}
-        <Operator />
         <Pillars />
-        <Scene />
+        <Operator />
         <Capabilities />
+        <Setup />
         <Channels />
         <Confianza />
         <Pricing tiers={tiers} />
@@ -115,11 +120,11 @@ function Nav() {
     <header className="px-3 pt-2">
       <nav
         className="mx-auto flex max-w-6xl items-center justify-between gap-6 rounded-full px-5 py-3"
-        style={{ background: "rgba(250,247,241,0.82)" }}
+        style={{ background: 'rgba(250,247,241,0.82)' }}
       >
         <span
-          className="text-[19px] font-semibold lowercase tracking-[-0.02em]"
-          style={{ color: "var(--sn-ink)" }}
+          className="text-[19px] font-semibold tracking-[-0.02em] lowercase"
+          style={{ color: 'var(--sn-ink)' }}
         >
           riverz
         </span>
@@ -128,7 +133,7 @@ function Nav() {
           <LocaleSwitch />
           <span className="hidden sm:block">
             <a href="#acceso" className="sn-pill sn-pill-sm">
-              {t("landingV4.navCta")}
+              {t('landingV4.navCta')}
             </a>
           </span>
         </div>
@@ -151,8 +156,8 @@ function Hero() {
         aria-hidden
         className="pointer-events-none absolute inset-y-0 right-0 hidden w-[44%] lg:block"
         style={{
-          maskImage: "linear-gradient(to left, #000 58%, transparent)",
-          WebkitMaskImage: "linear-gradient(to left, #000 58%, transparent)",
+          maskImage: 'linear-gradient(to left, #000 58%, transparent)',
+          WebkitMaskImage: 'linear-gradient(to left, #000 58%, transparent)',
         }}
       >
         <Image
@@ -168,19 +173,23 @@ function Hero() {
       {/* El titular, el subtítulo y la llamada a la acción salen del catálogo
           `landing`: son los de la portada principal, palabra por palabra. Esta
           portada cambia el diseño, no lo que promete. */}
-      <div className="relative mx-auto max-w-6xl px-5 pb-14 pt-14 text-center sm:pt-20 lg:pb-24 lg:pt-28">
+      <div className="relative mx-auto max-w-6xl px-5 pt-14 pb-14 text-center sm:pt-20 lg:pt-28 lg:pb-24">
         <Rise>
           <h1 className="sn-display mx-auto max-w-[16ch]">
-            {t("landingV4.heroTitleLead")}{" "}
-            <span style={{ color: "var(--sn-muted)" }}>{t("landingV4.heroTitleMuted")}</span>
+            {t('landingV4.heroTitleLead')}{' '}
+            <span style={{ color: 'var(--sn-muted)' }}>
+              {t('landingV4.heroTitleMuted')}
+            </span>
           </h1>
         </Rise>
         <Rise delay={90}>
-          <p className="sn-body mx-auto mt-7 max-w-[58ch]">{t("landingV4.heroSubtitle")}</p>
+          <p className="sn-body mx-auto mt-7 max-w-[58ch]">
+            {t('landingV4.heroSubtitle')}
+          </p>
         </Rise>
         <Rise delay={180}>
           <a href="#acceso" className="sn-pill group mt-9">
-            {t("landingV4.navCta")}
+            {t('landingV4.navCta')}
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
           </a>
         </Rise>
@@ -212,17 +221,23 @@ function Wall() {
     <section className="mx-auto max-w-6xl px-5 py-12 lg:py-16">
       <div
         className="flex flex-col items-center gap-6 border-y py-8"
-        style={{ borderColor: "var(--sn-line)" }}
+        style={{ borderColor: 'var(--sn-line)' }}
       >
-        <Label>{t("landingV4.wallLabel")}</Label>
+        <Label>{t('landingV4.wallLabel')}</Label>
         <div className="flex flex-wrap items-center justify-center gap-x-9 gap-y-5">
           {CHANNELS.map((c) => (
-            <span key={c.id} className="inline-flex items-center gap-2 text-[15px]">
+            <span
+              key={c.id}
+              className="inline-flex items-center gap-2 text-[15px]"
+            >
               <ChannelLogo channel={c.id as Channel} size={20} /> {t(c.label)}
             </span>
           ))}
           {STORES.map((s) => (
-            <span key={s.label} className="inline-flex items-center gap-2 text-[15px]">
+            <span
+              key={s.label}
+              className="inline-flex items-center gap-2 text-[15px]"
+            >
               {/* `unoptimized`: el optimizador de Next rechaza SVG mientras
                   `dangerouslyAllowSVG` esté apagado y devuelve 400 — los logos
                   de tienda salían como huecos. */}
@@ -279,10 +294,12 @@ function Pillars() {
       <div className="relative mx-auto max-w-6xl px-5">
         <div
           className="rounded-[26px] px-6 py-12 backdrop-blur-[2px] sm:px-12 sm:py-16"
-          style={{ background: "rgba(250,247,241,0.9)" }}
+          style={{ background: 'rgba(250,247,241,0.9)' }}
         >
-          <h2 className="sn-h2 max-w-[16ch]">{t("landingV4.pillarsTitle")}</h2>
-          <p className="sn-lead mt-6 max-w-[44ch]">{t("landingV4.pillarsLead")}</p>
+          <h2 className="sn-h2 max-w-[16ch]">{t('landingV4.pillarsTitle')}</h2>
+          <p className="sn-lead mt-6 max-w-[44ch]">
+            {t('landingV4.pillarsLead')}
+          </p>
         </div>
       </div>
     </section>
@@ -294,10 +311,13 @@ function Pillars() {
 function Capabilities() {
   const t = useT();
   return (
-    <section id="capacidades" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 lg:py-24">
+    <section
+      id="capacidades"
+      className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 lg:py-24"
+    >
       <Rise>
-        <h2 className="sn-h2 max-w-[16ch]">{t("landingV4.capsTitle")}</h2>
-        <p className="sn-body mt-4 max-w-[48ch]">{t("landingV4.capsBody")}</p>
+        <h2 className="sn-h2 max-w-[16ch]">{t('landingV4.capsTitle')}</h2>
+        <p className="sn-body mt-4 max-w-[48ch]">{t('landingV4.capsBody')}</p>
       </Rise>
 
       <div className="mt-12">
@@ -309,35 +329,89 @@ function Capabilities() {
 
 // ── Canales ───────────────────────────────────────────────────────────────
 
+function Setup() {
+  const t = useT();
+  return (
+    <section
+      id="instalacion"
+      className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 lg:py-24"
+    >
+      <div className="sn-card-sand p-6 sm:p-10 lg:p-14">
+        <Rise>
+          <h2 className="sn-h2 max-w-[24ch]">{t('landingV4.setupTitle')}</h2>
+          <p className="sn-body mt-5 max-w-[58ch]">
+            {t('landingV4.setupBody')}
+          </p>
+        </Rise>
+        <ol className="mt-10 grid gap-8 lg:grid-cols-3">
+          {[1, 2, 3].map((step) => (
+            <li key={step} className="border-t border-[var(--sn-line)] pt-5">
+              <span
+                aria-hidden
+                className="font-[family-name:var(--font-editorial)] text-4xl text-[var(--sn-ink-accent)]"
+              >
+                0{step}
+              </span>
+              <h3 className="sn-h3 mt-4">{t(`landingV4.setup${step}Title`)}</h3>
+              <p className="sn-body mt-3 !text-[15px]">
+                {t(`landingV4.setup${step}Body`)}
+              </p>
+            </li>
+          ))}
+        </ol>
+        <a href="#acceso" className="sn-pill mt-9">
+          {t('landingV4.navCta')}
+        </a>
+      </div>
+    </section>
+  );
+}
+
 function Channels() {
   const t = useT();
   return (
-    <section id="canales" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 lg:py-24">
+    <section
+      id="canales"
+      className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 lg:py-24"
+    >
       <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
         <Rise>
-          <h2 className="sn-h2 max-w-[14ch]">{t("landingV4.channelsTitle")}</h2>
-          <p className="sn-body mt-5 max-w-[42ch]">{t("landingV4.channelsBody")}</p>
+          <h2 className="sn-h2 max-w-[14ch]">{t('landingV4.channelsTitle')}</h2>
+          <p className="sn-body mt-5 max-w-[42ch]">
+            {t('landingV4.channelsBody')}
+          </p>
         </Rise>
 
         <Rise delay={90}>
           <div className="sn-card p-6 sm:p-9">
-            <Label>{t("landingV4.channelsInboxes")}</Label>
+            <Label>{t('landingV4.channelsInboxes')}</Label>
             <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
               {CHANNELS.map((c) => (
-                <span key={c.id} className="inline-flex items-center gap-2.5 text-[15px]">
-                  <ChannelLogo channel={c.id as Channel} size={22} /> {t(c.label)}
+                <span
+                  key={c.id}
+                  className="inline-flex items-center gap-2.5 text-[15px]"
+                >
+                  <ChannelLogo channel={c.id as Channel} size={22} />{' '}
+                  {t(c.label)}
                 </span>
               ))}
               <span className="inline-flex items-center gap-2.5 text-[15px]">
-                <PhoneCall className="size-[22px]" /> {t("landingV4.channelsCalls")}
+                <PhoneCall className="size-[22px]" />{' '}
+                {t('landingV4.channelsCalls')}
               </span>
             </div>
 
-            <div className="mt-9 border-t pt-7" style={{ borderColor: "var(--sn-line)" }}>
-              <Label>{t("landingV4.channelsStores")}</Label>
+            <div
+              className="mt-9 border-t pt-7"
+              style={{ borderColor: 'var(--sn-line)' }}
+            >
+              <Label>{t('landingV4.channelsStores')}</Label>
               <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
                 {STORES.map((s) => (
-                  <span key={s.label} className="inline-flex items-center gap-2.5 text-[15px]">
+                  <span
+                    key={s.label}
+                    className="inline-flex items-center gap-2.5 text-[15px]"
+                  >
                     <Image
                       src={s.src}
                       alt=""
@@ -402,7 +476,10 @@ function Sello({ anillo, arriba }: { anillo: string; arriba: string }) {
       aria-label={arriba}
     >
       <defs>
-        <path id="sn-sello-anillo" d="M110,110 m-84,0 a84,84 0 1,1 168,0 a84,84 0 1,1 -168,0" />
+        <path
+          id="sn-sello-anillo"
+          d="M110,110 m-84,0 a84,84 0 1,1 168,0 a84,84 0 1,1 -168,0"
+        />
       </defs>
 
       {/* El canto dentado del troquel. */}
@@ -422,14 +499,22 @@ function Sello({ anillo, arriba }: { anillo: string; arriba: string }) {
         );
       })}
 
-      <circle cx="110" cy="110" r="99" fill="none" stroke="var(--sn-ink)" strokeWidth="1" opacity="0.35" />
+      <circle
+        cx="110"
+        cy="110"
+        r="99"
+        fill="none"
+        stroke="var(--sn-ink)"
+        strokeWidth="1"
+        opacity="0.35"
+      />
       <circle cx="110" cy="110" r="70" fill="var(--sn-ink)" />
 
       {/* La leyenda, dando la vuelta. UNA sola vez y centrada: repetida se
           pasaba de la circunferencia y se montaba sobre sí misma. */}
       <text
         fill="var(--sn-ink)"
-        style={{ fontSize: 10.5, letterSpacing: "0.18em", fontWeight: 500 }}
+        style={{ fontSize: 10.5, letterSpacing: '0.18em', fontWeight: 500 }}
         opacity="0.75"
       >
         <textPath href="#sn-sello-anillo" startOffset="50%" textAnchor="middle">
@@ -457,17 +542,19 @@ function Confianza() {
       <div className="sn-card-sand rounded-[26px] px-6 py-12 sm:px-10 lg:px-14 lg:py-16">
         <div className="flex flex-col-reverse items-start gap-10 md:flex-row md:items-center md:justify-between md:gap-14">
           <Rise>
-            <h2 className="sn-h2 max-w-[15ch]">{t("landingV4.trustTitle")}</h2>
-            <p className="sn-body mt-5 max-w-[48ch]">{t("landingV4.trustBody")}</p>
+            <h2 className="sn-h2 max-w-[15ch]">{t('landingV4.trustTitle')}</h2>
+            <p className="sn-body mt-5 max-w-[48ch]">
+              {t('landingV4.trustBody')}
+            </p>
             <p className="sn-pill sn-pill-sm mt-7 !bg-[var(--sn-accent)] !text-[var(--sn-ink)]">
-              {t("landingV4.trustPill")}
+              {t('landingV4.trustPill')}
             </p>
           </Rise>
 
           <Rise delay={90}>
             <Sello
-              anillo={t("landingV4.trustSealRing")}
-              arriba={t("landingV4.trustSealTop")}
+              anillo={t('landingV4.trustSealRing')}
+              arriba={t('landingV4.trustSealTop')}
             />
           </Rise>
         </div>
@@ -481,7 +568,10 @@ function Confianza() {
 function Cta() {
   const t = useT();
   return (
-    <section id="acceso" className="sn-full relative scroll-mt-24 overflow-hidden py-16 lg:py-24">
+    <section
+      id="acceso"
+      className="sn-full relative scroll-mt-24 overflow-hidden py-16 lg:py-24"
+    >
       <Image
         src="/portada-b/fondo-noche.jpg"
         alt=""
@@ -493,22 +583,29 @@ function Cta() {
       <div className="relative mx-auto max-w-6xl px-5">
         <div
           className="rounded-[26px] px-6 py-16 text-center backdrop-blur-[2px] sm:px-12 lg:py-24"
-          style={{ background: "rgba(18,32,31,0.86)" }}
+          style={{ background: 'rgba(18,32,31,0.86)' }}
         >
           <Rise>
-            <h2 className="sn-h2 mx-auto max-w-[17ch]" style={{ color: "var(--sn-card)" }}>
-              {t("landingV4.ctaTitle")}
+            <h2
+              className="sn-h2 mx-auto max-w-[17ch]"
+              style={{ color: 'var(--sn-card)' }}
+            >
+              {t('landingV4.ctaTitle')}
             </h2>
             <p
               className="mx-auto mt-5 max-w-[44ch] text-[16px] leading-relaxed"
-              style={{ color: "rgba(250,247,241,0.82)" }}
+              style={{ color: 'rgba(250,247,241,0.82)' }}
             >
-              {t("landingV4.ctaBody")}
+              {t('landingV4.ctaBody')}
             </p>
           </Rise>
 
           <div className="mx-auto mt-10 flex max-w-md justify-center">
-            <WaitlistForm tone="dark" />
+            <WaitlistForm
+              tone="dark"
+              submitLabel={t('landingV4.leadSubmit')}
+              doneLabel={t('landingV4.leadDone')}
+            />
           </div>
         </div>
       </div>
@@ -524,25 +621,39 @@ function Footer({ locale }: { locale: Locale }) {
     <footer className="mx-auto max-w-6xl px-5 pb-12">
       <div
         className="flex flex-col gap-5 border-t pt-7 sm:flex-row sm:items-center sm:justify-between"
-        style={{ borderColor: "var(--sn-line)" }}
+        style={{ borderColor: 'var(--sn-line)' }}
       >
         <div className="flex items-center gap-4">
-          <span className="text-[17px] font-semibold lowercase tracking-[-0.02em]">riverz</span>
-          <a href="mailto:info@riverzai.com" className="sn-label hover:opacity-70">
+          <span className="text-[17px] font-semibold tracking-[-0.02em] lowercase">
+            riverz
+          </span>
+          <a
+            href="mailto:info@riverzai.com"
+            className="sn-label hover:opacity-70"
+          >
             info@riverzai.com
           </a>
         </div>
         <div className="sn-label flex flex-wrap gap-x-7 gap-y-2">
-          <Link href={localizePath("/terminos", locale)} className="hover:opacity-70">
-            {t("landing.footerTerms")}
+          <Link
+            href={localizePath('/terminos', locale)}
+            className="hover:opacity-70"
+          >
+            {t('landing.footerTerms')}
           </Link>
-          <Link href={localizePath("/privacidad", locale)} className="hover:opacity-70">
-            {t("landing.footerPrivacy")}
+          <Link
+            href={localizePath('/privacidad', locale)}
+            className="hover:opacity-70"
+          >
+            {t('landing.footerPrivacy')}
           </Link>
-          <Link href={localizePath("/eliminar-datos", locale)} className="hover:opacity-70">
-            {t("landing.footerDeleteData")}
+          <Link
+            href={localizePath('/eliminar-datos', locale)}
+            className="hover:opacity-70"
+          >
+            {t('landing.footerDeleteData')}
           </Link>
-          <span>{t("landing.footerRights")}</span>
+          <span>{t('landing.footerRights')}</span>
         </div>
       </div>
     </footer>
