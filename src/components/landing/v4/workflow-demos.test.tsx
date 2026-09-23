@@ -40,11 +40,12 @@ describe('workflow demonstrations', () => {
       ]) {
         const html = renderToStaticMarkup(<Demo />);
         expect(html).toContain(landingV4.videoPlay[locale]);
-        expect(html).toContain(landingV4.videoIllustration[locale]);
+        expect(html).toContain(landingV4.mascotIllustration[locale]);
         expect(html).toContain('preload="none"');
         expect(html).toContain('<video');
-        expect(html).toContain(`-${locale}.jpg`);
-        expect(html).toContain('workflow-ui-');
+        expect(html).toContain('.jpg');
+        expect(html).toContain('workflow-mascot-');
+        expect(html).not.toContain('workflow-ui-');
         expect(html).not.toContain('src="');
         expect(html).not.toContain('landingV4.');
         expect(html).not.toContain('opacity:0');
@@ -82,17 +83,14 @@ describe('workflow demonstrations', () => {
       'order',
       'results',
     ]) {
-      for (const locale of ['es', 'en']) {
-        const video = readFileSync(
-          `public/portada-b/workflow-ui-${scene}-${locale}.mp4`
-        );
-        expect(video.subarray(4, 8).toString()).toBe('ftyp');
-        expect(video.byteLength).toBeLessThan(2_000_000);
-        expect(
-          readFileSync(`public/portada-b/workflow-ui-${scene}-${locale}.jpg`)
-            .byteLength
-        ).toBeGreaterThan(1000);
-      }
+      const video = readFileSync(
+        `public/portada-b/workflow-mascot-${scene}.mp4`
+      );
+      expect(video.subarray(4, 8).toString()).toBe('ftyp');
+      expect(video.byteLength).toBeLessThan(2_000_000);
+      expect(
+        readFileSync(`public/portada-b/workflow-mascot-${scene}.jpg`).byteLength
+      ).toBeGreaterThan(1000);
     }
   });
 });

@@ -232,6 +232,10 @@ export const landingV4 = {
     es: 'Ventas · Soporte · Seguimiento',
     en: 'Sales · Support · Follow-up',
   },
+  mascotIllustration: {
+    es: 'Escena ilustrativa con IA',
+    en: 'AI-generated illustration',
+  },
   heroTitleMuted: {
     es: 'Nosotros lo dejamos listo.',
     en: 'Set up for you.',

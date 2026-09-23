@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Pause, Play, RotateCcw } from 'lucide-react';
-import { useLocale, useT } from '@/hooks/use-locale';
+import { useT } from '@/hooks/use-locale';
 import './workflow-videos.css';
 
 const SCENES = {
@@ -25,25 +25,20 @@ const SCENES = {
   },
 } as const;
 
-/** Rendered interface demonstrations, in the active language. Remount on locale
- * changes so playback and errors cannot leak between localized sources. */
+/** Text-free mascot films; labels remain live bilingual HTML. */
 export function WorkflowVideo({ scene }: { scene: keyof typeof SCENES }) {
-  const { locale } = useLocale();
   return (
     <WorkflowVideoPlayer
-      key={`${scene}-${locale}`}
+      key={scene}
       scene={scene}
-      locale={locale}
     />
   );
 }
 
 function WorkflowVideoPlayer({
   scene,
-  locale,
 }: {
   scene: keyof typeof SCENES;
-  locale: 'es' | 'en';
 }) {
   const t = useT();
   const root = useRef<HTMLElement>(null);
@@ -56,7 +51,7 @@ function WorkflowVideoPlayer({
   const [ended, setEnded] = useState(false);
   const [failed, setFailed] = useState(false);
   const content = SCENES[scene];
-  const mediaPath = `/portada-b/workflow-ui-${scene}-${locale}`;
+  const mediaPath = `/portada-b/workflow-mascot-${scene}`;
 
   useEffect(() => {
     const el = video.current;
@@ -157,7 +152,7 @@ function WorkflowVideoPlayer({
           muted
           playsInline
           preload="none"
-          width={800}
+          width={960}
           height={720}
           aria-label={t(content.title)}
           onPlay={() => {
@@ -192,10 +187,9 @@ function WorkflowVideoPlayer({
           </button>
         )}
       </div>
-      <figcaption className="sr-only">
-        <span className="rz-film-title">{t(content.title)}</span>
-        <span className="rz-film-detail">{t(content.detail)}</span>
-        <span className="rz-film-note">{t('landingV4.videoIllustration')}</span>
+      <figcaption className="rz-film-caption">
+        <span className="sr-only">{t(content.title)}. {t(content.detail)}</span>
+        <span className="rz-film-note">{t('landingV4.mascotIllustration')}</span>
       </figcaption>
     </figure>
   );
