@@ -12,11 +12,12 @@ describe('DeUNA tracking reminder', () => {
     expect(RIVERZ_FLOWS[DEUNA_TRACKING_REMINDER_AUTOMATION_ID]).toBe('shipped');
     expect(DEUNA_TRACKING_REMINDER_TEMPLATE.category).toBe('UTILITY');
     expect(DEUNA_TRACKING_REMINDER_TEMPLATE.body).toContain('mantente pendiente del celular');
-    expect(DEUNA_TRACKING_REMINDER_TEMPLATE.body).toContain('alguien autorizado');
-    expect(DEUNA_TRACKING_REMINDER_TEMPLATE.body).toContain('pagar al recibir');
+    expect(DEUNA_TRACKING_REMINDER_TEMPLATE.headerType).toBe('IMAGE');
+    expect(DEUNA_TRACKING_REMINDER_TEMPLATE.body).toContain('resultado actualizado en la imagen');
     expect(DEUNA_TRACKING_REMINDER_TEMPLATE.variableFields).toEqual({
       '1': 'recipient_name',
-      '2': 'tracking_number',
+      '2': 'tracking_company',
+      '3': 'tracking_number',
     });
   });
 });

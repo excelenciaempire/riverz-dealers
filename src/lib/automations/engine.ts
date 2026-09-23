@@ -61,6 +61,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { requireRiverzoficialTemplateItems } from './riverzoficial-template-context'
 import { riverzFlowSkipReason } from './riverzoficial-context-gate'
 import { supersededCancellationReason } from './order-event-guard'
+import { prepareTrackingEvidence } from '@/lib/tracking/prepare-evidence'
 
 // ------------------------------------------------------------
 // Public API
@@ -1066,6 +1067,19 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
           photoDetail = `photos: failed (${error instanceof Error ? error.message : String(error)})`
         }
       }
+      let headerImageUrl: string | undefined
+      if (configured.tracking_evidence && !variant) {
+        const vars = args.context.vars ?? {}
+        const evidence = await prepareTrackingEvidence(db, {
+          workspaceId: args.automation.workspace_id,
+          conversationId,
+          orderId: String(vars.order_id ?? ''),
+          trackingNumber: String(vars.tracking_number ?? ''),
+          trackingCompany: String(vars.tracking_company ?? ''),
+        })
+        headerImageUrl = evidence.mediaUrl
+        photoDetail = `tracking evidence: ${evidence.validation.shipmentStatus}`
+      }
       const { whatsapp_message_id } = await engineSendTemplate({
         workspaceId: args.automation.workspace_id,
         conversationId,
@@ -1073,6 +1087,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         templateName: cfg.template_name,
         language: cfg.language,
         params,
+        headerImageUrl,
         buttonUrlParam,
         buttonUrlIndex,
         automationName: args.automation.name,

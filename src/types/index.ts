@@ -903,6 +903,8 @@ export interface SendMessageStepConfig {
 
 export interface SendTemplateStepConfig {
   template_name: string;
+  /** Captura el rastreo oficial, lo valida con visión y lo usa como header. */
+  tracking_evidence?: boolean;
   /** Order confirmation: separate item rows and exact Shopify variant photos. */
   purchase_confirmation?: boolean;
   language?: string;

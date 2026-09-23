@@ -81,6 +81,7 @@ export async function riverzFlowSkipReason(db: SupabaseClient, input: {
     if(kind==='shipped'){
       const fulfillment=(order.fulfillments??[]).find((f:Record<string,unknown>)=>f.status!=='cancelled'&&f.status!=='failure'&&f.status!=='error'&&(f.tracking_number||(Array.isArray(f.tracking_numbers)&&f.tracking_numbers.length)));
       input.vars.tracking_number=fulfillment?.tracking_number??fulfillment?.tracking_numbers?.[0]??'';
+      input.vars.tracking_company=fulfillment?.tracking_company??'';
     }
     return null;
   } catch {return 'order_state_unavailable';}

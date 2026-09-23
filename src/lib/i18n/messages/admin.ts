@@ -508,6 +508,10 @@ export const admin = {
     es: 'Marca envíos sin confirmar',
     en: 'Flags unconfirmed deliveries',
   },
+  cronTrackingEvidenceSetup: {
+    es: 'Activa el rastreo visual seguro',
+    en: 'Activates safe visual tracking',
+  },
   cronConversionRetry: {
     es: 'Reintenta las ventas que no le llegaron a Meta',
     en: "Retries sales that didn't reach Meta",

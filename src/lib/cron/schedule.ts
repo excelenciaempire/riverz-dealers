@@ -251,6 +251,13 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     schedule: '*/30 * * * *',
     retryOnFailure: true,
   },
+  {
+    name: 'tracking-evidence-setup',
+    whatKey: 'admin.cronTrackingEvidenceSetup',
+    path: '/api/cron/tracking-evidence-setup',
+    schedule: '*/15 * * * *',
+    retryOnFailure: true,
+  },
   // Las ventas del chat que no le llegaron a Meta. Casi todo lo que falla acá
   // se arregla solo o en un rato (un 500, la red, un token que el comercio
   // renueva), y sin reintento cada uno de esos ratos es una venta que el
