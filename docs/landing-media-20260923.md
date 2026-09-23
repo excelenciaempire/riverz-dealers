@@ -1,8 +1,9 @@
 # Landing media generation status
 
 The landing sections and all 13 feature cards were restored with ES/EN copy.
-Three reviewed Seedance clips now replace the sales, recovery and setup artwork.
-Campaigns and results retain their originals: the generated alternatives failed visual QA.
+The five original card animations are active. Three reviewed Seedance clips
+temporarily replaced sales, recovery and setup, then the owner requested their
+original animations back. The generation history below is retained for audit.
 
 Five Seedance 1.5 Pro generations were explicitly approved for a maximum of
 150 Riverz credits (30 each). All five were admitted, then failed with

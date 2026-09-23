@@ -16,25 +16,22 @@ describe('reviewed landing media', () => {
     expect(source).toContain('/portada-b/i-roas.webp');
   });
 
-  it('ships lightweight real animations with static fallbacks', async () => {
-    let total = 0;
-    for (const name of ['sales', 'recovery', 'setup']) {
-      const path = resolve(`public/portada-b/seedance-${name}.webp`);
-      total += statSync(path).size;
+  it('uses the original animated artwork in all five animated cards', async () => {
+    for (const name of ['vendedor', 'carritos', 'campanas', 'minutos', 'roas']) {
+      expect(source).toContain(`img: '/portada-b/i-${name}.jpg'`);
+      expect(source).toContain(`animation: '/portada-b/i-${name}.webp'`);
+      const path = resolve(`public/portada-b/i-${name}.webp`);
+      expect(statSync(path).size).toBeGreaterThan(0);
       const animated = await sharp(path, { animated: true }).metadata();
-      expect(animated.width).toBe(800);
-      expect(animated.pages).toBeGreaterThan(50);
-      const poster = await sharp(
-        resolve(`public/portada-b/seedance-${name}.jpg`)
-      ).metadata();
-      expect(poster.width).toBe(1200);
+      expect(animated.pages).toBeGreaterThan(1);
+      expect(statSync(resolve(`public/portada-b/i-${name}.gif`)).size).toBeGreaterThan(0);
     }
-    expect(total).toBeLessThan(2_000_000);
+    expect(source).not.toContain('seedance-');
   });
 
   it('preserves reduced motion and viewport loading', () => {
     expect(source).toContain('tile.animation && !reduced && cerca');
     expect(source).toContain('io.disconnect()');
-    expect(source).toMatch(/tile\.staticFallback\s*\?\s*tile\.img/);
+    expect(source).toContain("tile.animation.replace(/\\.webp$/, '.gif')");
   });
 });
