@@ -10,6 +10,10 @@
  */
 import { readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
+import {
+  DEUNA_TRACKING_REMINDER_DELAY_HOURS,
+  DEUNA_TRACKING_REMINDER_TEMPLATE,
+} from '../src/lib/automations/deuna-tracking-reminder'
 
 const WORKSPACE_ID = '36f81b96-41b9-4d29-b72e-11be3d3070a3'
 const PRODUCT_ID = '0c7b66dd-9b12-4deb-bf4f-303c9e3d81bd'
@@ -36,7 +40,6 @@ const siteBase = /^https:\/\//i.test(env.NEXT_PUBLIC_SITE_URL ?? '') &&
   ? env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, '')
   : 'https://riverz.co'
 const dynamicCheckoutButtonUrl = `${siteBase}/r/{{1}}`
-const dynamicTrackingButtonUrl = `${siteBase}/r/{{1}}`
 
 const productFaqs = [
   { q: '¿Cómo se usa el Saltarín LED?', a: 'Coloca ambos pies sobre la base, sujeta el mango y comienza con saltos cortos sobre una superficie plana y despejada. Se recomienda supervisión adulta.' },
@@ -140,14 +143,22 @@ Revisa los productos y la disponibilidad actual antes de terminar tu compra.`,
     buttons: [{ type: 'URL', text: 'Ver mi carrito', url: dynamicCheckoutButtonUrl, url_variable: 'abandoned_checkout' }],
   },
   {
-    name: 'deuna_pedido_despachado_v2', category: 'Utility', body: `¡Buenas noticias! Tu pedido {{1}} ya está en camino. 🚚✨
+    name: 'deuna_despachado_producto_v2', category: 'Utility', body: `¡Ya enviamos tu compra! 🚚
 
-Transportadora: {{2}}
-Guía: {{3}}
+{{1}}
 
-Pulsa el botón para seguir su recorrido. Si necesitas ayuda, escríbenos por aquí.`,
-    buttons: [{ type: 'URL', text: 'Rastrear mi pedido', url: dynamicTrackingButtonUrl, url_variable: 'tracking' }],
-    samples: ['#1004', 'Envía', '024034940186'], variable_fields: { '1': 'order_number', '2': 'tracking_company', '3': 'tracking_number' },
+Te dejo la guía para seguir el envío: {{2}}
+
+Si tienes alguna pregunta, me avisas por aquí 😊`,
+    samples: ['1 × Puma Suede XL (Negro / 41)', '240061839733'],
+    variable_fields: { '1': 'order_items', '2': 'tracking_number' },
+  },
+  {
+    name: DEUNA_TRACKING_REMINDER_TEMPLATE.name,
+    category: 'Utility',
+    body: DEUNA_TRACKING_REMINDER_TEMPLATE.body,
+    samples: [...DEUNA_TRACKING_REMINDER_TEMPLATE.samples],
+    variable_fields: { ...DEUNA_TRACKING_REMINDER_TEMPLATE.variableFields },
   },
   {
     name: 'deuna_pedido_entregado', category: 'Utility', body: `Tu pedido {{1}} aparece como entregado.
@@ -368,9 +379,15 @@ async function main() {
     {
       name: 'DeUNA Shop · Pedido despachado',
       description: 'Envía la guía cuando Shopify marca el pedido como preparado y despachado.',
-      trigger_type: 'shopify_order_fulfilled', steps: [template('deuna_pedido_despachado_v2', {
-        '1': '{{vars.order_number}}', '2': '{{vars.tracking_company}}', '3': '{{vars.tracking_number}}',
-      })],
+      trigger_type: 'shopify_order_fulfilled', steps: [
+        template('deuna_despachado_producto_v2', {
+          '1': '{{vars.order_items}}', '2': '{{vars.tracking_number}}',
+        }),
+        wait(DEUNA_TRACKING_REMINDER_DELAY_HOURS, 'hours'),
+        template(DEUNA_TRACKING_REMINDER_TEMPLATE.name, {
+          '1': '{{vars.recipient_name}}', '2': '{{vars.tracking_number}}',
+        }),
+      ],
     },
     {
       name: 'DeUNA Shop · Pedido entregado',
