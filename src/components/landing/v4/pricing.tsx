@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check } from 'lucide-react';
+import { ArrowUpRight, Check } from 'lucide-react';
 import { useFormat } from '@/hooks/use-format';
 import { useT } from '@/hooks/use-locale';
 import {
@@ -25,7 +25,6 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
   const fmt = useFormat();
   const [tierIndex, setTierIndex] = useState(0);
   const tier = tiers[tierIndex];
-  const progress = (tierIndex / (tiers.length - 1)) * 100;
   const customerLabel =
     tier.customers === null
       ? t('landingV4.pricingCustomVolume')
@@ -38,9 +37,9 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
       id="precios"
       className="sn-pricing-shell sn-full scroll-mt-24 px-5 py-16 lg:py-24"
     >
-      <div className="mx-auto max-w-6xl text-center">
+      <div className="mx-auto max-w-6xl">
         <Rise>
-          <h2 className="sn-display mx-auto max-w-[14ch]">
+          <h2 className="sn-display mx-auto max-w-[14ch] text-center">
             {t('landingV4.pricingTitleLead')}{' '}
             <span style={{ color: 'var(--sn-ink-2)' }}>
               {t('landingV4.pricingTitleMuted')}
@@ -49,31 +48,22 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
         </Rise>
 
         <Rise delay={90} className="mt-10 lg:mt-14">
-          <div className="sn-card mx-auto max-w-5xl px-5 py-8 sm:px-10 sm:py-10 lg:px-14 lg:py-12">
-            <p className="sn-label mb-7 text-center">
-              {tier.monthly === null
-                ? t('landingV4.pricingFreeSetup')
-                : t('landingV4.pricingOfferBadge', {
-                    percent: FIRST_MONTH_DISCOUNT_PERCENT,
-                  })}
-            </p>
-            <div className="mx-auto max-w-3xl">
-              <input
-                type="range"
-                min={0}
-                max={tiers.length - 1}
-                step={1}
-                value={tierIndex}
-                onChange={(event) => setTierIndex(Number(event.target.value))}
-                aria-label={t('landingV4.pricingVolumeLabel')}
-                aria-valuetext={customerLabel}
-                className="sn-pricing-range"
-                style={{
-                  background: `linear-gradient(to right, var(--sn-ink) 0%, var(--sn-ink) ${progress}%, var(--sn-line) ${progress}%, var(--sn-line) 100%)`,
-                }}
-              />
+          <div className="sn-card mx-auto max-w-5xl p-3 sm:p-4">
+            <div className="px-2 pt-4 pb-3 sm:px-4 sm:pt-5 sm:pb-4">
+              <div className="mb-4 flex items-end justify-between gap-4">
+                <p className="sn-label">{t('landingV4.pricingVolumeLabel')}</p>
+                <p
+                  className="hidden text-sm text-[var(--sn-ink-2)] sm:block"
+                  aria-live="polite"
+                >
+                  {customerLabel}
+                </p>
+              </div>
 
-              <div className="sn-pricing-tiers mt-3 grid grid-cols-5">
+              <div
+                className="sn-pricing-tiers grid grid-cols-5 gap-1.5"
+                aria-label={t('landingV4.pricingVolumeLabel')}
+              >
                 {tiers.map((option, index) => {
                   const label =
                     option.customers === null
@@ -81,18 +71,15 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
                       : option.customers < 1_000
                         ? fmt.number(option.customers)
                         : `${fmt.number(option.customers / 1_000)}k`;
+                  const selected = index === tierIndex;
+
                   return (
                     <button
                       key={option.customers ?? 'custom'}
                       type="button"
                       onClick={() => setTierIndex(index)}
-                      aria-pressed={index === tierIndex}
-                      className={`sn-label min-h-8 px-1 ${
-                        index === tierIndex
-                          ? 'underline underline-offset-4'
-                          : ''
-                      }`}
-                      style={{ textTransform: 'none' }}
+                      aria-pressed={selected}
+                      className="sn-pricing-tier"
                       aria-label={
                         option.customers === null
                           ? t('landingV4.pricingCustomVolume')
@@ -101,99 +88,117 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
                             })
                       }
                     >
-                      {label}
+                      <span>{label}</span>
                     </button>
                   );
                 })}
               </div>
+              <p className="mt-3 text-center text-xs text-[var(--sn-ink-2)] sm:hidden">
+                {customerLabel}
+              </p>
             </div>
 
-            <div className="mx-auto mt-9 max-w-3xl text-left">
-              <p className="sn-label text-center">{customerLabel}</p>
-
-              {tier.monthly === null ? (
-                <div className="mt-5 rounded-[22px] bg-[var(--sn-accent)] px-6 py-8 text-center sm:px-9">
-                  <p className="sn-h2">{t('landingV4.pricingCustomPrice')}</p>
-                </div>
-              ) : (
-                <div className="mt-5 grid overflow-hidden rounded-[22px] sm:grid-cols-2">
-                  <div className="bg-[var(--sn-accent)] px-6 py-7 sm:px-9 sm:py-8">
-                    <p className="sn-label">
-                      {t('landingV4.pricingFirstMonth')}
+            <div className="grid overflow-hidden rounded-[22px] lg:grid-cols-[1.18fr_0.82fr]">
+              <div className="sn-pricing-plan relative flex min-h-[430px] flex-col p-6 sm:p-9 lg:p-11">
+                {tier.monthly === null ? (
+                  <>
+                    <p className="sn-label relative z-10 text-[var(--sn-card)]/70!">
+                      {customerLabel}
                     </p>
-                    <p className="sn-pricing-amount mt-4 font-[family-name:var(--font-editorial)] leading-none tracking-[-0.04em]">
-                      {fmt.money(
-                        firstMonthCents(tier.monthly * 100) / 100,
-                        'USD'
-                      )}
+                    <p className="sn-pricing-amount relative z-10 mt-8 font-[family-name:var(--font-editorial)] leading-none tracking-[-0.04em] text-[var(--sn-card)]">
+                      {t('landingV4.pricingCustomPrice')}
                     </p>
-                  </div>
-                  <div className="bg-[var(--sn-sand)] px-6 py-7 sm:px-9 sm:py-8">
-                    <p className="sn-label">
-                      {t('landingV4.pricingFromSecondMonth')}
+                    <p className="relative z-10 mt-5 max-w-sm text-sm leading-6 text-[var(--sn-card)]/72">
+                      {t('landingV4.pricingCustomSetupTerms')}
                     </p>
-                    <p className="mt-4 flex items-baseline gap-2 font-[family-name:var(--font-editorial)] text-[clamp(36px,6vw,52px)] leading-none tracking-[-0.03em]">
-                      <span>{fmt.money(tier.monthly, 'USD')}</span>
-                      <span className="font-[family-name:var(--font-grotesk)] text-sm font-normal tracking-normal text-[var(--sn-ink-2)]">
-                        {t('landingV4.pricingPerMonth')}
-                      </span>
-                    </p>
-                    {tier.customers !== null && (
-                      <p className="mt-4 text-[13px] leading-5 text-[var(--sn-ink-2)]">
-                        {t('landingV4.pricingPerContact', {
-                          amount: fmt.number(
-                            Math.round((tier.monthly * 100) / tier.customers)
-                          ),
+                  </>
+                ) : (
+                  <>
+                    <div className="relative z-10 flex flex-wrap gap-2">
+                      <span className="sn-pricing-badge">
+                        {t('landingV4.pricingOfferBadge', {
+                          percent: FIRST_MONTH_DISCOUNT_PERCENT,
                         })}
+                      </span>
+                      <span className="sn-pricing-badge sn-pricing-badge-muted">
+                        {t('landingV4.pricingFreeSetup')}
+                      </span>
+                    </div>
+
+                    <div className="relative z-10 mt-8">
+                      <p className="sn-label text-[var(--sn-card)]/70!">
+                        {t('landingV4.pricingFirstMonth')}
                       </p>
-                    )}
-                  </div>
-                </div>
-              )}
+                      <p className="sn-pricing-amount mt-2 font-[family-name:var(--font-editorial)] leading-none tracking-[-0.05em] text-[var(--sn-card)]">
+                        {fmt.money(
+                          firstMonthCents(tier.monthly * 100) / 100,
+                          'USD'
+                        )}
+                      </p>
+                    </div>
 
-              <div className="mt-4 flex items-start gap-3 rounded-2xl bg-[var(--sn-sand)] px-5 py-4 text-sm leading-6 text-[var(--sn-ink-2)] sm:px-6">
-                <Check
-                  className="mt-1 size-4 shrink-0 text-[var(--sn-ink)]"
-                  aria-hidden
-                />
-                <p>
-                  {t(
-                    tier.monthly === null
-                      ? 'landingV4.pricingCustomSetupTerms'
-                      : 'landingV4.pricingSetupTerms'
+                    <div className="relative z-10 mt-6 border-t border-white/15 pt-5 text-[var(--sn-card)]">
+                      <p className="text-sm text-[var(--sn-card)]/65">
+                        {t('landingV4.pricingFromSecondMonth')}
+                      </p>
+                      <p className="mt-1 flex items-baseline gap-2">
+                        <span className="font-[family-name:var(--font-editorial)] text-3xl tracking-[-0.03em]">
+                          {fmt.money(tier.monthly, 'USD')}
+                        </span>
+                        <span className="text-sm text-[var(--sn-card)]/65">
+                          {t('landingV4.pricingPerMonth')}
+                        </span>
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                <div className="relative z-10 mt-auto pt-8">
+                  {tier.monthly !== null && (
+                    <p className="mb-5 flex items-start gap-2.5 text-sm leading-5 text-[var(--sn-card)]/72">
+                      <Check className="mt-0.5 size-4 shrink-0" aria-hidden />
+                      <span>{t('landingV4.pricingSetupTerms')}</span>
+                    </p>
                   )}
-                </p>
+                  <a href="#acceso" className="sn-pricing-cta group">
+                    <span>{t('landingV4.pricingCta')}</span>
+                    <ArrowUpRight
+                      className="size-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                      aria-hidden
+                    />
+                  </a>
+                </div>
               </div>
-            </div>
 
-            <div
-              id="pricing-details"
-              className="mx-auto mt-8 max-w-3xl border-t pt-7 text-left"
-              style={{ borderColor: 'var(--sn-line)' }}
-            >
-              <p className="sn-label text-center">
-                {t('landingV4.pricingEverythingIncluded')}
-              </p>
-              <ul className="mt-5 grid gap-x-8 gap-y-3 sm:grid-cols-2">
-                {INCLUDED.map((key) => (
-                  <li
-                    key={key}
-                    className="flex items-start gap-3 text-[15px] leading-6"
-                  >
-                    <Check className="mt-1 size-4 shrink-0" aria-hidden />
-                    <span>{t(`landingV4.${key}`)}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-6 text-center text-[13px] leading-5 text-[var(--sn-ink-2)]">
-                {t('landingV4.pricingDetailsNote')}
-              </p>
-              <a
-                href="#acceso"
-                className="sn-pill mx-auto mt-7 w-full sm:w-fit"
-              >
-                {t('landingV4.pricingCta')}
-              </a>
+              <div className="bg-[var(--sn-sand)] p-6 sm:p-9 lg:p-11">
+                <p className="sn-label">
+                  {t('landingV4.pricingEverythingIncluded')}
+                </p>
+                <ul className="mt-6 divide-y divide-[var(--sn-line)]">
+                  {INCLUDED.map((key) => (
+                    <li
+                      key={key}
+                      className="flex items-start gap-3 py-3.5 text-[15px] leading-5 first:pt-0"
+                    >
+                      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--sn-accent)]">
+                        <Check
+                          className="size-3"
+                          strokeWidth={2.5}
+                          aria-hidden
+                        />
+                      </span>
+                      <span>{t(`landingV4.${key}`)}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <details className="sn-pricing-details mt-5 border-t border-[var(--sn-line)] pt-5">
+                  <summary>{t('landingV4.pricingDetailsSummary')}</summary>
+                  <p className="mt-3 text-xs leading-5 text-[var(--sn-ink-2)]">
+                    {t('landingV4.pricingDetailsNote')}
+                  </p>
+                </details>
+              </div>
             </div>
           </div>
         </Rise>

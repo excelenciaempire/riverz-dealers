@@ -377,29 +377,29 @@ export const landingV4 = {
   pricingTitleLead: { es: 'Todo Riverz.', en: 'All of Riverz.' },
   pricingTitleMuted: { es: 'Un precio simple.', en: 'One simple price.' },
   pricingVolumeLabel: {
-    es: 'Contactos atendidos al mes',
-    en: 'Contacts served per month',
+    es: 'Contactos al mes',
+    en: 'Monthly contacts',
   },
   pricingUpToCustomers: {
-    es: 'Hasta {count} contactos atendidos al mes',
-    en: 'Up to {count} contacts served per month',
+    es: 'Hasta {count} contactos al mes',
+    en: 'Up to {count} contacts per month',
   },
   pricingCustomVolume: {
-    es: 'Más de 10.000 contactos atendidos al mes',
-    en: 'More than 10,000 contacts served per month',
+    es: 'Más de 10.000 contactos al mes',
+    en: 'More than 10,000 contacts per month',
   },
   pricingTierMore: { es: '10k+', en: '10k+' },
   pricingPerMonth: { es: 'al mes', en: 'per month' },
   pricingFreeSetup: { es: 'Instalación gratis', en: 'Free setup' },
   pricingOfferBadge: {
-    es: 'Instalación gratis · {percent} % de descuento el primer mes',
-    en: 'Free setup · {percent}% off the first month',
+    es: '{percent} % menos el primer mes',
+    en: '{percent}% off the first month',
   },
   pricingFirstMonth: { es: 'Primer mes', en: 'First month' },
   pricingFromSecondMonth: { es: 'Desde el segundo mes', en: 'From month two' },
   pricingSetupTerms: {
-    es: 'Lo configuramos contigo. Apruebas el sistema antes de pagar el primer mes.',
-    en: 'We set it up with you. You approve the system before paying for the first month.',
+    es: 'Lo configuramos contigo. Apruebas antes de pagar.',
+    en: 'We set it up with you. Approve it before paying.',
   },
   pricingCustomSetupTerms: {
     es: 'Definimos el precio según tu volumen antes de activar el plan.',
@@ -443,6 +443,10 @@ export const landingV4 = {
   pricingDetailsNote: {
     es: 'Cada persona cuenta una vez por período si la IA le responde. Entre canales se une solo con identidad verificada. Sin excedentes automáticos. Mensajería y telefonía de terceros aparte.',
     en: 'Each person counts once per period if AI replies. Cross-channel contacts merge only with verified identity. No automatic overages. Third-party messaging and telephony are separate.',
+  },
+  pricingDetailsSummary: {
+    es: 'Cómo se cuentan los contactos',
+    en: 'How contacts are counted',
   },
   roiTitle: {
     es: 'Calcula el retorno posible',
