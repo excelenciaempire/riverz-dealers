@@ -270,6 +270,28 @@ describe("sendInteractiveList — validation", () => {
 });
 
 describe("sendTemplateMessage — dynamic URL button", () => {
+  it('normalizes multiline body parameters before sending them to Meta', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ messages: [{ id: 'wamid.SAFE' }] })),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await sendTemplateMessage({
+      phoneNumberId: 'test',
+      accessToken: 'test',
+      to: '1234567890',
+      templateName: 'tracking',
+      language: 'es',
+      params: ['1 × Puma Negro / 41\n\n1 × Puma Blanco / 41', '240061839733'],
+    })
+
+    const payload = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
+    expect(payload.template.components[0].parameters).toEqual([
+      { type: 'text', text: '1 × Puma Negro / 41 · 1 × Puma Blanco / 41' },
+      { type: 'text', text: '240061839733' },
+    ])
+  })
+
   it('sends body values and multiple URL buttons with their original indexes', async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ messages: [{ id: 'wamid.NEW' }] })));
     vi.stubGlobal('fetch', fetchMock);

@@ -22,6 +22,7 @@ import {
   displayCarrierName,
   resolveCarrierTrackingUrl,
 } from '@/lib/shopify/carrier-tracking';
+import { shouldAnnounceTrackingNumber } from '@/lib/shopify/tracking-notice';
 import { isDuplicateDelivery } from '@/lib/shopify/webhook-dedup';
 import { captureWebhookFailure } from '@/lib/webhooks/capture';
 import { getAdapter } from '@/lib/channels/registry';
@@ -317,6 +318,10 @@ export async function POST(request: Request) {
                 }
               | undefined)
           : null;
+        const trackingReady = shouldAnnounceTrackingNumber(
+          trackingNumber,
+          previousLogistics?.tracking_number,
+        );
         // Una actualización puede traer VARIAS transiciones a la vez: Shopify
         // manda un solo `orders/updated` cuando alguien marca pagado y
         // despacha en el mismo movimiento, que es exactamente lo que hace
@@ -335,7 +340,11 @@ export async function POST(request: Request) {
         } else {
           if (row?.transitioned_to_paid)
             triggerTypes.push('shopify_order_paid');
-          if (row?.transitioned_to_fulfilled)
+          // Dropi publica la guía mientras todavía figura «preparado para
+          // transportadora». Eso ya alcanza para que el cliente la siga. Al
+          // pasar luego a fulfilled, previousLogistics contiene la misma guía
+          // y no se repite el mensaje.
+          if (trackingReady)
             triggerTypes.push('shopify_order_fulfilled');
           if (row?.transitioned_to_delivered)
             triggerTypes.push('shopify_order_delivered');

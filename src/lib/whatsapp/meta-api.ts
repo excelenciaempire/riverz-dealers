@@ -219,6 +219,15 @@ export interface SendTemplateMessageArgs {
   contextMessageId?: string
 }
 
+/** Meta rejects template text parameters containing line breaks or tabs. */
+export function sanitizeTemplateTextParameter(value: unknown): string {
+  return String(value ?? '')
+    .replace(/\s*\r?\n\s*/g, ' · ')
+    .replace(/\t/g, ' ')
+    .replace(/ {4,}/g, '   ')
+    .trim()
+}
+
 /**
  * Send a pre-approved WhatsApp message template. Required outside
  * the 24-hour window and for any first-touch messaging.
@@ -252,7 +261,10 @@ export async function sendTemplateMessage(
   if (params && params.length > 0) {
     components.push({
       type: 'body',
-      parameters: params.map((p) => ({ type: 'text', text: String(p) })),
+      parameters: params.map((p) => ({
+        type: 'text',
+        text: sanitizeTemplateTextParameter(p),
+      })),
     })
   }
   for (const button of buttonUrlParams ?? (buttonUrlParam ? [{ index: buttonUrlIndex, text: buttonUrlParam }] : [])) {
@@ -262,7 +274,9 @@ export async function sendTemplateMessage(
       type: 'button',
       sub_type: 'url',
       index: String(button.index),
-      parameters: [{ type: 'text', text: button.text }],
+      parameters: [
+        { type: 'text', text: sanitizeTemplateTextParameter(button.text) },
+      ],
     })
   }
   if (components.length > 0) {
