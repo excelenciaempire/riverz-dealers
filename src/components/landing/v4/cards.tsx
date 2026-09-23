@@ -59,12 +59,8 @@ type Tile = {
   /** La ilustración y su proporción, generada a esa misma medida. */
   img: string;
   ratio: string;
-  /**
-   * Las cuatro que se animan. La imagen sigue existiendo y hace de cartel: es
-   * lo que se ve mientras el video no cargó, y lo único que se ve si la
-   * persona pidió menos movimiento.
-   */
-  video?: string;
+  /** Animación sin controles de video, compatible con Safari en ahorro de energía. */
+  animation?: string;
 };
 
 const TILES: Tile[] = [
@@ -72,7 +68,7 @@ const TILES: Tile[] = [
     key: "sec01",
     img: "/portada-b/i-vendedor.jpg",
     ratio: "16 / 9",
-    video: "/portada-b/i-vendedor.mp4",
+    animation: "/portada-b/i-vendedor.webp",
     title: "landing.sec01Title",
     muted: "landing.sec01TitleMuted",
     body: "landing.sec01Body",
@@ -93,7 +89,7 @@ const TILES: Tile[] = [
     key: "sec02",
     img: "/portada-b/i-carritos.jpg",
     ratio: "4 / 3",
-    video: "/portada-b/i-carritos.mp4",
+    animation: "/portada-b/i-carritos.webp",
     title: "landing.sec02Title",
     muted: "landing.sec02TitleMuted",
     body: "landing.sec02Body",
@@ -134,7 +130,7 @@ const TILES: Tile[] = [
     key: "sec06",
     img: "/portada-b/i-campanas.jpg",
     ratio: "16 / 9",
-    video: "/portada-b/i-campanas.mp4",
+    animation: "/portada-b/i-campanas.webp",
     title: "landing.sec06Title",
     muted: "landing.sec06TitleMuted",
     body: "landing.sec06Body",
@@ -175,7 +171,7 @@ const TILES: Tile[] = [
     key: "sec09",
     img: "/portada-b/i-minutos.jpg",
     ratio: "4 / 3",
-    video: "/portada-b/i-minutos.mp4",
+    animation: "/portada-b/i-minutos.webp",
     title: "landing.sec09Title",
     muted: "landing.sec09TitleMuted",
     body: "landing.sec09Body",
@@ -196,7 +192,7 @@ const TILES: Tile[] = [
     key: "sec10",
     img: "/portada-b/i-roas.jpg",
     ratio: "16 / 9",
-    video: "/portada-b/i-roas.mp4",
+    animation: "/portada-b/i-roas.webp",
     title: "landing.sec10Title",
     muted: "landing.sec10TitleMuted",
     body: "landing.sec10Body",
@@ -253,49 +249,39 @@ export function Cards() {
 }
 
 /**
- * La pieza de abajo de cada ficha: imagen siempre, video cuando lo hay.
+ * La pieza de abajo de cada ficha: imagen siempre, animación cuando la hay.
  *
- * El video no se descarga hasta que la ficha se acerca a la pantalla. Con
- * cuatro clips en una página de doce mil píxeles, cargarlos todos de entrada
- * serían varios megas que nadie va a ver nunca: el que entra por el hero y se
- * va a los diez segundos no llegó ni a la tercera fila.
+ * El WebP animado no se descarga hasta que la ficha se acerca a la pantalla.
+ * Safari puede bloquear el autoplay de un MP4 en ahorro de energía y mostrar
+ * un botón de reproducción encima de la ilustración. Las imágenes animadas
+ * se reproducen directamente en todos los navegadores modernos.
  *
- * Y se pausa al salir de pantalla. Cuatro videos en bucle decodificando a la
- * vez calientan un teléfono de gama media aunque no se vean.
- *
- * `prefers-reduced-motion` deja la imagen quieta y no baja el video.
+ * Al alejarse se desmonta para evitar animaciones fuera de pantalla. La imagen
+ * fija queda de fondo durante la carga y cuando se prefiere menos movimiento.
  */
 function Ilustracion({ tile }: { tile: Tile }) {
   const reduced = useReducedMotion();
   const caja = useRef<HTMLDivElement>(null);
-  const video = useRef<HTMLVideoElement>(null);
-  // `cerca` no vuelve a false nunca: una vez bajado, el clip se queda.
   const [cerca, setCerca] = useState(false);
-  const [aLaVista, setALaVista] = useState(false);
 
   useEffect(() => {
     const el = caja.current;
-    if (!el || !tile.video || reduced) return;
+    if (!el || !tile.animation || reduced) return;
+
+    if (!("IntersectionObserver" in window)) {
+      const frame = requestAnimationFrame(() => setCerca(true));
+      return () => cancelAnimationFrame(frame);
+    }
 
     const io = new IntersectionObserver(
       ([e]) => {
-        setALaVista(e.isIntersecting);
-        if (e.isIntersecting) setCerca(true);
+        setCerca(e.isIntersecting);
       },
       { rootMargin: "300px 0px" },
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [tile.video, reduced]);
-
-  // Aparte del observador a proposito: este efecto corre DESPUES de que el
-  // <video> exista, que es lo que el observador no puede garantizar.
-  useEffect(() => {
-    const v = video.current;
-    if (!v) return;
-    if (aLaVista) void v.play().catch(() => {});
-    else v.pause();
-  }, [aLaVista, cerca]);
+  }, [tile.animation, reduced]);
 
   return (
     <div
@@ -311,16 +297,14 @@ function Ilustracion({ tile }: { tile: Tile }) {
         className="object-cover"
         aria-hidden
       />
-      {tile.video && !reduced && cerca && (
-        <video
-          ref={video}
-          src={tile.video}
-          poster={tile.img}
-          muted
-          loop
-          playsInline
-          autoPlay
-          preload="auto"
+      {tile.animation && !reduced && cerca && (
+        <Image
+          src={tile.animation}
+          alt=""
+          fill
+          unoptimized
+          loading="eager"
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 40vw"
           aria-hidden
           className="absolute inset-0 size-full object-cover"
         />
