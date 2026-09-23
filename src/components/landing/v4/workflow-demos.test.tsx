@@ -29,6 +29,10 @@ import {
 } from './workflow-videos';
 
 describe('workflow demonstrations', () => {
+  it('does not add an example label above Operator', () => {
+    const source = readFileSync('src/components/landing/v4/operator.tsx', 'utf8');
+    expect(source).not.toContain('landingV4.demoLabel');
+  });
   for (const locale of ['es', 'en'] as const) {
     it(`renders all five readable demos on the server in ${locale}`, () => {
       current.locale = locale;

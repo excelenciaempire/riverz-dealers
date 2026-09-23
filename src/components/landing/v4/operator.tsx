@@ -122,12 +122,6 @@ export function Operator() {
         <div className="relative mx-auto w-full max-w-6xl px-5 py-20 lg:py-0">
           <div className="grid items-center gap-12 lg:grid-cols-[0.82fr_1.18fr] lg:gap-16">
             <div>
-              <p
-                className="sn-label mb-4"
-                style={{ color: 'var(--sn-accent)' }}
-              >
-                {t('landingV4.demoLabel')}
-              </p>
               <h2
                 className="sn-h2 max-w-[14ch]"
                 style={{ color: 'var(--sn-card)' }}
