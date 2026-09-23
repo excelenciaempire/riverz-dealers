@@ -60,6 +60,7 @@ import { assignedTemplateVariant, recordExperimentExposure } from './template-ab
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { requireRiverzoficialTemplateItems } from './riverzoficial-template-context'
 import { riverzFlowSkipReason } from './riverzoficial-context-gate'
+import { supersededCancellationReason } from './order-event-guard'
 
 // ------------------------------------------------------------
 // Public API
@@ -105,6 +106,18 @@ export interface DispatchInput {
 export async function runAutomationsForTrigger(input: DispatchInput): Promise<void> {
   try {
     const db = supabaseAdmin()
+
+    if (input.triggerType === 'shopify_order_cancelled') {
+      const cancellationSkip = await supersededCancellationReason(db, {
+        workspaceId: input.workspaceId,
+        contactId: input.contactId,
+        orderId: String(input.context?.vars?.order_id ?? ''),
+      })
+      if (cancellationSkip) {
+        console.log('[automations] cancelled order skipped:', cancellationSkip)
+        return
+      }
+    }
 
     // Una compra gana sobre el carrito. Cancelamos la espera de recuperación
     // antes de evaluar el pedido nuevo, para que el cron no alcance a mandar
