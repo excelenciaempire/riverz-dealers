@@ -2,6 +2,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { landingV4 } from '@/lib/i18n/messages/landingV4';
 
 const current = vi.hoisted(() => ({ locale: 'es' as 'es' | 'en' }));
@@ -40,11 +41,12 @@ describe('workflow demonstrations', () => {
       ]) {
         const html = renderToStaticMarkup(<Demo />);
         expect(html).toContain(landingV4.videoPlay[locale]);
-        expect(html).toContain(landingV4.mascotIllustration[locale]);
+        expect(html).toContain(landingV4.chatCreativeLabel[locale]);
         expect(html).toContain('preload="none"');
         expect(html).toContain('<video');
-        expect(html).toContain('.jpg');
-        expect(html).toContain('workflow-mascot-');
+        expect(html).toContain(`-${locale}.jpg`);
+        expect(html).toContain('workflow-chat-v2-');
+        expect(html).not.toContain('workflow-mascot-');
         expect(html).not.toContain('workflow-ui-');
         expect(html).not.toContain('src="');
         expect(html).not.toContain('landingV4.');
@@ -76,6 +78,7 @@ describe('workflow demonstrations', () => {
     expect(source).not.toContain('setInterval');
   });
   it('ships all five compact clips and static poster fallbacks', () => {
+    const hashes = new Set<string>();
     for (const scene of [
       'conversation',
       'context',
@@ -83,14 +86,18 @@ describe('workflow demonstrations', () => {
       'order',
       'results',
     ]) {
-      const video = readFileSync(
-        `public/portada-b/workflow-mascot-${scene}.mp4`
-      );
-      expect(video.subarray(4, 8).toString()).toBe('ftyp');
-      expect(video.byteLength).toBeLessThan(2_000_000);
-      expect(
-        readFileSync(`public/portada-b/workflow-mascot-${scene}.jpg`).byteLength
-      ).toBeGreaterThan(1000);
+      for (const lang of ['es', 'en']) {
+        const video = readFileSync(
+          `public/portada-b/workflow-chat-v2-${scene}-${lang}.mp4`
+        );
+        expect(video.subarray(4, 8).toString()).toBe('ftyp');
+        hashes.add(createHash('sha256').update(video).digest('hex'));
+        expect(video.byteLength).toBeLessThan(2_000_000);
+        expect(
+          readFileSync(`public/portada-b/workflow-chat-v2-${scene}-${lang}.jpg`).byteLength
+        ).toBeGreaterThan(1000);
+      }
     }
+    expect(hashes.size).toBe(10);
   });
 });

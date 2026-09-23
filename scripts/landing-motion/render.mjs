@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process';
 import { writeFile, copyFile, stat, readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 const root = resolve(process.argv[2] || 'C:/tmp/riverz-ui-films');
+const prefix = process.argv[3] || 'workflow-ui';
+const posterTime = process.argv[4] || '7';
 const ff = process.env.FFMPEG_PATH || 'ffmpeg';
 const cache = resolve(process.env.LOCALAPPDATA, 'npm-cache/_npx');
 let cli;
@@ -44,7 +46,7 @@ for (const lang of ['es', 'en'])
       file = resolve(root, name + '.mp4');
     const command = (args, log) => run(process.execPath, [cli, ...args], log);
     await command(
-      ['check', dir, '--at', '1,3,5,7', '--snapshots', '--json'],
+      ['check', dir, '--at', '1,3,5,7,' + posterTime, '--snapshots', '--json'],
       name + '-check.log'
     );
     console.log('CHECK OK', name);
@@ -63,7 +65,7 @@ for (const lang of ['es', 'en'])
         ],
         name + '-render.log'
       );
-    const target = resolve('public/portada-b/workflow-ui-' + name);
+    const target = resolve('public/portada-b/' + prefix + '-' + name);
     await copyFile(file, target + '.mp4');
     await run(
       ff,
@@ -72,7 +74,7 @@ for (const lang of ['es', 'en'])
         '-loglevel',
         'error',
         '-ss',
-        '7',
+        posterTime,
         '-i',
         file,
         '-frames:v',

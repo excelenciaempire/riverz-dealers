@@ -223,14 +223,16 @@ const nextConfig: NextConfig = {
             },
           ]),
       // ── Las excepciones, al final para que ganen ─────────────────
-      {
-        // Nombres con hash de contenido: un build nuevo produce archivos
-        // nuevos, así que los viejos se pueden guardar para siempre.
-        source: "/_next/static/:path*",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
-      },
+      // Dev chunks reuse their URLs. Caching them as immutable rehydrates new
+      // HTML with old UI code; only production's hashed assets are immutable.
+      ...(process.env.NODE_ENV === "production"
+        ? [{
+            source: "/_next/static/:path*",
+            headers: [
+              { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+            ],
+          }]
+        : []),
       {
         // Toda respuesta de API es de UNA persona y no se comparte jamás.
         source: "/api/:path*",

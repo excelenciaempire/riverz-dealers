@@ -99,10 +99,10 @@
 }
 .sn-hero-banner-image {
   display: block;
-  width: 166.667%;
+  width: 153.846%;
   max-width: none;
   height: auto;
-  transform: translateX(-40%);
+  transform: translateX(-35%);
 }
 .sn-hero-team-labels {
   position: relative;
@@ -121,7 +121,7 @@
   }
   .sn-hero-description { margin-inline: 0; }
   .sn-hero-art { position: absolute; inset: 0 0 0 auto; width: 52%; max-width: none; }
-  .sn-hero-banner-image { width: 166.667%; height: 100%; object-fit: cover; }
+  .sn-hero-banner-image { width: 153.846%; height: 100%; object-fit: contain; }
   .sn-hero-team-labels { position: absolute; right: 0; bottom: 8px; width: 47%; margin: 0; }
 }
 @media (max-width: 379px) {

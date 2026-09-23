@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Pause, Play, RotateCcw } from 'lucide-react';
-import { useT } from '@/hooks/use-locale';
+import { useLocale, useT } from '@/hooks/use-locale';
 import './workflow-videos.css';
 
 const SCENES = {
@@ -25,20 +25,24 @@ const SCENES = {
   },
 } as const;
 
-/** Text-free mascot films; labels remain live bilingual HTML. */
+/** Localized chat films remount on language changes to reset playback. */
 export function WorkflowVideo({ scene }: { scene: keyof typeof SCENES }) {
+  const { locale } = useLocale();
   return (
     <WorkflowVideoPlayer
-      key={scene}
+      key={`${scene}-${locale}`}
       scene={scene}
+      locale={locale}
     />
   );
 }
 
 function WorkflowVideoPlayer({
   scene,
+  locale,
 }: {
   scene: keyof typeof SCENES;
+  locale: 'es' | 'en';
 }) {
   const t = useT();
   const root = useRef<HTMLElement>(null);
@@ -51,7 +55,7 @@ function WorkflowVideoPlayer({
   const [ended, setEnded] = useState(false);
   const [failed, setFailed] = useState(false);
   const content = SCENES[scene];
-  const mediaPath = `/portada-b/workflow-mascot-${scene}`;
+  const mediaPath = `/portada-b/workflow-chat-v2-${scene}-${locale}`;
 
   useEffect(() => {
     const el = video.current;
@@ -189,7 +193,7 @@ function WorkflowVideoPlayer({
       </div>
       <figcaption className="rz-film-caption">
         <span className="sr-only">{t(content.title)}. {t(content.detail)}</span>
-        <span className="rz-film-note">{t('landingV4.mascotIllustration')}</span>
+        <span className="rz-film-note">{t('landingV4.chatCreativeLabel')}</span>
       </figcaption>
     </figure>
   );
