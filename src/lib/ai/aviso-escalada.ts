@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Channel } from '@/types';
 import type { Escalada } from './escalada';
+import type { Locale } from '@/lib/i18n/config';
+import { localeDeCuenta } from '@/lib/i18n/cuenta';
+import { translate } from '@/lib/i18n/translate';
+import { compactarConversationId } from '@/lib/avisos/enlace-conversacion';
 
 /**
  * EL AVISO POR WHATSAPP CUANDO UN CASO NECESITA UNA PERSONA.
@@ -41,15 +45,30 @@ const CANALES: Record<string, string> = {
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
   messenger: 'Messenger',
-  ig_comment: 'un comentario de Instagram',
-  fb_comment: 'un comentario de Facebook',
-  tiktok_comment: 'un comentario de TikTok',
+  ig_comment: 'Instagram',
+  fb_comment: 'Facebook',
+  tiktok_comment: 'TikTok',
   mercadolibre: 'Mercado Libre',
-  webchat: 'el chat de la web',
-  gmail: 'correo',
-  outlook: 'correo',
-  voice: 'una llamada',
+  webchat: 'Webchat',
+  gmail: 'Gmail',
+  outlook: 'Outlook',
+  voice: 'Voice',
 };
+
+function limpiarFrase(valor: string): string {
+  return valor
+    .replace(/\s+/g, ' ')
+    .replace(/[\s.,;:·]+$/g, '')
+    .trim();
+}
+
+function resumenDelMensaje(valor: string, locale: Locale): string {
+  const limpio = limpiarFrase(valor).slice(0, 180);
+  if (/^\[(imagen|image)\]$/i.test(limpio)) {
+    return translate(locale, 'settings.avisoEscaladaImagen');
+  }
+  return limpio;
+}
 
 /**
  * El texto del aviso.
@@ -62,30 +81,53 @@ const CANALES: Record<string, string> = {
  * Las líneas que no tienen dato NO se escriben: un aviso con "Pedido: —" gasta
  * un renglón en decir que no sabe.
  */
-export function textoDelAviso(d: DatosDelCaso): { titulo: string; cuerpo: string } {
-  const nombre = (d.cliente ?? '').trim() || 'Un cliente';
+export function textoDelAviso(
+  d: DatosDelCaso,
+  locale: Locale = 'es'
+): { titulo: string; cuerpo: string } {
+  const nombre =
+    (d.cliente ?? '').trim() ||
+    translate(locale, 'settings.avisoEscaladaCliente');
   const canal = CANALES[String(d.canal)] ?? String(d.canal);
   const urgente = d.escalada.urgencia === 'ahora';
 
-  const titulo = urgente
-    ? `${nombre} necesita que alguien entre ahora`
-    : `${nombre} necesita que alguien la atienda`;
+  const titulo = translate(
+    locale,
+    urgente
+      ? 'settings.avisoEscaladaUrgenteTitulo'
+      : 'settings.avisoEscaladaTitulo',
+    { cliente: nombre }
+  );
 
   const cuerpo = [
-    `Qué pasa: ${d.escalada.porQue}.`,
-    `Escribe por ${canal}${d.contacto ? ` (${d.contacto})` : ''}.`,
+    translate(locale, 'settings.avisoEscaladaMotivo', {
+      motivo: limpiarFrase(d.escalada.porQue),
+    }),
+    translate(locale, 'settings.avisoEscaladaCanal', {
+      canal,
+      contacto: d.contacto ? ` · ${d.contacto}` : '',
+    }),
     d.ultimoMensaje?.trim()
-      ? `Sus palabras: "${d.ultimoMensaje.trim().replace(/\s+/g, ' ').slice(0, 220)}"`
+      ? translate(locale, 'settings.avisoEscaladaUltimoMensaje', {
+          mensaje: resumenDelMensaje(d.ultimoMensaje, locale),
+        })
       : null,
     d.pedido?.numero
-      ? `Pedido ${d.pedido.numero}${d.pedido.estado ? ` · ${d.pedido.estado}` : ''}.`
+      ? translate(locale, 'settings.avisoEscaladaPedido', {
+          pedido: d.pedido.numero,
+          estado: d.pedido.estado ? ` · ${d.pedido.estado}` : '',
+        })
       : null,
     typeof d.esperandoHoras === 'number' && d.esperandoHoras >= 1
-      ? `Viene esperando hace ${Math.round(d.esperandoHoras)} h.`
+      ? translate(locale, 'settings.avisoEscaladaEspera', {
+          horas: Math.round(d.esperandoHoras),
+        })
       : null,
     '',
-    `Abrí la conversación: ${enlaceDelHilo(d.conversationId)}`,
-    'El asistente ya dejó de contestarle: lo que escribas vos es lo próximo que lee.',
+    translate(locale, 'settings.avisoEscaladaAbrir', {
+      enlace: enlaceDelHilo(d.conversationId),
+    }),
+    translate(locale, 'settings.avisoEscaladaPausa'),
   ]
     .filter((l) => l !== null)
     .join('\n');
@@ -95,7 +137,8 @@ export function textoDelAviso(d: DatosDelCaso): { titulo: string; cuerpo: string
 
 function enlaceDelHilo(conversationId: string): string {
   const base = process.env.NEXT_PUBLIC_SITE_URL || 'https://riverz.co';
-  return `${base}/bandeja?c=${conversationId}`;
+  const token = compactarConversationId(conversationId);
+  return token ? `${base}/i/${token}` : `${base}/bandeja?c=${conversationId}`;
 }
 
 /**
@@ -125,14 +168,17 @@ function enlaceDelHilo(conversationId: string): string {
  */
 export async function aQuienAvisar(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<string | null> {
   const { data: ws } = await db
     .from('workspaces')
     .select('alert_phone, owner_id')
     .eq('id', workspaceId)
     .maybeSingle();
-  const fila = ws as { alert_phone?: string | null; owner_id?: string | null } | null;
+  const fila = ws as {
+    alert_phone?: string | null;
+    owner_id?: string | null;
+  } | null;
   const propio = soloDigitos(fila?.alert_phone);
   if (propio) return propio;
 
@@ -140,7 +186,9 @@ export async function aQuienAvisar(
     .from('workspace_members')
     .select('user_id')
     .eq('workspace_id', workspaceId);
-  const ids = ((miembros ?? []) as Array<{ user_id: string }>).map((m) => m.user_id);
+  const ids = ((miembros ?? []) as Array<{ user_id: string }>).map(
+    (m) => m.user_id
+  );
   if (fila?.owner_id && !ids.includes(fila.owner_id)) ids.push(fila.owner_id);
 
   if (ids.length > 0) {
@@ -149,8 +197,9 @@ export async function aQuienAvisar(
       .select('user_id, phone')
       .in('user_id', ids)
       .not('phone', 'is', null);
-    const conTelefono = ((perfiles ?? []) as Array<{ user_id: string; phone: string }>)
-      .filter((p) => soloDigitos(p.phone));
+    const conTelefono = (
+      (perfiles ?? []) as Array<{ user_id: string; phone: string }>
+    ).filter((p) => soloDigitos(p.phone));
     const delDuenio = conTelefono.find((p) => p.user_id === fila?.owner_id);
     const elegido = delDuenio ?? conTelefono[0];
     if (elegido) return soloDigitos(elegido.phone);
@@ -175,7 +224,7 @@ function soloDigitos(valor: string | null | undefined): string | null {
  */
 export async function avisarEscalada(
   db: SupabaseClient,
-  d: DatosDelCaso,
+  d: DatosDelCaso
 ): Promise<{ avisado: boolean; motivo?: string }> {
   try {
     // Una vez por conversación. El candado es la propia fila: se marca ANTES
@@ -202,19 +251,21 @@ export async function avisarEscalada(
         .eq('id', d.conversationId);
     };
 
-    const { destinosDeAviso, avisarATodos } = await import('@/lib/avisos/destinos');
+    const { destinosDeAviso, avisarATodos } =
+      await import('@/lib/avisos/destinos');
     const telefonos = await destinosDeAviso(db, d.workspaceId, 'operacion');
     const telefono = telefonos[0] ?? null;
     if (!telefono) {
       console.warn(
         '[escalada] hay un caso para una persona y no hay a quién avisarle:',
-        d.workspaceId,
+        d.workspaceId
       );
       await soltar();
       return { avisado: false, motivo: 'sin número de aviso' };
     }
 
-    const { titulo, cuerpo } = textoDelAviso(d);
+    const locale = await localeDeCuenta(db, d.workspaceId);
+    const { titulo, cuerpo } = textoDelAviso(d, locale);
     // A todos los que el comercio cargó: en un turno de noche el que puede
     // meterse en el caso no es siempre el mismo.
     const res = await avisarATodos(telefonos, { title: titulo, body: cuerpo });

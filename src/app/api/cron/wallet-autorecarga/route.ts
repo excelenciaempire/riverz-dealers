@@ -34,18 +34,26 @@ async function cronHandler(request: Request) {
 
   const db = supabaseAdmin();
 
-  // Los avisos NO dependen de Stripe: al que se queda sin saldo hay que
-  // avisarle aunque la plataforma todavía no sepa cobrar.
+  if (!stripeDisponible()) {
+    const avisos = await avisarLoQueHagaFalta(db).catch((err) => {
+      console.error('[wallet] avisos fallaron:', err);
+      return { saldo: 0, plan: 0, detalle: ['avisos: error'] };
+    });
+    return NextResponse.json({
+      ok: true,
+      avisos,
+      nota: 'facturación sin configurar',
+    });
+  }
+
+  // Primero se intenta la recarga. El aviso se evalúa después, con el
+  // resultado ya guardado: una recarga exitosa queda silenciosa y una fallida
+  // se comunica en esta misma ejecución, no cinco minutos más tarde.
+  const res = await recargarLasQueHagaFalta(db);
   const avisos = await avisarLoQueHagaFalta(db).catch((err) => {
     console.error('[wallet] avisos fallaron:', err);
     return { saldo: 0, plan: 0, detalle: ['avisos: error'] };
   });
-
-  if (!stripeDisponible()) {
-    return NextResponse.json({ ok: true, avisos, nota: 'facturación sin configurar' });
-  }
-
-  const res = await recargarLasQueHagaFalta(db);
   return NextResponse.json({ ok: true, avisos, ...res });
 }
 

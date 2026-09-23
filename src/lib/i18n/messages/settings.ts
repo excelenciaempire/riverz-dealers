@@ -41,21 +41,48 @@ export const settings = {
   webhookDeleted: { es: 'Webhook eliminado', en: 'Webhook deleted' },
   title: { es: 'Ajustes', en: 'Settings' },
   integrations: { es: 'Integraciones', en: 'Integrations' },
-  addressValidationTitle: { es: 'Direcciones con Google Maps', en: 'Google Maps addresses' },
+  addressValidationTitle: {
+    es: 'Direcciones con Google Maps',
+    en: 'Google Maps addresses',
+  },
   addressValidationDescription: {
     es: 'Verifica la dirección antes de crear un pedido contraentrega.',
     en: 'Verify the address before creating a cash-on-delivery order.',
   },
-  addressValidationApiKey: { es: 'API key de Google Maps', en: 'Google Maps API key' },
+  addressValidationApiKey: {
+    es: 'API key de Google Maps',
+    en: 'Google Maps API key',
+  },
   addressValidationActive: { es: 'Activo', en: 'Active' },
   addressValidationInactive: { es: 'Inactivo', en: 'Inactive' },
-  addressValidationToggle: { es: 'Verificar direcciones', en: 'Verify addresses' },
-  addressValidationReplaceKey: { es: 'Reemplazar API key', en: 'Replace API key' },
-  addressValidationKeyRequired: { es: 'Ingresa la API key.', en: 'Enter the API key.' },
-  addressValidationSaveError: { es: 'No se pudo guardar.', en: "Couldn't save." },
-  addressValidationConfigured: { es: 'Verificación configurada', en: 'Address verification configured' },
-  addressValidationEnabled: { es: 'Verificación activada', en: 'Address verification enabled' },
-  addressValidationDisabled: { es: 'Verificación desactivada', en: 'Address verification disabled' },
+  addressValidationToggle: {
+    es: 'Verificar direcciones',
+    en: 'Verify addresses',
+  },
+  addressValidationReplaceKey: {
+    es: 'Reemplazar API key',
+    en: 'Replace API key',
+  },
+  addressValidationKeyRequired: {
+    es: 'Ingresa la API key.',
+    en: 'Enter the API key.',
+  },
+  addressValidationSaveError: {
+    es: 'No se pudo guardar.',
+    en: "Couldn't save.",
+  },
+  addressValidationConfigured: {
+    es: 'Verificación configurada',
+    en: 'Address verification configured',
+  },
+  addressValidationEnabled: {
+    es: 'Verificación activada',
+    en: 'Address verification enabled',
+  },
+  addressValidationDisabled: {
+    es: 'Verificación desactivada',
+    en: 'Address verification disabled',
+  },
 
   // Tabs
   tabProfile: { es: 'Perfil', en: 'Profile' },
@@ -1262,7 +1289,10 @@ export const settings = {
   billingPlan500: { es: 'Hasta 500 contactos', en: 'Up to 500 contacts' },
   billingPlan2000: { es: 'Hasta 2.000 contactos', en: 'Up to 2,000 contacts' },
   billingPlan5000: { es: 'Hasta 5.000 contactos', en: 'Up to 5,000 contacts' },
-  billingPlan10000: { es: 'Hasta 10.000 contactos', en: 'Up to 10,000 contacts' },
+  billingPlan10000: {
+    es: 'Hasta 10.000 contactos',
+    en: 'Up to 10,000 contacts',
+  },
   billingMissingPrice: {
     es: 'Esta cuenta todavía no tiene un precio de suscripción activo.',
     en: 'This account does not have an active subscription price yet.',
@@ -1329,7 +1359,10 @@ export const settings = {
   billingModelLabel: { es: 'Sistema de cobro', en: 'Billing model' },
   billingAllIncluded: { es: 'Todo incluido', en: 'All included' },
   billingBalanceModel: { es: 'Saldo por consumo', en: 'Usage balance' },
-  billingServedContacts: { es: 'Contactos atendidos este período', en: 'Contacts served this period' },
+  billingServedContacts: {
+    es: 'Contactos atendidos este período',
+    en: 'Contacts served this period',
+  },
   billingContactsOf: { es: '{n} de {total}', en: '{n} of {total}' },
   billingVolumeExceeded: {
     es: 'Llegaste al límite de contactos. Cambia a un plan mayor para ampliar la capacidad. La atención no se corta de inmediato y no hay cobro automático por exceso.',
@@ -1340,22 +1373,40 @@ export const settings = {
     en: 'You are nearing your contact limit. You can upgrade now.',
   },
   billingUpgradePlan: { es: 'Nuevo plan', en: 'New plan' },
-  billingUpgradeOption: { es: '{n} contactos · {price}/mes', en: '{n} contacts · {price}/month' },
+  billingUpgradeOption: {
+    es: '{n} contactos · {price}/mes',
+    en: '{n} contacts · {price}/month',
+  },
   billingUpgrade: { es: 'Ampliar plan', en: 'Upgrade plan' },
   billingUpgradeTiming: {
     es: 'Más capacidad desde ahora. El nuevo precio se cobra en la próxima renovación.',
     en: 'More capacity now. The new price starts at the next renewal.',
   },
   billingUpgradeSuccess: { es: 'Plan ampliado.', en: 'Plan upgraded.' },
-  billingUpgradeFailed: { es: 'No se pudo ampliar el plan.', en: 'Could not upgrade the plan.' },
-  billingUpgradeUnavailable: { es: 'Este cambio de plan no está disponible.', en: 'This plan change is unavailable.' },
-  billingContactForUpgrade: { es: 'Solicitar mayor volumen', en: 'Request more volume' },
-  billingNearTitle: { es: 'Tu plan se acerca al límite', en: 'Your plan is nearing its limit' },
+  billingUpgradeFailed: {
+    es: 'No se pudo ampliar el plan.',
+    en: 'Could not upgrade the plan.',
+  },
+  billingUpgradeUnavailable: {
+    es: 'Este cambio de plan no está disponible.',
+    en: 'This plan change is unavailable.',
+  },
+  billingContactForUpgrade: {
+    es: 'Solicitar mayor volumen',
+    en: 'Request more volume',
+  },
+  billingNearTitle: {
+    es: 'Tu plan se acerca al límite',
+    en: 'Your plan is nearing its limit',
+  },
   billingNearMessage: {
     es: 'Ya atendimos {n} de {total} contactos este período. Puedes ampliar el plan en riverz.co/ajustes?tab=billing. El nuevo precio empieza en la próxima renovación.',
     en: 'We have served {n} of {total} contacts this period. You can upgrade at riverz.co/settings?tab=billing. The new price starts at the next renewal.',
   },
-  billingLimitTitle: { es: 'Llegaste al límite de contactos', en: 'You reached your contact limit' },
+  billingLimitTitle: {
+    es: 'Llegaste al límite de contactos',
+    en: 'You reached your contact limit',
+  },
   billingLimitMessage: {
     es: 'Ya atendimos {n} de {total} contactos este período. Amplía el plan en riverz.co/ajustes?tab=billing para tener más capacidad. La atención no se corta de inmediato y no hay cobro automático por exceso.',
     en: 'We have served {n} of {total} contacts this period. Upgrade at riverz.co/settings?tab=billing for more capacity. Service does not stop immediately, and there is no automatic overage charge.',
@@ -1487,18 +1538,61 @@ export const settings = {
     es: 'Saldo para consumo. La comisión real de Stripe se descuenta del saldo, sin margen adicional.',
     en: 'Balance for usage. The actual Stripe fee is deducted from the balance, with no added margin.',
   },
-  avisoSaldoBajoTitulo: { es: 'Te queda poco saldo', en: "You're running low" },
+  avisoSaldoBajoTitulo: {
+    es: 'Saldo bajo: {saldo}',
+    en: 'Low balance: {saldo}',
+  },
   avisoSaldoBajoCuerpo: {
-    es: 'Te quedan {saldo}. Cuando llegue a cero la IA deja de responder. Recarga en riverz.co/ajustes?tab=saldo',
-    en: 'You have {saldo} left. When it hits zero the AI stops replying. Top up at riverz.co/ajustes?tab=saldo',
+    es: 'La IA se pausará cuando el saldo llegue a cero. Recarga: riverz.co/ajustes?tab=saldo',
+    en: 'AI replies will pause when the balance reaches zero. Top up: riverz.co/settings?tab=saldo',
   },
   avisoSinSaldoTitulo: {
-    es: 'Te quedaste sin saldo',
-    en: "You're out of balance",
+    es: 'IA pausada por saldo',
+    en: 'AI paused: no balance',
   },
   avisoSinSaldoCuerpo: {
-    es: 'La IA dejó de responder por falta de saldo. La bandeja sigue abierta para contestar a mano. Recarga en riverz.co/ajustes?tab=saldo',
-    en: 'The AI stopped replying: no balance left. The inbox is still open to answer manually. Top up at riverz.co/ajustes?tab=saldo',
+    es: 'Puedes seguir respondiendo manualmente. Para reactivar la IA, recarga: riverz.co/ajustes?tab=saldo',
+    en: 'You can still reply manually. To reactivate AI replies, top up: riverz.co/settings?tab=saldo',
+  },
+  avisoRecargaAutoFalloTitulo: {
+    es: 'Falló la recarga automática',
+    en: 'Automatic top-up failed',
+  },
+  avisoRecargaAutoFalloCuerpo: {
+    es: 'No se pudo recargar y quedan {saldo}. Revisa la tarjeta o recarga manualmente: riverz.co/ajustes?tab=saldo',
+    en: 'The top-up failed and {saldo} remains. Check the card or top up manually: riverz.co/settings?tab=saldo',
+  },
+  avisoEscaladaCliente: { es: 'Cliente', en: 'Customer' },
+  avisoEscaladaUrgenteTitulo: {
+    es: '{cliente}: atención urgente',
+    en: '{cliente}: urgent attention',
+  },
+  avisoEscaladaTitulo: {
+    es: '{cliente}: atención necesaria',
+    en: '{cliente}: attention needed',
+  },
+  avisoEscaladaMotivo: { es: 'Motivo: {motivo}', en: 'Reason: {motivo}' },
+  avisoEscaladaCanal: {
+    es: 'Canal: {canal}{contacto}',
+    en: 'Channel: {canal}{contacto}',
+  },
+  avisoEscaladaUltimoMensaje: {
+    es: 'Último mensaje: {mensaje}',
+    en: 'Latest message: {mensaje}',
+  },
+  avisoEscaladaImagen: { es: 'envió una imagen', en: 'sent an image' },
+  avisoEscaladaPedido: {
+    es: 'Pedido: {pedido}{estado}',
+    en: 'Order: {pedido}{estado}',
+  },
+  avisoEscaladaEspera: { es: 'Espera: {horas} h', en: 'Waiting: {horas}h' },
+  avisoEscaladaAbrir: {
+    es: 'Abrir conversación: {enlace}',
+    en: 'Open conversation: {enlace}',
+  },
+  avisoEscaladaPausa: {
+    es: 'La IA está pausada en este chat.',
+    en: 'AI replies are paused in this chat.',
   },
   avisoPlanFalloTitulo: {
     es: 'No pudimos cobrar tu plan',
