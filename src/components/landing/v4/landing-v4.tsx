@@ -111,13 +111,12 @@ export function LandingV4({ tiers }: { tiers: PricingTier[] }) {
 // ── Navegación ────────────────────────────────────────────────────────────
 
 function Nav() {
-  const t = useT();
   // Sin menú de secciones y sin pegarse arriba. La barra que se queda fija es
   // la de la oferta (ver `oferta.tsx`): es lo que responde la objeción más
   // grande y lo único que vale la pena tener a la vista mientras se baja. Un
   // menú de cuatro anclas encima de eso, en el teléfono, era media pantalla
-  // de barras antes del contenido. Quedan la marca, el idioma y el acceso, y
-  // se van con el scroll.
+  // de barras antes del contenido. Quedan únicamente la marca y el idioma, y
+  // se van con el scroll. La llamada a la acción vive en el hero.
   return (
     <header className="px-3 pt-2">
       <nav
@@ -133,11 +132,6 @@ function Nav() {
 
         <div className="flex items-center gap-4">
           <LocaleSwitch />
-          <span className="hidden sm:block">
-            <a href="#acceso" className="sn-pill sn-pill-sm">
-              {t('landingV4.navCta')}
-            </a>
-          </span>
         </div>
       </nav>
     </header>
@@ -174,15 +168,18 @@ function Hero() {
         </div>
         <div aria-hidden className="sn-hero-art">
           <Image
-            src="/portada-b/hero-team.webp"
+            src="/portada-b/hero-banner.webp"
             alt=""
-            width={1024}
+            width={1792}
             height={1024}
             loading="eager"
             fetchPriority="high"
-            sizes="(min-width: 1200px) 520px, (min-width: 900px) 44vw, (min-width: 560px) 480px, 100vw"
-            className="h-auto w-full object-contain"
+            sizes="(min-width: 1200px) 1152px, (min-width: 900px) 100vw, (min-width: 560px) 960px, 200vw"
+            className="sn-hero-banner-image"
           />
+        </div>
+        <div className="sn-hero-team-labels sn-label">
+          {t('landingV4.heroAgentRoles')}
         </div>
       </div>
     </section>

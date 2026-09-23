@@ -228,6 +228,10 @@ export const landingV4 = {
     es: 'Vende y atiende con un equipo de IA.',
     en: 'An AI team for your store’s sales and support.',
   },
+  heroAgentRoles: {
+    es: 'Ventas · Soporte · Seguimiento',
+    en: 'Sales · Support · Follow-up',
+  },
   heroTitleMuted: {
     es: 'Nosotros lo dejamos listo.',
     en: 'Set up for you.',

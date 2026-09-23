@@ -55,17 +55,21 @@
   text-wrap: balance;
 }
 
-/* A real two-column layout: artwork never covers copy or crops a teammate.
-   Height-aware sizing keeps the CTA visible on ordinary laptop viewports. */
+/* One editorial banner; live copy remains separate from decorative artwork. */
 .sn-hero-grid {
   display: grid;
   align-items: center;
-  gap: 24px;
+  gap: 0;
   max-width: 1152px;
   margin-inline: auto;
-  padding: clamp(28px, 5svh, 56px) 20px 32px;
+  padding: 0;
 }
-.sn-hero-copy { min-width: 0; }
+.sn-hero-copy {
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+  padding: clamp(28px, 5svh, 48px) 20px 0;
+}
 .sn-hero-title {
   font-size: clamp(40px, 6vw, 64px);
   max-width: 18ch;
@@ -77,23 +81,48 @@
   margin: 22px auto 0;
 }
 .sn-hero-cta { margin-top: 26px; max-width: 100%; }
-.sn-hero { text-align: center; }
+.sn-hero {
+  position: relative;
+  isolation: isolate;
+  text-align: center;
+  max-width: 1152px;
+  margin: 12px auto 0;
+  overflow: hidden;
+  border-radius: 32px;
+}
 .sn-hero-art {
   width: 100%;
   max-width: 480px;
   margin-inline: auto;
-  /* Blend the generated paper perimeter into the live page. */
-  mask-image: linear-gradient(transparent, #000 8%, #000 92%, transparent);
+  overflow: hidden;
+  pointer-events: none;
+}
+.sn-hero-banner-image {
+  display: block;
+  width: 166.667%;
+  max-width: none;
+  height: auto;
+  transform: translateX(-40%);
+}
+.sn-hero-team-labels {
+  position: relative;
+  z-index: 1;
+  margin-top: -20px;
+  padding: 0 16px 24px;
+  text-align: center;
 }
 @media (min-width: 900px) {
   .sn-hero { text-align: left; }
-  .sn-hero-grid { grid-template-columns: 1.08fr 1fr; gap: 28px; }
+  .sn-hero-grid { min-height: clamp(420px, 70svh, 600px); }
+  .sn-hero-copy { width: 48%; padding: 32px 12px 32px 28px; }
   .sn-hero-title {
     font-size: clamp(48px, min(5.3vw, 8.5svh), 72px);
     margin-inline: 0;
   }
   .sn-hero-description { margin-inline: 0; }
-  .sn-hero-art { max-width: 520px; }
+  .sn-hero-art { position: absolute; inset: 0 0 0 auto; width: 52%; max-width: none; }
+  .sn-hero-banner-image { width: 166.667%; height: 100%; object-fit: cover; }
+  .sn-hero-team-labels { position: absolute; right: 0; bottom: 8px; width: 47%; margin: 0; }
 }
 @media (max-width: 379px) {
   .sn-channel-grid { grid-template-columns: minmax(0, 1fr); }
