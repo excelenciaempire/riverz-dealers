@@ -1147,7 +1147,7 @@ function LinkDePago({ workspaceId }: { workspaceId: string }) {
       {promo && !cupon && (
         <p className="w-full text-xs text-muted-foreground">
           {t("admin.billingFirstMonthSummary", {
-            first: fmt.currency(promo.firstMonthCents / 100, promo.currency.toUpperCase(), { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
+            first: fmt.money(promo.firstMonthCents / 100, promo.currency.toUpperCase()),
             regular: fmt.money(promo.monthlyCents / 100, promo.currency.toUpperCase()),
           })}
         </p>

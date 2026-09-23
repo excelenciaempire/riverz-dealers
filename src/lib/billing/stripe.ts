@@ -20,7 +20,7 @@ import type { Suscripcion } from './plan'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
-import { eligibleForFirstMonthOffer, FIRST_MONTH_COUPON_ID, FIRST_MONTH_DISCOUNT_PERCENT } from './first-month-offer'
+import { eligibleForFirstMonthOffer, firstMonthCouponId, firstMonthDiscountCents, FIRST_MONTH_DISCOUNT_PERCENT } from './first-month-offer'
 
 let cliente: Stripe | null = null
 
@@ -98,26 +98,29 @@ export function lineItemsDeSuscripcion(
 }
 
 /** Cupón de una sola factura; nunca se sustituye silenciosamente por precio completo. */
-async function couponForFirstMonth(): Promise<string> {
+async function couponForFirstMonth(monthlyCents: number, currency: string): Promise<string> {
+  const couponId = firstMonthCouponId(monthlyCents, currency)
+  const amountOff = firstMonthDiscountCents(monthlyCents)
   let coupon: Stripe.Coupon
   try {
-    coupon = await stripe().coupons.retrieve(FIRST_MONTH_COUPON_ID)
+    coupon = await stripe().coupons.retrieve(couponId)
   } catch (error) {
     if ((error as { code?: string }).code !== 'resource_missing') throw error
     try {
       coupon = await stripe().coupons.create({
-        id: FIRST_MONTH_COUPON_ID,
-        percent_off: FIRST_MONTH_DISCOUNT_PERCENT,
+        id: couponId,
+        amount_off: amountOff,
+        currency: currency.toLowerCase(),
         duration: 'once',
         name: `Riverz · ${FIRST_MONTH_DISCOUNT_PERCENT}% primer mes / first month`,
       })
     } catch (createError) {
       // Dos checkouts simultáneos pueden crear el mismo cupón. El segundo
       // recupera el ya creado; cualquier otro error detiene el pago.
-      coupon = await stripe().coupons.retrieve(FIRST_MONTH_COUPON_ID).catch(() => { throw createError })
+      coupon = await stripe().coupons.retrieve(couponId).catch(() => { throw createError })
     }
   }
-  if (!coupon.valid || coupon.duration !== 'once' || coupon.percent_off !== FIRST_MONTH_DISCOUNT_PERCENT) {
+  if (!coupon.valid || coupon.duration !== 'once' || coupon.amount_off !== amountOff || coupon.currency !== currency.toLowerCase()) {
     throw new Error('La promoción del primer mes no coincide con Stripe.')
   }
   return coupon.id
@@ -155,7 +158,7 @@ export async function urlDeCheckout(
   }
   const customer = await clienteDe(db, workspaceId, s, quien.email, quien.nombre)
   const items = lineItemsDeSuscripcion(s, locale)
-  const coupon = opciones?.cupon || (eligibleForFirstMonthOffer(s) ? await couponForFirstMonth() : null)
+  const coupon = opciones?.cupon || (eligibleForFirstMonthOffer(s) ? await couponForFirstMonth(s.precioAcuerdoCentavos, s.plan.moneda) : null)
 
   const sesion = await stripe().checkout.sessions.create({
     mode: 'subscription',

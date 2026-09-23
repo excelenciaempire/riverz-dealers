@@ -111,12 +111,19 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
                 </p>
                 <div className="mt-2 flex flex-col items-center justify-center sm:flex-row sm:items-end sm:gap-x-2">
                   <span className="sn-pricing-amount font-[family-name:var(--font-editorial)] leading-none tracking-[-0.04em]">
-                    {fmt.currency(firstMonthCents(tier.monthly * 100) / 100, 'USD', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                    {fmt.money(firstMonthCents(tier.monthly * 100) / 100, 'USD')}
                   </span>
                 </div>
                 <p className="mt-3 text-[15px] text-[var(--sn-ink-2)]">
                   {t('landingV4.pricingThenMonthly', { amount: fmt.money(tier.monthly, 'USD') })}
                 </p>
+                {tier.customers !== null && (
+                  <p className="mt-2 text-[13px] text-[var(--sn-ink-2)]">
+                    {t('landingV4.pricingPerContact', {
+                      amount: fmt.number(Math.round(tier.monthly * 100 / tier.customers)),
+                    })}
+                  </p>
+                )}
               </>
             )}
 

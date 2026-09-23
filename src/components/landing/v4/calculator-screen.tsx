@@ -71,7 +71,14 @@ export function CalculatorScreen({ tiers }: { tiers: PricingTier[] }) {
               <p className="mt-3 text-[14px] text-[var(--sn-ink-2)]">
                 {t("landingV4.pricingCalculatorOffer", {
                   percent: FIRST_MONTH_DISCOUNT_PERCENT,
-                  amount: fmt.currency(firstMonthCents(tier.monthly * 100) / 100, "USD", { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
+                  amount: fmt.money(firstMonthCents(tier.monthly * 100) / 100, "USD"),
+                })}
+              </p>
+            )}
+            {tier.monthly !== null && tier.customers !== null && (
+              <p className="mt-2 text-[13px] text-[var(--sn-ink-2)]">
+                {t("landingV4.pricingPerContact", {
+                  amount: fmt.number(Math.round(tier.monthly * 100 / tier.customers)),
                 })}
               </p>
             )}

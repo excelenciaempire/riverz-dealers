@@ -414,7 +414,10 @@ export const landingV4 = {
     en: 'Free setup and {percent}% off the first month: {amount}.',
   },
   pricingCustomPrice: { es: 'Hablemos', en: "Let's talk" },
-  pricingPerContact: { es: '{amount} por contacto atendido', en: '{amount} per contact served' },
+  pricingPerContact: {
+    es: '≈ {amount} centavos por contacto con el cupo completo',
+    en: '≈ {amount} cents per contact at full plan capacity',
+  },
   pricingEverythingIncluded: { es: 'Todo incluido', en: 'Everything included' },
   pricingIncludedAgents: {
     es: 'Todos los agentes y consumo de IA',

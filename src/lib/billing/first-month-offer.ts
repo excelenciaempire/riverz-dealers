@@ -2,15 +2,23 @@ import type { Suscripcion } from './plan'
 
 /** Oferta pública para el primer cobro de las cuentas Todo incluido. */
 export const FIRST_MONTH_DISCOUNT_PERCENT = 35
-export const FIRST_MONTH_COUPON_ID = 'riverz-first-month-35-v1'
 
 export function firstMonthCents(monthlyCents: number): number {
-  return Math.round(monthlyCents * (100 - FIRST_MONTH_DISCOUNT_PERCENT) / 100)
+  return Math.floor(monthlyCents * (100 - FIRST_MONTH_DISCOUNT_PERCENT) / 10_000) * 100
+}
+
+export function firstMonthDiscountCents(monthlyCents: number): number {
+  return monthlyCents - firstMonthCents(monthlyCents)
+}
+
+export function firstMonthCouponId(monthlyCents: number, currency: string): string {
+  return `riverz-first-month-35-${currency.toLowerCase()}-${monthlyCents}-v2`
 }
 
 export function eligibleForFirstMonthOffer(
   subscription: Pick<Suscripcion, 'modeloCobro' | 'stripeSubscriptionId' | 'precioAcuerdoCentavos'>,
 ): boolean {
   return subscription.modeloCobro === 'oficial' &&
-    !subscription.stripeSubscriptionId && subscription.precioAcuerdoCentavos > 0
+    !subscription.stripeSubscriptionId && subscription.precioAcuerdoCentavos > 0 &&
+    firstMonthCents(subscription.precioAcuerdoCentavos) > 0
 }

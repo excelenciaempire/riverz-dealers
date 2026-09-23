@@ -59,6 +59,7 @@ const plata = (centavos: number, moneda: string) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: (moneda || 'usd').toUpperCase(),
+    minimumFractionDigits: centavos % 100 === 0 ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(centavos / 100);
 
