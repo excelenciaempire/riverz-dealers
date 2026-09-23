@@ -253,8 +253,8 @@ export function Cards() {
  *
  * El WebP animado no se descarga hasta que la ficha se acerca a la pantalla.
  * Safari puede bloquear el autoplay de un MP4 en ahorro de energía y mostrar
- * un botón de reproducción encima de la ilustración. Las imágenes animadas
- * se reproducen directamente en todos los navegadores modernos.
+ * un botón de reproducción encima de la ilustración. El GIF de respaldo cubre
+ * navegadores anteriores a WebP animado.
  *
  * Al alejarse se desmonta para evitar animaciones fuera de pantalla. La imagen
  * fija queda de fondo durante la carga y cuando se prefiere menos movimiento.
@@ -298,16 +298,19 @@ function Ilustracion({ tile }: { tile: Tile }) {
         aria-hidden
       />
       {tile.animation && !reduced && cerca && (
-        <Image
-          src={tile.animation}
-          alt=""
-          fill
-          unoptimized
-          loading="eager"
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 40vw"
-          aria-hidden
-          className="absolute inset-0 size-full object-cover"
-        />
+        <picture className="absolute inset-0 block">
+          <source srcSet={tile.animation} type="image/webp" />
+          <Image
+            src={tile.animation.replace(/\.webp$/, ".gif")}
+            alt=""
+            fill
+            unoptimized
+            loading="eager"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 40vw"
+            aria-hidden
+            className="object-cover"
+          />
+        </picture>
       )}
     </div>
   );
