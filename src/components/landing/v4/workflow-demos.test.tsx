@@ -41,7 +41,7 @@ describe('workflow demonstrations', () => {
       ]) {
         const html = renderToStaticMarkup(<Demo />);
         expect(html).toContain(landingV4.videoPlay[locale]);
-        expect(html).toContain(landingV4.chatCreativeLabel[locale]);
+        expect(html).not.toContain(landingV4.chatCreativeLabel[locale]);
         expect(html).toContain('preload="none"');
         expect(html).toContain('<video');
         expect(html).toContain(`-${locale}.jpg`);

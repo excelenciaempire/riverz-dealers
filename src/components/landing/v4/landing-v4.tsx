@@ -168,7 +168,7 @@ function Hero() {
         </div>
         <div aria-hidden className="sn-hero-art">
           <Image
-            src="/portada-b/hero-agents-editorial.webp"
+            src="/portada-b/hero-agents-brand.webp"
             alt=""
             width={1792}
             height={1024}

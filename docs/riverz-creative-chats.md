@@ -4,8 +4,18 @@
 
 Replaces the mascot hero and five mascot films after the owner's feedback.
 The banner matches the existing flat editorial illustrations and adds stronger
-lime, sage, sand and petrol color fields. Three human-like illustrated agents
+brand pale lime, cream, sand and petrol color fields. Three human-like illustrated agents
 represent sales, support and orders; no robot mascot is used.
+
+## Final brand palette correction
+
+Edited the generated banner with the built-in image tool, preserving composition.
+Palette: paper #f3f0eb, cream #faf7f1, sand #f4eddf / #efe5d0,
+tan #cdbca0, petrol #12201f / #2a3639 and pale lime #f7ff9e.
+Removed sage and gold. New asset URL avoids reuse of the earlier cached artwork.
+
+Prompt:
+> Edit this Riverz website hero illustration, keeping its exact composition, three editorial human-like AI agents doing sales/support/order work, objects, beautiful flat cut-paper editorial style and subtle paper texture. ONLY change the palette to Riverz's existing website brand colors: warm paper #f3f0eb, cream #faf7f1, sand #f4eddf and #efe5d0, subdued tan #cdbca0, deep petrol #12201f and #2a3639, pale luminous lime #f7ff9e. Remove ALL sage/mint green and golden yellow/ochre. Replace sage arch with large sand arch, golden right agent shirt with cream/sand, golden platform with sand/tan; all yellow/citron accents should be brand pale lime #f7ff9e. Keep substantial confident color fields and lively visual contrast, not washed out: dark petrol clothing/desk, broad pale lime diagonal and left agent shirt, warm sand architectural fields. Left 40% remains nearly blank warm paper for website heading overlay. No words, letters, logos, robots, mascot, flowers or new objects. Preserve full figures and wide landscape format. This is a precise brand-palette correction, not a redesign.
 
 ## Motion system
 
@@ -21,11 +31,12 @@ Rendered from deterministic HyperFrames/GSAP compositions to keep type sharp and
 accurate. Spanish and English have separate films; changing locale resets playback.
 No generative-video credits used for this revision. Lazy loading, offscreen pause,
 reduced-motion support, posters and explicit replay remain enabled.
-Illustrative examples are labeled; no customer data or claimed performance metrics.
+No visible explanatory caption beneath the films, as requested by the owner.
+Accessible scene descriptions remain; no customer data or claimed performance metrics.
 
 ## Assets and reproduction
 
-- Banner: `public/portada-b/hero-agents-editorial.webp`.
+- Banner: `public/portada-b/hero-agents-brand.webp`.
 - Films/posters: `public/portada-b/workflow-chat-v2-<scene>-<es|en>.<mp4|jpg>`.
 - Build: `node scripts/landing-motion/build-chat.mjs <out> <frozen-font-assets>`.
 - Render: `node scripts/landing-motion/render.mjs <out> workflow-chat-v2 9.4`.

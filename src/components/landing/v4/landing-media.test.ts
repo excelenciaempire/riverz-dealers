@@ -11,13 +11,13 @@ const source = readFileSync(
 describe('reviewed landing media', () => {
   it('uses one lightweight editorial banner and keeps the navigation free of CTAs', async () => {
     const hero = readFileSync(resolve('src/components/landing/v4/landing-v4.tsx'), 'utf8');
-    expect(hero.match(/src="\/portada-b\/hero-agents-editorial.webp"/g)).toHaveLength(1);
+    expect(hero.match(/src="\/portada-b\/hero-agents-brand.webp"/g)).toHaveLength(1);
     expect(hero).not.toContain('hero-mascot');
     expect(hero.split('function Nav()')[1].split('function Hero()')[0]).not.toContain('href="#acceso"');
     expect(hero).not.toContain('/portada-b/hero.jpg');
     expect(hero).toContain('sn-display sn-hero-title');
     expect(hero).toContain('fetchPriority="high"');
-    const asset = resolve('public/portada-b/hero-agents-editorial.webp');
+    const asset = resolve('public/portada-b/hero-agents-brand.webp');
     const meta = await sharp(asset).metadata();
     expect(meta.width).toBe(1792);
     expect(meta.height).toBe(1024);

@@ -191,9 +191,8 @@ function WorkflowVideoPlayer({
           </button>
         )}
       </div>
-      <figcaption className="rz-film-caption">
-        <span className="sr-only">{t(content.title)}. {t(content.detail)}</span>
-        <span className="rz-film-note">{t('landingV4.chatCreativeLabel')}</span>
+      <figcaption className="sr-only">
+        {t(content.title)}. {t(content.detail)}
       </figcaption>
     </figure>
   );
