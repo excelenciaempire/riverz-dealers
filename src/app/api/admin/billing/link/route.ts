@@ -4,6 +4,7 @@ import { csrfGuard } from '@/lib/csrf';
 import { requireAdmin } from '@/lib/admin/guard';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { aSuscripcion } from '@/lib/billing/plan';
+import { eligibleForFirstMonthOffer, firstMonthCents, FIRST_MONTH_DISCOUNT_PERCENT } from '@/lib/billing/first-month-offer';
 import {
   cuponesVigentes,
   stripeDisponible,
@@ -72,14 +73,24 @@ async function suscripcionDe(
   return aSuscripcion(data as any);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const gate = await requireAdmin();
   if (!gate.ok) return gate.res;
+  const workspaceId = new URL(request.url).searchParams.get('workspace_id');
+  const s = workspaceId ? await suscripcionDe(supabaseAdmin(), workspaceId) : null;
+  const promo = s && eligibleForFirstMonthOffer(s)
+    ? {
+        percent: FIRST_MONTH_DISCOUNT_PERCENT,
+        firstMonthCents: firstMonthCents(s.precioAcuerdoCentavos),
+        monthlyCents: s.precioAcuerdoCentavos,
+        currency: s.plan?.moneda ?? 'usd',
+      }
+    : null;
   if (!stripeDisponible()) {
-    return NextResponse.json({ cupones: [], stripe: false });
+    return NextResponse.json({ cupones: [], stripe: false, promo });
   }
   try {
-    return NextResponse.json({ cupones: await cuponesVigentes(), stripe: true });
+    return NextResponse.json({ cupones: await cuponesVigentes(), stripe: true, promo });
   } catch (e) {
     const motivo = e instanceof Error ? e.message : 'no se pudo leer Stripe';
     return NextResponse.json({ error: motivo }, { status: 400 });

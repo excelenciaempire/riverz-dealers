@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useT } from "@/hooks/use-locale";
+import { useFormat } from "@/hooks/use-format";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import type { Plan } from "@/lib/billing/plan";
 import type { CuponDeStripe } from "@/lib/billing/stripe";
@@ -1064,6 +1065,7 @@ function FormularioAlta({
  */
 function LinkDePago({ workspaceId }: { workspaceId: string }) {
   const t = useT();
+  const fmt = useFormat();
   const fetchWithCsrf = useFetchWithCsrf();
   const [cupones, setCupones] = useState<CuponDeStripe[] | null>(null);
   const [cupon, setCupon] = useState("");
@@ -1071,13 +1073,22 @@ function LinkDePago({ workspaceId }: { workspaceId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [pidiendo, setPidiendo] = useState(false);
   const [copiado, setCopiado] = useState(false);
+  const [promo, setPromo] = useState<{
+    percent: number;
+    firstMonthCents: number;
+    monthlyCents: number;
+    currency: string;
+  } | null>(null);
 
   useEffect(() => {
     let vivo = true;
-    fetch("/api/admin/billing/link")
+    fetch(`/api/admin/billing/link?workspace_id=${encodeURIComponent(workspaceId)}`)
       .then((r) => r.json())
       .then((d) => {
-        if (vivo) setCupones((d.cupones as CuponDeStripe[]) ?? []);
+        if (vivo) {
+          setCupones((d.cupones as CuponDeStripe[]) ?? []);
+          setPromo(d.promo ?? null);
+        }
       })
       .catch(() => {
         if (vivo) setCupones([]);
@@ -1085,7 +1096,7 @@ function LinkDePago({ workspaceId }: { workspaceId: string }) {
     return () => {
       vivo = false;
     };
-  }, []);
+  }, [workspaceId]);
 
   async function generar() {
     setPidiendo(true);
@@ -1115,7 +1126,9 @@ function LinkDePago({ workspaceId }: { workspaceId: string }) {
           value={cupon}
           onChange={(e) => setCupon(e.target.value)}
         >
-          <option value="">{t("admin.billingNoCoupon")}</option>
+          <option value="">{promo
+            ? t("admin.billingFirstMonthPromo", { percent: promo.percent })
+            : t("admin.billingNoCoupon")}</option>
           {(cupones ?? []).map((c) => (
             <option key={c.id} value={c.id}>
               {c.nombre} {c.detalle}
@@ -1131,6 +1144,14 @@ function LinkDePago({ workspaceId }: { workspaceId: string }) {
       >
         {t("admin.billingPayLink")}
       </button>
+      {promo && !cupon && (
+        <p className="w-full text-xs text-muted-foreground">
+          {t("admin.billingFirstMonthSummary", {
+            first: fmt.currency(promo.firstMonthCents / 100, promo.currency.toUpperCase(), { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
+            regular: fmt.money(promo.monthlyCents / 100, promo.currency.toUpperCase()),
+          })}
+        </p>
+      )}
       {url && (
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <input readOnly value={url} className={`${INPUT} min-w-0 flex-1`} />

@@ -2,6 +2,7 @@
 
 import { Plus } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
+import { FIRST_MONTH_DISCOUNT_PERCENT } from "@/lib/billing/first-month-offer";
 import { Rise } from "./bits";
 
 const QUESTIONS = [
@@ -9,6 +10,7 @@ const QUESTIONS = [
   ["faqWhyQuestion", "faqWhyAnswer"],
   ["faqSellsQuestion", "faqSellsAnswer"],
   ["faqSetupQuestion", "faqSetupAnswer"],
+  ["faqFirstMonthQuestion", "faqFirstMonthAnswer"],
   ["faqCountingQuestion", "faqCountingAnswer"],
   ["faqGrowthQuestion", "faqGrowthAnswer"],
   ["faqTeamQuestion", "faqTeamAnswer"],
@@ -43,7 +45,7 @@ export function Faq() {
               <Plus aria-hidden className="mt-0.5 size-5 shrink-0 transition-transform group-open:rotate-45" />
             </summary>
             <p className="sn-body max-w-[65ch] pb-1 pt-4 !text-[16px]">
-              {t(`landingV4.${answer}`)}
+              {t(`landingV4.${answer}`, { percent: FIRST_MONTH_DISCOUNT_PERCENT })}
             </p>
           </details>
         ))}

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { X } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
+import { FIRST_MONTH_DISCOUNT_PERCENT } from "@/lib/billing/first-month-offer";
 
 /**
  * La oferta — barra de aviso que abre un diálogo.
@@ -70,6 +71,9 @@ export function Oferta() {
         >
           <span className="sn-label" style={{ color: "var(--sn-accent)" }}>
             {t("landingV4.bannerLead")}
+          </span>
+          <span className="sn-label" style={{ color: "var(--sn-accent)" }}>
+            · {t("landingV4.bannerDiscount", { percent: FIRST_MONTH_DISCOUNT_PERCENT })}
           </span>
           <span
             className="hidden text-[13px] sm:inline"

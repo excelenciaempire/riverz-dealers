@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { Check } from 'lucide-react';
 import { useFormat } from '@/hooks/use-format';
 import { useT } from '@/hooks/use-locale';
+import { FIRST_MONTH_DISCOUNT_PERCENT, firstMonthCents } from '@/lib/billing/first-month-offer';
 import { Rise } from './bits';
-import { PRICING_TIERS } from './pricing-tiers';
+import type { PricingTier } from './pricing-tiers';
 
 const INCLUDED = [
   'pricingIncludedAgents',
@@ -16,12 +17,12 @@ const INCLUDED = [
   'pricingIncludedResults',
 ] as const;
 
-export function Pricing() {
+export function Pricing({ tiers }: { tiers: PricingTier[] }) {
   const t = useT();
   const fmt = useFormat();
   const [tierIndex, setTierIndex] = useState(0);
-  const tier = PRICING_TIERS[tierIndex];
-  const progress = (tierIndex / (PRICING_TIERS.length - 1)) * 100;
+  const tier = tiers[tierIndex];
+  const progress = (tierIndex / (tiers.length - 1)) * 100;
   const customerLabel =
     tier.customers === null
       ? t('landingV4.pricingCustomVolume')
@@ -46,11 +47,16 @@ export function Pricing() {
 
         <Rise delay={90} className="mt-10 lg:mt-14">
           <div className="sn-card mx-auto max-w-5xl px-5 py-8 sm:px-10 sm:py-10 lg:px-14 lg:py-12">
+            <p className="sn-label mb-7 text-center">
+              {tier.monthly === null
+                ? t('landingV4.pricingFreeSetup')
+                : t('landingV4.pricingOfferBadge', { percent: FIRST_MONTH_DISCOUNT_PERCENT })}
+            </p>
             <div className="mx-auto max-w-3xl">
               <input
                 type="range"
                 min={0}
-                max={PRICING_TIERS.length - 1}
+                max={tiers.length - 1}
                 step={1}
                 value={tierIndex}
                 onChange={(event) => setTierIndex(Number(event.target.value))}
@@ -63,7 +69,7 @@ export function Pricing() {
               />
 
               <div className="sn-pricing-tiers mt-3 grid grid-cols-5">
-                {PRICING_TIERS.map((option, index) => {
+                {tiers.map((option, index) => {
                   const label = option.customers === null
                     ? t('landingV4.pricingTierMore')
                     : option.customers < 1_000
@@ -100,16 +106,23 @@ export function Pricing() {
               <p className="sn-h2 mt-3">{t('landingV4.pricingCustomPrice')}</p>
             ) : (
               <>
+                <p className="mt-3 text-sm font-medium text-[var(--sn-ink-2)]">
+                  {t('landingV4.pricingFirstMonth')}
+                </p>
                 <div className="mt-2 flex flex-col items-center justify-center sm:flex-row sm:items-end sm:gap-x-2">
                   <span className="sn-pricing-amount font-[family-name:var(--font-editorial)] leading-none tracking-[-0.04em]">
-                    {fmt.money(tier.monthly, 'USD')}
-                  </span>
-                  <span className="mt-1 text-[15px] text-[var(--sn-ink-2)] sm:mb-2 sm:mt-0">
-                    {t('landingV4.pricingPerMonth')}
+                    {fmt.currency(firstMonthCents(tier.monthly * 100) / 100, 'USD', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                   </span>
                 </div>
+                <p className="mt-3 text-[15px] text-[var(--sn-ink-2)]">
+                  {t('landingV4.pricingThenMonthly', { amount: fmt.money(tier.monthly, 'USD') })}
+                </p>
               </>
             )}
+
+            <p className="mt-5 text-sm text-[var(--sn-ink-2)]">
+              {t(tier.monthly === null ? 'landingV4.pricingCustomSetupTerms' : 'landingV4.pricingSetupTerms')}
+            </p>
 
             <div
               id="pricing-details"
@@ -133,6 +146,9 @@ export function Pricing() {
               <p className="mt-6 text-center text-[13px] leading-5 text-[var(--sn-ink-2)]">
                 {t('landingV4.pricingDetailsNote')}
               </p>
+              <a href="#acceso" className="sn-pill mx-auto mt-7 w-full sm:w-fit">
+                {t('landingV4.pricingCta')}
+              </a>
             </div>
           </div>
         </Rise>

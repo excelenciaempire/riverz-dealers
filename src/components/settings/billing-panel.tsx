@@ -47,6 +47,7 @@ interface Estado {
   tratoPropio: boolean;
   /** Lo que paga por mes, ya con el trato de esta cuenta. */
   precioCentavos: number;
+  primerMes: { percent: number; centavos: number } | null;
   /** Cuándo se cobra de nuevo. Null mientras no haya suscripción viva. */
   periodoHasta: string | null;
   puedeSuscribirse: boolean;
@@ -274,8 +275,18 @@ export function BillingPanel() {
 
       {e.estado !== 'cortesia' && (
         <div className="space-y-2 border-t border-border pt-3 text-sm">
+          {e.primerMes && (
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-muted-foreground">
+                {t('settings.billingFirstMonthDiscount', { percent: e.primerMes.percent })}
+              </span>
+              <span className="tabular-nums font-medium text-foreground">
+                {plata(e.primerMes.centavos, cuenta.moneda)}
+              </span>
+            </div>
+          )}
           <div className="flex items-baseline justify-between">
-            <span className="text-muted-foreground">{t('settings.billingPerMonth')}</span>
+            <span className="text-muted-foreground">{t(e.primerMes ? 'settings.billingAfterFirstMonth' : 'settings.billingPerMonth')}</span>
             <span className="tabular-nums font-medium text-foreground">
               {plata(e.precioCentavos, cuenta.moneda)}
             </span>

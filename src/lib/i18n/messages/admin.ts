@@ -899,6 +899,11 @@ export const admin = {
   billingOwnDeal: { es: 'trato propio', en: 'custom deal' },
   billingEdit: { es: 'Configurar', en: 'Configure' },
   billingEditTitle: { es: 'Configurar cuenta', en: 'Configure account' },
+  billingFirstMonthPromo: { es: 'Promoción primer mes · {percent} %', en: 'First-month offer · {percent}%' },
+  billingFirstMonthSummary: {
+    es: 'Primer mes {first}; después {regular} al mes.',
+    en: 'First month {first}; then {regular} per month.',
+  },
   billingSave: { es: 'Guardar', en: 'Save' },
   billingCreate: { es: 'Crear', en: 'Create' },
   billingCancel: { es: 'Cancelar', en: 'Cancel' },

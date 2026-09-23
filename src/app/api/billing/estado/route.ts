@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { acceso, asegurarSuscripcion, listarPlanes } from '@/lib/billing/plan'
 import { cuentaDelPeriodo, periodoDe, usoDelPeriodo } from '@/lib/billing/uso'
 import { stripeDisponible } from '@/lib/billing/stripe'
+import { eligibleForFirstMonthOffer, firstMonthCents, FIRST_MONTH_DISCOUNT_PERCENT } from '@/lib/billing/first-month-offer'
 import { createClient } from '@/lib/supabase/server'
 import { isWorkspaceAdmin, resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 
@@ -53,6 +54,9 @@ export async function GET() {
       // Lo que paga y cuándo vuelve a pagarlo: es lo primero que alguien busca
       // en esta pantalla y no estaba en ningún lado.
       precioCentavos: sus.precioCentavos,
+      primerMes: eligibleForFirstMonthOffer(sus) && sus.estado !== 'cortesia'
+        ? { percent: FIRST_MONTH_DISCOUNT_PERCENT, centavos: firstMonthCents(sus.precioAcuerdoCentavos) }
+        : null,
       periodoHasta: sus.periodoHasta,
       puedeCancelar: stripeDisponible() && Boolean(sus.stripeSubscriptionId),
       // Sin Stripe configurado no se ofrece un botón que no puede funcionar.

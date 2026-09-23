@@ -50,6 +50,7 @@ export const landingV4 = {
 
   // ── Barra de aviso: la oferta, que es lo más fuerte que tenemos ──
   bannerLead: { es: 'Instalación gratis', en: 'Free setup' },
+  bannerDiscount: { es: '{percent} % menos el primer mes', en: '{percent}% off month one' },
   bannerText: {
     es: 'la configuramos contigo; apruebas el sistema y activas tu plan.',
     en: 'we set it up with you; you approve the system and activate your plan.',
@@ -389,6 +390,29 @@ export const landingV4 = {
   },
   pricingTierMore: { es: '10k+', en: '10k+' },
   pricingPerMonth: { es: 'al mes', en: 'per month' },
+  pricingFreeSetup: { es: 'Instalación gratis', en: 'Free setup' },
+  pricingOfferBadge: {
+    es: 'Instalación gratis · {percent} % de descuento el primer mes',
+    en: 'Free setup · {percent}% off the first month',
+  },
+  pricingFirstMonth: { es: 'Primer mes', en: 'First month' },
+  pricingThenMonthly: {
+    es: 'Después {amount} al mes',
+    en: 'Then {amount} per month',
+  },
+  pricingSetupTerms: {
+    es: 'Instalamos contigo sin cobrar configuración. Apruebas el sistema y entonces pagas el primer mes.',
+    en: 'We set it up with you at no setup cost. You approve the system, then pay for the first month.',
+  },
+  pricingCustomSetupTerms: {
+    es: 'Instalación gratis. Definimos el precio según tu volumen antes de activar el plan.',
+    en: 'Free setup. We agree on pricing for your volume before activating the plan.',
+  },
+  pricingCta: { es: 'Solicitar instalación gratis', en: 'Request free setup' },
+  pricingCalculatorOffer: {
+    es: 'Instalación gratis y {percent} % de descuento el primer mes: {amount}.',
+    en: 'Free setup and {percent}% off the first month: {amount}.',
+  },
   pricingCustomPrice: { es: 'Hablemos', en: "Let's talk" },
   pricingPerContact: { es: '{amount} por contacto atendido', en: '{amount} per contact served' },
   pricingEverythingIncluded: { es: 'Todo incluido', en: 'Everything included' },
@@ -471,6 +495,14 @@ export const landingV4 = {
     es: 'Días, no meses. La instalación la hacemos nosotros: conectamos tus canales, tu tienda y tus pagos, cargamos tu catálogo y tus reglas, y activamos primero el flujo que más plata mueve en tu operación. Tú apruebas cómo habla el agente antes de que atienda a un solo cliente.',
     en: 'Days, not months. We do the setup: we connect your channels, store, and payments, load your catalog and rules, and switch on the workflow that moves the most money in your operation first. You approve how the agent talks before it serves a single customer.',
   },
+  faqFirstMonthQuestion: {
+    es: '¿Qué pago al comenzar?',
+    en: 'What do I pay to get started?',
+  },
+  faqFirstMonthAnswer: {
+    es: 'La instalación y configuración son gratis. Cuando apruebas lo que montamos, pagas el primer mes con {percent} % de descuento. Desde el segundo mes pagas el precio normal de tu plan. No hay permanencia.',
+    en: 'Setup and configuration are free. Once you approve what we built, you pay the first month at {percent}% off. From month two, you pay your plan’s regular price. There is no lock-in.',
+  },
   faqCountingQuestion: { es: '¿Qué significa “contactos atendidos al mes”?', en: 'What does “contacts served per month” mean?' },
   faqCountingAnswer: {
     es: 'Contamos cada contacto al que la IA envía al menos una respuesta durante tu período de facturación. Si usa varios canales y podemos verificar que es la misma persona, cuenta una sola vez. No cobramos cada mensaje ni cada conversación.',
@@ -478,8 +510,8 @@ export const landingV4 = {
   },
   faqGrowthQuestion: { es: '¿Qué pasa si mi tienda crece?', en: 'What happens if my store grows?' },
   faqGrowthAnswer: {
-    es: 'Los rangos son 500, 2.000, 5.000 y 10.000 contactos atendidos por período. Si superas el rango, Riverz no se apaga ni te cobra un excedente automático: acordamos contigo el plan para el siguiente período.',
-    en: 'The tiers cover 500, 2,000, 5,000, and 10,000 contacts served per period. If you exceed your tier, Riverz stays on and does not charge an automatic overage: we agree on the next period’s plan with you.',
+    es: 'Los rangos son 500, 2.000, 5.000 y 10.000 contactos por período. Te avisamos al 80 % y al llegar al límite. Puedes ampliar el plan desde tu cuenta: tienes más capacidad de inmediato y el nuevo precio se cobra en la siguiente renovación. No hay cargos automáticos por exceso ni se corta la atención de golpe.',
+    en: 'The tiers cover 500, 2,000, 5,000, and 10,000 contacts per period. We alert you at 80% and at the limit. You can upgrade in your account: capacity increases immediately and the new price starts at the next renewal. There are no automatic overage charges or sudden service cutoffs.',
   },
   faqTeamQuestion: { es: '¿Riverz reemplaza a mi equipo?', en: 'Does Riverz replace my team?' },
   faqTeamAnswer: {

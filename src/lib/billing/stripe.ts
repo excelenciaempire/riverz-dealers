@@ -20,6 +20,7 @@ import type { Suscripcion } from './plan'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
+import { eligibleForFirstMonthOffer, FIRST_MONTH_COUPON_ID, FIRST_MONTH_DISCOUNT_PERCENT } from './first-month-offer'
 
 let cliente: Stripe | null = null
 
@@ -96,6 +97,32 @@ export function lineItemsDeSuscripcion(
   return items
 }
 
+/** Cupón de una sola factura; nunca se sustituye silenciosamente por precio completo. */
+async function couponForFirstMonth(): Promise<string> {
+  let coupon: Stripe.Coupon
+  try {
+    coupon = await stripe().coupons.retrieve(FIRST_MONTH_COUPON_ID)
+  } catch (error) {
+    if ((error as { code?: string }).code !== 'resource_missing') throw error
+    try {
+      coupon = await stripe().coupons.create({
+        id: FIRST_MONTH_COUPON_ID,
+        percent_off: FIRST_MONTH_DISCOUNT_PERCENT,
+        duration: 'once',
+        name: `Riverz · ${FIRST_MONTH_DISCOUNT_PERCENT}% primer mes / first month`,
+      })
+    } catch (createError) {
+      // Dos checkouts simultáneos pueden crear el mismo cupón. El segundo
+      // recupera el ya creado; cualquier otro error detiene el pago.
+      coupon = await stripe().coupons.retrieve(FIRST_MONTH_COUPON_ID).catch(() => { throw createError })
+    }
+  }
+  if (!coupon.valid || coupon.duration !== 'once' || coupon.percent_off !== FIRST_MONTH_DISCOUNT_PERCENT) {
+    throw new Error('La promoción del primer mes no coincide con Stripe.')
+  }
+  return coupon.id
+}
+
 /**
  * Lleva a poner la tarjeta.
  *
@@ -128,6 +155,7 @@ export async function urlDeCheckout(
   }
   const customer = await clienteDe(db, workspaceId, s, quien.email, quien.nombre)
   const items = lineItemsDeSuscripcion(s, locale)
+  const coupon = opciones?.cupon || (eligibleForFirstMonthOffer(s) ? await couponForFirstMonth() : null)
 
   const sesion = await stripe().checkout.sessions.create({
     mode: 'subscription',
@@ -144,7 +172,7 @@ export async function urlDeCheckout(
     // El id de la cuenta viaja con la suscripción: el webhook llega sin sesión
     // y sin esto habría que adivinar de quién es.
     subscription_data: { metadata: { workspace_id: workspaceId } },
-    ...(opciones?.cupon ? { discounts: [{ coupon: opciones.cupon }] } : {}),
+    ...(coupon ? { discounts: [{ coupon }] } : {}),
     success_url: volverA('/ajustes?facturacion=lista'),
     cancel_url: volverA('/ajustes?facturacion=cancelada'),
   })

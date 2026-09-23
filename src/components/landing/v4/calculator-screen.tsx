@@ -4,16 +4,17 @@ import { useState } from "react";
 import Link from "@/components/i18n/locale-link";
 import { useFormat } from "@/hooks/use-format";
 import { useT } from "@/hooks/use-locale";
+import { FIRST_MONTH_DISCOUNT_PERCENT, firstMonthCents } from "@/lib/billing/first-month-offer";
 import { LocaleSwitch } from "./bits";
-import { PRICING_TIERS } from "./pricing-tiers";
+import type { PricingTier } from "./pricing-tiers";
 import { RoiCalculator } from "./roi-calculator";
 import "./editorial.css";
 
-export function CalculatorScreen() {
+export function CalculatorScreen({ tiers }: { tiers: PricingTier[] }) {
   const t = useT();
   const fmt = useFormat();
   const [tierIndex, setTierIndex] = useState(1);
-  const tier = PRICING_TIERS[tierIndex];
+  const tier = tiers[tierIndex];
 
   return (
     <div className="sn min-h-screen">
@@ -32,7 +33,7 @@ export function CalculatorScreen() {
           >
             <h2 id="roi-plan-label" className="text-[15px] font-medium">{t("landingV4.roiPlanLabel")}</h2>
             <div className="mx-auto mt-5 grid max-w-3xl grid-cols-5 gap-1.5 sm:gap-3">
-              {PRICING_TIERS.map((option, index) => {
+              {tiers.map((option, index) => {
                 const label = option.customers === null
                   ? t("landingV4.pricingTierMore")
                   : option.customers < 1_000
@@ -66,6 +67,14 @@ export function CalculatorScreen() {
                 </span>
               )}
             </p>
+            {tier.monthly !== null && (
+              <p className="mt-3 text-[14px] text-[var(--sn-ink-2)]">
+                {t("landingV4.pricingCalculatorOffer", {
+                  percent: FIRST_MONTH_DISCOUNT_PERCENT,
+                  amount: fmt.currency(firstMonthCents(tier.monthly * 100) / 100, "USD", { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
+                })}
+              </p>
+            )}
           </section>
 
           <RoiCalculator monthlyPrice={tier.monthly} />

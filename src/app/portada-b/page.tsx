@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getT } from "@/lib/i18n/server";
 import { LandingV4 } from "@/components/landing/v4/landing-v4";
+import { publicPricingTiers } from "@/lib/billing/public-pricing";
 
 // Cuarta portada, en registro editorial, servida acá para poder compararla en
 // vivo contra `/`, `/landing` y `/portada` sin tocar ninguna. Como las otras
@@ -19,6 +20,6 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function PortadaBPage() {
-  return <LandingV4 />;
+export default async function PortadaBPage() {
+  return <LandingV4 tiers={await publicPricingTiers()} />;
 }

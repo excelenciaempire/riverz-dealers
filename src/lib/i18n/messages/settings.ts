@@ -1321,6 +1321,11 @@ export const settings = {
   billingSubscribe: { es: 'Poner tarjeta', en: 'Add a card' },
   billingManage: { es: 'Administrar', en: 'Manage' },
   billingPerMonth: { es: 'Por mes', en: 'Per month' },
+  billingFirstMonthDiscount: {
+    es: 'Primer mes · {percent} % de descuento',
+    en: 'First month · {percent}% off',
+  },
+  billingAfterFirstMonth: { es: 'Después, por mes', en: 'Then, per month' },
   billingModelLabel: { es: 'Sistema de cobro', en: 'Billing model' },
   billingAllIncluded: { es: 'Todo incluido', en: 'All included' },
   billingBalanceModel: { es: 'Saldo por consumo', en: 'Usage balance' },
