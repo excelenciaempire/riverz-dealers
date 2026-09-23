@@ -11,6 +11,7 @@
 
 import { withAppsecretProof } from '@/lib/channels/meta-graph'
 import { TRANSIENT_META_CODES } from '@/lib/whatsapp/delivery-errors'
+import { assertTemplateIntent } from '@/lib/whatsapp/template-intent-guard'
 
 const META_API_VERSION = 'v21.0'
 const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`
@@ -235,6 +236,7 @@ export function sanitizeTemplateTextParameter(value: unknown): string {
 export async function sendTemplateMessage(
   args: SendTemplateMessageArgs
 ): Promise<MetaSendResult> {
+  assertTemplateIntent(args.templateName, args.params)
   const {
     phoneNumberId,
     accessToken,

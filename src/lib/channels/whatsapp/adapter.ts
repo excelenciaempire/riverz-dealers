@@ -31,6 +31,7 @@ import { desdeDonde } from "../estado-de-entrega";
 import { metaErrorText, metaErrorCode } from "@/lib/whatsapp/delivery-errors";
 import { mirrorBroadcastDelivery } from "@/lib/broadcasts/delivery-status";
 import { ensureSendableImageUrl } from "@/lib/whatsapp/image-compat";
+import { assertTemplateIntent } from "@/lib/whatsapp/template-intent-guard";
 import {
   handleTemplateStatusUpdate,
   handleTemplateQualityUpdate,
@@ -158,6 +159,7 @@ export const whatsappAdapter: ChannelAdapter = {
   },
 
   async sendTemplate(input: OutboundTemplate): Promise<SendResult> {
+    assertTemplateIntent(input.templateName, input.params);
     const cfg = (input.connection.config ?? {}) as Record<string, unknown>;
     const phoneNumberId = String(cfg.phone_number_id ?? "");
     if (!phoneNumberId) throw new Error("[whatsapp] connection missing phone_number_id");

@@ -22,6 +22,25 @@ const BASE_ARGS = {
   bodyText: "Body text",
 } as const;
 
+describe('sendTemplateMessage — intent guard', () => {
+  it('does not call Meta when a dispatch template carries a cancellation correction', async () => {
+    const fetchMock = vi.fn(neverFetch);
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await expect(sendTemplateMessage({
+        phoneNumberId: 'test-phone',
+        accessToken: 'test-token',
+        to: '1234567890',
+        templateName: 'deuna_despachado_producto_v2',
+        params: ['El aviso de cancelación anterior fue un error del sistema.', '114015579121'],
+      })).rejects.toThrow('template_intent_mismatch');
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe("sendInteractiveButtons — validation", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn(neverFetch));
