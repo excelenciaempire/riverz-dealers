@@ -1,4 +1,6 @@
 export const DEUNA_TRACKING_REMINDER_DELAY_HOURS = 48;
+export const DEUNA_TRACKING_REMINDER_AUTOMATION_ID =
+  '7860c0bb-22fb-4ad4-9b7b-efba77f248b3';
 
 export const DEUNA_TRACKING_REMINDER_TEMPLATE = {
   name: 'deuna_recordatorio_tracking_v1',

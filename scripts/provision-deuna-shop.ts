@@ -11,6 +11,7 @@
 import { readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 import {
+  DEUNA_TRACKING_REMINDER_AUTOMATION_ID,
   DEUNA_TRACKING_REMINDER_DELAY_HOURS,
   DEUNA_TRACKING_REMINDER_TEMPLATE,
 } from '../src/lib/automations/deuna-tracking-reminder'
@@ -218,7 +219,7 @@ async function upsertAgent(name: string, payload: Record<string, unknown>) {
 }
 
 async function upsertAutomation(ownerId: string, agentId: string, definition: {
-  name: string; description: string; trigger_type: string; trigger_config?: Record<string, unknown>; steps: Step[]
+  id?: string; name: string; description: string; trigger_type: string; trigger_config?: Record<string, unknown>; steps: Step[]
 }) {
   const { data: old, error: lookupError } = await db.from('automations')
     .select('id').eq('workspace_id', WORKSPACE_ID).eq('name', definition.name).is('deleted_at', null).maybeSingle()
@@ -231,7 +232,7 @@ async function upsertAutomation(ownerId: string, agentId: string, definition: {
   }
   const { data, error } = old
     ? await db.from('automations').update(payload).eq('id', old.id).select('id').single()
-    : await db.from('automations').insert(payload).select('id').single()
+    : await db.from('automations').insert({ ...payload, ...(definition.id ? { id: definition.id } : {}) }).select('id').single()
   fail(error)
   if (!data) throw new Error(`No se pudo guardar la automatización ${definition.name}.`)
   const id = String(data.id)
@@ -379,10 +380,15 @@ async function main() {
     {
       name: 'DeUNA Shop · Pedido despachado',
       description: 'Envía la guía cuando Shopify marca el pedido como preparado y despachado.',
+      trigger_type: 'shopify_order_fulfilled', steps: [template('deuna_despachado_producto_v2', {
+        '1': '{{vars.order_items}}', '2': '{{vars.tracking_number}}',
+      })],
+    },
+    {
+      id: DEUNA_TRACKING_REMINDER_AUTOMATION_ID,
+      name: 'DeUNA Shop · Recordatorio de entrega 48 h',
+      description: 'Recuerda cómo recibir el pedido 48 horas después de enviar la guía.',
       trigger_type: 'shopify_order_fulfilled', steps: [
-        template('deuna_despachado_producto_v2', {
-          '1': '{{vars.order_items}}', '2': '{{vars.tracking_number}}',
-        }),
         wait(DEUNA_TRACKING_REMINDER_DELAY_HOURS, 'hours'),
         template(DEUNA_TRACKING_REMINDER_TEMPLATE.name, {
           '1': '{{vars.recipient_name}}', '2': '{{vars.tracking_number}}',

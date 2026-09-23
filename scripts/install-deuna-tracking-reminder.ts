@@ -2,7 +2,7 @@
  * Publica y activa el recordatorio de tracking de DeUNA Shop.
  *
  * Es idempotente y no reproduce pedidos anteriores. El flujo queda:
- * tracking enviado -> espera 48 h -> recordatorio. El motor vuelve a consultar
+ * guía disponible -> espera 48 h -> recordatorio. El motor vuelve a consultar
  * Shopify al despertar y omite pedidos entregados, cancelados o sin guía.
  *
  * Run: npx tsx scripts/install-deuna-tracking-reminder.ts
@@ -10,13 +10,14 @@
 import { readFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 import {
+  DEUNA_TRACKING_REMINDER_AUTOMATION_ID,
   DEUNA_TRACKING_REMINDER_DELAY_HOURS,
   DEUNA_TRACKING_REMINDER_TEMPLATE,
 } from '../src/lib/automations/deuna-tracking-reminder';
 
 const WORKSPACE_ID = '36f81b96-41b9-4d29-b72e-11be3d3070a3';
-const AUTOMATION_ID = '7aebb961-1207-4ad2-be03-11580e1de813';
-const TRACKING_TEMPLATE = 'deuna_despachado_producto_v2';
+const TRACKING_AUTOMATION_ID = '7aebb961-1207-4ad2-be03-11580e1de813';
+const AUTOMATION_ID = DEUNA_TRACKING_REMINDER_AUTOMATION_ID;
 
 for (const line of readFileSync('.env.local', 'utf8').split(/\r?\n/)) {
   const match = /^([A-Z0-9_]+)=(.*)$/.exec(line);
@@ -63,21 +64,21 @@ async function remoteTemplateStatus(
 async function main() {
   // These modules read ENCRYPTION_KEY during import, after .env.local has
   // already been loaded above.
-  const [{ reconcileWorkspaceAutomationReadiness }, { withAppsecretProof }, templates] =
+  const [{ armAutomation }, { withAppsecretProof }, templates] =
     await Promise.all([
       import('../src/lib/automations/activation'),
       import('../src/lib/channels/meta-graph'),
       import('../src/lib/templates/create'),
     ]);
   const { crearPlantilla, resolverWabaYToken } = templates;
-  const flow = await db
+  const trackingFlow = await db
     .from('automations')
-    .select('id,user_id,name,is_active,activation_state')
-    .eq('id', AUTOMATION_ID)
+    .select('id,user_id,trigger_config')
+    .eq('id', TRACKING_AUTOMATION_ID)
     .eq('workspace_id', WORKSPACE_ID)
     .is('deleted_at', null)
     .single();
-  if (flow.error) throw flow.error;
+  if (trackingFlow.error) throw trackingFlow.error;
 
   const definition = DEUNA_TRACKING_REMINDER_TEMPLATE;
   const local = await db
@@ -95,7 +96,7 @@ async function main() {
   if (!local.data || local.data.status === 'Draft') {
     const created = await crearPlantilla(db, {
       workspaceId: WORKSPACE_ID,
-      userId: flow.data.user_id,
+      userId: trackingFlow.data.user_id,
       nombre: definition.name,
       idioma: definition.language,
       categoria: definition.category,
@@ -112,7 +113,7 @@ async function main() {
   const credentials = await resolverWabaYToken(
     db,
     WORKSPACE_ID,
-    flow.data.user_id,
+    trackingFlow.data.user_id,
   );
   if (!credentials.wabaId || !credentials.accessToken) {
     throw new Error('WhatsApp account unavailable');
@@ -144,9 +145,35 @@ async function main() {
     .eq('language', definition.language);
   if (saved.error) throw saved.error;
 
-  if (status !== 'Approved' || remote.category !== 'UTILITY') {
-    console.log(JSON.stringify({ template: definition.name, status, category: remote.category }));
-    return;
+  const existingAutomation = await db
+    .from('automations')
+    .select('id,name,trigger_type')
+    .eq('id', AUTOMATION_ID)
+    .eq('workspace_id', WORKSPACE_ID)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (existingAutomation.error) throw existingAutomation.error;
+  if (
+    existingAutomation.data &&
+    (existingAutomation.data.name !== 'DeUNA Shop · Recordatorio de entrega 48 h' ||
+      existingAutomation.data.trigger_type !== 'shopify_order_fulfilled')
+  ) {
+    throw new Error('Tracking reminder automation id is already in use');
+  }
+  if (!existingAutomation.data) {
+    const createdAutomation = await db.from('automations').insert({
+      id: AUTOMATION_ID,
+      workspace_id: WORKSPACE_ID,
+      user_id: trackingFlow.data.user_id,
+      name: 'DeUNA Shop · Recordatorio de entrega 48 h',
+      description: 'Recuerda cómo recibir el pedido 48 horas después de enviar la guía.',
+      trigger_type: 'shopify_order_fulfilled',
+      trigger_config: trackingFlow.data.trigger_config ?? {},
+      is_active: false,
+      activation_state: 'draft',
+      activation_blockers: [],
+    });
+    if (createdAutomation.error) throw createdAutomation.error;
   }
 
   const current = await db
@@ -157,20 +184,10 @@ async function main() {
     .order('position');
   if (current.error) throw current.error;
   const steps = current.data ?? [];
-  const first = steps[0];
-  if (
-    !first ||
-    first.position !== 0 ||
-    first.step_type !== 'send_template' ||
-    first.step_config?.template_name !== TRACKING_TEMPLATE
-  ) {
-    throw new Error('Tracking automation changed; inspect it before applying the reminder');
-  }
-
-  const waitStep = steps.find((step) => step.position === 1);
-  const reminderStep = steps.find((step) => step.position === 2);
+  const waitStep = steps.find((step) => step.position === 0);
+  const reminderStep = steps.find((step) => step.position === 1);
   const alreadyInstalled =
-    steps.length === 3 &&
+    steps.length === 2 &&
     waitStep?.step_type === 'wait' &&
     waitStep.step_config?.amount === DEUNA_TRACKING_REMINDER_DELAY_HOURS &&
     waitStep.step_config?.unit === 'hours' &&
@@ -178,22 +195,15 @@ async function main() {
     reminderStep.step_config?.template_name === definition.name;
 
   if (!alreadyInstalled) {
-    if (steps.length !== 1) {
+    if (steps.length !== 0) {
       throw new Error('Tracking automation has unexpected steps; no changes were made');
     }
-    const paused = await db
-      .from('automations')
-      .update({ is_active: false, activation_state: 'draft' })
-      .eq('id', AUTOMATION_ID)
-      .eq('workspace_id', WORKSPACE_ID);
-    if (paused.error) throw paused.error;
-
     const inserted = await db.from('automation_steps').insert([
       {
         automation_id: AUTOMATION_ID,
         parent_step_id: null,
         branch: null,
-        position: 1,
+        position: 0,
         step_type: 'wait',
         step_config: {
           amount: DEUNA_TRACKING_REMINDER_DELAY_HOURS,
@@ -204,7 +214,7 @@ async function main() {
         automation_id: AUTOMATION_ID,
         parent_step_id: null,
         branch: null,
-        position: 2,
+        position: 1,
         step_type: 'send_template',
         step_config: {
           template_name: definition.name,
@@ -219,19 +229,12 @@ async function main() {
     if (inserted.error) throw inserted.error;
   }
 
-  const description = await db
-    .from('automations')
-    .update({
-      description: 'Envía la guía al prepararse el despacho y, 48 horas después, recuerda cómo recibir el pedido.',
-    })
-    .eq('id', AUTOMATION_ID)
-    .eq('workspace_id', WORKSPACE_ID);
-  if (description.error) throw description.error;
-
-  const readiness = await reconcileWorkspaceAutomationReadiness(db, WORKSPACE_ID);
-  const result = readiness.find((item) => item.id === AUTOMATION_ID);
-  if (!result || result.state !== 'active') {
-    throw new Error(`Automation was not activated: ${result?.issues.map((issue) => issue.path).join(', ') ?? 'missing'}`);
+  const result = await armAutomation(db, AUTOMATION_ID, WORKSPACE_ID);
+  const expectedState = status === 'Approved' && remote.category === 'UTILITY'
+    ? 'active'
+    : 'armed';
+  if (result.state !== expectedState) {
+    throw new Error(`Automation state ${result.state}; expected ${expectedState}: ${result.issues.map((issue) => issue.path).join(', ')}`);
   }
 
   const verified = await db
@@ -240,7 +243,7 @@ async function main() {
     .eq('automation_id', AUTOMATION_ID)
     .is('parent_step_id', null)
     .order('position');
-  if (verified.error || verified.data?.length !== 3) {
+  if (verified.error || verified.data?.length !== 2) {
     throw new Error('Tracking reminder verification failed');
   }
 

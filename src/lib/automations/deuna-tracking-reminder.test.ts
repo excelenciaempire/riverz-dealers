@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEUNA_TRACKING_REMINDER_DELAY_HOURS,
+  DEUNA_TRACKING_REMINDER_AUTOMATION_ID,
   DEUNA_TRACKING_REMINDER_TEMPLATE,
 } from './deuna-tracking-reminder';
+import { RIVERZ_FLOWS } from './riverzoficial-context-gate';
 
 describe('DeUNA tracking reminder', () => {
   it('waits 48 hours and asks for the actions that prevent failed COD delivery', () => {
     expect(DEUNA_TRACKING_REMINDER_DELAY_HOURS).toBe(48);
+    expect(RIVERZ_FLOWS[DEUNA_TRACKING_REMINDER_AUTOMATION_ID]).toBe('shipped');
     expect(DEUNA_TRACKING_REMINDER_TEMPLATE.category).toBe('UTILITY');
     expect(DEUNA_TRACKING_REMINDER_TEMPLATE.body).toContain('mantente pendiente del celular');
     expect(DEUNA_TRACKING_REMINDER_TEMPLATE.body).toContain('alguien autorizado');

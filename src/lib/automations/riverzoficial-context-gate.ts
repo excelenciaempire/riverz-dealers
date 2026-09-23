@@ -3,11 +3,13 @@ import { RIVERZOFICIAL_WORKSPACE } from './riverzoficial-template-context';
 import { resolveShopifyAdmin } from '@/lib/shopify/order-tags';
 import { confirmationSummary } from '@/lib/shopify/confirmation-summary';
 import { orderConfirmationReason } from './order-confirmation';
+import { DEUNA_TRACKING_REMINDER_AUTOMATION_ID } from './deuna-tracking-reminder';
 /** Automatización → qué verifica en Shopify antes de cada mensaje. Lo usa también la prueba como cliente. */
 export const RIVERZ_FLOWS: Record<string, string> = {
   'f29f3d74-f10f-42a5-946a-15b254a70106': 'confirmation',
   'f1784d9c-3c26-4328-83af-9454efb0864d': 'cart',
   '7aebb961-1207-4ad2-be03-11580e1de813': 'shipped',
+  [DEUNA_TRACKING_REMINDER_AUTOMATION_ID]: 'shipped',
   '7e831f94-51c2-4c58-ba80-a8a640623abf': 'delivered',
   'a56108d1-5998-429d-a453-2fe69a3e7132': 'cancelled',
 };
