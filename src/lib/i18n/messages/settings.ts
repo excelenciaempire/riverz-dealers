@@ -1259,6 +1259,26 @@ export const settings = {
 
   // Facturación, en Ajustes.
   billingTitle: { es: 'Plan y facturación', en: 'Plan and billing' },
+  billingPlan500: { es: 'Hasta 500 contactos', en: 'Up to 500 contacts' },
+  billingPlan2000: { es: 'Hasta 2.000 contactos', en: 'Up to 2,000 contacts' },
+  billingPlan5000: { es: 'Hasta 5.000 contactos', en: 'Up to 5,000 contacts' },
+  billingPlan10000: { es: 'Hasta 10.000 contactos', en: 'Up to 10,000 contacts' },
+  billingMissingPrice: {
+    es: 'Esta cuenta todavía no tiene un precio de suscripción activo.',
+    en: 'This account does not have an active subscription price yet.',
+  },
+  billingPlanInactive: {
+    es: 'Elige un plan activo antes de pagar.',
+    en: 'Choose an active plan before paying.',
+  },
+  billingAlreadyActive: {
+    es: 'Esta cuenta ya tiene una suscripción activa.',
+    en: 'This account already has an active subscription.',
+  },
+  billingPaymentFailed: {
+    es: 'No se pudo abrir el pago.',
+    en: 'Could not open payment.',
+  },
   billingTrial: {
     es: 'Te quedan {n} días de prueba.',
     en: '{n} days of trial left.',
@@ -1301,6 +1321,15 @@ export const settings = {
   billingSubscribe: { es: 'Poner tarjeta', en: 'Add a card' },
   billingManage: { es: 'Administrar', en: 'Manage' },
   billingPerMonth: { es: 'Por mes', en: 'Per month' },
+  billingModelLabel: { es: 'Sistema de cobro', en: 'Billing model' },
+  billingAllIncluded: { es: 'Todo incluido', en: 'All included' },
+  billingBalanceModel: { es: 'Saldo por consumo', en: 'Usage balance' },
+  billingServedContacts: { es: 'Contactos atendidos este período', en: 'Contacts served this period' },
+  billingContactsOf: { es: '{n} de {total}', en: '{n} of {total}' },
+  billingVolumeExceeded: {
+    es: 'Superaste el volumen del plan. Contacta a Riverz para ajustar el siguiente período. No hay cobro automático.',
+    en: 'You exceeded your plan volume. Contact Riverz to adjust the next period. There is no automatic overage charge.',
+  },
   billingRenewsOn: { es: 'Se renueva el', en: 'Renews on' },
   billingEndsOn: { es: 'Termina el', en: 'Ends on' },
   billingCancel: { es: 'Cancelar suscripción', en: 'Cancel subscription' },

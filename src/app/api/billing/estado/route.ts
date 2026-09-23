@@ -30,11 +30,12 @@ export async function GET() {
 
   const sus = await asegurarSuscripcion(admin, workspaceId)
   const periodo = periodoDe(sus)
-  const uso = await usoDelPeriodo(admin, workspaceId, periodo)
+  const uso = await usoDelPeriodo(admin, workspaceId, periodo, sus.modeloCobro === 'oficial')
 
   return NextResponse.json(
     {
       estado: sus.estado,
+      modeloCobro: sus.modeloCobro,
       plan: sus.plan ? { nombre: sus.plan.nombre, slug: sus.plan.slug } : null,
       acceso: acceso(sus),
       cuenta: cuentaDelPeriodo(sus, uso),
@@ -45,7 +46,7 @@ export async function GET() {
       periodoHasta: sus.periodoHasta,
       puedeCancelar: stripeDisponible() && Boolean(sus.stripeSubscriptionId),
       // Sin Stripe configurado no se ofrece un botón que no puede funcionar.
-      puedeSuscribirse: stripeDisponible() && Boolean(sus.plan?.stripePriceId),
+      puedeSuscribirse: stripeDisponible() && Boolean(sus.plan) && sus.precioAcuerdoCentavos > 0,
       tienePortal: stripeDisponible() && Boolean(sus.stripeCustomerId),
       cancelarAlFinal: sus.cancelarAlFinal,
     },

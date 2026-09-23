@@ -4,7 +4,10 @@ import { csrfGuard } from '@/lib/csrf';
 import { requireAdmin } from '@/lib/admin/guard';
 import { adminGet, rangeFromSearch } from '@/lib/admin/route';
 import { recordAdminAction } from '@/lib/admin/audit';
-import { listarPlanes, DIAS_DE_PRUEBA } from '@/lib/billing/plan';
+import { listarPlanes, leerSuscripcion, DIAS_DE_PRUEBA } from '@/lib/billing/plan';
+import { sincronizarPrecioSuscripcion } from '@/lib/billing/stripe';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 import { leerNegocio } from '@/lib/billing/negocio';
 import { listarTarifas } from '@/lib/wallet/tarifas';
 
@@ -114,19 +117,40 @@ export async function PUT(request: Request) {
     if (!p.slug?.trim() || !p.nombre?.trim()) {
       return NextResponse.json({ error: 'falta slug o nombre' }, { status: 400 });
     }
+    const { data: actual, error: planReadError } = await db.from('billing_plans')
+      .select('id,activo,precio_centavos,incluidas,excedente_centavos,stripe_price_id,stripe_price_excedente_id,orden')
+      .eq('slug', p.slug.trim()).maybeSingle();
+    if (planReadError) return NextResponse.json({ error: planReadError.message }, { status: 400 });
     const fila = {
       slug: p.slug.trim(),
       nombre: p.nombre.trim(),
-      activo: p.activo !== false,
+      activo: p.activo ?? actual?.activo ?? true,
       precio_centavos: ENTERO(p.precio_centavos) ?? 0,
       moneda: (p.moneda ?? 'usd').toLowerCase(),
       incluidas: ENTERO(p.incluidas) ?? 0,
       excedente_centavos: ENTERO(p.excedente_centavos) ?? 0,
-      stripe_price_id: p.stripe_price_id?.trim() || null,
-      stripe_price_excedente_id: p.stripe_price_excedente_id?.trim() || null,
-      orden: ENTERO(p.orden) ?? 0,
+      stripe_price_id: p.stripe_price_id === undefined
+        ? actual?.stripe_price_id ?? null : p.stripe_price_id?.trim() || null,
+      stripe_price_excedente_id: p.stripe_price_excedente_id === undefined
+        ? actual?.stripe_price_excedente_id ?? null : p.stripe_price_excedente_id?.trim() || null,
+      orden: ENTERO(p.orden) ?? actual?.orden ?? 999,
       updated_at: new Date().toISOString(),
     };
+    if (actual && (
+      actual.precio_centavos !== fila.precio_centavos ||
+      actual.incluidas !== fila.incluidas ||
+      actual.excedente_centavos !== fila.excedente_centavos
+    )) {
+      const { count, error: countError } = await db.from('workspace_subscriptions')
+        .select('workspace_id', { count: 'exact', head: true })
+        .eq('plan_id', actual.id)
+        .in('estado', ['activa', 'vencida'])
+        .not('stripe_subscription_id', 'is', null);
+      if (countError) return NextResponse.json({ error: countError.message }, { status: 400 });
+      if (count) return NextResponse.json({
+        error: translate(await getLocale(), 'admin.billingPlanHasSubscribers'),
+      }, { status: 409 });
+    }
     // Por `slug` y no por id: es la clave estable del plan y deja que la misma
     // llamada sirva para crear y para editar.
     const { error } = await db
@@ -147,6 +171,28 @@ export async function PUT(request: Request) {
     const c = body.cuenta;
     if (!c.workspace_id) {
       return NextResponse.json({ error: 'falta workspace_id' }, { status: 400 });
+    }
+    const previa = await leerSuscripcion(db, c.workspace_id);
+    const { data: antes, error: antesError } = await db.from('workspace_subscriptions')
+      .select('plan_id,estado,prueba_hasta,precio_centavos_override,incluidas_override,excedente_centavos_override,modelo_cobro,nota')
+      .eq('workspace_id', c.workspace_id).maybeSingle();
+    if (antesError) return NextResponse.json({ error: antesError.message }, { status: 400 });
+    const planes = await listarPlanes(db);
+    const plan = c.plan_id
+      ? planes.find((p) => p.id === c.plan_id)
+      : previa?.plan;
+    const modelo = c.modelo_cobro ?? previa?.modeloCobro ?? 'oficial';
+    if (modelo === 'oficial' && (!plan?.activo || plan.incluidas <= 0)) {
+      return NextResponse.json({
+        error: translate(await getLocale(), 'admin.billingOfficialPlanRequired'),
+      }, { status: 400 });
+    }
+    const suscripcionStripeViva = Boolean(previa?.stripeSubscriptionId) &&
+      (previa?.estado === 'activa' || previa?.estado === 'vencida');
+    if (c.estado === 'cortesia' && suscripcionStripeViva) {
+      return NextResponse.json({
+        error: translate(await getLocale(), 'admin.billingCancelBeforeComping'),
+      }, { status: 400 });
     }
     const fila: Record<string, unknown> = {
       workspace_id: c.workspace_id,
@@ -175,6 +221,27 @@ export async function PUT(request: Request) {
       .from('workspace_subscriptions')
       .upsert(fila, { onConflict: 'workspace_id' });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    if (previa && suscripcionStripeViva) {
+      const nueva = await leerSuscripcion(db, c.workspace_id);
+      try {
+        if (nueva && (
+          nueva.precioCentavos !== previa.precioCentavos ||
+          nueva.modeloCobro !== previa.modeloCobro ||
+          nueva.plan?.moneda !== previa.plan?.moneda
+        )) await sincronizarPrecioSuscripcion(
+          previa, nueva.precioCentavos, nueva.plan?.moneda ?? 'usd', nueva.modeloCobro,
+        );
+      } catch (stripeError) {
+        const { error: rollbackError } = await db.from('workspace_subscriptions')
+          .update(antes ?? {})
+          .eq('workspace_id', c.workspace_id);
+        console.error('[billing] no se pudo sincronizar Stripe', stripeError, rollbackError);
+        return NextResponse.json({
+          error: translate(await getLocale(), 'admin.billingStripeSyncFailed'),
+        }, { status: 502 });
+      }
+    }
 
     // Al pasar a todo incluido se apaga cualquier recarga automática anterior.
     // Se conserva la tarjeta y el libro por si el acuerdo vuelve a saldo.

@@ -59,6 +59,16 @@ const TONO: Record<string, Tone> = {
 const usd = (centavos: number) =>
   `US$${(centavos / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
+function nombrePlan(p: Plan, t: ReturnType<typeof useT>): string {
+  switch (p.slug) {
+    case "contactos-500": return t("settings.billingPlan500");
+    case "contactos-2000": return t("settings.billingPlan2000");
+    case "contactos-5000": return t("settings.billingPlan5000");
+    case "contactos-10000": return t("settings.billingPlan10000");
+    default: return p.nombre;
+  }
+}
+
 /**
  * El negocio: cuánto entra, cuánto sale y qué paga cada comercio.
  *
@@ -76,6 +86,8 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
   const [guardando, setGuardando] = useState(false);
   const [alta, setAlta] = useState(false);
   const [errorAlta, setErrorAlta] = useState<string | null>(null);
+  const [errorCuenta, setErrorCuenta] = useState<string | null>(null);
+  const [errorPlan, setErrorPlan] = useState<string | null>(null);
 
   const hasta = toDays(dias);
   const url =
@@ -85,14 +97,22 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
 
   const guardarCuenta = async (cuenta: Record<string, unknown>) => {
     setGuardando(true);
+    setErrorCuenta(null);
     try {
-      await fetchWithCsrf("/api/admin/billing", {
+      const res = await fetchWithCsrf("/api/admin/billing", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cuenta }),
       });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as { error?: string } | null;
+        setErrorCuenta(json?.error ?? t("admin.billingSaveFailed"));
+        return;
+      }
       setEditando(null);
       reload();
+    } catch {
+      setErrorCuenta(t("admin.billingSaveFailed"));
     } finally {
       setGuardando(false);
     }
@@ -178,13 +198,21 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
 
   const guardarPlan = async (plan: Record<string, unknown>) => {
     setGuardando(true);
+    setErrorPlan(null);
     try {
-      await fetchWithCsrf("/api/admin/billing", {
+      const res = await fetchWithCsrf("/api/admin/billing", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as { error?: string } | null;
+        setErrorPlan(json?.error ?? t("admin.billingSaveFailed"));
+        return;
+      }
       reload();
+    } catch {
+      setErrorPlan(t("admin.billingSaveFailed"));
     } finally {
       setGuardando(false);
     }
@@ -213,6 +241,14 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         ),
       },
       {
+        key: "plan",
+        header: t("admin.billingPlan"),
+        cell: (c) => {
+          const plan = data?.planes.find((p) => p.slug === c.planSlug);
+          return <span>{plan ? nombrePlan(plan, t) : c.plan ?? "—"}</span>;
+        },
+      },
+      {
         key: "mrr",
         header: t("admin.billingMrr"),
         cell: (c) => (
@@ -232,7 +268,8 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         header: t("admin.billingUsage"),
         cell: (c) => (
           <span className="tabular-nums">
-            {c.conversaciones.toLocaleString()}
+            {(c.modeloCobro === "oficial" ? c.contactosAtendidos : c.conversaciones).toLocaleString()}
+            <Muted> {t(c.modeloCobro === "oficial" ? "admin.billingContactsShort" : "admin.billingConversationsShort")}</Muted>
             <Muted> · US${c.costoUsd.toFixed(2)}</Muted>
           </span>
         ),
@@ -272,7 +309,7 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         ),
       },
     ],
-    [editando, t],
+    [data, editando, t],
   );
 
   if (loading && !data) return <Loading />;
@@ -377,6 +414,7 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
           {alta && (
             <div className="border-b border-border p-4">
               <FormularioAlta
+                planes={planes.filter((p) => p.activo)}
                 guardando={guardando}
                 error={errorAlta}
                 onCrear={crearCuenta}
@@ -391,6 +429,7 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
                 cuenta={negocio.cuentas.find((c) => c.workspaceId === editando)!}
                 planes={planes}
                 guardando={guardando}
+                error={errorCuenta}
                 onGuardar={guardarCuenta}
                 onCerrar={() => setEditando(null)}
               />
@@ -414,6 +453,7 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         <>
           <Panel title={t("admin.billingPlans")}>
             <div className="space-y-3 p-4">
+              {errorPlan && <p className="text-sm text-destructive">{errorPlan}</p>}
               {planes.map((p) => (
                 <FilaPlan key={p.slug} plan={p} onGuardar={guardarPlan} guardando={guardando} />
               ))}
@@ -625,6 +665,7 @@ function FilaPlan({
   const [f, setF] = useState({
     slug: plan?.slug ?? "",
     nombre: plan?.nombre ?? "",
+    activo: plan?.activo ?? true,
     precio: String((plan?.precioCentavos ?? 0) / 100),
     incluidas: String(plan?.incluidas ?? 0),
     excedente: String((plan?.excedenteCentavos ?? 0) / 100),
@@ -633,7 +674,7 @@ function FilaPlan({
   });
 
   return (
-    <div className="grid grid-cols-2 items-end gap-2 rounded-xl border border-border p-3 lg:grid-cols-7">
+    <div className="grid grid-cols-2 items-end gap-2 rounded-xl border border-border p-3 lg:grid-cols-8">
       <Campo label={t("admin.billingSlug")}>
         <input
           className={INPUT}
@@ -649,6 +690,10 @@ function FilaPlan({
           onChange={(e) => setF({ ...f, nombre: e.target.value })}
         />
       </Campo>
+      <label className="flex items-center gap-2 pb-2 text-sm text-foreground">
+        <input type="checkbox" checked={f.activo} onChange={(e) => setF({ ...f, activo: e.target.checked })} />
+        {t("admin.billingPlanActive")}
+      </label>
       <Campo label={t("admin.billingPrice")}>
         <input
           className={INPUT}
@@ -688,6 +733,7 @@ function FilaPlan({
           onGuardar({
             slug: f.slug,
             nombre: f.nombre,
+            activo: f.activo,
             // Se escribe en la moneda que se habla y se guarda en centavos: un
             // precio en float se convierte en 298,99999 después de dos cuentas.
             precio_centavos: Math.round(Number(f.precio) * 100),
@@ -695,6 +741,7 @@ function FilaPlan({
             excedente_centavos: Math.round(Number(f.excedente) * 100),
             stripe_price_id: f.stripe,
             stripe_price_excedente_id: f.stripeExc,
+            orden: plan?.orden ?? 999,
           })
         }
         className="h-[34px] rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-50"
@@ -709,12 +756,14 @@ function FormularioCuenta({
   cuenta,
   planes,
   guardando,
+  error,
   onGuardar,
   onCerrar,
 }: {
   cuenta: CuentaDelNegocio;
   planes: Plan[];
   guardando: boolean;
+  error: string | null;
   onGuardar: (c: Record<string, unknown>) => void;
   onCerrar: () => void;
 }) {
@@ -764,7 +813,7 @@ function FormularioCuenta({
             <option value="">{t("admin.billingKeep")}</option>
             {planes.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.nombre}
+                {nombrePlan(p, t)}
               </option>
             ))}
           </select>
@@ -796,6 +845,7 @@ function FormularioCuenta({
         </Campo>
       </div>
       <LinkDePago workspaceId={cuenta.workspaceId} />
+      {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex gap-2">
         <button
           type="button"
@@ -808,8 +858,10 @@ function FormularioCuenta({
               ...(f.plan_id ? { plan_id: f.plan_id } : {}),
               ...(f.precio !== ""
                 ? { precio_centavos_override: Math.round(Number(f.precio) * 100) }
-                : {}),
-              ...(f.incluidas !== "" ? { incluidas_override: Number(f.incluidas) } : {}),
+                : f.plan_id ? { precio_centavos_override: null } : {}),
+              ...(f.incluidas !== ""
+                ? { incluidas_override: Number(f.incluidas) }
+                : f.plan_id ? { incluidas_override: null, excedente_centavos_override: null } : {}),
               nota: f.nota,
             })
           }
@@ -837,11 +889,13 @@ function FormularioCuenta({
  * defecto tiene que ser el caso real, no el que suena mas prolijo.
  */
 function FormularioAlta({
+  planes,
   guardando,
   error,
   onCrear,
   onCerrar,
 }: {
+  planes: Plan[];
   guardando: boolean;
   error: string | null;
   onCrear: (c: Record<string, unknown>) => void;
@@ -853,6 +907,7 @@ function FormularioAlta({
     nombre: "",
     estado: "cortesia" as "cortesia" | "prueba" | "activa",
     modelo: "oficial" as "oficial" | "saldo",
+    plan_id: planes[0]?.id ?? "",
     precio: "",
     nota: "",
   });
@@ -896,6 +951,11 @@ function FormularioAlta({
             <option value="saldo">{t("admin.billingModel_saldo")}</option>
           </select>
         </Campo>
+        <Campo label={t("admin.billingPlans")}>
+          <select className={INPUT} value={f.plan_id} onChange={(e) => setF({ ...f, plan_id: e.target.value })}>
+            {planes.map((p) => <option key={p.id} value={p.id}>{nombrePlan(p, t)}</option>)}
+          </select>
+        </Campo>
         <Campo label={t("admin.billingOwnPrice")}>
           <input
             className={INPUT}
@@ -924,6 +984,7 @@ function FormularioAlta({
               nombre: f.nombre,
               estado: f.estado,
               modelo_cobro: f.modelo,
+              plan_id: f.plan_id || undefined,
               nota: f.nota,
               ...(f.precio !== ""
                 ? { precio_centavos: Math.round(Number(f.precio) * 100) }

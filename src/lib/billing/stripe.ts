@@ -7,9 +7,8 @@
  * un checkout con la URL de éxito — esa URL la puede escribir cualquiera. Se
  * espera el webhook.
  *
- * Los `price` NO se crean desde acá. Se pegan a mano en el plan desde /admin:
- * crear precios por API desde un panel es poder romper la facturación con un
- * click, y son tres campos que se cargan una vez.
+ * Checkout usa el precio resuelto de la cuenta. Así un trato propio y los
+ * nuevos niveles públicos no dependen de un Price ID pegado a mano.
  *
  * Sin las variables de entorno, todo esto queda dormido y la app funciona igual
  * — que es exactamente lo que pasa mientras a los primeros comercios se les
@@ -20,6 +19,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Suscripcion } from './plan'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { translate } from '@/lib/i18n/translate'
+import type { Locale } from '@/lib/i18n/config'
 
 let cliente: Stripe | null = null
 
@@ -66,13 +66,41 @@ async function clienteDe(
   return creado.id
 }
 
+/** La suma visible en Checkout coincide con el acuerdo guardado en Riverz. */
+export function lineItemsDeSuscripcion(
+  s: Suscripcion,
+  locale: Locale,
+): Stripe.Checkout.SessionCreateParams.LineItem[] {
+  if (!s.plan || s.precioAcuerdoCentavos <= 0) return []
+  const nombrePlan = s.plan.slug === 'contactos-500'
+    ? translate(locale, 'settings.billingPlan500')
+    : s.plan.slug === 'contactos-2000'
+      ? translate(locale, 'settings.billingPlan2000')
+      : s.plan.slug === 'contactos-5000'
+        ? translate(locale, 'settings.billingPlan5000')
+        : s.plan.slug === 'contactos-10000'
+          ? translate(locale, 'settings.billingPlan10000')
+          : s.plan.nombre
+  const items: Stripe.Checkout.SessionCreateParams.LineItem[] = [{
+    price_data: {
+      currency: s.plan.moneda,
+      unit_amount: s.precioAcuerdoCentavos,
+      recurring: { interval: 'month' },
+      product_data: { name: `Riverz · ${nombrePlan}` },
+    },
+    quantity: 1,
+  }]
+  if (s.modeloCobro === 'saldo' && s.plan.stripePriceExcedenteId) {
+    items.push({ price: s.plan.stripePriceExcedenteId })
+  }
+  return items
+}
+
 /**
  * Lleva a poner la tarjeta.
  *
- * El excedente va como segundo ítem medido: la base se cobra siempre y las
- * conversaciones que se pasen del cupo se reportan al cierre del período. Si el
- * plan no tiene precio de excedente cargado, se suscribe sólo la base — un plan
- * a medio configurar tiene que poder cobrar lo que sí sabe cobrar.
+ * El modelo oficial tiene una sola mensualidad. Sólo el acuerdo legado puede
+ * llevar un segundo ítem medido si así estaba configurado en Stripe.
  */
 export async function urlDeCheckout(
   db: SupabaseClient,
@@ -88,23 +116,25 @@ export async function urlDeCheckout(
    */
   opciones?: { cupon?: string | null },
 ): Promise<string> {
-  if (!s.plan?.stripePriceId) {
-    throw new Error('Este plan todavía no tiene precio cargado en Stripe.')
+  const locale = await localeDeCuenta(db, workspaceId)
+  if (!s.plan || s.precioAcuerdoCentavos <= 0) {
+    throw new Error(translate(locale, 'settings.billingMissingPrice'))
+  }
+  if (s.estado === 'cortesia' && !s.plan.activo) {
+    throw new Error(translate(locale, 'settings.billingPlanInactive'))
+  }
+  if (s.stripeSubscriptionId && s.estado === 'activa') {
+    throw new Error(translate(locale, 'settings.billingAlreadyActive'))
   }
   const customer = await clienteDe(db, workspaceId, s, quien.email, quien.nombre)
-  const items: Stripe.Checkout.SessionCreateParams.LineItem[] = [
-    { price: s.plan.stripePriceId, quantity: 1 },
-  ]
-  if (s.plan.stripePriceExcedenteId) {
-    items.push({ price: s.plan.stripePriceExcedenteId })
-  }
+  const items = lineItemsDeSuscripcion(s, locale)
 
   const sesion = await stripe().checkout.sessions.create({
     mode: 'subscription',
     customer,
     // Que el checkout hable el idioma del comercio y no el del navegador de
     // quien lo abrió: es la cuenta la que paga, no el navegador.
-    locale: await localeDeCuenta(db, workspaceId),
+    locale,
     // El teléfono se pide en el checkout porque es el que de verdad mira la
     // persona que paga. El del perfil puede ser de otro —el que instaló la
     // cuenta, un socio— y el aviso de bienvenida terminaba en un teléfono que
@@ -152,6 +182,47 @@ export async function cancelarSuscripcion(
   }
   await stripe().subscriptions.update(s.stripeSubscriptionId, {
     cancel_at_period_end: cancelar,
+  })
+}
+
+/** Cambia la mensualidad en Stripe para la próxima renovación, sin prorrateo.
+ * Al pasar al modelo oficial también retira cualquier ítem medido legado. */
+export async function sincronizarPrecioSuscripcion(
+  s: Suscripcion,
+  precioCentavos: number,
+  moneda: string,
+  modelo: 'oficial' | 'saldo',
+): Promise<void> {
+  if (!s.stripeSubscriptionId) return
+  if (precioCentavos <= 0) throw new Error('La suscripción activa necesita un precio mensual positivo.')
+  const sub = await stripe().subscriptions.retrieve(s.stripeSubscriptionId)
+  const base = sub.items.data.find((i) => i.price.recurring?.usage_type !== 'metered')
+  if (!base) throw new Error('La suscripción de Stripe no tiene una mensualidad editable.')
+  const medidos = sub.items.data.filter((i) => i.price.recurring?.usage_type === 'metered')
+  const cambiaPrecio = base.price.unit_amount !== precioCentavos || base.price.currency !== moneda
+  if (!cambiaPrecio && (modelo !== 'oficial' || medidos.length === 0)) return
+
+  let priceId = base.price.id
+  if (cambiaPrecio) {
+    const product = typeof base.price.product === 'string'
+      ? base.price.product
+      : base.price.product.id
+    const nuevo = await stripe().prices.create({
+      product,
+      currency: moneda,
+      unit_amount: precioCentavos,
+      recurring: { interval: 'month' },
+      metadata: { workspace_id: s.workspaceId },
+    }, { idempotencyKey: `riverz-${s.workspaceId}-${precioCentavos}-${moneda}` })
+    priceId = nuevo.id
+  }
+
+  await stripe().subscriptions.update(s.stripeSubscriptionId, {
+    items: [
+      { id: base.id, price: priceId, quantity: 1 },
+      ...(modelo === 'oficial' ? medidos.map((i) => ({ id: i.id, deleted: true as const })) : []),
+    ],
+    proration_behavior: 'none',
   })
 }
 

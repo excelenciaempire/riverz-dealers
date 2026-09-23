@@ -24,11 +24,13 @@ export interface CuentaDelNegocio {
   nombre: string
   estado: EstadoSuscripcion
   plan: string | null
+  planSlug: string | null
   /** Lo que paga por mes, en centavos. La cortesía es 0. */
   mrrCentavos: number
   tratoPropio: boolean
   nota: string | null
   conversaciones: number
+  contactosAtendidos: number
   costoUsd: number
   pruebaHasta: string | null
   /** Desde cuándo el cobro viene fallando. Con esto se ve quién está en gracia. */
@@ -187,6 +189,7 @@ export async function leerNegocio(
         nombre: nombres.get(s.workspaceId) ?? 'sin nombre',
         estado: s.estado,
         plan: s.plan?.nombre ?? null,
+        planSlug: s.plan?.slug ?? null,
         // Sólo lo ACTIVO es recurrente. Una prueba todavía no paga y una
         // cancelada dejó de pagar: contarlas infla el número que se usa para
         // tomar decisiones.
@@ -194,6 +197,7 @@ export async function leerNegocio(
         tratoPropio: s.tratoPropio,
         nota: s.nota,
         conversaciones: u.conversaciones,
+        contactosAtendidos: 0,
         costoUsd: u.costoUsd,
         pruebaHasta: s.pruebaHasta,
         vencidaDesde: s.vencidaDesde,
@@ -207,6 +211,16 @@ export async function leerNegocio(
       }
     })
     .sort((a, b) => b.mrrCentavos - a.mrrCentavos || b.conversaciones - a.conversaciones)
+
+  await Promise.all(cuentas.filter((c) => c.modeloCobro === 'oficial').map(async (c) => {
+    const { data, error } = await db.rpc('billing_contactos_atendidos', {
+      p_workspace: c.workspaceId,
+      p_desde: periodo.desde.toISOString(),
+      p_hasta: periodo.hasta.toISOString(),
+    })
+    if (error) throw error
+    c.contactosAtendidos = Number(data ?? 0)
+  }))
 
   const mrr = cuentas.reduce((n, c) => n + c.mrrCentavos, 0)
   const saldoTotal = cuentas.reduce((n, c) => n + c.saldoCentavos, 0)

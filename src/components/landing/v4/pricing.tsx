@@ -19,14 +19,8 @@ const INCLUDED = [
 export function Pricing() {
   const t = useT();
   const fmt = useFormat();
-  const [tierIndex, setTierIndex] = useState(1);
+  const [tierIndex, setTierIndex] = useState(0);
   const tier = PRICING_TIERS[tierIndex];
-  // El precio dividido por el cupo: es la cifra con la que el comercio compara
-  // contra un vendedor o contra lo que cobra otro software por conversación.
-  const perContact =
-    tier.monthly !== null && tier.customers !== null
-      ? tier.monthly / tier.customers
-      : null;
   const progress = (tierIndex / (PRICING_TIERS.length - 1)) * 100;
   const customerLabel =
     tier.customers === null
@@ -114,16 +108,6 @@ export function Pricing() {
                     {t('landingV4.pricingPerMonth')}
                   </span>
                 </div>
-                {perContact !== null && (
-                  <p className="mt-3 text-[15px] text-[var(--sn-ink-2)]">
-                    {t('landingV4.pricingPerContact', {
-                      amount: fmt.currency(perContact, 'USD', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      }),
-                    })}
-                  </p>
-                )}
               </>
             )}
 

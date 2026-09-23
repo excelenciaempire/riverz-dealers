@@ -29,6 +29,7 @@ interface Cuerpo {
   estado?: 'prueba' | 'activa' | 'cortesia';
   nota?: string;
   precio_centavos?: number | null;
+  plan_id?: string;
   modelo_cobro?: 'oficial' | 'saldo';
 }
 
@@ -45,6 +46,12 @@ export async function POST(request: Request) {
   }
 
   const db = supabaseAdmin();
+  const plan = body?.plan_id
+    ? (await db.from('billing_plans').select('id,activo').eq('id', body.plan_id).maybeSingle()).data
+    : await planPorDefecto(db);
+  if (!plan?.activo) {
+    return NextResponse.json({ error: 'plan inválido' }, { status: 400 });
+  }
   const nombre = body?.nombre?.trim() || `${email.split('@')[0]}'s workspace`;
 
   // Si el correo ya tiene cuenta, se reusa: invitar de nuevo daría error y
@@ -75,7 +82,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'no se pudo crear la cuenta' }, { status: 500 });
   }
 
-  const plan = await planPorDefecto(db);
   const estado = body?.estado ?? 'cortesia';
   const { error: subErr } = await db.from('workspace_subscriptions').upsert(
     {

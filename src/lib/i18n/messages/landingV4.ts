@@ -16,9 +16,8 @@ import type { Namespace } from './types';
  *    ya dicen exactamente eso, así que como titular no diferencia nada.
  *
  * 3. **La oferta es el argumento más fuerte y no estaba en la página.**
- *    Instalación gratis, la configuramos nosotros, y el pago empieza cuando ya
- *    esté demostrando el valor acordado. Eso mata de una la objeción más
- *    grande del avatar («integrarlo va a ser otro proyecto de meses»).
+ *    Instalación gratis, configuración guiada y aprobación antes de activar
+ *    la mensualidad. Se cobra desde la activación, no tras una promesa vaga de resultados.
  *
  * 4. **El mecanismo, no la marca del mecanismo.** El documento lo bautizaba
  *    «Riverz Loop»; en la página no aparece esa palabra. Nadie que entra por
@@ -52,8 +51,8 @@ export const landingV4 = {
   // ── Barra de aviso: la oferta, que es lo más fuerte que tenemos ──
   bannerLead: { es: 'Instalación gratis', en: 'Free setup' },
   bannerText: {
-    es: 'la configuramos contigo y empiezas a pagar cuando demuestre el resultado acordado.',
-    en: 'we set it up with you, and you start paying once it demonstrates the agreed result.',
+    es: 'la configuramos contigo; apruebas el sistema y activas tu plan.',
+    en: 'we set it up with you; you approve the system and activate your plan.',
   },
   bannerVer: { es: 'Ver cómo', en: 'See how' },
   cerrar: { es: 'Cerrar', en: 'Close' },
@@ -121,10 +120,10 @@ export const landingV4 = {
     es: 'No le escribe a nadie hasta que digas que sí.',
     en: 'It writes to nobody until you say yes.',
   },
-  launch5Title: { es: 'Pagas después', en: 'You pay later' },
+  launch5Title: { es: 'Activas tu plan', en: 'Activate your plan' },
   launch5Body: {
-    es: 'La instalación no cuesta. El plan arranca cuando ya funciona.',
-    en: 'Setup is free. The plan starts once it works.',
+    es: 'Revisamos juntos la configuración. Al aprobarla, empieza tu mensualidad y seguimos ajustando contigo.',
+    en: 'We review the setup together. Once you approve it, your monthly plan starts and we keep refining it with you.',
   },
 
   // ── Riverz Loop: el mecanismo ──
@@ -418,8 +417,8 @@ export const landingV4 = {
     en: 'Results and attributed sales',
   },
   pricingDetailsNote: {
-    es: 'Cada cliente cuenta una sola vez al mes. Los cargos externos de mensajería y llamadas se facturan por separado.',
-    en: 'Each customer counts once per month. External messaging and call charges are billed separately.',
+    es: 'Cada persona cuenta una vez por período si la IA le responde. Entre canales se une solo con identidad verificada. Sin excedentes automáticos. Mensajería y telefonía de terceros aparte.',
+    en: 'Each person counts once per period if AI replies. Cross-channel contacts merge only with verified identity. No automatic overages. Third-party messaging and telephony are separate.',
   },
   roiTitle: {
     es: 'Calcula el retorno posible',
@@ -474,13 +473,13 @@ export const landingV4 = {
   },
   faqCountingQuestion: { es: '¿Qué significa “contactos atendidos al mes”?', en: 'What does “contacts served per month” mean?' },
   faqCountingAnswer: {
-    es: 'Personas únicas que conversan con Riverz en el mes. Si alguien te escribe por Instagram, sigue por WhatsApp y vuelve tres veces, cuenta una sola vez. No pagas por mensaje, ni por canal, ni por conversación: pagas por cliente atendido.',
-    en: 'Unique people who converse with Riverz during the month. If someone writes on Instagram, continues on WhatsApp, and comes back three times, they count once. You do not pay per message, per channel, or per conversation: you pay per customer served.',
+    es: 'Contamos cada contacto al que la IA envía al menos una respuesta durante tu período de facturación. Si usa varios canales y podemos verificar que es la misma persona, cuenta una sola vez. No cobramos cada mensaje ni cada conversación.',
+    en: 'We count each contact who receives at least one AI reply during your billing period. If they use multiple channels and we can verify they are the same person, they count once. We do not charge per message or conversation.',
   },
   faqGrowthQuestion: { es: '¿Qué pasa si mi tienda crece?', en: 'What happens if my store grows?' },
   faqGrowthAnswer: {
-    es: 'Subes de rango, y nada más. Los cupos son 500, 2.000, 5.000 y 10.000 contactos únicos al mes. Si esos mismos contactos compran el doble, tu plan no cambia: crecer en ventas nunca te sale más caro. Solo pagas más cuando atiendes a más gente, y aun así el precio por contacto baja en cada rango.',
-    en: 'You move up a tier, and that is all. The tiers are 500, 2,000, 5,000, and 10,000 unique contacts per month. If those same contacts buy twice as much, your plan does not change: growing in sales never costs you more. You only pay more when you serve more people, and even then the price per contact drops at every tier.',
+    es: 'Los rangos son 500, 2.000, 5.000 y 10.000 contactos atendidos por período. Si superas el rango, Riverz no se apaga ni te cobra un excedente automático: acordamos contigo el plan para el siguiente período.',
+    en: 'The tiers cover 500, 2,000, 5,000, and 10,000 contacts served per period. If you exceed your tier, Riverz stays on and does not charge an automatic overage: we agree on the next period’s plan with you.',
   },
   faqTeamQuestion: { es: '¿Riverz reemplaza a mi equipo?', en: 'Does Riverz replace my team?' },
   faqTeamAnswer: {

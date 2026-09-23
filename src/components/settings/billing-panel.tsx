@@ -31,10 +31,11 @@ import { cn } from '@/lib/utils';
 
 interface Estado {
   estado: 'prueba' | 'activa' | 'vencida' | 'cancelada' | 'cortesia';
+  modeloCobro: 'oficial' | 'saldo';
   plan: { nombre: string; slug: string } | null;
   acceso: { puede: boolean; diasDePrueba: number | null };
   cuenta: {
-    uso: { conversaciones: number; respuestas: number };
+    uso: { contactos: number; conversaciones: number; respuestas: number };
     incluidas: number;
     excedidas: number;
     baseCentavos: number;
@@ -90,14 +91,14 @@ export function BillingPanel() {
         });
         const json = (await res.json()) as { url?: string; error?: string };
         if (json.url) window.location.href = json.url;
-        else toast.error(json.error ?? 'No se pudo abrir el pago.');
+        else toast.error(json.error ?? t('settings.billingPaymentFailed'));
       } catch {
-        toast.error('No se pudo abrir el pago.');
+        toast.error(t('settings.billingPaymentFailed'));
       } finally {
         setYendo(false);
       }
     },
-    [fetchWithCsrf],
+    [fetchWithCsrf, t],
   );
 
   if (cargando) {
@@ -130,6 +131,15 @@ export function BillingPanel() {
                   : t('settings.billingTrial', { n: dias });
 
   const { cuenta } = e;
+  const planNombre = e.plan?.slug === 'contactos-500'
+    ? t('settings.billingPlan500')
+    : e.plan?.slug === 'contactos-2000'
+      ? t('settings.billingPlan2000')
+      : e.plan?.slug === 'contactos-5000'
+        ? t('settings.billingPlan5000')
+        : e.plan?.slug === 'contactos-10000'
+          ? t('settings.billingPlan10000')
+          : e.plan?.nombre;
   return (
     <div className="max-w-xl space-y-5 rounded-xl border border-border p-5">
       <div className="flex items-start justify-between gap-4">
@@ -145,7 +155,7 @@ export function BillingPanel() {
                 : 'text-muted-foreground',
             )}
           >
-            {e.plan?.nombre ? `${e.plan.nombre} · ` : ''}
+            {planNombre ? `${planNombre} · ` : ''}
             {aviso}
           </p>
         </div>
@@ -165,6 +175,30 @@ export function BillingPanel() {
           </button>
         )}
       </div>
+
+      {e.estado !== 'cortesia' && <div className="space-y-2 border-t border-border pt-3 text-sm">
+        <div className="flex items-baseline justify-between gap-4">
+          <span className="text-muted-foreground">{t('settings.billingModelLabel')}</span>
+          <span className="font-medium text-foreground">
+            {t(e.modeloCobro === 'oficial' ? 'settings.billingAllIncluded' : 'settings.billingBalanceModel')}
+          </span>
+        </div>
+        {e.modeloCobro === 'oficial' && cuenta.incluidas > 0 && (
+          <>
+            <div className="flex items-baseline justify-between gap-4">
+              <span className="text-muted-foreground">{t('settings.billingServedContacts')}</span>
+              <span className="tabular-nums text-foreground">
+                {t('settings.billingContactsOf', { n: cuenta.uso.contactos, total: cuenta.incluidas })}
+              </span>
+            </div>
+            {cuenta.excedidas > 0 && (
+              <p className="text-amber-600 dark:text-amber-400">
+                {t('settings.billingVolumeExceeded')}
+              </p>
+            )}
+          </>
+        )}
+      </div>}
 
       {e.estado !== 'cortesia' && (
         <div className="space-y-2 border-t border-border pt-3 text-sm">

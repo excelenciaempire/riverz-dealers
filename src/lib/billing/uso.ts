@@ -1,15 +1,11 @@
 /**
  * Cuánto consumió una cuenta, y cuánto sale.
  *
- * La unidad que se factura es la **conversación atendida por IA**: una
- * conversación distinta con al menos una respuesta de la IA ese día. Es la
- * unidad que sigue al costo real de Anthropic y la única que se le puede
- * explicar a un comercio sin hablar de tokens.
+ * El plan oficial mide personas únicas con al menos una respuesta de IA en el
+ * período. El acuerdo legado conserva su contador diario de conversaciones.
  *
- * Se acumula por día en `billing_usage_daily` y no se recalcula barriendo
- * `ai_replies` cada vez, por dos motivos: un barrido por cada carga de pantalla
- * no escala, y para facturar hace falta un número que no cambie cuando alguien
- * borra una conversación vieja. La acumulación es el registro.
+ * El costo operativo se acumula en `billing_usage_daily`. El contacto servido
+ * se registra al enviar cada respuesta para que borrar un chat no borre uso.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { costForModel, ttlDeCacheDelAsistente } from '@/lib/admin/cost'
@@ -18,6 +14,7 @@ import type { Suscripcion } from './plan'
 export interface UsoDelPeriodo {
   desde: string
   hasta: string
+  contactos: number
   conversaciones: number
   respuestas: number
   /** Lo que nos costó a nosotros. La otra mitad del margen. */
@@ -59,13 +56,23 @@ export async function usoDelPeriodo(
   db: SupabaseClient,
   workspaceId: string,
   periodo: { desde: Date; hasta: Date },
+  medirContactos = true,
 ): Promise<UsoDelPeriodo> {
-  const { data } = await db
+  const [{ data, error }, { data: contactos, error: contactosError }] = await Promise.all([
+    db
     .from('billing_usage_daily')
     .select('conversaciones, respuestas, costo_usd')
     .eq('workspace_id', workspaceId)
     .gte('dia', dia(periodo.desde))
-    .lt('dia', dia(periodo.hasta))
+    .lt('dia', dia(periodo.hasta)),
+    medirContactos ? db.rpc('billing_contactos_atendidos', {
+      p_workspace: workspaceId,
+      p_desde: periodo.desde.toISOString(),
+      p_hasta: periodo.hasta.toISOString(),
+    }) : Promise.resolve({ data: 0, error: null }),
+  ])
+  if (error) throw error
+  if (contactosError) throw contactosError
 
   const filas = (data ?? []) as {
     conversaciones: number
@@ -75,6 +82,7 @@ export async function usoDelPeriodo(
   return {
     desde: periodo.desde.toISOString(),
     hasta: periodo.hasta.toISOString(),
+    contactos: Number(contactos ?? 0),
     conversaciones: filas.reduce((n, f) => n + (f.conversaciones ?? 0), 0),
     respuestas: filas.reduce((n, f) => n + (f.respuestas ?? 0), 0),
     costoUsd: filas.reduce((n, f) => n + Number(f.costo_usd ?? 0), 0),
@@ -83,8 +91,11 @@ export async function usoDelPeriodo(
 
 /** Lo que va a salir este período, con el trato de esta cuenta. */
 export function cuentaDelPeriodo(s: Suscripcion, uso: UsoDelPeriodo): Cuenta {
-  const excedidas = Math.max(0, uso.conversaciones - s.incluidas)
-  const excedente = excedidas * s.excedenteCentavos
+  const excedidas = Math.max(0, (s.modeloCobro === 'oficial' ? uso.contactos : uso.conversaciones) - s.incluidas)
+  // El plan oficial tiene un límite comercial, no un cobro sorpresa por contacto.
+  const excedente = s.modeloCobro === 'oficial' || s.estado === 'cortesia'
+    ? 0
+    : excedidas * s.excedenteCentavos
   return {
     uso,
     incluidas: s.incluidas,

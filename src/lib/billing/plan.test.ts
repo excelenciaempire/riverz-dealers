@@ -19,10 +19,10 @@ const PLAN = {
   slug: 'pro',
   nombre: 'Pro',
   activo: true,
-  precio_centavos: 29900,
+  precio_centavos: 39900,
   moneda: 'usd',
-  incluidas: 2000,
-  excedente_centavos: 20,
+  incluidas: 500,
+  excedente_centavos: 0,
   stripe_price_id: 'price_x',
   stripe_price_excedente_id: null,
   orden: 1,
@@ -54,6 +54,7 @@ const sus = (over: Record<string, unknown> = {}): any =>
 const uso = (conversaciones: number) => ({
   desde: '2026-08-01T00:00:00.000Z',
   hasta: '2026-09-01T00:00:00.000Z',
+  contactos: conversaciones,
   conversaciones,
   respuestas: conversaciones * 3,
   costoUsd: 0,
@@ -65,19 +66,26 @@ describe('lo que paga una cuenta', () => {
     expect(sus({ modelo_cobro: 'otro' }).modeloCobro).toBe('oficial')
   })
   it('dentro del cupo paga sólo la base', () => {
-    const c = cuentaDelPeriodo(sus(), uso(1500))
+    const c = cuentaDelPeriodo(sus(), uso(400))
     expect(c.excedidas).toBe(0)
-    expect(c.totalCentavos).toBe(29900)
+    expect(c.totalCentavos).toBe(39900)
   })
 
-  it('pasado el cupo suma el excedente, no lo redondea', () => {
-    const c = cuentaDelPeriodo(sus(), uso(2500))
-    expect(c.excedidas).toBe(500)
-    expect(c.excedenteCentavos).toBe(500 * 20)
-    expect(c.totalCentavos).toBe(29900 + 10000)
+  it('el plan oficial muestra el exceso sin cobrarlo automáticamente', () => {
+    const c = cuentaDelPeriodo(sus(), uso(600))
+    expect(c.excedidas).toBe(100)
+    expect(c.excedenteCentavos).toBe(0)
+    expect(c.totalCentavos).toBe(39900)
   })
 
-  it('el trato propio de una cuenta le gana al plan', () => {
+  it('el plan oficial cuenta personas, no conversaciones repetidas', () => {
+    const c = cuentaDelPeriodo(sus(), { ...uso(900), contactos: 120 })
+    expect(c.uso.conversaciones).toBe(900)
+    expect(c.excedidas).toBe(0)
+    expect(c.totalCentavos).toBe(39900)
+  })
+
+  it('el trato propio de una cuenta le gana al precio del plan', () => {
     // Es el caso real: a algunos comercios se les hace otro precio, y el precio
     // de lista NO puede aparecer en su pantalla.
     const c = cuentaDelPeriodo(
@@ -86,7 +94,16 @@ describe('lo que paga una cuenta', () => {
     )
     expect(c.baseCentavos).toBe(9900)
     expect(c.excedidas).toBe(100)
-    expect(c.totalCentavos).toBe(9900 + 100 * 20)
+    expect(c.totalCentavos).toBe(9900)
+  })
+
+  it('el acuerdo de saldo conserva su excedente por conversación si fue pactado', () => {
+    const c = cuentaDelPeriodo(
+      sus({ modelo_cobro: 'saldo', incluidas_override: 500, excedente_centavos_override: 20 }),
+      { ...uso(600), contactos: 300 },
+    )
+    expect(c.excedidas).toBe(100)
+    expect(c.excedenteCentavos).toBe(2000)
   })
 
   it('la cortesía no paga nada, diga lo que diga el plan', () => {
@@ -94,6 +111,7 @@ describe('lo que paga una cuenta', () => {
     // dijimos que no paga sería exactamente lo contrario de lo acordado.
     const s = sus({ estado: 'cortesia' })
     expect(s.precioCentavos).toBe(0)
+    expect(s.precioAcuerdoCentavos).toBe(39900)
     expect(s.tratoPropio).toBe(true)
     expect(cuentaDelPeriodo(s, uso(9999)).baseCentavos).toBe(0)
   })

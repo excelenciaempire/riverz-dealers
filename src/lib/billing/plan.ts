@@ -66,6 +66,8 @@ export interface Suscripcion {
    * muestra el precio de lista a alguien que tiene otro.
    */
   precioCentavos: number
+  /** Precio pactado para el checkout, incluso durante la instalación en cortesía. */
+  precioAcuerdoCentavos: number
   incluidas: number
   excedenteCentavos: number
   /** Si el precio de esta cuenta no es el del plan. */
@@ -175,9 +177,10 @@ export function aSuscripcion(f: FilaSuscripcion): Suscripcion {
   const plan = f.billing_plans ? aPlan(f.billing_plans) : null
   // La cortesía no paga, diga lo que diga el plan: es lo que significa.
   const cortesia = f.estado === 'cortesia'
+  const precioAcuerdo = f.precio_centavos_override ?? plan?.precioCentavos ?? 0
   const precio = cortesia
     ? 0
-    : (f.precio_centavos_override ?? plan?.precioCentavos ?? 0)
+    : precioAcuerdo
   return {
     workspaceId: f.workspace_id,
     plan,
@@ -192,6 +195,7 @@ export function aSuscripcion(f: FilaSuscripcion): Suscripcion {
     cancelarAlFinal: f.cancelar_al_final,
     modeloCobro: f.modelo_cobro === 'saldo' ? 'saldo' : 'oficial',
     precioCentavos: precio,
+    precioAcuerdoCentavos: precioAcuerdo,
     incluidas: f.incluidas_override ?? plan?.incluidas ?? 0,
     excedenteCentavos:
       f.excedente_centavos_override ?? plan?.excedenteCentavos ?? 0,
@@ -244,6 +248,7 @@ export async function asegurarSuscripcion(
       cancelarAlFinal: false,
       modeloCobro: 'oficial',
       precioCentavos: plan?.precioCentavos ?? 0,
+      precioAcuerdoCentavos: plan?.precioCentavos ?? 0,
       incluidas: plan?.incluidas ?? 0,
       excedenteCentavos: plan?.excedenteCentavos ?? 0,
       tratoPropio: false,
