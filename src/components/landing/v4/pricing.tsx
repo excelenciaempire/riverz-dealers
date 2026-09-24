@@ -20,11 +20,33 @@ const INCLUDED = [
   'pricingIncludedResults',
 ] as const;
 
+const CONTACT_PRICE_FORMAT: Intl.NumberFormatOptions = {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+};
+
 export function Pricing({ tiers }: { tiers: PricingTier[] }) {
   const t = useT();
   const fmt = useFormat();
   const [tierIndex, setTierIndex] = useState(0);
   const tier = tiers[tierIndex];
+  const firstMonthPrice = tier.monthly === null
+    ? null
+    : firstMonthCents(Math.round(tier.monthly * 100)) / 100;
+  const contactMath = tier.monthly !== null && tier.customers !== null && firstMonthPrice !== null
+    ? {
+        firstMonth: {
+          total: fmt.number(firstMonthPrice),
+          contacts: fmt.number(tier.customers),
+          amount: fmt.number(firstMonthPrice / tier.customers, CONTACT_PRICE_FORMAT),
+        },
+        regular: {
+          total: fmt.number(tier.monthly),
+          contacts: fmt.number(tier.customers),
+          amount: fmt.number(tier.monthly / tier.customers, CONTACT_PRICE_FORMAT),
+        },
+      }
+    : null;
   const progress =
     tiers.length > 1 ? (tierIndex / (tiers.length - 1)) * 100 : 0;
   const customerLabel =
@@ -47,6 +69,9 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
               {t('landingV4.pricingTitleMuted')}
             </span>
           </h2>
+          <p className="sn-label mt-4 text-center">
+            {t('landingV4.pricingCurrencyLabel')}
+          </p>
         </Rise>
 
         <Rise delay={90} className="mt-10 lg:mt-14">
@@ -131,11 +156,13 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
                         </span>
                       </div>
                       <p className="sn-pricing-amount mt-2 font-[family-name:var(--font-editorial)] leading-none tracking-[-0.05em]">
-                        {fmt.money(
-                          firstMonthCents(tier.monthly * 100) / 100,
-                          'USD'
-                        )}
+                        {fmt.money(firstMonthCents(Math.round(tier.monthly * 100)) / 100, 'USD')}
                       </p>
+                      {contactMath && (
+                        <p className="mt-3 text-sm tabular-nums text-[var(--sn-ink-2)]">
+                          {t('landingV4.pricingPerContactMath', contactMath.firstMonth)}
+                        </p>
+                      )}
                     </div>
 
                     <div className="mt-6 border-t border-[var(--sn-line)] pt-5">
@@ -150,6 +177,16 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
                           {t('landingV4.pricingPerMonth')}
                         </span>
                       </p>
+                      {contactMath && (
+                        <>
+                          <p className="mt-3 text-sm tabular-nums text-[var(--sn-ink-2)]">
+                            {t('landingV4.pricingPerContactMath', contactMath.regular)}
+                          </p>
+                          <p className="mt-3 text-xs leading-5 text-[var(--sn-ink-2)]">
+                            {t('landingV4.pricingPerContactNote')}
+                          </p>
+                        </>
+                      )}
                     </div>
                   </>
                 )}

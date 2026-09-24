@@ -568,6 +568,7 @@ export const landingV4 = {
   // ── Precios ──
   pricingTitleLead: { es: 'Todo Riverz.', en: 'All of Riverz.' },
   pricingTitleMuted: { es: 'Un precio simple.', en: 'One simple price.' },
+  pricingCurrencyLabel: { es: 'Precios en USD', en: 'Prices in USD' },
   pricingVolumeLabel: {
     es: 'Contactos al mes',
     en: 'Monthly contacts',
@@ -604,9 +605,13 @@ export const landingV4 = {
     en: 'Free setup and {percent}% off the first month: {amount}.',
   },
   pricingCustomPrice: { es: 'Hablemos', en: "Let's talk" },
-  pricingPerContact: {
-    es: '≈ {amount} centavos por contacto con el cupo completo',
-    en: '≈ {amount} cents per contact at full plan capacity',
+  pricingPerContactMath: {
+    es: '{total} ÷ {contacts} ≈ {amount} USD por contacto',
+    en: '{total} ÷ {contacts} ≈ {amount} USD per contact',
+  },
+  pricingPerContactNote: {
+    es: 'Con el cupo completo. No es un cobro por contacto.',
+    en: 'At full plan capacity. This is not per-contact billing.',
   },
   pricingEverythingIncluded: {
     es: 'Incluido en tu plan',

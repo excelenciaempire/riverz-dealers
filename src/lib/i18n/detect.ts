@@ -68,16 +68,16 @@ export function detectLocale(headers: {
   return DEFAULT_LOCALE;
 }
 
-/** Real client IP from the usual proxy headers (first hop in x-forwarded-for). */
+/** Prefer the edge-provided client IP over a potentially client-supplied XFF chain. */
 export function clientIp(headers: { get(name: string): string | null }): string | null {
+  const edgeIp = headers.get("cf-connecting-ip") || headers.get("true-client-ip");
+  if (edgeIp?.trim()) return edgeIp.trim();
   const xff = headers.get("x-forwarded-for");
   if (xff) {
     const first = xff.split(",")[0]?.trim();
     if (first) return first;
   }
   return (
-    headers.get("true-client-ip") ||
-    headers.get("cf-connecting-ip") ||
     headers.get("x-real-ip") ||
     null
   );

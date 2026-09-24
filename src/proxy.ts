@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { SESSION_COOKIE_OPTIONS } from '@/lib/supabase/server'
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, isLocale, type Locale } from '@/lib/i18n/config'
-import { detectLocale, detectLocaleWithIp } from '@/lib/i18n/detect'
+import { detectLocaleWithIp } from '@/lib/i18n/detect'
 import { canonicalizePath, localizePath } from '@/lib/i18n/routes'
 import { signupsOpenForInstall } from '@/lib/auth/signups'
 import { adminLegacyRedirect, adminRewrite, isAdminHost, subdomainOnly } from '@/lib/admin/host'
@@ -232,6 +232,30 @@ export async function proxy(request: NextRequest) {
     )
   }
 
+  // Seed the locale in the forwarded request as well as the response. A
+  // response-only cookie takes effect on the *next* navigation, leaving the
+  // first page rendered in the fallback language despite IP detection.
+  const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value
+  const locale: Locale = creationLocale ?? (
+    isLocale(cookieLocale) ? cookieLocale : await detectLocaleWithIp(request.headers)
+  )
+  const shouldSetLocaleCookie = creationLocale !== null || !isLocale(cookieLocale)
+  if (shouldSetLocaleCookie) {
+    request.cookies.set(LOCALE_COOKIE, locale)
+    requestHeaders.set('cookie', request.cookies.toString())
+  }
+
+  const withLocaleCookie = (response: NextResponse) => {
+    if (shouldSetLocaleCookie) {
+      response.cookies.set(LOCALE_COOKIE, locale, {
+        path: '/',
+        maxAge: LOCALE_COOKIE_MAX_AGE,
+        sameSite: 'lax',
+      })
+    }
+    return applyCsp(response, csp)
+  }
+
   let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
 
   const supabase = createServerClient(
@@ -261,14 +285,10 @@ export async function proxy(request: NextRequest) {
   // check, and send redirects to the user's locale so the address bar stays
   // in their language.
   const canonicalPath = canonicalizePath(request.nextUrl.pathname)
-  const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value
-  const locale: Locale = creationLocale ?? (
-    isLocale(cookieLocale) ? cookieLocale : detectLocale(request.headers)
-  )
   const redirectTo = (path: string) => {
     const url = request.nextUrl.clone()
     url.pathname = localizePath(path, locale)
-    return applyCsp(NextResponse.redirect(url), csp)
+    return withLocaleCookie(NextResponse.redirect(url))
   }
 
   // Con el alta cerrada a mano, la página de registro no se alcanza.
@@ -287,7 +307,7 @@ export async function proxy(request: NextRequest) {
     url.pathname = '/'
     url.search = ''
     url.hash = 'lista'
-    return applyCsp(NextResponse.redirect(url), csp)
+    return withLocaleCookie(NextResponse.redirect(url))
   }
 
   // Auth pages - redirect to dashboard if already logged in. /nueva-clave
@@ -354,30 +374,10 @@ export async function proxy(request: NextRequest) {
   // API routes that need auth (not webhooks)
   if (!user && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
       !request.nextUrl.pathname.includes('/webhook')) {
-    return applyCsp(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), csp)
+    return withLocaleCookie(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
   }
 
-  // First-visit locale default: if no locale cookie yet, assign one "por IP".
-  // detectLocaleWithIp does geo header → IP geolocation → Accept-Language →
-  // default, so a new visitor gets their country's language even on Render
-  // (no geo header) — and the lookup runs at most once per visitor (the cookie
-  // is set for a year). Not httpOnly: the client LocaleProvider reads it and
-  // overwrites it when the user picks a language in onboarding/Settings.
-  if (creationLocale) {
-    supabaseResponse.cookies.set(LOCALE_COOKIE, creationLocale, {
-      path: '/',
-      maxAge: LOCALE_COOKIE_MAX_AGE,
-      sameSite: 'lax',
-    })
-  } else if (!request.cookies.get(LOCALE_COOKIE)) {
-    supabaseResponse.cookies.set(LOCALE_COOKIE, await detectLocaleWithIp(request.headers), {
-      path: '/',
-      maxAge: LOCALE_COOKIE_MAX_AGE,
-      sameSite: 'lax',
-    })
-  }
-
-  return applyCsp(supabaseResponse, csp)
+  return withLocaleCookie(supabaseResponse)
 }
 
 export const config = {
