@@ -7,34 +7,9 @@ vi.mock('./uso', () => ({ periodoDe: () => ({ desde: new Date('2026-09-01'), has
 
 import { puedeAtenderContacto } from './contact-cap'
 
-function base(rows: { objetivo?: { id: string; unified_contact_id: string | null }; unidos?: string[]; servido?: boolean; total?: number }) {
-  let contacts = 0
-  const calls: string[] = []
-  const db = {
-    from(table: string) {
-      calls.push(table)
-      if (table === 'contacts') {
-        contacts++
-        const result = contacts === 1
-          ? { data: rows.objetivo ?? { id: 'c1', unified_contact_id: null }, error: null }
-          : { data: (rows.unidos ?? []).map((id) => ({ id })), error: null }
-        const q = {
-          select: () => q, eq: () => q,
-          maybeSingle: async () => result,
-          then: (resolve: (value: typeof result) => unknown) => Promise.resolve(result).then(resolve),
-        }
-        return q
-      }
-      const result = { data: rows.servido ? { reply_id: 'r1' } : null, error: null }
-      const q = {
-        select: () => q, eq: () => q, in: () => q, gte: () => q, lt: () => q,
-        limit: () => q, maybeSingle: async () => result,
-      }
-      return q
-    },
-    rpc: vi.fn(async () => ({ data: rows.total ?? 0, error: null })),
-  }
-  return { db: db as unknown as SupabaseClient, calls }
+function base(permitido: boolean) {
+  const rpc = vi.fn(async () => ({ data: permitido, error: null }))
+  return { db: { rpc } as unknown as SupabaseClient, rpc }
 }
 
 describe('límite de contactos de IA', () => {
@@ -46,22 +21,24 @@ describe('límite de contactos de IA', () => {
     })
   })
 
-  it('deja continuar a un contacto ya atendido aunque el cupo esté lleno', async () => {
-    const { db } = base({ servido: true, total: 500 })
+  it('reserva la identidad antes de admitir un contacto nuevo', async () => {
+    const { db, rpc } = base(true)
     expect(await puedeAtenderContacto(db, 'w1', 'c1')).toBe(true)
+    expect(rpc).toHaveBeenCalledWith('billing_try_reserve_contact', {
+      p_workspace: 'w1', p_contact: 'c1', p_limite: 500,
+      p_desde: '2026-09-01T00:00:00.000Z', p_hasta: '2026-10-01T00:00:00.000Z',
+    })
   })
 
-  it('bloquea un contacto nuevo al llegar al cupo', async () => {
-    const { db } = base({ servido: false, total: 500 })
+  it('bloquea un contacto nuevo cuando la reserva atómica lo deniega', async () => {
+    const { db } = base(false)
     expect(await puedeAtenderContacto(db, 'w1', 'c1')).toBe(false)
   })
 
-  it('permite el contacto nuevo antes del límite y respeta cortesías', async () => {
-    const { db } = base({ servido: false, total: 499 })
-    expect(await puedeAtenderContacto(db, 'w1', 'c1')).toBe(true)
+  it('no consume cupo en cortesías', async () => {
     leerSuscripcion.mockResolvedValueOnce({ modeloCobro: 'oficial', estado: 'cortesia', incluidas: 500 })
-    const courtesy = base({})
-    expect(await puedeAtenderContacto(courtesy.db, 'w1', 'c1')).toBe(true)
-    expect(courtesy.calls).toEqual([])
+    const { db, rpc } = base(false)
+    expect(await puedeAtenderContacto(db, 'w1', 'c1')).toBe(true)
+    expect(rpc).not.toHaveBeenCalled()
   })
 })
