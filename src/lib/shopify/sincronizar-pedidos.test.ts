@@ -2,9 +2,32 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const mirror = vi.hoisted(() => vi.fn().mockResolvedValue('creado'));
 vi.mock('./espejo-de-pedido', () => ({ espejarPedidoDeShopify: mirror }));
 vi.mock('./admin-client', () => ({ markShopifyConnectionExpired: vi.fn() }));
-import { sincronizarPedidosDeUnaTienda } from './sincronizar-pedidos';
+import { esTiendaDeRevisionDeShopify, sincronizarPedidosDeShopify, sincronizarPedidosDeUnaTienda } from './sincronizar-pedidos';
 afterEach(() => { vi.unstubAllGlobals(); mirror.mockReset().mockResolvedValue('creado'); });
 const args = { workspaceId: 'workspace-a', shopDomain: 'a.myshopify.com', accessToken: 'token', maxPaginas: 1 };
+describe('Shopify app review stores', () => {
+  it('excludes only ephemeral app-review domains from merchant order sync', () => {
+    expect(esTiendaDeRevisionDeShopify('app-review-6c0d5fed-r114292-a0-primary.myshopify.com')).toBe(true);
+    expect(esTiendaDeRevisionDeShopify('a.myshopify.com')).toBe(false);
+    expect(esTiendaDeRevisionDeShopify('app-review-real-store.example.com')).toBe(false);
+  });
+  it('does not call the orders API for a review store in the scheduled sync', async () => {
+    const request = vi.fn();
+    vi.stubGlobal('fetch', request);
+    const query = {
+      select: vi.fn(), eq: vi.fn(), in: vi.fn(), order: vi.fn(),
+      range: vi.fn().mockResolvedValue({ data: [{
+        id: 'review', workspace_id: 'workspace-a',
+        shop_domain: 'app-review-6c0d5fed-r114292-a0-primary.myshopify.com',
+        access_token: 'unused', sync_state: {},
+      }], error: null }),
+    };
+    for (const method of ['select', 'eq', 'in', 'order'] as const) query[method].mockReturnValue(query);
+    const db = { from: vi.fn().mockReturnValue(query) } as never;
+    expect(await sincronizarPedidosDeShopify(db)).toEqual([]);
+    expect(request).not.toHaveBeenCalled();
+  });
+});
 describe('resumable passive order recovery', () => {
   it('uses a small batch when resuming an existing cursor', async () => {
     const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ orders: [] })));

@@ -177,6 +177,11 @@ interface ConexionDeTienda {
   sync_state: { mark?: string; since?: string; nextPage?: string | null; objective?: string; attempted_at?: string }
 }
 
+/** Tiendas efímeras creadas por Shopify para revisar la app, sin pedidos del comercio. */
+export function esTiendaDeRevisionDeShopify(shopDomain: string): boolean {
+  return /^app-review-[a-z0-9-]+\.myshopify\.com$/i.test(shopDomain);
+}
+
 /**
  * Lo mismo para todas las tiendas conectadas. Cada una en su propio try: una
  * tienda con el token vencido no puede dejar sin sincronizar a las demás.
@@ -192,7 +197,7 @@ export async function sincronizarPedidosDeShopify(
   const salida: ResumenDeSincronizacion[] = []
 
   const unique = conexiones.filter(c => {
-    if (!c.workspace_id || !c.shop_domain) return false
+    if (!c.workspace_id || !c.shop_domain || esTiendaDeRevisionDeShopify(c.shop_domain)) return false
     // Una tienda puede tener más de una fila activa (dos instalaciones del
     // mismo comercio). Sincronizarla dos veces sería el mismo trabajo hecho
     // al pedo y el doble de llamadas contra el límite de Shopify.

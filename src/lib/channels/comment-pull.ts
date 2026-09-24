@@ -443,8 +443,10 @@ export async function pullCommentsAll(db: SupabaseClient): Promise<{
           suppressAutoReply: true, resumable: true, deadlineMs: Math.min(deadline, Date.now() + 45_000),
         });
         const complete = r.reason === 'ok' || r.reason === 'sin_publicaciones';
+        const pendingOnly = r.errors.length > 0 && r.errors.every(e => e === 'comments_sync_pending');
         await savePollState(db, c.id, { comment_sync_complete: complete },
-          complete || (r.errors.length > 0 && r.errors.every(e => e === 'comments_sync_pending')) ? null : `comment_sync:${r.reason}:${r.errors.join(',')}`, { complete });
+          complete || pendingOnly ? null : `comment_sync:${r.reason}:${r.errors.join(',')}`,
+          { complete, clearErrorPrefix: pendingOnly ? 'comment_sync:' : undefined });
         return { connection_id: c.id, ...r };
       } catch (err) {
         console.error('[comment-pull] conexión falló:', c.id, err);

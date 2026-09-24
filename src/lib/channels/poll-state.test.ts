@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { savePollState } from './poll-state';
 
-function database(rows: Array<{ config: unknown; status: string }>, writes = [true]) {
+function database(rows: Array<{ config: unknown; status: string; last_error?: string | null }>, writes = [true]) {
   const patches: Array<Record<string, unknown>> = [];
   let read = 0;
   let write = 0;
@@ -32,6 +32,21 @@ describe('poll recovery state', () => {
     const { db, patches } = database([{ config: {}, status: 'error' }]);
     await savePollState(db, 'c', { cursor: 'next' }, null, { complete: false });
     expect(patches[0]).not.toHaveProperty('last_synced_at');
+    expect(patches[0]).not.toHaveProperty('status');
+    expect(patches[0]).not.toHaveProperty('last_error');
+  });
+  it('clears a stale error after a healthy pending pass without claiming completion', async () => {
+    const { db, patches } = database([{ config: {}, status: 'error', last_error: 'comment_sync:partial:comments_graph_failed' }]);
+    await savePollState(db, 'c', { comment_sync_complete: false }, null,
+      { complete: false, clearErrorPrefix: 'comment_sync:' });
+    expect(patches[0]).toMatchObject({ status: 'connected', last_error: null,
+      config: { comment_sync_complete: false } });
+    expect(patches[0]).not.toHaveProperty('last_synced_at');
+  });
+  it('does not clear an unrelated connection error during comment backlog progress', async () => {
+    const { db, patches } = database([{ config: {}, status: 'error', last_error: 'webhook_subscription_failed' }]);
+    await savePollState(db, 'c', { comment_sync_complete: false }, null,
+      { complete: false, clearErrorPrefix: 'comment_sync:' });
     expect(patches[0]).not.toHaveProperty('status');
     expect(patches[0]).not.toHaveProperty('last_error');
   });

@@ -9,17 +9,19 @@ export async function savePollState(
   id: string,
   configPatch: Record<string, unknown>,
   error: string | null = null,
-  options: { complete?: boolean } = {},
+  options: { complete?: boolean; clearErrorPrefix?: string } = {},
 ): Promise<void> {
   for (let attempt = 0; attempt < 4; attempt++) {
     const current = await db.from('channel_connections')
-      .select('config,status').eq('id', id).maybeSingle();
+      .select('config,status,last_error').eq('id', id).maybeSingle();
     if (current.error) throw new Error(`poll state read: ${current.error.code}`);
     const row = current.data;
     if (!row || !ESTADOS_VIVOS.some(s => s === row.status)) return;
+    const clearMatchingError = options.clearErrorPrefix != null
+      && row.last_error?.startsWith(options.clearErrorPrefix) === true;
     let query = db.from('channel_connections').update({
       config: { ...(row.config ?? {}), ...configPatch },
-      ...(error || options.complete !== false ? {
+      ...(error || options.complete !== false || clearMatchingError ? {
         status: error ? 'error' : 'connected',
         last_error: error,
       } : {}),

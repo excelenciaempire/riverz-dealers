@@ -279,6 +279,12 @@ export function toIssue(row: IssueRow): Issue {
   };
 }
 
+function isActionableIssue(row: IssueRow): boolean {
+  // TikTok se consulta por cron. No recibir comentarios nuevos no prueba que
+  // el canal esté caído; una falla del sondeo ya genera su propia alerta.
+  return row.kind !== 'channel_silent' || row.ref_id !== 'tiktok_comment';
+}
+
 /** Lo que necesita atención en UN comercio. */
 export async function collectWorkspaceIssues(
   db: SupabaseClient,
@@ -288,7 +294,7 @@ export async function collectWorkspaceIssues(
     p_workspace_id: workspaceId,
   });
   if (error) throw new Error(`[health] admin_workspace_issues: ${error.message}`);
-  const issues = ((data ?? []) as IssueRow[]).map(toIssue);
+  const issues = ((data ?? []) as IssueRow[]).filter(isActionableIssue).map(toIssue);
 
   return issues.sort(porGravedad);
 }
@@ -352,6 +358,7 @@ export async function collectPlatformIssues(
 
   const out = new Map<string, Issue[]>();
   for (const row of (data ?? []) as IssueRow[]) {
+    if (!isActionableIssue(row)) continue;
     const list = out.get(row.workspace_id) ?? [];
     list.push(toIssue(row));
     out.set(row.workspace_id, list);
