@@ -13,8 +13,6 @@ import {
   CLAIM_HINT_COOKIE,
 } from '@/lib/shopify/pending-install'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
-import { getLocale } from '@/lib/i18n/server'
-import { localizePath } from '@/lib/i18n/routes'
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('shopify.callback')
@@ -46,9 +44,9 @@ const log = getLogger('shopify.callback')
  *      No session, no env override, no prior connection. The App Store
  *      requires OAuth to run BEFORE any Riverz login, so we exchange the
  *      code, park the encrypted token in `shopify_pending_installs`, hand
- *      the browser a single-use claim cookie, and send the merchant to
- *      sign up / sign in. The dashboard auto-claims the store on first
- *      load (POST /api/shopify/claim).
+ *      the browser a single-use claim cookie, and return the merchant to the
+ *      embedded Shopify app. The embedded page then offers the Riverz sign-in
+ *      needed to claim the store (POST /api/shopify/claim).
  */
 function bounce(request: Request, params: Record<string, string>): NextResponse {
   const base = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
@@ -246,16 +244,14 @@ export async function GET(request: Request) {
       })
       log.info('install_parked_pending_claim', { shop })
 
-      // El comercio instala desde Shopify sin cuenta previa: va a
-      // /crear aunque el alta publica este cerrada, porque la cookie de
-      // reclamo que se setea abajo lo habilita (ver `signupsOpenForInstall`).
-      const locale = await getLocale()
+      // Return to the embedded app immediately after Shopify authentication.
+      // The App Store checker requires this handoff; the embedded page shows
+      // the Riverz account-link action while the encrypted install is parked.
+      const shopHandle = shop.slice(0, -'.myshopify.com'.length)
       const url = new URL(
-        localizePath('/crear', locale),
-        callbackBase,
+        `/store/${encodeURIComponent(shopHandle)}/apps/${encodeURIComponent(pair.apiKey)}`,
+        'https://admin.shopify.com',
       )
-      url.searchParams.set('shopify', 'pending')
-      url.searchParams.set('shop', shop)
       const res = NextResponse.redirect(url)
       const cookieOpts = {
         secure: process.env.NODE_ENV === 'production',

@@ -113,7 +113,7 @@ Shopify sin una suscripción externa previa.
 | 2026-08-26 y 2026-08-28 | 130131 / 126646 | Credenciales de prueba inválidas; el revisor vio “Couldn't find your account”. | Verificar la cuenta indicada en las review notes en incógnito antes de enviar y no cambiarla durante review. |
 | 2026-09-01 y 2026-09-03 | 130131 / 126646 | Cobro o compra de créditos fuera de Shopify. | Shopify Billing es obligatorio para instalaciones públicas; no enlazar Stripe ni recargas en el guion de review. |
 | 2026-09-10 | 130131 | Error crítico al publicar la landing. | Ejecutar el flujo de Theme App Extension completo en la tienda de review y adjuntar un screencast nuevo. |
-| 2026-09-23 | 126646 | La comprobación automática resolvió los webhooks bajo `/shopify/embedded/api/...` y recibió 404; la instalación abrió una tienda anterior en vez del grant esperado. | Mantener el App URL en `https://riverz.co`, dejar que `src/proxy.ts` enrute `embedded=1` a `/shopify/embedded` y declarar todos los webhooks con URL absoluta. |
+| 2026-09-23 | 126646 | La comprobación automática resolvió los webhooks bajo `/shopify/embedded/api/...` y recibió 404; además, una instalación nueva terminaba en el registro externo de Riverz en vez de volver a la interfaz embebida. | Mantener el App URL en `https://riverz.co`, declarar los webhooks con URL absoluta y, después del OAuth, redirigir la instalación pendiente a `admin.shopify.com/store/{shop}/apps/{client_id}`. |
 
 ### Identidad única para el siguiente envío
 
