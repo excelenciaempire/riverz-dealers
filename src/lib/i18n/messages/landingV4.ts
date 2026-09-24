@@ -48,10 +48,6 @@ export const landingV4 = {
   },
   compareCriterion: { es: 'Qué cambia', en: 'What changes' },
   compareOthers: { es: 'Otras plataformas', en: 'Other platforms' },
-  compareScope: {
-    es: 'Funciones de terceros según producto y plan. Acciones sujetas a integraciones; cargos de canales y llamadas aparte.',
-    en: 'Third-party features vary by product and plan. Actions depend on integrations; channel and call charges are separate.',
-  },
   compare1Topic: { es: 'Instalación y ajustes', en: 'Setup and changes' },
   compare1Riverz: { es: 'Los hacemos contigo', en: 'We handle them with you' },
   compare1Others: {
@@ -830,30 +826,25 @@ export const landingV4 = {
     en: 'No. The plan is monthly and you can cancel whenever you want; it stays active until the end of the period you already paid for. Your accounts, conversations, and customers are yours, with or without Riverz.',
   },
   // ── Confianza ──
-  // Todo lo de acá es verificable. No decimos «Meta Business Partner»: ese es
-  // un programa cerrado con su propio directorio y su propia insignia, y usar
-  // el sello sin estar adentro va contra las normas de marca de Meta y pone en
-  // riesgo la app. Lo que sí es cierto —y es lo que de verdad tranquiliza— es
-  // que la conexión es por la API oficial y que el App Review está aprobado.
-  // No prometemos inmunidad a restricciones: siguen aplicando las políticas
-  // de Meta a cada cuenta.
+  // Cada canal compatible usa su integración autorizada; cada proveedor
+  // conserva sus propias políticas y límites.
   trustTitle: {
-    es: 'Tu WhatsApp, por la vía oficial.',
-    en: 'Your WhatsApp, connected the official way.',
+    es: 'Tus canales, por la vía oficial.',
+    en: 'Your channels, connected the official way.',
   },
   trustBody: {
-    es: 'Riverz conecta tu WhatsApp mediante la Cloud API oficial de Meta, con App Review aprobado. Evitas depender de accesos no autorizados; tu cuenta sigue sujeta a las políticas de Meta.',
-    en: 'Riverz connects your WhatsApp through Meta’s official Cloud API, with App Review approved. You avoid relying on unauthorized access; your account remains subject to Meta’s policies.',
+    es: 'Conectamos WhatsApp, Instagram, Messenger, correo, Mercado Libre, comentarios de TikTok y chat web mediante las integraciones disponibles para cada canal. En Meta usamos APIs oficiales con App Review aprobado. Cada cuenta sigue sujeta a las políticas de su plataforma.',
+    en: 'We connect WhatsApp, Instagram, Messenger, email, Mercado Libre, TikTok comments, and web chat through each channel’s available integrations. For Meta, we use official APIs with App Review approved. Each account remains subject to its platform’s policies.',
   },
   trustPill: {
-    es: 'Sin sesiones espejo ni bots por QR',
-    en: 'No mirrored sessions or QR bots',
+    es: 'Tus cuentas siguen siendo tuyas',
+    en: 'Your accounts stay yours',
   },
   // Las dos vueltas del sello.
-  trustSealTop: { es: 'Conexión oficial', en: 'Official connection' },
+  trustSealTop: { es: 'Conexiones autorizadas', en: 'Authorized connections' },
   trustSealRing: {
-    es: 'API OFICIAL DE META · APP REVIEW APROBADO',
-    en: 'OFFICIAL META API · APP REVIEW APPROVED',
+    es: 'CANALES CONECTADOS · INTEGRACIONES AUTORIZADAS',
+    en: 'CONNECTED CHANNELS · AUTHORIZED INTEGRATIONS',
   },
 
   // ── Cierre ──

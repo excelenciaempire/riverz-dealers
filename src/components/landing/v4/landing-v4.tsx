@@ -344,10 +344,6 @@ function Comparison() {
             </table>
           </div>
         </Rise>
-        <div className="sn-compare-footer">
-          <p>{t('landingV4.compareScope')}</p>
-          <a href="#acceso" className="sn-pill">{t('landingV4.navCta')}<ArrowRight size={16} aria-hidden="true" /></a>
-        </div>
       </div>
     </section>
   );
@@ -420,38 +416,7 @@ function Channels() {
 
 // ── Confianza ───────────────────────────────────────────
 
-/**
- * Confianza — la objeción que nadie dice en voz alta.
- *
- * Quien vende por WhatsApp ya vio caer un número, propio o de un conocido, por
- * usar una herramienta colgada de un teléfono espejo. Esa es la duda de verdad
- * y ninguna funcionalidad la contesta.
- *
- * Lo que NO va acá: la insignia de «Meta Business Partner». Ese es un programa
- * cerrado, con directorio propio, y ponerse el sello sin estar adentro va
- * contra las normas de marca de Meta — el riesgo es perder la app, que es
- * exactamente lo contrario de tranquilizar a nadie. Lo que sí va son hechos
- * comprobables: la conexión es por la API oficial y el App Review está
- * aprobado. Dicho así pesa más que un logo prestado.
- *
- * Y va en INSIGNIAS, no en párrafos. Eran cuatro bloques de título + texto,
- * noventa palabras para decir cinco hechos; leer noventa palabras sobre por
- * qué confiar produce lo contrario de confianza. Un sello repetido cinco
- * veces no es lo mismo que cuatro iconos distintos: aquello se lee como una
- * plantilla comprada, esto como una credencial.
- */
-
-/**
- * El sello. Una credencial dibujada, no una lista de hechos.
- *
- * Es la pieza que hace el trabajo que hacía el texto: una lista de cinco
- * cosas se lee y se olvida, un sello se reconoce. Va en SVG y no en un JPG
- * para que escale sin pesar y tome los colores de la portada.
- *
- * Lo que dice es sólo lo comprobable —API oficial y App Review aprobado—.
- * Sigue sin ir «Meta Business Partner»: es un programa cerrado y usar el
- * sello sin estar adentro pone en riesgo la app.
- */
+/** Credencial visual para las conexiones autorizadas de los canales. */
 function Sello({ anillo, arriba }: { anillo: string; arriba: string }) {
   const muescas = Array.from({ length: 60 });
   return (
