@@ -316,7 +316,9 @@ export function BillingPanel() {
                     <p className="mt-1 text-muted-foreground">
                       {t('settings.billingUpgradeNext', { amount: plata(cotizacion.monthlyCents, cotizacion.currency) })}
                     </p>
-                    <p className="mt-1 text-muted-foreground">{t('settings.billingUpgradeNoRetroactive')}</p>
+                    {cotizacion.provider === 'stripe' && (
+                      <p className="mt-1 text-muted-foreground">{t('settings.billingUpgradeNoRetroactive')}</p>
+                    )}
                     {cotizacion.provider === 'stripe' && cotizacion.firstCycle && (
                       <p className="mt-1 text-muted-foreground">{t('settings.billingUpgradeFirstMonth')}</p>
                     )}
