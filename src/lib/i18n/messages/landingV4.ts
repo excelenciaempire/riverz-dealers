@@ -41,55 +41,71 @@ import type { Namespace } from './types';
  * prometer aumentos que no se puedan atribuir por cuenta.
  */
 export const landingV4 = {
-  compareTitle: { es: 'La diferencia está en quién lo hace.', en: 'The difference is who does the work.' },
+  compareTitle: { es: 'La diferencia está en todo lo que resuelve.', en: 'The difference is in everything it handles.' },
+  compareIntro: {
+    es: 'Canales, tienda, campañas y llamadas conectados. Nosotros lo configuramos y ajustamos contigo.',
+    en: 'Channels, store, campaigns, and calls connected. We set it up and refine it with you.',
+  },
   compareCriterion: { es: 'Qué cambia', en: 'What changes' },
   compareOthers: { es: 'Otras plataformas', en: 'Other platforms' },
   compareScope: {
-    es: 'Comparación con configuración propia. Los servicios varían según proveedor y plan.',
-    en: 'Compared with self-managed setup. Services vary by provider and plan.',
+    es: 'Funciones de terceros según producto y plan. Acciones sujetas a integraciones; cargos de canales y llamadas aparte.',
+    en: 'Third-party features vary by product and plan. Actions depend on integrations; channel and call charges are separate.',
   },
-  compare1Topic: { es: 'Puesta en marcha', en: 'Getting started' },
-  compare1Riverz: { es: 'Hecha por nosotros', en: 'We handle it' },
-  compare1SelfService: {
-    es: 'La configuras tú',
-    en: 'You set it up',
+  compare1Topic: { es: 'Instalación y ajustes', en: 'Setup and changes' },
+  compare1Riverz: { es: 'Los hacemos contigo', en: 'We handle them with you' },
+  compare1Others: {
+    es: 'Autoservicio o asesoría',
+    en: 'Self-service or onboarding',
   },
-  compare2Topic: { es: 'Tono y reglas', en: 'Voice and rules' },
+  compare2Topic: { es: 'Ventas y soporte con IA', en: 'AI sales and support' },
   compare2Riverz: {
-    es: 'Adaptados a tu marca',
-    en: 'Tailored to your brand',
+    es: 'Agentes con tu catálogo y reglas',
+    en: 'Agents with your catalog and rules',
   },
-  compare2SelfService: {
-    es: 'Los defines tú',
-    en: 'You define them',
+  compare2Others: {
+    es: 'Según producto y plan',
+    en: 'Varies by product and plan',
   },
-  compare3Topic: { es: 'Integraciones', en: 'Integrations' },
+  compare3Topic: { es: 'Pedidos y postventa', en: 'Orders and after-sales' },
   compare3Riverz: {
-    es: 'Las conectamos',
-    en: 'We connect them',
+    es: 'Consulta y edita pedidos',
+    en: 'Looks up and edits orders',
   },
-  compare3SelfService: {
-    es: 'Las conectas tú',
-    en: 'You connect them',
+  compare3Others: {
+    es: 'Según integración',
+    en: 'Depends on integrations',
   },
-  compare4Topic: { es: 'Ajustes', en: 'Adjustments' },
+  compare4Topic: { es: 'Carritos y recompras', en: 'Carts and repeat sales' },
   compare4Riverz: {
-    es: 'Nos encargamos',
-    en: 'We take care of them',
+    es: 'Seguimientos listos para activar',
+    en: 'Follow-ups ready to launch',
   },
-  compare4SelfService: {
-    es: 'Editas los flujos',
-    en: 'You edit the workflows',
+  compare4Others: {
+    es: 'Flujos por configurar',
+    en: 'Flows to configure',
   },
-  compare5Topic: { es: 'Pruebas y activación', en: 'Testing and launch' },
+  compare5Topic: { es: 'Canales y comentarios', en: 'Channels and comments' },
   compare5Riverz: {
-    es: 'Te acompañamos',
-    en: 'We guide you through',
+    es: 'Mensajes y comentarios juntos',
+    en: 'Messages and comments together',
   },
-  compare5SelfService: {
-    es: 'Revisión por tu equipo',
-    en: 'Your team reviews it',
+  compare5Others: {
+    es: 'Cobertura según plataforma',
+    en: 'Coverage varies by platform',
   },
+  compare6Topic: { es: 'Campañas', en: 'Campaigns' },
+  compare6Riverz: { es: 'Segmentos y envíos configurados', en: 'Segments and sends set up' },
+  compare6Others: { es: 'Disponibles según plan', en: 'Available by plan' },
+  compare7Topic: { es: 'Llamadas con IA', en: 'AI calls' },
+  compare7Riverz: { es: 'Agente con el contexto del chat', en: 'Agent with chat context' },
+  compare7Others: { es: 'Voz según canal y plan', en: 'Voice varies by channel and plan' },
+  compare8Topic: { es: 'Control de acciones', en: 'Action controls' },
+  compare8Riverz: { es: 'Aprobaciones con contexto', en: 'Context-aware approvals' },
+  compare8Others: { es: 'Controles según herramienta', en: 'Controls vary by tool' },
+  compare9Topic: { es: 'Resultados', en: 'Results' },
+  compare9Riverz: { es: 'Ventas atribuidas a conversaciones', en: 'Sales attributed to conversations' },
+  compare9Others: { es: 'Analítica según plataforma', en: 'Analytics vary by platform' },
   leadSubmit: { es: 'Hablemos', en: 'Let’s talk' },
   leadDone: {
     es: 'Gracias. Recibimos tu solicitud.',

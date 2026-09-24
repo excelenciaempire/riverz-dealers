@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight, Check, PhoneCall, Settings2, MessageCircle, Cable, RefreshCw, CircleCheck } from 'lucide-react';
+import { ArrowRight, Check, PhoneCall, Settings2, Sparkles, ShoppingBag, ShoppingCart, MessagesSquare, Megaphone, ShieldCheck, ChartNoAxesCombined } from 'lucide-react';
 import { ChannelLogo } from '@/components/inbox/channel-logo';
 import { useLocale, useT } from '@/hooks/use-locale';
 import { localizePath } from '@/lib/i18n/routes';
@@ -286,7 +286,7 @@ function Capabilities() {
 
 function Comparison() {
   const t = useT();
-  const icons = [Settings2, MessageCircle, Cable, RefreshCw, CircleCheck];
+  const icons = [Settings2, Sparkles, ShoppingBag, ShoppingCart, MessagesSquare, Megaphone, PhoneCall, ShieldCheck, ChartNoAxesCombined];
   return (
     <section
       id="instalacion"
@@ -295,6 +295,7 @@ function Comparison() {
       <div className="sn-comparison">
         <Rise>
           <h2 className="sn-h2 sn-compare-title">{t('landingV4.compareTitle')}</h2>
+          <p className="sn-compare-intro">{t('landingV4.compareIntro')}</p>
         </Rise>
         <Rise delay={80}>
           <div className="sn-compare-wrap mt-10">
@@ -334,7 +335,7 @@ function Comparison() {
                       <span className="sn-compare-value"><span className="sn-compare-check" aria-hidden="true"><Check size={14} strokeWidth={2.5} /></span><span>{t(`landingV4.compare${row}Riverz`)}</span></span>
                     </td>
                     <td headers={`compare-topic-${row} compare-others`} role="cell">
-                      {t(`landingV4.compare${row}SelfService`)}
+                      {t(`landingV4.compare${row}Others`)}
                     </td>
                   </tr>
                   );

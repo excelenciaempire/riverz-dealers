@@ -44,6 +44,7 @@
 /* Comparación breve: una columna de marca y filas fáciles de recorrer. */
 .sn-comparison { max-width: 960px; margin-inline: auto; }
 .sn-compare-title { max-width: 22ch; margin-inline: auto; text-align: center; }
+.sn-compare-intro { max-width: 54ch; margin: 18px auto 0; color: var(--sn-muted); font-size: 17px; line-height: 1.5; text-align: center; }
 .sn-compare-wrap { padding-top: 8px; }
 .sn-compare-table {
   width: 100%;
@@ -56,7 +57,7 @@
 .sn-compare-answer { width: 33%; }
 .sn-compare-table th,
 .sn-compare-table td {
-  padding: 22px 24px;
+  padding: 17px 24px;
   vertical-align: middle;
   border-bottom: 1px solid var(--sn-line);
   font-size: 15px;
@@ -103,6 +104,7 @@
 
 @media (max-width: 640px) {
   .sn-compare-title { max-width: 18ch; }
+  .sn-compare-intro { max-width: 34ch; margin-top: 14px; font-size: 15px; }
   .sn-compare-table,
   .sn-compare-table thead,
   .sn-compare-table tbody { display: block; }
@@ -114,7 +116,7 @@
   .sn-compare-brand { gap: 7px; }
   .sn-compare-brand > span { font-size: 24px; }
   .sn-compare-brand svg { width: 27px; height: 27px; }
-  .sn-compare-table tbody tr { padding-block: 18px; border-bottom: 1px solid var(--sn-line); }
+  .sn-compare-table tbody tr { padding-block: 12px; border-bottom: 1px solid var(--sn-line); }
   .sn-compare-table tbody th { grid-column: 1 / -1; padding: 0 0 10px; border: 0; font-size: 14px; }
   .sn-compare-topic { gap: 8px; }
   .sn-compare-topic svg { width: 16px; height: 16px; }
