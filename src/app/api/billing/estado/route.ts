@@ -7,6 +7,7 @@ import { stripeDisponible } from '@/lib/billing/stripe'
 import { eligibleForFirstMonthOffer, firstMonthCents, FIRST_MONTH_DISCOUNT_PERCENT } from '@/lib/billing/first-month-offer'
 import { createClient } from '@/lib/supabase/server'
 import { isWorkspaceAdmin, resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { getShopifyBillingConnection } from '@/lib/shopify/billing'
 
 /**
  * Cómo está la cuenta con la facturación.
@@ -30,6 +31,9 @@ export async function GET() {
   if (!workspaceId) return NextResponse.json({ error: 'no_workspace' }, { status: 400 })
 
   const sus = await asegurarSuscripcion(admin, workspaceId)
+  const shopifyConnection = await getShopifyBillingConnection(admin, workspaceId)
+  const shopifyBilling = sus.billingProvider === 'shopify' ||
+    (!sus.stripeSubscriptionId && Boolean(shopifyConnection))
   const periodo = periodoDe(sus)
   const uso = await usoDelPeriodo(admin, workspaceId, periodo, sus.modeloCobro === 'oficial')
   const puedeMejorar = sus.modeloCobro === 'oficial' && !sus.tratoPropio &&
@@ -58,10 +62,16 @@ export async function GET() {
         ? { percent: FIRST_MONTH_DISCOUNT_PERCENT, centavos: firstMonthCents(sus.precioAcuerdoCentavos) }
         : null,
       periodoHasta: sus.periodoHasta,
-      puedeCancelar: stripeDisponible() && Boolean(sus.stripeSubscriptionId),
+      proveedorFacturacion: shopifyBilling ? 'shopify' : 'stripe',
+      puedeCancelar: shopifyBilling
+        ? Boolean(sus.shopifySubscriptionId && shopifyConnection)
+        : stripeDisponible() && Boolean(sus.stripeSubscriptionId),
       // Sin Stripe configurado no se ofrece un botón que no puede funcionar.
-      puedeSuscribirse: stripeDisponible() && Boolean(sus.plan) && sus.precioAcuerdoCentavos > 0,
-      tienePortal: stripeDisponible() && Boolean(sus.stripeCustomerId),
+      puedeSuscribirse: (shopifyBilling ? Boolean(shopifyConnection) : stripeDisponible()) &&
+        Boolean(sus.plan) && sus.precioAcuerdoCentavos > 0,
+      tienePortal: shopifyBilling
+        ? Boolean(sus.shopifySubscriptionId && shopifyConnection)
+        : stripeDisponible() && Boolean(sus.stripeCustomerId),
       cancelarAlFinal: sus.cancelarAlFinal,
     },
     { headers: { 'Cache-Control': 'no-store' } },

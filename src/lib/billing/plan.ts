@@ -29,6 +29,7 @@ export type EstadoSuscripcion =
  * que recargan y pagan cada consumo por separado.
  */
 export type ModeloCobro = 'oficial' | 'saldo'
+export type ProveedorFacturacion = 'stripe' | 'shopify'
 
 export interface Plan {
   id: string
@@ -56,6 +57,9 @@ export interface Suscripcion {
   nota: string | null
   stripeCustomerId: string | null
   stripeSubscriptionId: string | null
+  billingProvider: ProveedorFacturacion
+  shopifySubscriptionId: string | null
+  shopifyShopDomain: string | null
   cancelarAlFinal: boolean
   modeloCobro: ModeloCobro
   /**
@@ -175,6 +179,7 @@ export async function leerSuscripcion(
 
 export function aSuscripcion(f: FilaSuscripcion): Suscripcion {
   const plan = f.billing_plans ? aPlan(f.billing_plans) : null
+  const shopify = f.stripe_subscription_id?.startsWith('gid://shopify/AppSubscription/') === true
   // La cortesía no paga, diga lo que diga el plan: es lo que significa.
   const cortesia = f.estado === 'cortesia'
   const precioAcuerdo = f.precio_centavos_override ?? plan?.precioCentavos ?? 0
@@ -192,6 +197,12 @@ export function aSuscripcion(f: FilaSuscripcion): Suscripcion {
     nota: f.nota,
     stripeCustomerId: f.stripe_customer_id,
     stripeSubscriptionId: f.stripe_subscription_id,
+    // Reuse the two existing external-billing columns. The provider is
+    // unambiguous from Shopify's global ID prefix, so this deploy does not
+    // depend on a schema migration reaching production first.
+    billingProvider: shopify ? 'shopify' : 'stripe',
+    shopifySubscriptionId: shopify ? f.stripe_subscription_id : null,
+    shopifyShopDomain: shopify ? f.stripe_customer_id : null,
     cancelarAlFinal: f.cancelar_al_final,
     modeloCobro: f.modelo_cobro === 'saldo' ? 'saldo' : 'oficial',
     precioCentavos: precio,
@@ -245,6 +256,9 @@ export async function asegurarSuscripcion(
       nota: null,
       stripeCustomerId: null,
       stripeSubscriptionId: null,
+      billingProvider: 'stripe',
+      shopifySubscriptionId: null,
+      shopifyShopDomain: null,
       cancelarAlFinal: false,
       modeloCobro: 'oficial',
       precioCentavos: plan?.precioCentavos ?? 0,

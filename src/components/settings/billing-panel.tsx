@@ -86,8 +86,12 @@ export function BillingPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ planId }),
       });
-      const json = await res.json() as { error?: string };
+      const json = await res.json() as { error?: string; url?: string };
       if (!res.ok) throw new Error(json.error ?? t('settings.billingUpgradeFailed'));
+      if (json.url) {
+        window.location.href = json.url;
+        return;
+      }
       await recargar();
       setPlanElegido('');
       toast.success(t('settings.billingUpgradeSuccess'));

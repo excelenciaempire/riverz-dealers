@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { ShopifyAdminClient } from './admin-client'
 import { shopifyApiVersion } from './oauth'
+import { COLUMNAS_TOKEN, tokenVivo } from './token-vivo'
 
 export const WEBCHAT_EXTENSION_HANDLE = 'riverz-webchat'
 
@@ -114,7 +115,7 @@ export async function getThemeExtensionSetup(
 > {
   const { data } = await db
     .from('shopify_connections')
-    .select('shop_domain, access_token, client_id_encrypted')
+    .select(`${COLUMNAS_TOKEN}, client_id_encrypted`)
     .eq('workspace_id', workspaceId)
     .eq('platform', 'shopify')
     .eq('status', 'active')
@@ -132,7 +133,9 @@ export async function getThemeExtensionSetup(
   }
   try {
     const clientId = decrypt(row.client_id_encrypted)
-    const accessToken = decrypt(row.access_token)
+    // La publicación suele ocurrir bastante después del OAuth. Un access token
+    // de una hora ya puede estar vencido cuando el revisor abre el editor.
+    const accessToken = (await tokenVivo(db, row as Parameters<typeof tokenVivo>[1])).accessToken
     return {
       ok: true,
       accessToken,

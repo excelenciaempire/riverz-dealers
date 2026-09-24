@@ -74,6 +74,7 @@ export function nextPageInfo(link: string | null): string | null {
  *  la dirección queda congelada en Shopify y, si el dominio del servicio cambia,
  *  la tienda sigue entregando pedidos y carritos a un servidor muerto. */
 export const SHOPIFY_WEBHOOK_TOPICS: ReadonlyArray<{ topic: string; path: string }> = [
+  { topic: 'app_subscriptions/update', path: '/api/shopify/webhooks/app-subscriptions' },
   { topic: 'checkouts/create', path: '/api/shopify/webhooks/checkouts' },
   { topic: 'checkouts/update', path: '/api/shopify/webhooks/checkouts' },
   // Borradores: la otra mitad de "Pedidos abandonados". Caen en la misma tabla
@@ -107,6 +108,38 @@ export class ShopifyAdminClient {
 
   private base(): string {
     return `https://${this.shop}/admin/api/${this.apiVersion}`
+  }
+
+  /** GraphQL Admin API call with the same credential handling as REST. */
+  async graphql<T = unknown>(
+    query: string,
+    variables?: Record<string, unknown>,
+  ): Promise<T> {
+    const res = await fetch(`${this.base()}/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': this.token,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query, variables }),
+    })
+    const body = (await res.json().catch(() => null)) as {
+      data?: T
+      errors?: Array<{ message?: string }>
+    } | null
+    if (!res.ok || body?.errors?.length) {
+      const message = body?.errors
+        ?.map((error) => error.message)
+        .filter(Boolean)
+        .join('; ') || `HTTP ${res.status}`
+      if (res.status === 401) {
+        void markShopifyConnectionExpired(this.shop)
+        throw new ShopifyUnauthorizedError(`Shopify Admin GraphQL: ${message}`)
+      }
+      throw new Error(`Shopify Admin GraphQL: ${message}`)
+    }
+    if (!body?.data) throw new Error('Shopify Admin GraphQL returned no data')
+    return body.data
   }
 
   async rest<T = unknown>(

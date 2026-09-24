@@ -10,7 +10,8 @@ const cuenta = (cambio: Partial<Suscripcion> = {}): Suscripcion => ({
   },
   workspaceId: 'w1', estado: 'activa', pruebaHasta: null, periodoDesde: null,
   periodoHasta: null, vencidaDesde: null, nota: null, stripeCustomerId: null,
-  stripeSubscriptionId: null, cancelarAlFinal: false, modeloCobro: 'oficial',
+  stripeSubscriptionId: null, billingProvider: 'stripe', shopifySubscriptionId: null,
+  shopifyShopDomain: null, cancelarAlFinal: false, modeloCobro: 'oficial',
   precioCentavos: 25935, precioAcuerdoCentavos: 25935, incluidas: 500,
   excedenteCentavos: 0, tratoPropio: true, ...cambio,
 })

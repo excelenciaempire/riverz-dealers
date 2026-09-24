@@ -73,14 +73,22 @@ Flujo de instalación resultante (App Store):
 - ⚠️ Pendiente honesto: tener por escrito una política de respuesta a incidentes
   (una página basta) — el cuestionario declara que existe.
 
-## 4. Billing
+## 4. Billing — corregido después del rechazo 1.2.1
 
-Riverz cobra su SaaS fuera de Shopify (multicanal; Shopify es una integración más).
+Las instalaciones del app público se cobran con Shopify Billing. El checkout,
+los cambios de plan y la administración de la suscripción salen dentro de
+Shopify. El callback verifica un estado firmado antes de activar el plan y el
+webhook `app_subscriptions/update` reconcilia altas, mora y cancelaciones.
 
-- [ ] Solicitar **exención del Billing API** en el formulario de submission (caso
-  Klaviyo/Gorgias: plataforma externa cuyo valor no depende solo de Shopify).
-- [ ] Plan B si la exención se niega: app gratuita en Shopify (la suscripción se
-  contrata en riverz.co y el app solo "conecta" la tienda) — revisar política vigente al someter.
+Stripe queda sólo para cuentas externas existentes que no instalaron Riverz
+desde el App Store. Nunca se muestra Stripe a una instalación pública de
+Shopify sin una suscripción externa previa.
+
+- [x] Alta con `appSubscriptionCreate` y aprobación del merchant.
+- [x] Primer mes con el mismo descuento vigente de Riverz dentro de Shopify.
+- [x] Upgrade con aprobación y reemplazo en el siguiente ciclo.
+- [x] Estado firmado, consulta de `activeSubscriptions` y webhook HMAC.
+- [x] Acceso a la administración de cobros nativa de Shopify.
 
 ## 5. Listing (assets)
 
@@ -95,6 +103,35 @@ Riverz cobra su SaaS fuera de Shopify (multicanal; Shopify es una integración m
 - [ ] Cuenta Riverz demo (email+clave) en las review notes, con el workspace ya poblado.
 - [ ] Guion: instalar desde el admin → OAuth → registro → claim automático → abrir app embebida → ver estado conectado → abrir riverz.co (inbox con catálogo sincronizado).
 - [ ] Tiempos típicos: primera respuesta en días; 1–2 rondas de feedback.
+
+### Historial que no se debe repetir
+
+| Fecha | Referencia | Falla | Prevención actual |
+|---|---:|---|---|
+| 2026-08-24 | 126646 | El catálogo no se sincronizaba automáticamente. | La conexión dispara `syncShopifyProducts` con `after()` y mantiene productos por webhook. |
+| 2026-08-26 y 2026-08-28 | 130131 / 126646 | Credenciales de prueba inválidas; el revisor vio “Couldn't find your account”. | Verificar la cuenta indicada en las review notes en incógnito antes de enviar y no cambiarla durante review. |
+| 2026-09-01 y 2026-09-03 | 130131 / 126646 | Cobro o compra de créditos fuera de Shopify. | Shopify Billing es obligatorio para instalaciones públicas; no enlazar Stripe ni recargas en el guion de review. |
+| 2026-09-10 | 130131 | Error crítico al publicar la landing. | Ejecutar el flujo de Theme App Extension completo en la tienda de review y adjuntar un screencast nuevo. |
+
+### Identidad única para el siguiente envío
+
+El repositorio y producción usan **Riverz (399553527809)**, client ID
+`57bf672c917dc8a03d3ba61f6c0d5fed`. La referencia 130131 apuntó a otra app,
+client ID `b6434939a3aab24b787bdfaedff59d58`, que no está configurada en producción.
+No se debe volver a enviar esa segunda app: mezcla credenciales, instalación y
+evidencia de dos identidades distintas. El siguiente review se presenta desde
+la app 399553527809 con un solo conjunto de credenciales y un screencast grabado
+contra esa misma instalación.
+
+### Preflight obligatorio antes de volver a enviar
+
+- Instalar la app 399553527809 desde cero en una tienda de desarrollo limpia.
+- Entrar con la cuenta exacta escrita en las review notes usando una ventana privada.
+- Confirmar que el catálogo aparece sin pulsar “Sincronizar”.
+- Aprobar un plan de prueba en Shopify y comprobar que Riverz queda activo.
+- Publicar la landing mediante la Theme App Extension y abrirla en la tienda.
+- Desinstalar y verificar que conexión y suscripción quedan canceladas.
+- Grabar un screencast continuo de esos pasos; no reutilizar los videos rechazados.
 
 ## 7. Qué NO cambia durante el review
 

@@ -21,15 +21,21 @@ export async function POST(request: Request) {
 
   const shopDomain = request.headers.get('x-shopify-shop-domain')
   if (shopDomain) {
+    const now = new Date().toISOString()
     await admin
       .from('shopify_connections')
       .update({
         status: 'uninstalled',
-        uninstalled_at: new Date().toISOString(),
+        uninstalled_at: now,
         last_error: 'app/uninstalled webhook',
       })
       .eq('platform', 'shopify')
       .eq('shop_domain', shopDomain)
+    await admin
+      .from('workspace_subscriptions')
+      .update({ estado: 'cancelada', cancelar_al_final: true, updated_at: now })
+      .eq('stripe_customer_id', shopDomain)
+      .like('stripe_subscription_id', 'gid://shopify/AppSubscription/%')
   }
   return NextResponse.json({ ok: true })
 }

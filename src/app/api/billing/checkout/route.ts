@@ -6,6 +6,13 @@ import { cancelarSuscripcion, urlDeCheckout, urlDelPortal } from '@/lib/billing/
 import { csrfGuard } from '@/lib/csrf'
 import { createClient } from '@/lib/supabase/server'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import {
+  createShopifySubscription,
+  getShopifyBillingConnection,
+  shopifyBillingPortalUrl,
+} from '@/lib/shopify/billing'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 /**
  * Llevar a poner la tarjeta, o a cambiarla.
@@ -40,6 +47,25 @@ export async function POST(request: Request) {
   const sus = await asegurarSuscripcion(admin, workspaceId)
 
   try {
+    const shopifyConnection = await getShopifyBillingConnection(admin, workspaceId)
+    const useShopify = sus.billingProvider === 'shopify' ||
+      (!sus.stripeSubscriptionId && Boolean(shopifyConnection))
+    if (useShopify) {
+      if (!shopifyConnection) throw new Error('shopify_billing_connection_missing')
+      if (body?.portal || body?.cancelar !== undefined) {
+        return NextResponse.json({ url: shopifyBillingPortalUrl(shopifyConnection.shopDomain) })
+      }
+      if (!sus.plan) throw new Error('shopify_billing_plan_missing')
+      const origin = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
+      return NextResponse.json({
+        url: await createShopifySubscription({
+          connection: shopifyConnection,
+          plan: sus.plan,
+          subscription: sus,
+          returnOrigin: origin,
+        }),
+      })
+    }
     if (body?.cancelar !== undefined) {
       await cancelarSuscripcion(sus, body.cancelar === true)
       // El estado lo escribe el webhook; acá sólo se confirma que se pidió.
@@ -59,8 +85,9 @@ export async function POST(request: Request) {
     })
     return NextResponse.json({ url })
   } catch (e) {
+    console.error('[billing/checkout] failed', workspaceId, e)
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'no se pudo' },
+      { error: translate(await getLocale(), 'settings.billingPaymentFailed') },
       { status: 400 },
     )
   }

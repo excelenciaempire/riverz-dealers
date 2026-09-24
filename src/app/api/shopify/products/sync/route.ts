@@ -7,8 +7,8 @@ import {
   getConnectionForWorkspace,
 } from '@/lib/shopify/connection';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
-import { decrypt } from '@/lib/whatsapp/encryption';
 import { syncShopifyProducts } from '@/lib/shopify/product-sync';
+import { COLUMNAS_TOKEN, tokenVivo } from '@/lib/shopify/token-vivo';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { scrapeShopifyCatalogSources } from '@/lib/products/scrape-catalog-sources';
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   // strips both. workspace_id is needed for the product upsert (mig 057).
   const { data: row } = await admin
     .from('shopify_connections')
-    .select('access_token, workspace_id')
+    .select(`${COLUMNAS_TOKEN}, workspace_id`)
     .eq('platform', 'shopify')
     .eq('id', conn.id)
     .maybeSingle();
@@ -65,11 +65,15 @@ export async function POST(req: Request) {
     );
 
   try {
+    const live = await tokenVivo(
+      admin,
+      row as Parameters<typeof tokenVivo>[1],
+    );
     const result = await syncShopifyProducts(admin, {
       userId: conn.user_id,
       workspaceId: (row as { workspace_id: string }).workspace_id,
       shopDomain: conn.shop_domain,
-      accessToken: decrypt((row as { access_token: string }).access_token),
+      accessToken: live.accessToken,
     });
     const connectionWorkspaceId = (row as { workspace_id: string })
       .workspace_id;

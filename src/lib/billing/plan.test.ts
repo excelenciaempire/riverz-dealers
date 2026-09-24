@@ -61,6 +61,16 @@ const uso = (conversaciones: number) => ({
 })
 
 describe('lo que paga una cuenta', () => {
+  it('reconoce Shopify por el GID sin otra columna de proveedor', () => {
+    const subscription = sus({
+      stripe_subscription_id: 'gid://shopify/AppSubscription/123',
+      stripe_customer_id: 'riverz-demo.myshopify.com',
+    })
+    expect(subscription.billingProvider).toBe('shopify')
+    expect(subscription.shopifySubscriptionId).toBe('gid://shopify/AppSubscription/123')
+    expect(subscription.shopifyShopDomain).toBe('riverz-demo.myshopify.com')
+  })
+
   it('conserva el modelo de saldo sólo cuando está declarado', () => {
     expect(sus({ modelo_cobro: 'saldo' }).modeloCobro).toBe('saldo')
     expect(sus({ modelo_cobro: 'otro' }).modeloCobro).toBe('oficial')

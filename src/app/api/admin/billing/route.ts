@@ -187,7 +187,8 @@ export async function PUT(request: Request) {
         error: translate(await getLocale(), 'admin.billingOfficialPlanRequired'),
       }, { status: 400 });
     }
-    const suscripcionStripeViva = Boolean(previa?.stripeSubscriptionId) &&
+    const suscripcionStripeViva = previa?.billingProvider === 'stripe' &&
+      Boolean(previa?.stripeSubscriptionId) &&
       (previa?.estado === 'activa' || previa?.estado === 'vencida');
     if (c.estado === 'cortesia' && suscripcionStripeViva) {
       return NextResponse.json({
