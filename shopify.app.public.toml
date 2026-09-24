@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "57bf672c917dc8a03d3ba61f6c0d5fed"
-application_url = "https://riverz.co/shopify/embedded"
+application_url = "https://riverz.co"
 embedded = true
 name = "Riverz"
 
@@ -9,20 +9,16 @@ name = "Riverz"
 api_version = "2026-04"
 
   [[webhooks.subscriptions]]
-  uri = "/api/shopify/webhooks/customers-data-request"
+  uri = "https://riverz.co/api/shopify/webhooks/customers-data-request"
   compliance_topics = [ "customers/data_request" ]
 
   [[webhooks.subscriptions]]
-  uri = "/api/shopify/webhooks/customers-redact"
+  uri = "https://riverz.co/api/shopify/webhooks/customers-redact"
   compliance_topics = [ "customers/redact" ]
 
   [[webhooks.subscriptions]]
-  uri = "/api/shopify/webhooks/shop-redact"
+  uri = "https://riverz.co/api/shopify/webhooks/shop-redact"
   compliance_topics = [ "shop/redact" ]
-
-  [[webhooks.subscriptions]]
-  topics = [ "app_subscriptions/update" ]
-  uri = "/api/shopify/webhooks/app-subscriptions"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes

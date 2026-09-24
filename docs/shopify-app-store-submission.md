@@ -37,8 +37,8 @@ org Partners 4896758.
 | OAuth inmediato al instalar (sin login previo) | `src/proxy.ts` bootstrap `?shop=…` → `/api/shopify/oauth/start` (verifica HMAC si viene firmado) |
 | Instalación sin cuenta Riverz (merchant nuevo) | callback → `shopify_pending_installs` (token cifrado) → registro → claim automático (`/api/shopify/claim`, `ShopifyClaimGuard`) |
 | App embebida en el admin (App Bridge + session tokens) | `/shopify/embedded` + `src/lib/shopify/session-token.ts` (verificación JWT HS256) + CSP `frame-ancestors` dinámico en `src/proxy.ts` |
-| Webhooks obligatorios GDPR | `/api/shopify/webhooks/customers-data-request`, `customers-redact`, `shop-redact` (HMAC-verificados) |
-| `app/uninstalled` limpia la conexión | `/api/shopify/webhooks/app-uninstalled` |
+| Webhooks obligatorios GDPR | URLs absolutas `https://riverz.co/api/shopify/webhooks/...` para `customers-data-request`, `customers-redact` y `shop-redact` (HMAC-verificados) |
+| Webhooks operativos por tienda | `registerWebhooks()` registra `app_subscriptions/update`, catálogo, carritos, pedidos, clientes y `app/uninstalled` después del OAuth legado |
 | HMAC en OAuth callback + state CSRF | `src/lib/shopify/oauth.ts`, callback |
 | Tokens cifrados en reposo | `persistShopifyConnection` (AES vía `lib/whatsapp/encryption`) |
 | Multi-tenant por workspace | migración 055 + cookie de workspace en `/api/shopify/install` |
@@ -58,8 +58,9 @@ Flujo de instalación resultante (App Store):
 - [x] **App URL**: `https://riverz.co`.
 - [x] **Redirects**: `https://riverz.co/api/shopify/oauth/callback` + `https://riverz.co/api/shopify/callback`.
 - [x] **Embedded = true** (App Bridge).
-- [x] **Scopes**: `read_checkouts,read_customers,read_orders,write_orders,read_products`.
-- [x] **Compliance webhooks (GDPR)** → riverz.co (customers-data-request / customers-redact / shop-redact). Aplicados vía Shopify CLI (`shopify app deploy`, el form web no los expone) — versión `compliance-webhooks` en Riverz Inbox y `appstore-base` en Riverz.
+- [x] **Scopes**: los declarados en `shopify.app.public.toml`; incluye catálogo, clientes, pedidos, fulfillment, descuentos y borradores de pedido.
+- [x] **Compliance webhooks (GDPR)** → URLs HTTPS absolutas en riverz.co (customers-data-request / customers-redact / shop-redact). No usar rutas relativas cuando el App URL tiene un path: Shopify las concatena a ese path y la comprobación termina en 404. Aplicados vía Shopify CLI (`shopify app deploy`, el form web no los expone).
+- [x] **Webhooks operativos** → registrados por tienda en `ShopifyAdminClient.registerWebhooks()` porque la app mantiene `use_legacy_install_flow = true`; no declarar `app_subscriptions/update` como suscripción de app en el TOML.
 - Nota operativa: config por CLI con token de automatización (env `SHOPIFY_CLI_PARTNERS_TOKEN`, tokens `atkn_…` creados en Settings de cada app). TOML de referencia en el scratchpad o regenerar con `shopify app config link`.
 
 ## 3. Protected Customer Data — ✅ HECHA para el app público (2026-07-18)
@@ -112,6 +113,7 @@ Shopify sin una suscripción externa previa.
 | 2026-08-26 y 2026-08-28 | 130131 / 126646 | Credenciales de prueba inválidas; el revisor vio “Couldn't find your account”. | Verificar la cuenta indicada en las review notes en incógnito antes de enviar y no cambiarla durante review. |
 | 2026-09-01 y 2026-09-03 | 130131 / 126646 | Cobro o compra de créditos fuera de Shopify. | Shopify Billing es obligatorio para instalaciones públicas; no enlazar Stripe ni recargas en el guion de review. |
 | 2026-09-10 | 130131 | Error crítico al publicar la landing. | Ejecutar el flujo de Theme App Extension completo en la tienda de review y adjuntar un screencast nuevo. |
+| 2026-09-23 | 126646 | La comprobación automática resolvió los webhooks bajo `/shopify/embedded/api/...` y recibió 404; la instalación abrió una tienda anterior en vez del grant esperado. | Mantener el App URL en `https://riverz.co`, dejar que `src/proxy.ts` enrute `embedded=1` a `/shopify/embedded` y declarar todos los webhooks con URL absoluta. |
 
 ### Identidad única para el siguiente envío
 
@@ -125,6 +127,7 @@ contra esa misma instalación.
 
 ### Preflight obligatorio antes de volver a enviar
 
+- Ejecutar las comprobaciones automáticas del Partner Dashboard y corregir cualquier URL real distinta de la URL esperada antes de pulsar “Enviar correcciones”.
 - Instalar la app 399553527809 desde cero en una tienda de desarrollo limpia.
 - Entrar con la cuenta exacta escrita en las review notes usando una ventana privada.
 - Confirmar que el catálogo aparece sin pulsar “Sincronizar”.
