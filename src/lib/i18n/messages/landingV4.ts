@@ -692,8 +692,8 @@ export const landingV4 = {
     en: 'What does the plan include?',
   },
   faqIncludedAnswer: {
-    es: 'Incluye los agentes, el consumo de IA, ventas, recuperación, atención, automatizaciones e integraciones disponibles. El precio depende de los contactos atendidos. Mensajería y telefonía de terceros se cobran aparte.',
-    en: 'Includes agents, AI usage, sales, recovery, support, automations, and available integrations. Pricing depends on contacts served. Third-party messaging and telephony charges are separate.',
+    es: 'Incluye los agentes, el consumo de IA, ventas, recuperación, atención, automatizaciones e integraciones disponibles. El precio depende de los contactos atendidos.',
+    en: 'Includes agents, AI usage, sales, recovery, support, automations, and available integrations. Pricing depends on contacts served.',
   },
   faqWhyQuestion: {
     es: '¿Por qué Riverz y no un chatbot o un CRM de WhatsApp?',
