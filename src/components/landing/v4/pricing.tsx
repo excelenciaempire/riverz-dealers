@@ -25,6 +25,21 @@ const CONTACT_PRICE_FORMAT: Intl.NumberFormatOptions = {
   maximumFractionDigits: 2,
 };
 
+// La cifra con su separador de miles: 500, 2000, 10.000, 10,000.
+const VOLUME_COUNT = /\d(?:[\d.,]*\d)?/;
+
+function VolumeLabel({ text }: { text: string }) {
+  const match = VOLUME_COUNT.exec(text);
+  if (!match) return text;
+  return (
+    <>
+      {text.slice(0, match.index)}
+      <mark className="sn-mark">{match[0]}</mark>
+      {text.slice(match.index + match[0].length)}
+    </>
+  );
+}
+
 export function Pricing({ tiers }: { tiers: PricingTier[] }) {
   const t = useT();
   const fmt = useFormat();
@@ -119,8 +134,8 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
                   );
                 })}
               </div>
-              <p className="sn-label mt-7 text-center" aria-live="polite">
-                {customerLabel}
+              <p className="sn-h3 mt-7 text-center" aria-live="polite">
+                <VolumeLabel text={customerLabel} />
               </p>
             </div>
 
@@ -128,10 +143,7 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
               <div className="flex min-w-0 flex-col justify-center bg-[var(--sn-sand)] p-6 sm:p-9 lg:p-11">
                 {tier.monthly === null ? (
                   <>
-                    <p className="sn-label">{customerLabel}</p>
-                    <p className="sn-h2 mt-8">
-                      {t('landingV4.pricingCustomPrice')}
-                    </p>
+                    <p className="sn-h2">{t('landingV4.pricingCustomPrice')}</p>
                     <p className="mt-5 max-w-sm text-sm leading-6 text-[var(--sn-ink-2)]">
                       {t('landingV4.pricingCustomSetupTerms')}
                     </p>

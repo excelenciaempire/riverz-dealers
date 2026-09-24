@@ -270,6 +270,15 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Marcador: el acento como relleno detrás de la tinta, para la
+   cifra que tiene que leerse primero. */
+.sn-mark {
+  padding: 0 0.12em;
+  border-radius: 0.16em;
+  background: var(--sn-accent);
+  color: var(--sn-ink);
+}
+
 .sn-body {
   font-size: clamp(16px, 1.25vw, 18px);
   line-height: 1.55;
