@@ -178,14 +178,9 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
                         </span>
                       </p>
                       {contactMath && (
-                        <>
-                          <p className="mt-3 text-sm tabular-nums text-[var(--sn-ink-2)]">
-                            {t('landingV4.pricingPerContactMath', contactMath.regular)}
-                          </p>
-                          <p className="mt-3 text-xs leading-5 text-[var(--sn-ink-2)]">
-                            {t('landingV4.pricingPerContactNote')}
-                          </p>
-                        </>
+                        <p className="mt-3 text-sm tabular-nums text-[var(--sn-ink-2)]">
+                          {t('landingV4.pricingPerContactMath', contactMath.regular)}
+                        </p>
                       )}
                     </div>
                   </>

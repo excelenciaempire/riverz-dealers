@@ -609,10 +609,6 @@ export const landingV4 = {
     es: '{total} ÷ {contacts} ≈ {amount} USD por contacto',
     en: '{total} ÷ {contacts} ≈ {amount} USD per contact',
   },
-  pricingPerContactNote: {
-    es: 'Con el cupo completo. No es un cobro por contacto.',
-    en: 'At full plan capacity. This is not per-contact billing.',
-  },
   pricingEverythingIncluded: {
     es: 'Incluido en tu plan',
     en: 'Included in your plan',
