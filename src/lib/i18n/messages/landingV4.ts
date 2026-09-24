@@ -611,10 +611,6 @@ export const landingV4 = {
     es: 'Incluido en todos los planes:',
     en: 'Included in every plan:',
   },
-  pricingExternalFees: {
-    es: 'Mensajería y telefonía de terceros se cobran aparte.',
-    en: 'Third-party messaging and phone charges are separate.',
-  },
   pricingIncludedAgents: {
     es: 'Todos los agentes y consumo de IA',
     en: 'All agents and AI usage',
@@ -638,14 +634,6 @@ export const landingV4 = {
   pricingIncludedResults: {
     es: 'Resultados y ventas atribuidas',
     en: 'Results and attributed sales',
-  },
-  pricingDetailsNote: {
-    es: 'Cada persona cuenta una vez por período si la IA le responde. Entre canales se une solo con identidad verificada. No cobramos cada mensaje ni aplicamos excedentes automáticos.',
-    en: 'Each person counts once per period if AI replies. Cross-channel contacts merge only with verified identity. No per-message billing or automatic overages.',
-  },
-  pricingDetailsSummary: {
-    es: 'Cómo se cuentan los contactos',
-    en: 'How contacts are counted',
   },
   roiTitle: {
     es: 'Calcula el retorno posible',

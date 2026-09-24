@@ -203,16 +203,6 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
                   ))}
                 </ul>
 
-                <p className="mt-5 text-xs leading-5 text-[var(--sn-ink-2)]">
-                  {t('landingV4.pricingExternalFees')}
-                </p>
-
-                <details className="sn-pricing-details mt-5 border-t border-[var(--sn-line)] pt-5">
-                  <summary>{t('landingV4.pricingDetailsSummary')}</summary>
-                  <p className="mt-3 text-xs leading-5 text-[var(--sn-ink-2)]">
-                    {t('landingV4.pricingDetailsNote')}
-                  </p>
-                </details>
               </div>
             </div>
           </div>
