@@ -566,9 +566,7 @@ export const landingV4 = {
   channelsCalls: { es: 'Llamadas', en: 'Calls' },
 
   // ── Precios ──
-  pricingTitleLead: { es: 'Todo Riverz.', en: 'All of Riverz.' },
-  pricingTitleMuted: { es: 'Un precio simple.', en: 'One simple price.' },
-  pricingCurrencyLabel: { es: 'Precios en USD', en: 'Prices in USD' },
+  pricingTitle: { es: 'Planes', en: 'Plans' },
   pricingVolumeLabel: {
     es: 'Contactos al mes',
     en: 'Monthly contacts',
@@ -610,8 +608,8 @@ export const landingV4 = {
     en: '{total} ÷ {contacts} ≈ {amount} USD per contact',
   },
   pricingEverythingIncluded: {
-    es: 'Incluido en tu plan',
-    en: 'Included in your plan',
+    es: 'Incluido en todos los planes:',
+    en: 'Included in every plan:',
   },
   pricingExternalFees: {
     es: 'Mensajería y telefonía de terceros se cobran aparte.',

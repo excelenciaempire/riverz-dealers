@@ -64,14 +64,8 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
       <div className="mx-auto max-w-6xl">
         <Rise>
           <h2 className="sn-display mx-auto max-w-[14ch] text-center">
-            {t('landingV4.pricingTitleLead')}{' '}
-            <span style={{ color: 'var(--sn-ink-2)' }}>
-              {t('landingV4.pricingTitleMuted')}
-            </span>
+            {t('landingV4.pricingTitle')}
           </h2>
-          <p className="sn-label mt-4 text-center">
-            {t('landingV4.pricingCurrencyLabel')}
-          </p>
         </Rise>
 
         <Rise delay={90} className="mt-10 lg:mt-14">
