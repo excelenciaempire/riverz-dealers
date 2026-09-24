@@ -1377,10 +1377,35 @@ export const settings = {
     es: '{n} contactos · {price}/mes',
     en: '{n} contacts · {price}/month',
   },
-  billingUpgrade: { es: 'Ampliar plan', en: 'Upgrade plan' },
-  billingUpgradeTiming: {
-    es: 'Más capacidad desde ahora. El nuevo precio se cobra en la próxima renovación.',
-    en: 'More capacity now. The new price starts at the next renewal.',
+  billingUpgradePreview: { es: 'Ver costo del cambio', en: 'Preview upgrade cost' },
+  billingUpgradeConfirm: { es: 'Confirmar ampliación', en: 'Confirm upgrade' },
+  billingUpgradeDueNow: {
+    es: 'Cargo proporcional estimado hoy: {amount}.',
+    en: 'Estimated prorated charge today: {amount}.',
+  },
+  billingUpgradeNext: {
+    es: 'Desde la próxima renovación: {amount}/mes.',
+    en: 'From the next renewal: {amount}/month.',
+  },
+  billingUpgradeNoRetroactive: {
+    es: 'Los contactos ya atendidos no se recalculan.',
+    en: 'Contacts already served are not recalculated.',
+  },
+  billingUpgradeShopify: {
+    es: 'Shopify mostrará el cargo proporcional antes de que lo apruebes.',
+    en: 'Shopify will show the prorated charge before you approve it.',
+  },
+  billingUpgradeTrial: {
+    es: 'Sin cobro ahora. El nuevo plan aplicará al suscribirte.',
+    en: 'Nothing due now. The new plan applies when you subscribe.',
+  },
+  billingUpgradeQuoteExpired: {
+    es: 'El importe cambió. Vuelve a revisar el costo antes de confirmar.',
+    en: 'The amount changed. Preview the cost again before confirming.',
+  },
+  billingUpgradePending: {
+    es: 'Pago recibido. Estamos actualizando tu plan.',
+    en: 'Payment received. We are updating your plan.',
   },
   billingUpgradeSuccess: { es: 'Plan ampliado.', en: 'Plan upgraded.' },
   billingUpgradeFailed: {
@@ -1400,8 +1425,8 @@ export const settings = {
     en: 'Your plan is nearing its limit',
   },
   billingNearMessage: {
-    es: 'Ya atendimos {n} de {total} contactos este período. Puedes ampliar el plan en riverz.co/ajustes?tab=billing. El nuevo precio empieza en la próxima renovación.',
-    en: 'We have served {n} of {total} contacts this period. You can upgrade at riverz.co/settings?tab=billing. The new price starts at the next renewal.',
+    es: 'Ya atendimos {n} de {total} contactos este período. Puedes ampliar el plan en riverz.co/ajustes?tab=billing. Verás el cargo proporcional antes de confirmar.',
+    en: 'We have served {n} of {total} contacts this period. You can upgrade at riverz.co/settings?tab=billing. You will see the prorated charge before confirming.',
   },
   billingLimitTitle: {
     es: 'Llegaste al límite de contactos',

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { listarPlanes, leerSuscripcion } from '@/lib/billing/plan'
-import { sincronizarPrecioSuscripcion } from '@/lib/billing/stripe'
+import { previsualizarAmpliacion, sincronizarPrecioSuscripcion } from '@/lib/billing/stripe'
+import { signUpgradeQuote, verifyUpgradeQuote } from '@/lib/billing/upgrade-quote'
 import { csrfGuard } from '@/lib/csrf'
 import { createClient } from '@/lib/supabase/server'
 import { isWorkspaceAdmin, resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
   if (!workspaceId || !await isWorkspaceAdmin(db, user.id, workspaceId)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
-  const body = await request.json().catch(() => null) as { planId?: string } | null
+  const body = await request.json().catch(() => null) as { planId?: string; preview?: boolean; quote?: string } | null
   const [sus, planes] = await Promise.all([leerSuscripcion(db, workspaceId), listarPlanes(db)])
   const destino = planes.find((plan) => plan.id === body?.planId && plan.activo)
   const invalido = !sus || sus.modeloCobro !== 'oficial' || sus.tratoPropio ||
@@ -33,6 +34,32 @@ export async function POST(request: Request) {
   if (invalido || !sus || !destino || !sus.plan) return NextResponse.json({ error: translate(await getLocale(), 'settings.billingUpgradeUnavailable') }, { status: 400 })
 
   try {
+    const stripeSecret = process.env.STRIPE_SECRET_KEY
+    if (body?.preview) {
+      if (sus.billingProvider === 'shopify') {
+        return NextResponse.json({ provider: 'shopify', currency: destino.moneda, monthlyCents: destino.precioCentavos })
+      }
+      if (!sus.stripeSubscriptionId) {
+        return NextResponse.json({ provider: 'trial', currency: destino.moneda, monthlyCents: destino.precioCentavos, amountCents: 0 })
+      }
+      if (!stripeSecret) throw new Error('stripe_unavailable')
+      const amount = await previsualizarAmpliacion(sus, destino.precioCentavos, destino.moneda)
+      return NextResponse.json({
+        provider: 'stripe',
+        currency: destino.moneda,
+        monthlyCents: destino.precioCentavos,
+        amountCents: amount.centavos,
+        quote: signUpgradeQuote({
+          workspaceId,
+          subscriptionId: sus.stripeSubscriptionId,
+          planId: destino.id,
+          amountCents: amount.centavos,
+          prorationDate: amount.fecha,
+          monthlyCents: destino.precioCentavos,
+          currency: destino.moneda,
+        }, stripeSecret),
+      })
+    }
     if (sus.billingProvider === 'shopify') {
       const connection = await getShopifyBillingConnection(db, workspaceId)
       if (!connection) throw new Error('shopify_billing_connection_missing')
@@ -46,24 +73,42 @@ export async function POST(request: Request) {
       })
       return NextResponse.json({ url })
     }
-    // Sin prorrateo: más capacidad desde ahora, nuevo precio en la renovación.
-    // Stripe se modifica primero; si la DB falla, se restaura el precio anterior.
-    await sincronizarPrecioSuscripcion(sus, destino.precioCentavos, destino.moneda, 'oficial')
+    if (sus.stripeSubscriptionId) {
+      if (!stripeSecret) throw new Error('stripe_unavailable')
+      const quote = verifyUpgradeQuote(body?.quote ?? '', {
+        workspaceId,
+        subscriptionId: sus.stripeSubscriptionId,
+        planId: destino.id,
+      }, stripeSecret)
+      if (!quote || quote.monthlyCents !== destino.precioCentavos || quote.currency !== destino.moneda) {
+        return NextResponse.json({ error: translate(await getLocale(), 'settings.billingUpgradeQuoteExpired') }, { status: 409 })
+      }
+      const current = await previsualizarAmpliacion(sus, destino.precioCentavos, destino.moneda, quote.prorationDate)
+      if (current.centavos !== quote.amountCents) {
+        return NextResponse.json({ error: translate(await getLocale(), 'settings.billingUpgradeQuoteExpired') }, { status: 409 })
+      }
+      await sincronizarPrecioSuscripcion(sus, destino.precioCentavos, destino.moneda, 'oficial', {
+        planId: destino.id,
+        prorationDate: quote.prorationDate,
+      })
+    }
     const { data: updated, error } = await db.from('workspace_subscriptions')
       .update({ plan_id: destino.id, updated_at: new Date().toISOString() })
       .eq('workspace_id', workspaceId)
       .eq('plan_id', sus.plan.id)
       .select('workspace_id')
-    if (error || !updated?.length) throw error ?? new Error('subscription changed during upgrade')
+    if (error || !updated?.length) {
+      if (!sus.stripeSubscriptionId) throw error ?? new Error('subscription changed during upgrade')
+      if (!error && (await leerSuscripcion(db, workspaceId))?.plan?.id === destino.id) {
+        return NextResponse.json({ ok: true })
+      }
+      // Stripe ya pudo haber cobrado. El webhook lleva plan_id en metadata y
+      // reconciliará la capacidad; nunca crear una segunda factura para "volver atrás".
+      console.error('[billing/upgrade] Stripe changed but DB update pending', workspaceId, error)
+      return NextResponse.json({ ok: true, pending: true }, { status: 202 })
+    }
     return NextResponse.json({ ok: true })
   } catch (error) {
-    if (sus.billingProvider === 'stripe' && sus.stripeSubscriptionId) {
-      try {
-        await sincronizarPrecioSuscripcion(sus, sus.precioAcuerdoCentavos, sus.plan!.moneda, 'oficial')
-      } catch (rollbackError) {
-        console.error('[billing/upgrade] Stripe rollback failed', workspaceId, rollbackError)
-      }
-    }
     console.error('[billing/upgrade] failed', workspaceId, error)
     return NextResponse.json({ error: translate(await getLocale(), 'settings.billingUpgradeFailed') }, { status: 502 })
   }

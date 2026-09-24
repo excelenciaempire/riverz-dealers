@@ -88,6 +88,14 @@ describe('lo que paga una cuenta', () => {
     expect(c.totalCentavos).toBe(39900)
   })
 
+  it('el contacto 501 queda registrado sin cargo ni ampliación automática', () => {
+    const c = cuentaDelPeriodo(sus(), uso(501))
+    expect(c.excedidas).toBe(1)
+    expect(c.excedenteCentavos).toBe(0)
+    expect(c.totalCentavos).toBe(39900)
+    expect(c.incluidas).toBe(500)
+  })
+
   it('el plan oficial cuenta personas, no conversaciones repetidas', () => {
     const c = cuentaDelPeriodo(sus(), { ...uso(900), contactos: 120 })
     expect(c.uso.conversaciones).toBe(900)

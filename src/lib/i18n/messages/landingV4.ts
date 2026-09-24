@@ -740,8 +740,8 @@ export const landingV4 = {
     en: 'What happens if my store grows?',
   },
   faqGrowthAnswer: {
-    es: 'Los rangos son 500, 2.000, 5.000 y 10.000 contactos por período. Te avisamos al 80 % y al llegar al límite. Puedes ampliar el plan desde tu cuenta: tienes más capacidad de inmediato y el nuevo precio se cobra en la siguiente renovación. No hay cargos automáticos por exceso ni se corta la atención de golpe.',
-    en: 'The tiers cover 500, 2,000, 5,000, and 10,000 contacts per period. We alert you at 80% and at the limit. You can upgrade in your account: capacity increases immediately and the new price starts at the next renewal. There are no automatic overage charges or sudden service cutoffs.',
+    es: 'Los rangos son 500, 2.000, 5.000 y 10.000 contactos por período. Te avisamos al 80 % y al llegar al límite. Si amplías el plan, ves y apruebas el cargo proporcional por el tiempo restante; el nuevo precio mensual empieza en la siguiente renovación. No hay cargos automáticos por exceso ni se corta la atención de golpe.',
+    en: 'The tiers cover 500, 2,000, 5,000, and 10,000 contacts per period. We alert you at 80% and at the limit. If you upgrade, you see and approve the prorated charge for the remaining time; the new monthly price starts at the next renewal. There are no automatic overage charges or sudden service cutoffs.',
   },
   faqTeamQuestion: {
     es: '¿Riverz reemplaza a mi equipo?',

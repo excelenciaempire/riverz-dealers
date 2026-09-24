@@ -16,7 +16,7 @@
  */
 import Stripe from 'stripe'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Suscripcion } from './plan'
+import { listarPlanes, type Suscripcion } from './plan'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
@@ -216,13 +216,65 @@ export async function cancelarSuscripcion(
   })
 }
 
-/** Cambia la mensualidad en Stripe para la próxima renovación, sin prorrateo.
- * Al pasar al modelo oficial también retira cualquier ítem medido legado. */
+/** Sólo las líneas prorrateadas: la vista previa incluye también la renovación. */
+export function sumarProrrateo(lines: Array<{
+  amount: number
+  taxes: Array<{ amount: number }> | null
+  parent: { subscription_item_details: { proration: boolean } | null } | null
+}>): number | null {
+  const prorations = lines.filter((line) => line.parent?.subscription_item_details?.proration)
+  if (prorations.length === 0) return null
+  return prorations.reduce((total, line) => total + line.amount +
+    (line.taxes ?? []).reduce((tax, item) => tax + item.amount, 0), 0)
+}
+
+/** Stripe calcula la diferencia por el tiempo restante; no por contactos anteriores. */
+export async function previsualizarAmpliacion(
+  s: Suscripcion,
+  precioCentavos: number,
+  moneda: string,
+  prorationDate = Math.floor(Date.now() / 1000),
+): Promise<{ centavos: number; fecha: number }> {
+  if (!s.stripeSubscriptionId || s.billingProvider !== 'stripe') {
+    throw new Error('La cuenta no tiene una suscripción de Stripe activa.')
+  }
+  const sub = await stripe().subscriptions.retrieve(s.stripeSubscriptionId)
+  const base = sub.items.data.find((item) => item.price.recurring?.usage_type !== 'metered')
+  if (!base || !base.price.product || base.price.currency !== moneda) {
+    throw new Error('El precio actual de Stripe no coincide con el plan.')
+  }
+  const product = typeof base.price.product === 'string' ? base.price.product : base.price.product.id
+  const preview = await stripe().invoices.createPreview({
+    subscription: sub.id,
+    subscription_details: {
+      proration_date: prorationDate,
+      proration_behavior: 'always_invoice',
+      items: [{
+        id: base.id,
+        price_data: {
+          currency: moneda,
+          product,
+          recurring: { interval: 'month' },
+          unit_amount: precioCentavos,
+        },
+        quantity: 1,
+      }],
+    },
+  })
+  if (preview.lines.has_more) throw new Error('La vista previa de Stripe está incompleta.')
+  const centavos = sumarProrrateo(preview.lines.data)
+  if (centavos === null) throw new Error('Stripe no pudo calcular el prorrateo.')
+  if (centavos < 0) throw new Error('El cambio no es una ampliación de precio.')
+  return { centavos, fecha: prorationDate }
+}
+
+/** Admin: sin prorrateo. Ampliación comercial: factura y cobra la diferencia ahora. */
 export async function sincronizarPrecioSuscripcion(
   s: Suscripcion,
   precioCentavos: number,
   moneda: string,
   modelo: 'oficial' | 'saldo',
+  ampliacion?: { planId: string; prorationDate: number },
 ): Promise<void> {
   if (!s.stripeSubscriptionId) return
   if (precioCentavos <= 0) throw new Error('La suscripción activa necesita un precio mensual positivo.')
@@ -253,8 +305,15 @@ export async function sincronizarPrecioSuscripcion(
       { id: base.id, price: priceId, quantity: 1 },
       ...(modelo === 'oficial' ? medidos.map((i) => ({ id: i.id, deleted: true as const })) : []),
     ],
-    proration_behavior: 'none',
-  })
+    proration_behavior: ampliacion ? 'always_invoice' : 'none',
+    ...(ampliacion ? {
+      payment_behavior: 'error_if_incomplete' as const,
+      proration_date: ampliacion.prorationDate,
+      metadata: { plan_id: ampliacion.planId },
+    } : {}),
+  }, ampliacion ? {
+    idempotencyKey: `riverz-upgrade-${s.workspaceId}-${base.id}-${ampliacion.planId}-${ampliacion.prorationDate}`,
+  } : undefined)
 }
 
 /**
@@ -382,6 +441,11 @@ export async function aplicarEvento(
   const workspaceId = sub.metadata?.workspace_id
   if (!workspaceId) return 'sin workspace_id en la suscripción'
 
+  // Un upgrade puede cobrarse antes de que la respuesta de nuestra API logre
+  // actualizar la DB. El webhook firmado conserva la fuente de verdad.
+  const planId = sub.metadata?.plan_id || null
+  const plan = planId ? (await listarPlanes(db)).find((candidate) => candidate.id === planId) : null
+
   const item = sub.items.data[0] as Stripe.SubscriptionItem | undefined
   const desde = item?.current_period_start
   const hasta = item?.current_period_end
@@ -420,6 +484,7 @@ export async function aplicarEvento(
   const { error } = await db.from('workspace_subscriptions').upsert(
     {
       workspace_id: workspaceId,
+      ...(plan ? { plan_id: plan.id } : {}),
       estado,
       vencida_desde: vencidaDesde,
       stripe_subscription_id: sub.id,

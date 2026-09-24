@@ -55,6 +55,14 @@ interface Estado {
   cancelarAlFinal: boolean;
 }
 
+interface UpgradeQuote {
+  provider: 'stripe' | 'shopify' | 'trial';
+  currency: string;
+  monthlyCents: number;
+  amountCents?: number;
+  quote?: string;
+}
+
 const plata = (centavos: number, moneda: string) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -71,36 +79,60 @@ export function BillingPanel() {
   const [yendo, setYendo] = useState(false);
   const [mejorando, setMejorando] = useState(false);
   const [planElegido, setPlanElegido] = useState('');
+  const [cotizacion, setCotizacion] = useState<UpgradeQuote | null>(null);
 
   const recargar = useCallback(async () => {
     const res = await fetch('/api/billing/estado', { cache: 'no-store' });
     if (res.ok) setE((await res.json()) as Estado);
   }, []);
 
-  const mejorar = useCallback(async (planId: string) => {
+  const cotizar = useCallback(async (planId: string) => {
     if (!planId) return;
     setMejorando(true);
     try {
       const res = await fetchWithCsrf('/api/billing/upgrade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({ planId, preview: true }),
       });
-      const json = await res.json() as { error?: string; url?: string };
+      const json = await res.json() as UpgradeQuote & { error?: string };
       if (!res.ok) throw new Error(json.error ?? t('settings.billingUpgradeFailed'));
+      setCotizacion(json);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('settings.billingUpgradeFailed'));
+    } finally {
+      setMejorando(false);
+    }
+  }, [fetchWithCsrf, t]);
+
+  const mejorar = useCallback(async (planId: string) => {
+    if (!planId || !cotizacion) return;
+    setMejorando(true);
+    try {
+      const res = await fetchWithCsrf('/api/billing/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId, quote: cotizacion.quote }),
+      });
+      const json = await res.json() as { error?: string; url?: string; pending?: boolean };
+      if (!res.ok) {
+        if (res.status === 409) setCotizacion(null);
+        throw new Error(json.error ?? t('settings.billingUpgradeFailed'));
+      }
       if (json.url) {
         window.location.href = json.url;
         return;
       }
       await recargar();
       setPlanElegido('');
-      toast.success(t('settings.billingUpgradeSuccess'));
+      setCotizacion(null);
+      toast.success(t(json.pending ? 'settings.billingUpgradePending' : 'settings.billingUpgradeSuccess'));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('settings.billingUpgradeFailed'));
     } finally {
       setMejorando(false);
     }
-  }, [fetchWithCsrf, recargar, t]);
+  }, [cotizacion, fetchWithCsrf, recargar, t]);
 
   useEffect(() => {
     void (async () => {
@@ -244,12 +276,15 @@ export function BillingPanel() {
             {cuenta.uso.contactos >= Math.ceil(cuenta.incluidas * 0.8) && cuenta.uso.contactos < cuenta.incluidas && (
               <p className="text-amber-600 dark:text-amber-400">{t('settings.billingNearLimit')}</p>
             )}
-            {e.siguientesPlanes?.length > 0 && cuenta.uso.contactos >= Math.ceil(cuenta.incluidas * 0.8) && (
+            {e.siguientesPlanes?.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <select
                   aria-label={t('settings.billingUpgradePlan')}
                   value={planElegido || e.siguientesPlanes[0].id}
-                  onChange={(event) => setPlanElegido(event.target.value)}
+                  onChange={(event) => {
+                    setPlanElegido(event.target.value);
+                    setCotizacion(null);
+                  }}
                   className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
                 >
                   {e.siguientesPlanes.map((plan) => (
@@ -261,12 +296,28 @@ export function BillingPanel() {
                 <button
                   type="button"
                   disabled={mejorando}
-                  onClick={() => void mejorar(planElegido || e.siguientesPlanes[0].id)}
+                  onClick={() => void (cotizacion
+                    ? mejorar(planElegido || e.siguientesPlanes[0].id)
+                    : cotizar(planElegido || e.siguientesPlanes[0].id))}
                   className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
                 >
-                  {mejorando ? <Loader2 className="size-4 animate-spin" /> : t('settings.billingUpgrade')}
+                  {mejorando ? <Loader2 className="size-4 animate-spin" /> : t(cotizacion ? 'settings.billingUpgradeConfirm' : 'settings.billingUpgradePreview')}
                 </button>
-                <p className="w-full text-xs text-muted-foreground">{t('settings.billingUpgradeTiming')}</p>
+                {cotizacion && (
+                  <div className="w-full rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                    <p className="font-medium text-foreground">
+                      {cotizacion.provider === 'stripe'
+                        ? t('settings.billingUpgradeDueNow', { amount: plata(cotizacion.amountCents ?? 0, cotizacion.currency) })
+                        : cotizacion.provider === 'shopify'
+                          ? t('settings.billingUpgradeShopify')
+                          : t('settings.billingUpgradeTrial')}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      {t('settings.billingUpgradeNext', { amount: plata(cotizacion.monthlyCents, cotizacion.currency) })}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">{t('settings.billingUpgradeNoRetroactive')}</p>
+                  </div>
+                )}
               </div>
             )}
             {e.siguientesPlanes?.length === 0 && cuenta.uso.contactos >= cuenta.incluidas && (

@@ -192,7 +192,7 @@ export async function createShopifySubscription(args: {
     name: shopifySubscriptionName(plan),
     returnUrl: returnUrl.toString(),
     lineItems: [{ plan: { appRecurringPricingDetails: recurring } }],
-    replacementBehavior: args.upgrade ? 'APPLY_ON_NEXT_BILLING_CYCLE' : 'STANDARD',
+    replacementBehavior: args.upgrade ? 'APPLY_IMMEDIATELY' : 'STANDARD',
     test: shopPlan.shop.plan.partnerDevelopment || process.env.SHOPIFY_BILLING_TEST_MODE === '1',
     trialDays: trialDays || null,
   })
