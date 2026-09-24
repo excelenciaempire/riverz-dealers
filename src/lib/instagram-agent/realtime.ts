@@ -33,6 +33,7 @@ import {
 import { limitByKey } from '@/lib/rate-limit';
 import type { BillingContext } from '@/lib/wallet/operacion';
 import { puedeUsarIa } from '@/lib/wallet/puerta';
+import { puedeAtenderContacto } from '@/lib/billing/contact-cap';
 import type {
   ChannelConnection,
   Contact,
@@ -1772,6 +1773,9 @@ export async function maybeRunCloser(
     inboundMessage: { id: string; created_at: string };
   }
 ): Promise<boolean> {
+  // Si no queda capacidad para una persona nueva, el runner genérico dejará
+  // el hilo para una persona; el cerrador no debe saltarse esa decisión.
+  if (!(await puedeAtenderContacto(db, opts.workspaceId, opts.contact.id))) return false;
   const { data: recRow } = await db
     .from('instagram_campaign_recipients')
     .select('id, status, discount_code, lead_score, campaign_id')

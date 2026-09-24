@@ -68,6 +68,7 @@ import { topeDeDescuento } from '@/lib/shopify/discounts';
 import { refreshLivePricing } from '@/lib/shopify/live-pricing';
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
 import { puertaDeIa } from '@/lib/wallet/puerta';
+import { puedeAtenderContacto } from '@/lib/billing/contact-cap';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { motorApagado } from '@/lib/workspaces/motor';
 import type {
@@ -225,6 +226,11 @@ export async function runAiAgent(
     if (!puerta.puede) {
       console.warn('[ai] apagado por', puerta.motivo, args.workspaceId);
       await anotarSalida(db, args, puerta.motivo ?? 'sin_saldo');
+      return;
+    }
+
+    if (!(await puedeAtenderContacto(db, args.workspaceId, args.contact.id))) {
+      await anotarSalida(db, args, 'cupo_contactos');
       return;
     }
 

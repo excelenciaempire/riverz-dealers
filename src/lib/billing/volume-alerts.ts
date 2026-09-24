@@ -6,9 +6,10 @@ import { translate } from '@/lib/i18n/translate'
 import { leerSuscripcion } from './plan'
 import { periodoDe, usoDelPeriodo } from './uso'
 
-export function umbralDeVolumen(contactos: number, incluidas: number): 80 | 100 | null {
+export function umbralDeVolumen(contactos: number, incluidas: number): 80 | 95 | 100 | null {
   if (incluidas <= 0) return null
   if (contactos >= incluidas) return 100
+  if (contactos >= Math.ceil(incluidas * 0.95)) return 95
   if (contactos >= Math.ceil(incluidas * 0.8)) return 80
   return null
 }
@@ -36,6 +37,9 @@ export async function avisarVolumenOficial(db: SupabaseClient): Promise<{ revisa
     const { data: reservado, error: reservaError } = await db.from('billing_volume_alerts')
       .upsert(clave, { onConflict: 'workspace_id,period_start,threshold', ignoreDuplicates: true })
       .select('workspace_id')
+    // La migración 270 amplía el CHECK a 95. Si todavía no llegó al proyecto,
+    // se preservan los avisos de 80 y 100 sin romper el cron entero.
+    if (umbral === 95 && reservaError?.code === '23514') continue
     if (reservaError) throw reservaError
     if (!reservado?.length) continue
 

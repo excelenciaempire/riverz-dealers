@@ -1365,8 +1365,8 @@ export const settings = {
   },
   billingContactsOf: { es: '{n} de {total}', en: '{n} of {total}' },
   billingVolumeExceeded: {
-    es: 'Llegaste al límite de contactos. Cambia a un plan mayor para ampliar la capacidad. La atención no se corta de inmediato y no hay cobro automático por exceso.',
-    en: 'You reached your contact limit. Upgrade for more capacity. Service does not stop immediately, and there is no automatic overage charge.',
+    es: 'Llegaste al límite. La IA sigue con los contactos ya atendidos; los nuevos pasan a tu equipo hasta que amplíes. No hay cobros automáticos.',
+    en: 'You reached the limit. AI continues with contacts already served; new ones go to your team until you upgrade. There are no automatic charges.',
   },
   billingNearLimit: {
     es: 'Te acercas al límite de contactos. Puedes ampliar tu plan ahora.',
@@ -1380,16 +1380,20 @@ export const settings = {
   billingUpgradePreview: { es: 'Ver costo del cambio', en: 'Preview upgrade cost' },
   billingUpgradeConfirm: { es: 'Confirmar ampliación', en: 'Confirm upgrade' },
   billingUpgradeDueNow: {
-    es: 'Cargo proporcional estimado hoy: {amount}.',
-    en: 'Estimated prorated charge today: {amount}.',
+    es: 'Capacidad adicional este ciclo: {amount}.',
+    en: 'Additional capacity this cycle: {amount}.',
   },
   billingUpgradeNext: {
     es: 'Desde la próxima renovación: {amount}/mes.',
     en: 'From the next renewal: {amount}/month.',
   },
   billingUpgradeNoRetroactive: {
-    es: 'Los contactos ya atendidos no se recalculan.',
-    en: 'Contacts already served are not recalculated.',
+    es: 'El cupo total cambia ahora; los contactos ya atendidos siguen contando. Tu fecha de renovación no cambia.',
+    en: 'Your total capacity changes now; contacts already served still count. Your renewal date stays the same.',
+  },
+  billingUpgradeFirstMonth: {
+    es: 'El 35 % del primer mes solo aplica al plan contratado inicialmente.',
+    en: 'The first-month 35% discount applies only to the plan you originally purchased.',
   },
   billingUpgradeShopify: {
     es: 'Shopify mostrará el cargo proporcional antes de que lo apruebes.',
@@ -1425,16 +1429,16 @@ export const settings = {
     en: 'Your plan is nearing its limit',
   },
   billingNearMessage: {
-    es: 'Ya atendimos {n} de {total} contactos este período. Puedes ampliar el plan en riverz.co/ajustes?tab=billing. Verás el cargo proporcional antes de confirmar.',
-    en: 'We have served {n} of {total} contacts this period. You can upgrade at riverz.co/settings?tab=billing. You will see the prorated charge before confirming.',
+    es: 'Ya atendimos {n} de {total} contactos este período. Puedes ampliar el plan en riverz.co/ajustes?tab=billing. Verás el cargo exacto antes de confirmar.',
+    en: 'We have served {n} of {total} contacts this period. You can upgrade at riverz.co/settings?tab=billing. You will see the exact charge before confirming.',
   },
   billingLimitTitle: {
     es: 'Llegaste al límite de contactos',
     en: 'You reached your contact limit',
   },
   billingLimitMessage: {
-    es: 'Ya atendimos {n} de {total} contactos este período. Amplía el plan en riverz.co/ajustes?tab=billing para tener más capacidad. La atención no se corta de inmediato y no hay cobro automático por exceso.',
-    en: 'We have served {n} of {total} contacts this period. Upgrade at riverz.co/settings?tab=billing for more capacity. Service does not stop immediately, and there is no automatic overage charge.',
+    es: 'Ya atendimos {n} de {total} contactos este período. La IA sigue con ellos; los contactos nuevos pasan a tu equipo. Amplía en riverz.co/ajustes?tab=billing. No hay cobros automáticos.',
+    en: 'We have served {n} of {total} contacts this period. AI continues with them; new contacts go to your team. Upgrade at riverz.co/settings?tab=billing. There are no automatic charges.',
   },
   billingRenewsOn: { es: 'Se renueva el', en: 'Renews on' },
   billingEndsOn: { es: 'Termina el', en: 'Ends on' },

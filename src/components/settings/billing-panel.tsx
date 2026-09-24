@@ -60,6 +60,7 @@ interface UpgradeQuote {
   currency: string;
   monthlyCents: number;
   amountCents?: number;
+  firstCycle?: boolean;
   quote?: string;
 }
 
@@ -316,6 +317,9 @@ export function BillingPanel() {
                       {t('settings.billingUpgradeNext', { amount: plata(cotizacion.monthlyCents, cotizacion.currency) })}
                     </p>
                     <p className="mt-1 text-muted-foreground">{t('settings.billingUpgradeNoRetroactive')}</p>
+                    {cotizacion.provider === 'stripe' && cotizacion.firstCycle && (
+                      <p className="mt-1 text-muted-foreground">{t('settings.billingUpgradeFirstMonth')}</p>
+                    )}
                   </div>
                 )}
               </div>

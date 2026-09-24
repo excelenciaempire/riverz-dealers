@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { listarPlanes, leerSuscripcion } from '@/lib/billing/plan'
-import { previsualizarAmpliacion, sincronizarPrecioSuscripcion } from '@/lib/billing/stripe'
+import { cobrarAmpliacionCapacidad, previsualizarAmpliacion } from '@/lib/billing/stripe'
 import { signUpgradeQuote, verifyUpgradeQuote } from '@/lib/billing/upgrade-quote'
 import { csrfGuard } from '@/lib/csrf'
 import { createClient } from '@/lib/supabase/server'
@@ -49,12 +49,15 @@ export async function POST(request: Request) {
         currency: destino.moneda,
         monthlyCents: destino.precioCentavos,
         amountCents: amount.centavos,
+        firstCycle: amount.firstCycle,
         quote: signUpgradeQuote({
           workspaceId,
           subscriptionId: sus.stripeSubscriptionId,
           planId: destino.id,
+          fromPlanId: sus.plan.id,
           amountCents: amount.centavos,
-          prorationDate: amount.fecha,
+          quotedAt: amount.fecha,
+          periodStart: amount.periodStart,
           monthlyCents: destino.precioCentavos,
           currency: destino.moneda,
         }, stripeSecret),
@@ -79,34 +82,26 @@ export async function POST(request: Request) {
         workspaceId,
         subscriptionId: sus.stripeSubscriptionId,
         planId: destino.id,
+        fromPlanId: sus.plan.id,
       }, stripeSecret)
       if (!quote || quote.monthlyCents !== destino.precioCentavos || quote.currency !== destino.moneda) {
         return NextResponse.json({ error: translate(await getLocale(), 'settings.billingUpgradeQuoteExpired') }, { status: 409 })
       }
-      const current = await previsualizarAmpliacion(sus, destino.precioCentavos, destino.moneda, quote.prorationDate)
-      if (current.centavos !== quote.amountCents) {
+      const current = await previsualizarAmpliacion(sus, destino.precioCentavos, destino.moneda)
+      if (current.centavos !== quote.amountCents || current.periodStart !== quote.periodStart) {
         return NextResponse.json({ error: translate(await getLocale(), 'settings.billingUpgradeQuoteExpired') }, { status: 409 })
       }
-      await sincronizarPrecioSuscripcion(sus, destino.precioCentavos, destino.moneda, 'oficial', {
-        planId: destino.id,
-        prorationDate: quote.prorationDate,
-      })
+      const result = await cobrarAmpliacionCapacidad(db, sus, destino, quote.periodStart, quote.amountCents)
+      if (result.url) return NextResponse.json({ url: result.url, pending: true })
+      if (!result.paid) return NextResponse.json({ ok: true, pending: true }, { status: 202 })
+      return NextResponse.json({ ok: true })
     }
     const { data: updated, error } = await db.from('workspace_subscriptions')
       .update({ plan_id: destino.id, updated_at: new Date().toISOString() })
       .eq('workspace_id', workspaceId)
       .eq('plan_id', sus.plan.id)
       .select('workspace_id')
-    if (error || !updated?.length) {
-      if (!sus.stripeSubscriptionId) throw error ?? new Error('subscription changed during upgrade')
-      if (!error && (await leerSuscripcion(db, workspaceId))?.plan?.id === destino.id) {
-        return NextResponse.json({ ok: true })
-      }
-      // Stripe ya pudo haber cobrado. El webhook lleva plan_id en metadata y
-      // reconciliará la capacidad; nunca crear una segunda factura para "volver atrás".
-      console.error('[billing/upgrade] Stripe changed but DB update pending', workspaceId, error)
-      return NextResponse.json({ ok: true, pending: true }, { status: 202 })
-    }
+    if (error || !updated?.length) throw error ?? new Error('subscription changed during upgrade')
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error('[billing/upgrade] failed', workspaceId, error)

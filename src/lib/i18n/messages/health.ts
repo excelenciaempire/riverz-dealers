@@ -341,6 +341,10 @@ export const health: Namespace = {
     es: "la suscripción venció",
     en: "the subscription expired",
   },
+  skip_cupo_contactos: {
+    es: "el cupo de contactos nuevos se agotó",
+    en: "the new-contact capacity was reached",
+  },
   skip_csat_capturada: {
     es: "era la nota de la encuesta",
     en: "it was the survey rating",

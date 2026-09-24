@@ -4,8 +4,10 @@ export type UpgradeQuote = {
   workspaceId: string
   subscriptionId: string
   planId: string
+  fromPlanId: string
   amountCents: number
-  prorationDate: number
+  quotedAt: number
+  periodStart: number
   monthlyCents: number
   currency: string
 }
@@ -21,7 +23,7 @@ export function signUpgradeQuote(quote: UpgradeQuote, secret: string): string {
 
 export function verifyUpgradeQuote(
   token: string,
-  context: Pick<UpgradeQuote, 'workspaceId' | 'subscriptionId' | 'planId'>,
+  context: Pick<UpgradeQuote, 'workspaceId' | 'subscriptionId' | 'planId' | 'fromPlanId'>,
   secret: string,
   now = Math.floor(Date.now() / 1000),
 ): UpgradeQuote | null {
@@ -34,11 +36,13 @@ export function verifyUpgradeQuote(
   try {
     const quote = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as UpgradeQuote
     return quote.workspaceId === context.workspaceId && quote.subscriptionId === context.subscriptionId &&
-      quote.planId === context.planId && Number.isSafeInteger(quote.amountCents) && quote.amountCents >= 0 &&
+      quote.planId === context.planId && quote.fromPlanId === context.fromPlanId &&
+      Number.isSafeInteger(quote.amountCents) && quote.amountCents > 0 &&
       Number.isSafeInteger(quote.monthlyCents) && quote.monthlyCents > 0 &&
       typeof quote.currency === 'string' && /^[a-z]{3}$/.test(quote.currency) &&
-      Number.isSafeInteger(quote.prorationDate) && quote.prorationDate <= now &&
-      quote.prorationDate >= now - 600 ? quote : null
+      Number.isSafeInteger(quote.periodStart) && quote.periodStart > 0 &&
+      Number.isSafeInteger(quote.quotedAt) && quote.quotedAt <= now &&
+      quote.quotedAt >= now - 600 ? quote : null
   } catch {
     return null
   }

@@ -16,7 +16,8 @@
  */
 import Stripe from 'stripe'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { listarPlanes, type Suscripcion } from './plan'
+import { leerSuscripcion, listarPlanes, type Plan, type Suscripcion } from './plan'
+import { costoAmpliacionCentavos } from './upgrade-policy'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
@@ -216,65 +217,43 @@ export async function cancelarSuscripcion(
   })
 }
 
-/** Sólo las líneas prorrateadas: la vista previa incluye también la renovación. */
-export function sumarProrrateo(lines: Array<{
-  amount: number
-  taxes: Array<{ amount: number }> | null
-  parent: { subscription_item_details: { proration: boolean } | null } | null
-}>): number | null {
-  const prorations = lines.filter((line) => line.parent?.subscription_item_details?.proration)
-  if (prorations.length === 0) return null
-  return prorations.reduce((total, line) => total + line.amount +
-    (line.taxes ?? []).reduce((tax, item) => tax + item.amount, 0), 0)
-}
-
-/** Stripe calcula la diferencia por el tiempo restante; no por contactos anteriores. */
-export async function previsualizarAmpliacion(
-  s: Suscripcion,
-  precioCentavos: number,
-  moneda: string,
-  prorationDate = Math.floor(Date.now() / 1000),
-): Promise<{ centavos: number; fecha: number }> {
+/** Valida que Stripe y nuestra base tengan el mismo precio antes de cotizar. */
+async function baseDeAmpliacion(s: Suscripcion, moneda: string) {
   if (!s.stripeSubscriptionId || s.billingProvider !== 'stripe') {
     throw new Error('La cuenta no tiene una suscripción de Stripe activa.')
   }
   const sub = await stripe().subscriptions.retrieve(s.stripeSubscriptionId)
   const base = sub.items.data.find((item) => item.price.recurring?.usage_type !== 'metered')
-  if (!base || !base.price.product || base.price.currency !== moneda) {
+  if (!base || !base.price.product || base.price.currency !== moneda ||
+      base.price.unit_amount !== s.precioAcuerdoCentavos ||
+      !['active', 'trialing'].includes(sub.status)) {
     throw new Error('El precio actual de Stripe no coincide con el plan.')
   }
-  const product = typeof base.price.product === 'string' ? base.price.product : base.price.product.id
-  const preview = await stripe().invoices.createPreview({
-    subscription: sub.id,
-    subscription_details: {
-      proration_date: prorationDate,
-      proration_behavior: 'always_invoice',
-      items: [{
-        id: base.id,
-        price_data: {
-          currency: moneda,
-          product,
-          recurring: { interval: 'month' },
-          unit_amount: precioCentavos,
-        },
-        quantity: 1,
-      }],
-    },
-  })
-  if (preview.lines.has_more) throw new Error('La vista previa de Stripe está incompleta.')
-  const centavos = sumarProrrateo(preview.lines.data)
-  if (centavos === null) throw new Error('Stripe no pudo calcular el prorrateo.')
-  if (centavos < 0) throw new Error('El cambio no es una ampliación de precio.')
-  return { centavos, fecha: prorationDate }
+  return { sub, base, periodStart: base.current_period_start }
 }
 
-/** Admin: sin prorrateo. Ampliación comercial: factura y cobra la diferencia ahora. */
+/** La ampliación entrega capacidad de todo el ciclo: su cargo no depende del día. */
+export async function previsualizarAmpliacion(
+  s: Suscripcion,
+  precioCentavos: number,
+  moneda: string,
+): Promise<{ centavos: number; fecha: number; periodStart: number; firstCycle: boolean }> {
+  const { sub, periodStart } = await baseDeAmpliacion(s, moneda)
+  return {
+    centavos: costoAmpliacionCentavos(s.precioAcuerdoCentavos, precioCentavos),
+    fecha: Math.floor(Date.now() / 1000),
+    periodStart,
+    firstCycle: Math.abs(sub.start_date - periodStart) < 5,
+  }
+}
+
+/** La mensualidad futura cambia sin otro prorrateo: el cupo ya se pagó aparte. */
 export async function sincronizarPrecioSuscripcion(
   s: Suscripcion,
   precioCentavos: number,
   moneda: string,
   modelo: 'oficial' | 'saldo',
-  ampliacion?: { planId: string; prorationDate: number },
+  ampliacionPagada?: { planId: string; invoiceId: string },
 ): Promise<void> {
   if (!s.stripeSubscriptionId) return
   if (precioCentavos <= 0) throw new Error('La suscripción activa necesita un precio mensual positivo.')
@@ -305,15 +284,114 @@ export async function sincronizarPrecioSuscripcion(
       { id: base.id, price: priceId, quantity: 1 },
       ...(modelo === 'oficial' ? medidos.map((i) => ({ id: i.id, deleted: true as const })) : []),
     ],
-    proration_behavior: ampliacion ? 'always_invoice' : 'none',
-    ...(ampliacion ? {
-      payment_behavior: 'error_if_incomplete' as const,
-      proration_date: ampliacion.prorationDate,
-      metadata: { plan_id: ampliacion.planId },
+    proration_behavior: 'none',
+    billing_cycle_anchor: 'unchanged',
+    ...(ampliacionPagada ? {
+      metadata: { plan_id: ampliacionPagada.planId, capacity_upgrade_invoice_id: ampliacionPagada.invoiceId },
     } : {}),
-  }, ampliacion ? {
-    idempotencyKey: `riverz-upgrade-${s.workspaceId}-${base.id}-${ampliacion.planId}-${ampliacion.prorationDate}`,
+  }, ampliacionPagada ? {
+    idempotencyKey: `riverz-paid-upgrade-${ampliacionPagada.invoiceId}`,
   } : undefined)
+}
+
+/**
+ * Una factura independiente cobra la capacidad adicional. Nunca se concede
+ * el nuevo cupo por volver de una URL: sólo una factura pagada lo activa.
+ */
+export async function cobrarAmpliacionCapacidad(
+  db: SupabaseClient,
+  s: Suscripcion,
+  destino: Plan,
+  periodStart: number,
+  amountCents: number,
+): Promise<{ paid: boolean; url: string | null }> {
+  const { sub, periodStart: actualStart } = await baseDeAmpliacion(s, destino.moneda)
+  if (actualStart !== periodStart || !s.plan ||
+      amountCents !== costoAmpliacionCentavos(s.precioAcuerdoCentavos, destino.precioCentavos)) {
+    throw new Error('La cotización ya no corresponde al ciclo o al precio actual.')
+  }
+  const customer = typeof sub.customer === 'string' ? sub.customer : sub.customer.id
+  const key = `riverz-capacity-${sub.id}-${periodStart}-${s.plan.id}-${destino.id}`
+  const recent = await stripe().invoices.list({ customer, limit: 100 })
+  let invoice = recent.data.find((candidate) => candidate.metadata?.upgrade_key === key)
+  invoice ??= await stripe().invoices.create({
+    customer,
+    auto_advance: false,
+    collection_method: 'charge_automatically',
+    pending_invoice_items_behavior: 'exclude',
+    metadata: {
+      kind: 'riverz_capacity_upgrade',
+      workspace_id: s.workspaceId,
+      subscription_id: sub.id,
+      source_plan_id: s.plan.id,
+      plan_id: destino.id,
+      period_start: String(periodStart),
+      capacity_amount_cents: String(amountCents),
+      upgrade_key: key,
+    },
+  }, { idempotencyKey: `${key}-invoice` })
+  if (invoice.status === 'void' || invoice.status === 'uncollectible') {
+    throw new Error('La factura de ampliación requiere revisión antes de reintentar.')
+  }
+  if (invoice.status === 'draft') {
+    const description = `Riverz · capacidad adicional hasta ${destino.incluidas} contactos`
+    if (!invoice.lines.data.some((line) => line.description === description && line.amount === amountCents)) {
+      await stripe().invoiceItems.create({
+        customer,
+        invoice: invoice.id,
+        amount: amountCents,
+        currency: destino.moneda,
+        discountable: false,
+        description,
+      }, { idempotencyKey: `${key}-item` })
+    }
+    invoice = await stripe().invoices.finalizeInvoice(invoice.id, { auto_advance: false },
+      { idempotencyKey: `${key}-finalize` })
+  }
+  // Si hay impuestos o algún ajuste externo, que el cliente apruebe la
+  // factura visible antes de cobrar un importe distinto del confirmado.
+  if (invoice.status === 'open' && invoice.amount_due === amountCents) {
+    try {
+      invoice = await stripe().invoices.pay(invoice.id, {}, { idempotencyKey: `${key}-pay` })
+    } catch {
+      invoice = await stripe().invoices.retrieve(invoice.id)
+    }
+  }
+  if (invoice.status !== 'paid') {
+    return { paid: false, url: invoice.hosted_invoice_url ?? null }
+  }
+  await aplicarAmpliacionPagada(db, invoice)
+  return { paid: true, url: null }
+}
+
+/** Reconciliación idempotente desde la API y desde invoice.paid. */
+export async function aplicarAmpliacionPagada(db: SupabaseClient, invoice: Stripe.Invoice): Promise<string | null> {
+  const meta = invoice.metadata
+  if (invoice.status !== 'paid' || meta?.kind !== 'riverz_capacity_upgrade') return null
+  const workspaceId = meta.workspace_id
+  const subId = meta.subscription_id
+  const sourcePlanId = meta.source_plan_id
+  const targetPlanId = meta.plan_id
+  if (!workspaceId || !subId || !sourcePlanId || !targetPlanId) throw new Error('Factura de ampliación incompleta.')
+  const [s, planes] = await Promise.all([leerSuscripcion(db, workspaceId), listarPlanes(db)])
+  const destino = planes.find((plan) => plan.id === targetPlanId)
+  if (!s || !destino || s.stripeSubscriptionId !== subId) throw new Error('La ampliación pagada no coincide con la cuenta.')
+  if (s.plan?.id === targetPlanId) return workspaceId
+  if (s.plan?.id !== sourcePlanId || s.modeloCobro !== 'oficial' ||
+      Number(meta.capacity_amount_cents) !== costoAmpliacionCentavos(s.precioAcuerdoCentavos, destino.precioCentavos)) {
+    throw new Error('La ampliación pagada necesita conciliación manual.')
+  }
+  await sincronizarPrecioSuscripcion(s, destino.precioCentavos, destino.moneda, 'oficial', {
+    planId: destino.id, invoiceId: invoice.id,
+  })
+  const { data, error } = await db.from('workspace_subscriptions')
+    .update({ plan_id: destino.id, updated_at: new Date().toISOString() })
+    .eq('workspace_id', workspaceId).eq('plan_id', sourcePlanId).select('workspace_id')
+  if (error) throw new Error(error.message)
+  if (!data?.length && (await leerSuscripcion(db, workspaceId))?.plan?.id !== destino.id) {
+    throw new Error('El plan pagado no se pudo activar.')
+  }
+  return workspaceId
 }
 
 /**
@@ -429,6 +507,10 @@ export async function aplicarEvento(
   evento: Stripe.Event,
 ): Promise<string> {
   const tipo = evento.type
+  if (tipo === 'invoice.paid') {
+    const workspaceId = await aplicarAmpliacionPagada(db, evento.data.object as Stripe.Invoice)
+    return workspaceId ? `${workspaceId}: capacidad ampliada` : `ignorado: ${tipo}`
+  }
   if (
     tipo !== 'customer.subscription.created' &&
     tipo !== 'customer.subscription.updated' &&

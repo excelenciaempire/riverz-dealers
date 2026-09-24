@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Suscripcion } from './plan'
-import { lineItemsDeSuscripcion, sumarProrrateo } from './stripe'
+import { lineItemsDeSuscripcion } from './stripe'
 
 const cuenta = (cambio: Partial<Suscripcion> = {}): Suscripcion => ({
   plan: {
@@ -15,7 +15,6 @@ const cuenta = (cambio: Partial<Suscripcion> = {}): Suscripcion => ({
   precioCentavos: 25935, precioAcuerdoCentavos: 25935, incluidas: 500,
   excedenteCentavos: 0, tratoPropio: true, ...cambio,
 })
-
 describe('importe de Checkout', () => {
   it('cobra el precio pactado sin ítem medido en Todo incluido', () => {
     const items = lineItemsDeSuscripcion(cuenta(), 'en')
@@ -35,25 +34,5 @@ describe('importe de Checkout', () => {
     const items = lineItemsDeSuscripcion(cuenta({ modeloCobro: 'saldo' }), 'es')
     expect(items).toHaveLength(2)
     expect(items[1].price).toBe('price_legacy_metered')
-  })
-})
-
-describe('prorrateo de ampliación', () => {
-  const line = (amount: number, proration: boolean, tax = 0) => ({
-    amount,
-    taxes: tax ? [{ amount: tax }] : null,
-    parent: { subscription_item_details: { proration } },
-  })
-
-  it('resta el crédito del plan anterior y no incluye la renovación', () => {
-    expect(sumarProrrateo([
-      line(-19950, true),
-      line(49950, true, 1500),
-      line(99900, false),
-    ])).toBe(31500)
-  })
-
-  it('no inventa un importe si Stripe no devuelve prorrateos', () => {
-    expect(sumarProrrateo([line(99900, false)])).toBeNull()
   })
 })

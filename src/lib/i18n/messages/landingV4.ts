@@ -589,6 +589,10 @@ export const landingV4 = {
   pricingFirstMonth: { es: 'Primer mes', en: 'First month' },
   pricingDiscountShort: { es: '{percent}% OFF', en: '{percent}% OFF' },
   pricingFromSecondMonth: { es: 'Desde el segundo mes', en: 'From month two' },
+  pricingUpgradeTerms: {
+    es: 'El descuento aplica al plan inicial. Si amplías el cupo, apruebas el cargo adicional antes de pagarlo.',
+    en: 'The discount applies to your initial plan. If you increase capacity, you approve the additional charge before paying.',
+  },
   pricingSetupTerms: {
     es: 'Lo configuramos contigo. Apruebas antes de pagar.',
     en: 'We set it up with you. Approve it before paying.',

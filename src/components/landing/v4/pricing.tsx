@@ -177,6 +177,9 @@ export function Pricing({ tiers }: { tiers: PricingTier[] }) {
                         </p>
                       )}
                     </div>
+                    <p className="mt-5 text-xs leading-5 text-[var(--sn-ink-2)]">
+                      {t('landingV4.pricingUpgradeTerms')}
+                    </p>
                   </>
                 )}
               </div>

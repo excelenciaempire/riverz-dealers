@@ -5,6 +5,8 @@ import { maybeInstantOutreach } from '@/lib/instagram-agent/realtime';
 import { loadCommentSettings } from '@/lib/instagram-agent/controls';
 import { anotarPublicacion } from '@/lib/channels/publicacion-media';
 import { loadCommentConversation, type CommentChannel } from '@/lib/comments/hilo';
+import { puedeAtenderContacto } from '@/lib/billing/contact-cap';
+import { aplicarDesenlace } from '@/lib/ai/desenlace';
 
 /**
  * UN solo portero para cada comentario que entra.
@@ -115,6 +117,10 @@ export async function routeComment(
     await registrarSkipDeComentario(db, ev, 'comment_red_apagada');
     return;
   }
+  if (!(await puedeAtenderContacto(db, ev.workspaceId, ev.contact.id))) {
+    await registrarSkipDeComentario(db, ev, 'cupo_contactos');
+    return;
+  }
   try {
     await maybeInstantOutreach(db, {
       workspaceId: ev.workspaceId,
@@ -158,6 +164,7 @@ async function registrarSkipDeComentario(
       status: 'skipped',
       skip_reason: motivo,
     });
+    if (motivo === 'cupo_contactos') await aplicarDesenlace(db, hilo.id, motivo);
   } catch (err) {
     console.error('[comentarios] no se pudo registrar el motivo:', motivo, err);
   }
