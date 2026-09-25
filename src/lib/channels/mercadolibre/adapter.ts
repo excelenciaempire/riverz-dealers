@@ -9,6 +9,7 @@ import { safeLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { Locale } from "@/lib/i18n/config";
 import { isInactiveMLAccountError } from './account-health';
+import { mercadoLibreAppFor } from "./apps";
 
 /**
  * MercadoLibre — pre-sale QUESTIONS + post-sale MESSAGES in the unified inbox.
@@ -20,7 +21,7 @@ import { isInactiveMLAccountError } from './account-health';
  * NO body) so parseWebhook must RE-FETCH the resource with a fresh seller token;
  * a poll cron reconciles anything a momentarily-dead token dropped.
  *
- * config:  { seller_id, site_id, token_expires_at }
+ * config:  { seller_id, site_id, token_expires_at, app_id }
  * secrets: { access_token, refresh_token }  (both encrypted; refresh rotates)
  */
 
@@ -533,6 +534,8 @@ export async function getFreshMLToken(connection: ChannelConnection): Promise<st
 
   const refreshEnc = String(secrets.refresh_token ?? "");
   if (!refreshEnc) throw new Error("[mercadolibre] connection missing refresh_token");
+  // Only the app that issued the refresh_token can redeem it.
+  const app = mercadoLibreAppFor(config.app_id);
   const res = await fetch(`${ML}/oauth/token`, {
     method: "POST",
     headers: {
@@ -541,8 +544,8 @@ export async function getFreshMLToken(connection: ChannelConnection): Promise<st
     },
     body: new URLSearchParams({
       grant_type: "refresh_token",
-      client_id: process.env.MERCADOLIBRE_CLIENT_ID ?? "",
-      client_secret: process.env.MERCADOLIBRE_CLIENT_SECRET ?? "",
+      client_id: app.clientId,
+      client_secret: app.clientSecret,
       refresh_token: decrypt(refreshEnc),
     }),
   });
@@ -581,7 +584,9 @@ export async function getFreshMLToken(connection: ChannelConnection): Promise<st
         // Single-use refresh token — persist the rotated one or the connection dies.
         ...(json.refresh_token ? { refresh_token: encrypt(json.refresh_token) } : {}),
       },
-      config: { ...config, token_expires_at: newExpiry },
+      // A successful refresh proves which app owns the token: record it for
+      // rows that predate `app_id`.
+      config: { ...config, token_expires_at: newExpiry, app_id: app.clientId },
       // Renewing OAuth does not reactivate a seller disabled by Mercado Libre.
       // Only a successful resource read can clear that confirmed account error.
       status: isInactiveMLAccountError(connection.last_error) ? "error" : "connected",

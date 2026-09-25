@@ -411,6 +411,8 @@ export async function GET(
           ? {
               seller_id: externalAccountId,
               site_id: mlSiteId,
+              // The token refresh must use the app that issued these tokens.
+              app_id: cfg.clientId,
               token_expires_at: tokenJson.expires_in
                 ? new Date(
                     Date.now() + Number(tokenJson.expires_in) * 1000

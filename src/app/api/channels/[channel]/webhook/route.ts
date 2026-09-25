@@ -8,6 +8,7 @@ import { getLogger } from "@/lib/log/logger";
 import { captureWebhookFailure } from "@/lib/webhooks/capture";
 import { journalWhatsappDelivery } from "@/lib/channels/whatsapp/journal";
 import { handlePaymentNotification, isPaymentTopic } from "@/lib/mercadopago/notify";
+import { mirrorsMercadoLibreNotification } from "@/lib/channels/mercadolibre/apps";
 import type { Channel, ChannelConnection } from "@/types";
 
 const log = getLogger("channels.webhook");
@@ -151,6 +152,13 @@ export async function POST(
     // pagos alcanza con tildar `payment` en la consola — no hay que
     // reemplazar ninguna URL.
     if (channel === "mercadolibre") {
+      const note = payload as {
+        topic?: string;
+        type?: string;
+        user_id?: unknown;
+        application_id?: unknown;
+      } | null;
+
       // Reenvío a la otra aplicación del comercio.
       //
       // Mercado Libre tiene UNA sola `notifications_callback_url` por
@@ -159,9 +167,10 @@ export async function POST(
       // sondeo, con hasta cinco minutos de retraso. Cambiar la URL a Riverz
       // dejaría a la contabilidad sin avisos, así que Riverz los recibe y los
       // repite tal cual al destino anterior. Sin `MERCADOLIBRE_NOTIFY_MIRROR_URL`
-      // no hace nada.
+      // no hace nada. Los avisos de la aplicación de Riverz no se repiten:
+      // son de otros comercios.
       const mirror = process.env.MERCADOLIBRE_NOTIFY_MIRROR_URL;
-      if (mirror && rawBody.length > 0) {
+      if (mirror && rawBody.length > 0 && mirrorsMercadoLibreNotification(note?.application_id)) {
         void fetch(mirror, {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -173,7 +182,6 @@ export async function POST(
         );
       }
 
-      const note = payload as { topic?: string; type?: string; user_id?: unknown } | null;
       if (isPaymentTopic(note?.topic ?? note?.type)) {
         const sellerId = String(note?.user_id ?? "").trim();
         void handlePaymentNotification(supabaseAdmin(), sellerId).catch((err) =>

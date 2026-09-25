@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { publicBaseUrl } from '@/lib/base-url'
+import { legacyMercadoLibreApp } from '@/lib/channels/mercadolibre/apps'
 
 /**
  * OAuth de Mercado Pago: conectar con un clic.
@@ -141,13 +142,36 @@ export function exchangeCode(code: string, verifier: string): Promise<MpTokens> 
   })
 }
 
-export function refreshTokens(refreshToken: string): Promise<MpTokens> {
-  return postToken({
-    client_id: clientId(),
-    client_secret: clientSecret(),
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken,
-  })
+/**
+ * Un refresh sólo se canjea con la aplicación que lo emitió, y la integración
+ * no guarda cuál fue: las autorizadas con la aplicación anterior de Mercado
+ * Libre se renuevan con ella. La actual va primero, así sus tokens nunca pasan
+ * por la anterior.
+ */
+function refreshApps(): Array<{ id: string; secret: string }> {
+  const apps = [{ id: clientId(), secret: clientSecret() }]
+  const legacy = legacyMercadoLibreApp()
+  if (legacy && legacy.clientId !== apps[0].id) {
+    apps.push({ id: legacy.clientId, secret: legacy.clientSecret })
+  }
+  return apps
+}
+
+export async function refreshTokens(refreshToken: string): Promise<MpTokens> {
+  let firstError: unknown
+  for (const app of refreshApps()) {
+    try {
+      return await postToken({
+        client_id: app.id,
+        client_secret: app.secret,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      })
+    } catch (err) {
+      firstError ??= err
+    }
+  }
+  throw firstError
 }
 
 interface StoredIntegration {
