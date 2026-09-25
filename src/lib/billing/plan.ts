@@ -276,6 +276,25 @@ export function usaSaldo(s: Pick<Suscripcion, 'modeloCobro'> | null): boolean {
   return s?.modeloCobro === 'saldo'
 }
 
+/**
+ * El estado de una cuenta que el equipo configura y que no paga por Stripe.
+ *
+ * Con mensualidad queda sin pagar (`cortesia`): usa la app, pero no la IA ni
+ * nada que se cobre, hasta que paga su link y el webhook la pasa a activa. Sin
+ * mensualidad no hay link que esperar y arranca ya.
+ *
+ * Null cuando no se toca: una cuenta con suscripción la maneja Stripe, y la
+ * prueba de quien se registró solo corre por su cuenta.
+ */
+export function estadoAlConfigurar(
+  previa: Pick<Suscripcion, 'estado' | 'stripeSubscriptionId'> | null,
+  mensualidadCentavos: number,
+): 'cortesia' | 'activa' | null {
+  if (previa?.stripeSubscriptionId) return null
+  if (previa && previa.estado !== 'cortesia' && previa.estado !== 'activa') return null
+  return mensualidadCentavos > 0 ? 'cortesia' : 'activa'
+}
+
 export interface Acceso {
   /** Si la cuenta puede seguir usando Riverz. */
   puede: boolean

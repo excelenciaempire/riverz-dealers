@@ -25,7 +25,9 @@ import {
  * que ve el panel en lugar del estado interno.
  *
  *   sin_configurar  — todavía no tiene trato.
- *   sin_pagar       — tiene mensualidad y no completó el link.
+ *   sin_pagar       — no completó el link: usa la app, pero no la IA ni nada
+ *                     que se cobre.
+ *   en_prueba       — la prueba de quien se registró solo.
  *   al_dia          — la suscripción está viva, incluido el mes sin cargo.
  *   fallido         — el último cobro falló.
  *   cancelado       — dio de baja la suscripción.
@@ -34,6 +36,7 @@ import {
 export type EstadoDePago =
   | 'sin_configurar'
   | 'sin_pagar'
+  | 'en_prueba'
   | 'al_dia'
   | 'fallido'
   | 'cancelado'
@@ -43,6 +46,8 @@ export function estadoDePago(s: Suscripcion | undefined): EstadoDePago {
   if (!s) return 'sin_configurar'
   if (s.estado === 'vencida') return 'fallido'
   if (s.estado === 'cancelada') return 'cancelado'
+  if (s.estado === 'cortesia') return 'sin_pagar'
+  if (s.estado === 'prueba') return 'en_prueba'
   if (s.stripeSubscriptionId && s.estado === 'activa') return 'al_dia'
   if (s.precioAcuerdoCentavos <= 0) return 'sin_mensualidad'
   return 'sin_pagar'
@@ -300,7 +305,7 @@ export async function leerNegocio(
   const costoBilletera = cuentas.reduce((n, c) => n + c.costoBilleteraCentavos, 0)
   const costoUsd = cuentas.reduce((n, c) => n + c.costoUsd, 0)
   const porPago: Record<EstadoDePago, number> = {
-    sin_configurar: 0, sin_pagar: 0, al_dia: 0, fallido: 0, cancelado: 0, sin_mensualidad: 0,
+    sin_configurar: 0, sin_pagar: 0, en_prueba: 0, al_dia: 0, fallido: 0, cancelado: 0, sin_mensualidad: 0,
   }
   for (const c of cuentas) porPago[c.pago] += 1
   const pagando = porPago.al_dia

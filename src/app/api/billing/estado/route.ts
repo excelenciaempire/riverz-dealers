@@ -56,8 +56,9 @@ export async function GET() {
       siguientesPlanes,
       tratoPropio: sus.tratoPropio,
       // Lo que paga y cuándo vuelve a pagarlo: es lo primero que alguien busca
-      // en esta pantalla y no estaba en ningún lado.
-      precioCentavos: sus.precioCentavos,
+      // en esta pantalla y no estaba en ningún lado. La cuenta que todavía no
+      // pagó ve lo que va a pagar.
+      precioCentavos: sus.precioAcuerdoCentavos,
       primerMes: eligibleForFirstMonthOffer(sus) && sus.estado !== 'cortesia'
         ? { percent: FIRST_MONTH_DISCOUNT_PERCENT, centavos: firstMonthCents(sus.precioAcuerdoCentavos) }
         : null,

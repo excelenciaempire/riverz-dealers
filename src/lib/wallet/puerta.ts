@@ -6,9 +6,10 @@
  * la condición repetida en cuatro archivos, el día que cambie se va a cambiar
  * en tres.
  *
- * Son dos motivos distintos y se distinguen a propósito, porque lo que hay que
+ * Son tres motivos distintos y se distinguen a propósito, porque lo que hay que
  * hacer es distinto: **sin saldo** se recarga y sigue; **suscripción vencida**
- * se paga o se pierde la cuenta.
+ * se paga o se pierde la cuenta; **sin pagar** es la cuenta que todavía no
+ * pagó su link, y arranca cuando lo paga.
  *
  * Lo que NO apaga: la bandeja. El comercio sigue leyendo y contestando a mano
  * lo que haga falta. Cortarle el acceso a sus propias conversaciones porque nos
@@ -19,7 +20,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { leerBilletera, puedeGastar, type Billetera } from './saldo';
 
-export type Motivo = 'sin_saldo' | 'suscripcion_vencida' | null;
+export type Motivo = 'sin_saldo' | 'suscripcion_vencida' | 'sin_pagar' | null;
 
 export interface Puerta {
   puede: boolean;
@@ -28,9 +29,10 @@ export interface Puerta {
 }
 
 /**
- * La cuenta de **cortesía** nunca se apaga: es la que tiene el trato de que se
- * le instaló gratis. Cobrarle saldo a quien le prometimos que no paga sería
- * incumplir el trato con un `if`.
+ * La cuenta que todavía no pagó su link (`cortesia` en la base) usa Riverz,
+ * pero nada que le cueste a Riverz: ni IA ni lo demás que se cobra. Todo eso,
+ * con la billetera, arranca cuando paga. No se le descuenta saldo: la
+ * billetera tampoco está habilitada todavía.
  */
 export async function puertaDeIa(
   db: SupabaseClient,
@@ -44,8 +46,8 @@ export async function puertaDeIa(
 
     if (sus?.estado === 'cortesia') {
       return {
-        puede: true,
-        motivo: null,
+        puede: false,
+        motivo: 'sin_pagar',
         saldoCentavos: billetera.saldoCentavos,
       };
     }
@@ -94,7 +96,7 @@ export async function puedeUsarIa(
   return (await puertaDeIa(db, workspaceId)).puede;
 }
 
-export type Aviso = 'gracia' | 'sin_saldo' | null;
+export type Aviso = 'gracia' | 'sin_saldo' | 'sin_pagar' | null;
 
 /**
  * El saldo tal como se muestra de un vistazo, en cualquier pantalla.
@@ -109,7 +111,7 @@ export type Aviso = 'gracia' | 'sin_saldo' | null;
 export interface Vistazo {
   centavos: number;
   moneda: string;
-  /** Cuenta de cortesía: no gasta saldo, no se le muestra ninguno. */
+  /** No gasta saldo y no se le muestra ninguno: no usa billetera o todavía no pagó. */
   exenta: boolean;
   /** Si llegar a cero apaga la IA. */
   bloquea: boolean;
@@ -157,11 +159,14 @@ const VISTAZO_VACIO: Vistazo = {
 /**
  * Lo que la pantalla necesita saber, en una sola lectura.
  *
- * Son tres estados y sólo uno se muestra a la vez, en este orden: cuenta
- * cerrada, gracia corriendo, sin saldo. El orden importa —a quien se le cerró
- * la cuenta no le sirve enterarse de que además le falta saldo— y por eso se
- * decide acá y no en el componente, donde terminaría siendo tres `if` sueltos
- * que alguien reordena sin querer.
+ * Son cuatro estados y sólo uno se muestra a la vez, en este orden: sin
+ * pagar, cuenta cerrada, gracia corriendo, sin saldo. El orden importa —a
+ * quien se le cerró la cuenta no le sirve enterarse de que además le falta
+ * saldo— y por eso se decide acá y no en el componente, donde terminaría
+ * siendo cuatro `if` sueltos que alguien reordena sin querer.
+ *
+ * La cuenta sin pagar no se cierra: sigue usando la app y se le avisa que la
+ * IA arranca cuando pague.
  */
 export async function estadoDeCobro(
   db: SupabaseClient,
@@ -179,7 +184,7 @@ export async function estadoDeCobro(
     if (sus?.estado === 'cortesia') {
       return {
         bloqueado: false,
-        aviso: null,
+        aviso: 'sin_pagar',
         horas: null,
         saldoCentavos: billetera.saldoCentavos,
         vistazo,

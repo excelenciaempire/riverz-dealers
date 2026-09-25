@@ -89,6 +89,7 @@ export const POLITICA = {
   motor_apagado: NO_ESCALA('la cuenta está suspendida o sin aprobar'),
   sin_saldo: NO_ESCALA('sin saldo: lo dice el cartel de arriba, no cada hilo'),
   suscripcion_vencida: NO_ESCALA('la suscripción venció'),
+  sin_pagar: NO_ESCALA('la cuenta todavía no pagó: la IA arranca cuando pague'),
   cupo_contactos: ESCALA('ia_sin_respuesta', 'el plan agotó los contactos nuevos; lo atiende una persona', false),
   csat_capturada: NO_ESCALA('era la nota de la encuesta, no una consulta'),
   respuesta_automatica_del_cliente: NO_ESCALA('era el contestador automático del cliente, no una persona'),

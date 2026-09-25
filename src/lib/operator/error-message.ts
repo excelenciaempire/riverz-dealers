@@ -11,6 +11,7 @@ export function operatorErrorKey(error: unknown): string {
   return (
     code === 'sin_saldo' ? 'operation.operatorSaldoInsuficiente'
       : code === 'suscripcion_vencida' ? 'operation.operatorSuscripcionVencida'
+        : code === 'sin_pagar' ? 'operation.operatorSinPagar'
         : code === 'rate_limited' ? 'operation.operatorRateLimited'
           : 'operation.operatorError')
 }

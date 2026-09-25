@@ -33,6 +33,8 @@ export function SinSaldoDialog() {
   if (!motivo) return null;
 
   const vencida = motivo === 'suscripcion_vencida';
+  // Sin pagar no tiene nada que hacer en la app: paga con el link de Riverz.
+  const sinPagar = motivo === 'sin_pagar';
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 px-5 backdrop-blur-sm"
@@ -48,10 +50,14 @@ export function SinSaldoDialog() {
           <Wallet className="size-5 text-muted-foreground" />
         </div>
         <h2 className="mt-4 text-base font-semibold text-foreground">
-          {vencida ? t('settings.sinSaldoPlanTitulo') : t('settings.sinSaldoTitulo')}
+          {sinPagar
+            ? t('settings.sinPagarTitulo')
+            : vencida ? t('settings.sinSaldoPlanTitulo') : t('settings.sinSaldoTitulo')}
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          {vencida ? t('settings.sinSaldoPlanCuerpo') : t('settings.sinSaldoCuerpo')}
+          {sinPagar
+            ? t('settings.sinPagarCuerpo')
+            : vencida ? t('settings.sinSaldoPlanCuerpo') : t('settings.sinSaldoCuerpo')}
         </p>
         <div className="mt-5 flex items-center justify-center gap-2">
           <button
@@ -59,15 +65,17 @@ export function SinSaldoDialog() {
             onClick={() => setMotivo(null)}
             className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
           >
-            {t('settings.sinSaldoCerrar')}
+            {sinPagar ? t('settings.sinPagarCerrar') : t('settings.sinSaldoCerrar')}
           </button>
-          <Link
-            href={vencida ? '/ajustes?tab=billing' : '/ajustes?tab=saldo'}
-            onClick={() => setMotivo(null)}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            {vencida ? t('settings.sinSaldoPlanCta') : t('settings.sinSaldoCta')}
-          </Link>
+          {!sinPagar && (
+            <Link
+              href={vencida ? '/ajustes?tab=billing' : '/ajustes?tab=saldo'}
+              onClick={() => setMotivo(null)}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              {vencida ? t('settings.sinSaldoPlanCta') : t('settings.sinSaldoCta')}
+            </Link>
+          )}
         </div>
       </div>
     </div>

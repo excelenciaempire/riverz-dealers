@@ -90,6 +90,17 @@ describe('cuentas de Negocio', () => {
     expect(negocio.mrrCentavos).toBe(0)
   })
 
+  it('la cuenta que no pagó su link figura sin pagar, tenga o no mensualidad', async () => {
+    const { db } = base(false, [
+      suscripcion('w1', { estado: 'cortesia', precio_centavos_override: 0 }),
+      suscripcion('w2', { estado: 'prueba', prueba_hasta: '2026-09-30T00:00:00.000Z' }),
+    ])
+    const negocio = await leerNegocio(db, periodo)
+    const cuenta = (id: string) => negocio.cuentas.find((c) => c.workspaceId === id)
+    expect(cuenta('w1')?.pago).toBe('sin_pagar')
+    expect(cuenta('w2')).toMatchObject({ pago: 'en_prueba', pruebaHasta: '2026-09-30T00:00:00.000Z' })
+  })
+
   it('no oculta cuentas silenciosamente cuando falla su lectura', async () => {
     const { db } = base(true)
     await expect(leerNegocio(db, periodo)).rejects.toThrow('DB unavailable')

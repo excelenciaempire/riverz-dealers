@@ -341,6 +341,10 @@ export const health: Namespace = {
     es: "la suscripción venció",
     en: "the subscription expired",
   },
+  skip_sin_pagar: {
+    es: "la cuenta todavía no pagó",
+    en: "the account hasn't paid yet",
+  },
   skip_cupo_contactos: {
     es: "el cupo de contactos nuevos se agotó",
     en: "the new-contact capacity was reached",

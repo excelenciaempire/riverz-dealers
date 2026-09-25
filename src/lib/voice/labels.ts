@@ -79,6 +79,7 @@ export type VoiceBlockerCode =
   | 'motor_apagado'
   | 'sin_saldo'
   | 'suscripcion_vencida'
+  | 'sin_pagar'
   | 'no_voice_connection'
   | 'no_number'
   | 'voice_disconnected'
@@ -119,6 +120,7 @@ export const BLOCKER_ORDER: VoiceBlockerCode[] = [
   'provider_unavailable',
   'worker_down',
   'motor_apagado',
+  'sin_pagar',
   'suscripcion_vencida',
   'sin_saldo',
   'no_voice_connection',
@@ -157,6 +159,7 @@ export const VOICE_BLOCKED_KEY: Record<VoiceBlockerCode, string> = {
   motor_apagado: 'voice.blockedMotor',
   sin_saldo: 'voice.blockedBalance',
   suscripcion_vencida: 'voice.blockedSubscription',
+  sin_pagar: 'voice.blockedUnpaid',
   no_voice_connection: 'voice.blockedNoConnection',
   no_number: 'voice.blockedNoNumber',
   voice_disconnected: 'voice.blockedDisconnected',
@@ -185,6 +188,7 @@ export const VOICE_BLOCKED_FIX_HREF: Record<VoiceBlockerCode, string | null> = {
   motor_apagado: '/',
   sin_saldo: '/ajustes?tab=billing',
   suscripcion_vencida: '/ajustes?tab=billing',
+  sin_pagar: '/ajustes?tab=billing',
   no_voice_connection: '/voz',
   no_number: '/voz',
   voice_disconnected: '/voz',

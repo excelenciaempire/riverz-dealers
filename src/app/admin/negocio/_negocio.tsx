@@ -62,6 +62,7 @@ interface Payload {
 const PAGO: Record<EstadoDePago, { tono: Tone; etiqueta: string }> = {
   al_dia: { tono: "ok", etiqueta: "admin.billingPago_al_dia" },
   sin_pagar: { tono: "warn", etiqueta: "admin.billingPago_sin_pagar" },
+  en_prueba: { tono: "muted", etiqueta: "admin.billingPago_en_prueba" },
   fallido: { tono: "error", etiqueta: "admin.billingPago_fallido" },
   cancelado: { tono: "error", etiqueta: "admin.billingPago_cancelado" },
   sin_mensualidad: { tono: "muted", etiqueta: "admin.billingPago_sin_mensualidad" },
@@ -171,9 +172,9 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
    * Dar de alta un comercio, con su trato ya definido.
    *
    * En esta etapa las cuentas no se crean solas: se le instala Riverz a un
-   * comercio concreto, casi siempre sin cargo. Hacerlo en dos pasos —que se
-   * registre, y despues buscarlo para configurarlo— deja una ventana en la que
-   * la cuenta existe con un trato que nadie eligio.
+   * comercio concreto. Hacerlo en dos pasos —que se registre, y despues
+   * buscarlo para configurarlo— deja una ventana en la que la cuenta existe
+   * con un trato que nadie eligio.
    */
   const crearCuenta = async (cuenta: Record<string, unknown>) => {
     setGuardando(true);
@@ -802,8 +803,9 @@ function FilaPlan({
  * plan de saldo, una mensualidad y la billetera. BYOK lleva la mensualidad que
  * se pacta con la cuenta, y la IA corre con su propia clave de Anthropic.
  *
- * El estado no se elige acá: la cuenta nueva arranca sin cargo y Stripe la
- * pasa a activa cuando paga el link.
+ * El estado no se elige acá: con mensualidad, la cuenta usa la app pero no la
+ * IA hasta que paga el link, y Stripe la pasa a activa; sin mensualidad
+ * arranca ya.
  */
 function FormularioCuenta({
   cuenta,
@@ -852,6 +854,12 @@ function FormularioCuenta({
   const pendiente = !cuenta.tieneSuscripcion || f.modelo !== cuenta.modeloCobro ||
     plan?.id !== planActual?.id || mensualidad !== cuenta.precioAcuerdoCentavos ||
     (oficial && incluidasEscritas !== "");
+  // Con mensualidad y sin pagar, la cuenta que hoy usa la IA la deja de usar
+  // hasta que pague el link.
+  const pausaLaIa = pendiente && valido && mensualidad > 0 && !cuenta.suscripcionExterna &&
+    (cuenta.estado === "activa" || cuenta.estado === "sin_configurar");
+  // Stripe no cobra un plan que ya no se vende: primero se elige uno activo.
+  const cobraConLink = cuenta.admiteLinkPago && valido && Boolean(plan) && mensualidad > 0;
   // La promoción del primer mes con el trato como va a quedar: la misma
   // cuenta que hace el checkout.
   const conPromo = !cuenta.suscripcionExterna && eligibleForFirstMonthOffer({
@@ -986,10 +994,14 @@ function FormularioCuenta({
         {f.modelo === "byok" && !cuenta.tieneClavePropia && (
           <p className="text-xs text-amber-600 dark:text-amber-400">{t("admin.billingByokNoKey")}</p>
         )}
+        {pausaLaIa && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">{t("admin.billingPausesAi")}</p>
+        )}
       </div>
       <Cobro
         cuenta={cuenta}
-        disponible={cuenta.admiteLinkPago && valido && Boolean(plan) && mensualidad > 0}
+        disponible={cobraConLink && Boolean(plan?.activo)}
+        planInactivo={cobraConLink && !plan?.activo}
         mensualidadCentavos={mensualidad}
         conPromo={conPromo}
         trato={`${f.modelo}|${plan?.id ?? ""}|${mensualidad}`}
@@ -1034,8 +1046,8 @@ function FormularioCuenta({
 /**
  * Alta de un comercio.
  *
- * Nace sin cargo porque es lo que pasa de verdad hoy: se le instala gratis, y
- * Stripe la pasa a activa cuando paga el link.
+ * Con mensualidad nace sin pagar: usa la app pero no la IA hasta que paga el
+ * link, y Stripe la pasa a activa.
  */
 function FormularioAlta({
   planes,
@@ -1154,17 +1166,16 @@ function EstadoDelPago({ cuenta }: { cuenta: CuentaDelNegocio }) {
   const t = useT();
   const fmt = useFormat();
   const { tono, etiqueta } = PAGO[cuenta.pago];
-  const fecha = cuenta.pago === "al_dia" && cuenta.periodoHasta
-    ? fmt.date(cuenta.periodoHasta, { day: "numeric", month: "short" })
-    : null;
+  const dia = (iso: string | null) => (iso ? fmt.date(iso, { day: "numeric", month: "short" }) : null);
+  const detalle = cuenta.pago === "al_dia" && cuenta.periodoHasta
+    ? t(cuenta.cancelarAlFinal ? "admin.billingEndsOn" : "admin.billingNextCharge", { date: dia(cuenta.periodoHasta) ?? "" })
+    : cuenta.pago === "en_prueba" && cuenta.pruebaHasta
+      ? t("admin.billingTrialUntil", { date: dia(cuenta.pruebaHasta) ?? "" })
+      : null;
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
       <StatusPill tone={tono} label={t(etiqueta)} />
-      {fecha && (
-        <Muted>
-          · {t(cuenta.cancelarAlFinal ? "admin.billingEndsOn" : "admin.billingNextCharge", { date: fecha })}
-        </Muted>
-      )}
+      {detalle && <Muted>· {detalle}</Muted>}
     </span>
   );
 }
@@ -1187,6 +1198,7 @@ const PRIMER_MES_SIN_CARGO = "primer-mes-sin-cargo";
 function Cobro({
   cuenta,
   disponible,
+  planInactivo,
   mensualidadCentavos,
   conPromo,
   trato,
@@ -1196,6 +1208,8 @@ function Cobro({
   cuenta: CuentaDelNegocio;
   /** Se puede armar el link con el trato del formulario. */
   disponible: boolean;
+  /** Cobraría con link, pero el plan ya no se vende. */
+  planInactivo: boolean;
   mensualidadCentavos: number;
   conPromo: boolean;
   /** El trato del formulario: un link armado con otro cobraría otra cosa. */
@@ -1265,6 +1279,9 @@ function Cobro({
         <span className="text-foreground">{t("admin.billingPayment")}</span>
         <EstadoDelPago cuenta={cuenta} />
       </div>
+      {planInactivo && (
+        <p className="text-xs text-muted-foreground">{t("admin.billingChooseActivePlan")}</p>
+      )}
       {disponible && (
         <>
           <div className="flex flex-wrap items-end gap-2">

@@ -14,10 +14,10 @@ import { cn } from '@/lib/utils';
  * necesita saber: en qué estado está, cuántas conversaciones lleva contra su
  * cupo, y qué va a salir este mes.
  *
- * La cuenta de **cortesía** —los primeros comercios, a los que se les instala
- * gratis— ve que está sin cargo y no ve ningún botón de pagar. Es lo honesto:
- * ofrecerle poner una tarjeta a alguien que no la necesita es pedirle plata sin
- * decirlo.
+ * La cuenta que todavía no pagó (`cortesia` en la base) ve que el pago está
+ * pendiente y cuánto paga por mes, sin botón de pagar: paga con el link que le
+ * manda Riverz, que lleva el trato pactado —un primer mes sin cargo, un
+ * cupón— y un botón propio lo cobraría distinto.
  *
  * **No hay cupo de conversaciones.** Había una barra de "8 de 2000" que no
  * limitaba nada: pasarse no cortaba el servicio ni cobraba un peso, porque el
@@ -181,7 +181,7 @@ export function BillingPanel() {
   const dias = e.acceso.diasDePrueba;
   const aviso =
     e.estado === 'cortesia'
-      ? t('settings.billingComped')
+      ? t('settings.billingUnpaid')
       : e.estado === 'activa'
         ? e.cancelarAlFinal
           ? t('settings.billingCancelAtEnd')
@@ -222,7 +222,7 @@ export function BillingPanel() {
           <p
             className={cn(
               'mt-0.5 text-sm',
-              e.estado === 'vencida' || (dias !== null && dias <= 0)
+              e.estado === 'vencida' || e.estado === 'cortesia' || (dias !== null && dias <= 0)
                 ? 'text-amber-600 dark:text-amber-400'
                 : 'text-muted-foreground',
             )}
@@ -231,8 +231,8 @@ export function BillingPanel() {
             {aviso}
           </p>
         </div>
-        {/* Sin Stripe configurado, o en cortesía, no se ofrece un botón de pago:
-            uno no puede funcionar y el otro pide plata que no se debe. */}
+        {/* Sin Stripe configurado no se ofrece un botón de pago porque no
+            puede funcionar; sin pagar, porque paga con el link de Riverz. */}
         {e.estado !== 'cortesia' && (e.puedeSuscribirse || e.tienePortal) && (
           <button
             type="button"
@@ -248,7 +248,7 @@ export function BillingPanel() {
         )}
       </div>
 
-      {(e.estado !== 'cortesia' || e.modeloCobro === 'oficial') && <div className="space-y-2 border-t border-border pt-3 text-sm">
+      <div className="space-y-2 border-t border-border pt-3 text-sm">
         <div className="flex items-baseline justify-between gap-4">
           <span className="text-muted-foreground">{t('settings.billingModelLabel')}</span>
           <span className="font-medium text-foreground">
@@ -339,9 +339,9 @@ export function BillingPanel() {
             )}
           </>
         )}
-      </div>}
+      </div>
 
-      {e.estado !== 'cortesia' && (
+      {e.precioCentavos > 0 && (
         <div className="space-y-2 border-t border-border pt-3 text-sm">
           {e.primerMes && (
             <div className="flex items-baseline justify-between gap-3">

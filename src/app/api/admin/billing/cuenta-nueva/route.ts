@@ -4,15 +4,15 @@ import { csrfGuard } from '@/lib/csrf';
 import { requireAdmin } from '@/lib/admin/guard';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { ensureWorkspace } from '@/lib/workspaces/ensure';
-import { planPorDefecto, type ModeloCobro } from '@/lib/billing/plan';
+import { estadoAlConfigurar, listarPlanes, type ModeloCobro } from '@/lib/billing/plan';
 
 /**
  * Dar de alta un comercio desde el panel, con su trato ya definido.
  *
  * En esta etapa las cuentas no se crean solas: se le instala Riverz a un
- * comercio concreto, casi siempre sin cargo. Hasta ahora eso significaba pedirle
- * que se registrara y después buscarlo en una lista para configurarlo — dos
- * pasos y una ventana en la que la cuenta existe con un trato que nadie eligió.
+ * comercio concreto. Hasta ahora eso significaba pedirle que se registrara y
+ * después buscarlo en una lista para configurarlo — dos pasos y una ventana en
+ * la que la cuenta existe con un trato que nadie eligió.
  *
  * Acá se hace de una: se invita al correo, se le arma el workspace y se le deja
  * la suscripción escrita en el mismo movimiento.
@@ -48,9 +48,10 @@ export async function POST(request: Request) {
   const db = supabaseAdmin();
   const modelo: ModeloCobro =
     body?.modelo_cobro === 'saldo' || body?.modelo_cobro === 'byok' ? body.modelo_cobro : 'oficial';
+  const planes = await listarPlanes(db);
   const plan = body?.plan_id
-    ? (await db.from('billing_plans').select('id,slug,activo,incluidas').eq('id', body.plan_id).maybeSingle()).data
-    : await planPorDefecto(db);
+    ? planes.find((p) => p.id === body.plan_id)
+    : planes.find((p) => p.activo);
   // Todo incluido lleva un plan de contactos; BYOK, el suyo.
   if (!plan?.activo || (modelo === 'oficial' && plan.incluidas <= 0) ||
       (plan.slug === 'byok') !== (modelo === 'byok')) {
@@ -86,7 +87,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'no se pudo crear la cuenta' }, { status: 500 });
   }
 
-  const estado = body?.estado ?? 'cortesia';
+  const precioPropio = typeof body?.precio_centavos === 'number' ? body.precio_centavos : null;
+  const estado = body?.estado ?? estadoAlConfigurar(null, precioPropio ?? plan.precioCentavos) ?? 'cortesia';
   const { error: subErr } = await db.from('workspace_subscriptions').upsert(
     {
       workspace_id: workspaceId,
@@ -100,8 +102,7 @@ export async function POST(request: Request) {
         estado === 'prueba'
           ? new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString()
           : null,
-      precio_centavos_override:
-        typeof body?.precio_centavos === 'number' ? body.precio_centavos : null,
+      precio_centavos_override: precioPropio,
       nota: body?.nota?.trim() || null,
       updated_at: new Date().toISOString(),
     },

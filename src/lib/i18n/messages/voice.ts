@@ -431,6 +431,10 @@ export const voice = {
     es: 'La suscripción necesita atención.',
     en: 'The subscription needs attention.',
   },
+  blockedUnpaid: {
+    es: 'Las llamadas se activan cuando se complete el pago.',
+    en: 'Calls turn on once the payment is completed.',
+  },
   // El worker de voz dejó de latir. Es de la plataforma, no del comercio: la
   // frase no promete que lo pueda arreglar, y por eso no lleva enlace.
   blockedWorkerDown: {

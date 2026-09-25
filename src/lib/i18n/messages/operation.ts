@@ -1093,6 +1093,7 @@ export const operation = {
   rasmiawFlujos: { es: 'Flujos preparados', en: 'Prepared flows' },
   operatorSaldoInsuficiente: { es: 'Saldo insuficiente. Recarga tu billetera para continuar.', en: 'Insufficient balance. Top up your wallet to continue.' },
   operatorSuscripcionVencida: { es: 'Renueva tu suscripción para continuar.', en: 'Renew your subscription to continue.' },
+  operatorSinPagar: { es: 'La IA se activa cuando se complete el pago.', en: 'The AI turns on once the payment is completed.' },
   planPasosListos: { es: '**{n}** pasos listos', en: '**{n}** steps completed' },
   planPasoListo: { es: '**{n}** paso listo', en: '**{n}** step completed' },
   planPasosFallidos: { es: '**{n}** pasos fallidos', en: '**{n}** steps failed' },

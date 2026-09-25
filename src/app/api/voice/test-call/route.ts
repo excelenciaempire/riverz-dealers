@@ -110,7 +110,7 @@ export async function POST(request: Request) {
       recordSkip: true,
     });
     if (!result.enqueued) {
-      const status = ['sin_saldo', 'suscripcion_vencida'].includes(
+      const status = ['sin_saldo', 'suscripcion_vencida', 'sin_pagar'].includes(
         result.reason
       )
         ? 402

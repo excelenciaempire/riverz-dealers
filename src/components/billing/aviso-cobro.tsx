@@ -13,6 +13,9 @@ import type { Aviso } from '@/lib/wallet/puerta';
  * Dice qué pasa y qué hacer, en ese orden. "Te quedaste sin saldo" solo no
  * sirve: lo que la persona necesita saber es que **la IA dejó de responder**,
  * que es lo que va a notar aunque no lea esto.
+ *
+ * La cuenta que todavía no pagó no lleva acción: paga con el link que le manda
+ * Riverz, con el trato que se pactó.
  */
 export async function AvisoDeCobro({
   aviso,
@@ -25,9 +28,12 @@ export async function AvisoDeCobro({
   const t = await getT();
 
   const gracia = aviso === 'gracia';
+  const sinPagar = aviso === 'sin_pagar';
   const texto = gracia
     ? t('settings.avisoGracia', { n: horas ?? 0 })
-    : t('settings.avisoSinSaldo');
+    : sinPagar
+      ? t('settings.avisoSinPagar')
+      : t('settings.avisoSinSaldo');
   const cta = gracia ? t('settings.avisoGraciaCta') : t('settings.avisoSinSaldoCta');
   const href = gracia ? '/ajustes?tab=billing' : '/ajustes?tab=saldo';
 
@@ -45,9 +51,11 @@ export async function AvisoDeCobro({
         <Wallet className="size-4 shrink-0 text-muted-foreground" />
       )}
       <span>{texto}</span>
-      <Link href={href} className="font-medium underline underline-offset-2">
-        {cta}
-      </Link>
+      {!sinPagar && (
+        <Link href={href} className="font-medium underline underline-offset-2">
+          {cta}
+        </Link>
+      )}
     </div>
   );
 }

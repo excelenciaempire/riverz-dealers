@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       recordSkip: true,
     });
     if (!result.enqueued) {
-      const status = ['sin_saldo', 'suscripcion_vencida'].includes(result.reason)
+      const status = ['sin_saldo', 'suscripcion_vencida', 'sin_pagar'].includes(result.reason)
         ? 402
         : 409;
       return NextResponse.json({ error: result.reason }, { status });

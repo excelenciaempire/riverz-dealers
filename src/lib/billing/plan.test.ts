@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { acceso, aSuscripcion } from './plan'
+import { acceso, aSuscripcion, estadoAlConfigurar } from './plan'
 import { cuentaDelPeriodo, periodoDe } from './uso'
 
 /**
@@ -234,5 +234,20 @@ describe('la cancelación no corta el mes ya pagado', () => {
 
   it('cancelada sin fecha de período, no: no hay mes que respetar', () => {
     expect(acceso(sus({ estado: 'cancelada' })).puede).toBe(false)
+  })
+})
+
+describe('la cuenta que configura el equipo arranca al pagar su link', () => {
+  it('con mensualidad espera el pago; sin mensualidad arranca ya', () => {
+    expect(estadoAlConfigurar(null, 39900)).toBe('cortesia')
+    expect(estadoAlConfigurar(null, 0)).toBe('activa')
+    expect(estadoAlConfigurar(sus({ estado: 'activa' }), 39900)).toBe('cortesia')
+    expect(estadoAlConfigurar(sus({ estado: 'cortesia' }), 0)).toBe('activa')
+  })
+
+  it('no toca la suscripción de Stripe ni la prueba de quien se registró solo', () => {
+    expect(estadoAlConfigurar(sus({ estado: 'activa', stripe_subscription_id: 'sub_1' }), 39900)).toBeNull()
+    expect(estadoAlConfigurar(sus({ estado: 'vencida', stripe_subscription_id: 'sub_1' }), 39900)).toBeNull()
+    expect(estadoAlConfigurar(sus({ estado: 'prueba' }), 39900)).toBeNull()
   })
 })

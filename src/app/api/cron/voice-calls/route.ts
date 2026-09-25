@@ -91,6 +91,7 @@ async function cancelCall(
     | 'customer_replied'
     | 'sin_saldo'
     | 'suscripcion_vencida'
+    | 'sin_pagar'
     | 'saldo_timeout'
 ): Promise<void> {
   await persistCallResult({

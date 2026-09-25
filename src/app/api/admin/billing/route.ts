@@ -4,7 +4,7 @@ import { csrfGuard } from '@/lib/csrf';
 import { requireAdmin } from '@/lib/admin/guard';
 import { adminGet, rangeFromSearch } from '@/lib/admin/route';
 import { recordAdminAction } from '@/lib/admin/audit';
-import { listarPlanes, leerSuscripcion, DIAS_DE_PRUEBA, type ModeloCobro } from '@/lib/billing/plan';
+import { estadoAlConfigurar, listarPlanes, leerSuscripcion, DIAS_DE_PRUEBA, type ModeloCobro } from '@/lib/billing/plan';
 import { invalidatePlatformKeyCache } from '@/lib/ai/platform-key';
 import { sincronizarPrecioSuscripcion } from '@/lib/billing/stripe';
 import { getLocale } from '@/lib/i18n/server';
@@ -20,13 +20,12 @@ import { listarTarifas } from '@/lib/wallet/tarifas';
  *   PUT  { cuenta } → define qué se le cobra a UNA cuenta.
  *
  * Las dos escrituras existen porque el precio no puede vivir en el código: en
- * esta etapa se está descubriendo, y cada prueba costaría un despliegue. Y
- * porque a los primeros comercios se les instala gratis, lo que no es apagar la
- * facturación sino ponerles `cortesia` — así siguen contando en el cuadro, con
- * su costo real y MRR 0, en vez de desaparecer de él.
+ * esta etapa se está descubriendo, y cada prueba costaría un despliegue. La
+ * cuenta que todavía no pagó su link queda en `cortesia`: usa la app, pero no
+ * la IA ni nada que se cobre, y sigue contando en el cuadro con MRR 0.
  *
- * Se auditan las dos: «a este comercio se lo dejamos gratis» es una decisión
- * que en seis meses nadie recuerda haber tomado.
+ * Se auditan las dos: el trato de un comercio es una decisión que en seis
+ * meses nadie recuerda haber tomado.
  */
 export const dynamic = 'force-dynamic';
 
@@ -214,9 +213,15 @@ export async function PUT(request: Request) {
     // porque el formulario no mandó un campo.
     if (c.plan_id !== undefined) fila.plan_id = c.plan_id || null;
     if (c.estado !== undefined) fila.estado = c.estado;
-    // La cuenta que se configura por primera vez no paga hasta completar el
-    // link: el webhook de Stripe la pasa a activa.
-    else if (!previa) fila.estado = 'cortesia';
+    else {
+      // Con mensualidad, la cuenta espera su link para usar la IA; sin ella,
+      // arranca ya.
+      const override = c.precio_centavos_override !== undefined
+        ? ENTERO(c.precio_centavos_override)
+        : (antes as { precio_centavos_override?: number | null } | null)?.precio_centavos_override ?? null;
+      const estado = estadoAlConfigurar(previa, override ?? plan?.precioCentavos ?? 0);
+      if (estado) fila.estado = estado;
+    }
     if (c.prueba_hasta !== undefined) fila.prueba_hasta = c.prueba_hasta || null;
     else if (!previa && c.estado === 'prueba') {
       fila.prueba_hasta = new Date(Date.now() + DIAS_DE_PRUEBA * 24 * 60 * 60 * 1000).toISOString();

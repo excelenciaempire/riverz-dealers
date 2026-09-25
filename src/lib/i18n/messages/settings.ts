@@ -1330,9 +1330,9 @@ export const settings = {
     es: 'La prueba terminó. Pon una tarjeta para seguir.',
     en: 'Your trial ended. Add a card to continue.',
   },
-  billingComped: {
-    es: 'Tu cuenta está sin cargo.',
-    en: 'Your account is free of charge.',
+  billingUnpaid: {
+    es: 'Pago pendiente: la IA se activa cuando se complete.',
+    en: 'Payment pending: the AI turns on once it goes through.',
   },
   billingActive: { es: 'Suscripción activa.', en: 'Subscription active.' },
   billingPastDue: {
@@ -1559,6 +1559,12 @@ export const settings = {
   },
   sinSaldoCta: { es: 'Recargar saldo', en: 'Top up' },
   sinSaldoCerrar: { es: 'Ahora no', en: 'Not now' },
+  sinPagarTitulo: { es: 'La IA está en pausa', en: 'The AI is paused' },
+  sinPagarCuerpo: {
+    es: 'Se activa cuando se complete el pago. La bandeja sigue abierta para contestar a mano.',
+    en: 'It turns on once the payment goes through. The inbox is still open to answer manually.',
+  },
+  sinPagarCerrar: { es: 'Entendido', en: 'Got it' },
   sinSaldoPlanTitulo: {
     es: 'Tu plan necesita atención',
     en: 'Your plan needs attention',
@@ -1692,6 +1698,10 @@ export const settings = {
     en: "You're out of balance: the AI stopped replying. The inbox is still open to answer manually.",
   },
   avisoSinSaldoCta: { es: 'Recargar', en: 'Top up' },
+  avisoSinPagar: {
+    es: 'La IA está en pausa hasta que se complete el pago. La bandeja sigue abierta para contestar a mano.',
+    en: 'The AI is paused until the payment goes through. The inbox is still open to answer manually.',
+  },
   impagoTitle: { es: 'La cuenta está pausada', en: 'Your account is paused' },
   impagoBody: {
     es: 'El cobro de la suscripción no entró y pasaron las 48 horas. Pon una tarjeta y vuelve todo enseguida.',
