@@ -24,7 +24,8 @@ retirarse.
 
 Ojo: el app público **no puede instalarse en tiendas reales hasta ser aprobado** —
 solo en tiendas de desarrollo del Partner org. Onboarding de merchants reales
-mientras tanto: camino admin_token (SHOPIFY_SETUP.md §7).
+mientras tanto: app del Dev Dashboard con credenciales (SHOPIFY_SETUP.md §6).
+Integraciones esconde **Conectar** (OAuth) hasta que `SHOPIFY_APP_STORE_APPROVED=true`.
 
 Estado (2026-07-18): **código listo + configuración del Dev Dashboard hecha + datos
 protegidos completos.** Cuenta riverzoficial@gmail.com, org Dev Dashboard 216526489,
@@ -138,10 +139,10 @@ contra esa misma instalación.
 
 ## 7. Qué NO cambia durante el review
 
-- Las conexiones existentes (OAuth de Pilar, custom apps admin_token) siguen funcionando:
-  el review no congela credenciales ni afecta instalaciones vigentes.
-- El camino admin_token (SHOPIFY_SETUP.md §7) sigue disponible para onboarding
-  white-glove mientras el listing no esté aprobado.
+- Las conexiones existentes (OAuth de Pilar, apps del Dev Dashboard con credenciales)
+  siguen funcionando: el review no congela credenciales ni afecta instalaciones vigentes.
+- El camino de credenciales del Dev Dashboard (SHOPIFY_SETUP.md §6) es el onboarding
+  de tiendas reales mientras el listing no esté aprobado.
 
 ## 8. Env en Render (prod) — ✅ SETEADAS 2026-07-18
 
@@ -151,3 +152,5 @@ contra esa misma instalación.
   instaladas (Pilar). Retirar tras migrarlas al app público.
 - Ya existentes: `NEXT_PUBLIC_SITE_URL=https://riverz.co`, `SHOPIFY_OAUTH_REDIRECT_URI`.
 - Opcionales: `SHOPIFY_SCOPES`, `SHOPIFY_ENRICH_ON_CONNECT`, `SHOPIFY_ENRICH_MAX`.
+- Tras la aprobación: `SHOPIFY_APP_STORE_APPROVED=true`, para que Integraciones muestre
+  **Conectar** (OAuth) a todos los comercios.

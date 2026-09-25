@@ -6,14 +6,17 @@ proyecto (auth de Supabase, cifrado AES-256-GCM existente).
 
 Hay **dos formas de conectar**:
 
-- **A) Custom app (token)** — el merchant crea una app en SU PROPIO Shopify
-  Admin y pega el token + API secret key. **Sin App Store, sin review.** Ideal
-  para onboardear pocos merchants high-ticket de forma white-glove. Cada
-  conexión es self-contained por workspace (no usa `SHOPIFY_API_KEY`). Ver
-  sección **7**.
-- **B) OAuth (app global)** — un único Partner app con `SHOPIFY_API_KEY/SECRET`.
-  Para self-serve a escala hay que listarla en el App Store (review). Ver
-  secciones **1–6**.
+- **A) App del Dev Dashboard (credenciales)** — el merchant crea una app en el
+  Dev Dashboard de la organización de SU tienda, la instala y pega el Client ID
+  + Client secret. **Sin App Store, sin review.** Cada conexión es
+  self-contained por workspace (no usa `SHOPIFY_API_KEY`). Ver sección **6**.
+- **B) OAuth (app pública)** — un único app con `SHOPIFY_API_KEY/SECRET`. Sólo
+  se instala en tiendas reales cuando Shopify la aprueba en el App Store; hasta
+  entonces la tarjeta no muestra **Conectar** (`SHOPIFY_APP_STORE_APPROVED`).
+  Ver secciones **1–5**.
+
+El camino del token `shpat_` (custom app creada en el admin) ya no existe:
+Shopify no deja crear esas apps desde el 1 de enero de 2026.
 
 ## 1. Crear la app en el Partner Dashboard de Shopify
 
@@ -47,42 +50,42 @@ registran automáticamente vía API tras conectar (no hay que configurarlos a ma
 | `SHOPIFY_OAUTH_REDIRECT_URI` | `https://<TU_DOMINIO>/api/shopify/callback`                        |
 | `SHOPIFY_API_VERSION`        | `2025-10` (opcional)                                               |
 | `SHOPIFY_SCOPES`             | Omitir para usar el conjunto vigente de `src/lib/shopify/oauth.ts` |
+| `SHOPIFY_APP_STORE_APPROVED` | `true` cuando Shopify apruebe la app: muestra **Conectar** (OAuth)  |
 
 `NEXT_PUBLIC_SITE_URL` debe apuntar al dominio público (se usa para la base de
 los webhooks). El token se cifra con `ENCRYPTION_KEY` (ya configurada).
 
 ## 5. Conectar
 
-Ajustes → Canales → tarjeta **Shopify** → escribe `tu-tienda.myshopify.com` →
-**Conectar**. Tras aceptar permisos vuelves a Ajustes con la tienda conectada.
+Integraciones → tarjeta **Shopify** → **Conectar** → escribe
+`tu-tienda.myshopify.com`. Tras aceptar permisos vuelves a Integraciones con la
+tienda conectada. Requiere `SHOPIFY_APP_STORE_APPROVED=true`.
 
-## 6. Opción A — Conectar con custom app (token), sin App Store
+## 6. Opción A — App del Dev Dashboard (credenciales), sin App Store
 
-Para cada merchant (script white-glove). En **su** Shopify Admin:
+Para cada merchant:
 
-1. **Configuración** → **Apps y canales de venta** → **Desarrollar apps** →
-   **Crear app** (nombre: p. ej. "Riverz").
-2. **Configuración de Admin API** → otorgar EXACTAMENTE estos scopes:
-   `read_orders, write_orders, read_checkouts, read_customers, read_products`.
-   (Sin `write_orders` la IA no puede crear pedidos; sin los `read_*` no llegan
-   los webhooks de carrito/pedido.)
-3. **Instalar app**.
-4. Copiar de **Credenciales de API**:
-   - **Admin API access token** (empieza con `shpat_…`, se muestra una sola vez).
-   - **API secret key** (la usa Riverz para verificar la firma HMAC de los
-     webhooks de ESA tienda).
-5. En Riverz: **Ajustes → Canales → Shopify → "Conectar con token (custom app)"**
-   → pegar dominio (`tienda.myshopify.com`) + token + API secret key → **Conectar**.
+1. Desde el admin de la tienda, **Configuración → Apps → Desarrollar apps** abre
+   el Dev Dashboard de su organización. Si lo hace otra persona (por ejemplo el
+   equipo de Riverz), el dueño le asigna el rol **Desarrollador de apps** en
+   Configuración → Usuarios, y esa persona elige la organización de la tienda
+   abajo a la izquierda del Dev Dashboard.
+2. **Crear app**:
+   - URL de la app: `https://riverz.co/integraciones`. No la raíz: ahí arranca
+     el OAuth de la app pública.
+   - Sin "Incrustar app", sin "flujo de instalación heredado" y sin URLs de
+     redirección.
+   - Alcances: los de `shopifyScopes()`. La tarjeta los copia con **Copiar
+     alcances**.
+3. **Panel general → Instalar app** en la tienda. La app y la tienda tienen que
+   estar en la misma organización; si no, Shopify responde `app_not_installed`.
+4. En Riverz: **Integraciones → Shopify → Conectar** → dominio
+   `*.myshopify.com`, Client ID y Client secret.
 
-Riverz valida el token contra `/shop.json`, persiste la conexión cifrada
-(`connection_method='admin_token'`, `webhook_secret` cifrado), registra los
-webhooks (checkout/order/uninstall) y sincroniza el catálogo. **No requiere
-`SHOPIFY_API_KEY` en el servidor** — funciona aunque la app global no esté
-configurada. Los webhooks GDPR no aplican en este modo (son solo para apps del
-App Store).
-
-Migración asociada: `087_shopify_admin_token.sql` (columnas `webhook_secret` +
-`connection_method`). Aplicar vía Management API antes de usar este path.
+Riverz canjea las credenciales por un token de 24 h
+(`connection_method='client_credentials'`) y lo renueva solo; el client secret
+también verifica la firma de los webhooks. Después registra los webhooks y
+sincroniza el catálogo. Rotar el secreto en Shopify obliga a reconectar.
 
 ## 7. Flujo de carrito abandonado
 

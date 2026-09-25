@@ -5,6 +5,7 @@ import { csrfGuard } from '@/lib/csrf';
 import {
   exchangeClientCredentialsForToken,
   normalizeShopDomain,
+  ShopifyCredentialsError,
 } from '@/lib/shopify/oauth';
 import { persistShopifyConnection } from '@/lib/shopify/connection';
 import { ShopifyAdminClient } from '@/lib/shopify/admin-client';
@@ -47,7 +48,9 @@ export async function POST(request: Request) {
   }
   if (!clientId || !clientSecret) {
     return NextResponse.json(
-      { error: translate(locale, 'errProducts.shopifyMissingTokenFields') },
+      {
+        error: translate(locale, 'errProducts.shopifyMissingCredentialFields'),
+      },
       { status: 400 }
     );
   }
@@ -71,8 +74,20 @@ export async function POST(request: Request) {
       shop,
       error: err instanceof Error ? err.message : String(err),
     });
+    // Sin instalar es el error de siempre: la app se creó pero falta
+    // instalarla en la tienda, o se creó en otra organización.
+    const noInstalada =
+      err instanceof ShopifyCredentialsError &&
+      err.motivo === 'app_not_installed';
     return NextResponse.json(
-      { error: translate(locale, 'errProducts.shopifyTokenInvalid') },
+      {
+        error: translate(
+          locale,
+          noInstalada
+            ? 'errProducts.shopifyAppNotInstalled'
+            : 'errProducts.shopifyCredentialsInvalid'
+        ),
+      },
       { status: 400 }
     );
   }
@@ -86,7 +101,7 @@ export async function POST(request: Request) {
       error: err instanceof Error ? err.message : String(err),
     });
     return NextResponse.json(
-      { error: translate(locale, 'errProducts.shopifyTokenInvalid') },
+      { error: translate(locale, 'errProducts.shopifyCredentialsInvalid') },
       { status: 400 }
     );
   }
@@ -113,7 +128,7 @@ export async function POST(request: Request) {
       error: err instanceof Error ? err.message : String(err),
     });
     return NextResponse.json(
-      { error: translate(locale, 'errProducts.shopifyTokenInvalid') },
+      { error: translate(locale, 'errProducts.shopifyConnectFailed') },
       { status: 500 }
     );
   }

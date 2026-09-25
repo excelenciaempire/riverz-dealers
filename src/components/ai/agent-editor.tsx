@@ -44,6 +44,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT, useLocale } from '@/hooks/use-locale';
+import { localizePath } from '@/lib/i18n/routes';
 import { ToolSwitchboard, type Disponibilidad } from './tool-switchboard';
 import {
   REGLAS_POR_DEFECTO,
@@ -485,6 +486,9 @@ export function AgentEditor({
   const [shopifyConnected, setShopifyConnected] = useState<boolean | null>(
     null
   );
+  // Sin la app pública aprobada no hay OAuth: se vincula desde la tarjeta
+  // de Integraciones, con las credenciales de la app de la tienda.
+  const [shopifyOauth, setShopifyOauth] = useState(false);
   const [linkShop, setLinkShop] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linking, setLinking] = useState(false);
@@ -822,7 +826,10 @@ export function AgentEditor({
       try {
         const res = await fetch('/api/shopify/status', { cache: 'no-store' });
         const d = await res.json();
-        if (!cancelled) setShopifyConnected(d?.connection?.status === 'active');
+        if (!cancelled) {
+          setShopifyConnected(d?.connection?.status === 'active');
+          setShopifyOauth(Boolean(d?.oauth));
+        }
       } catch {
         if (!cancelled) setShopifyConnected(false);
       }
@@ -835,18 +842,29 @@ export function AgentEditor({
   // Vincula Shopify desde un popup, sin que el usuario salga del editor. Al
   // detectar la conexión activa, habilita el cierre de ventas en el acto.
   function linkShopify() {
+    if (!shopifyOauth) {
+      // Puede tener que crear la app en Shopify antes: más margen que el OAuth.
+      abrirVinculo(
+        `${localizePath('/integraciones', locale)}#canal-shopify`,
+        900_000
+      );
+      return;
+    }
     const shop = linkShop.trim();
     if (!shop) {
       toast.error(t('assistant.shopDomainRequired'));
       return;
     }
+    abrirVinculo(
+      `/api/shopify/install?shop=${encodeURIComponent(shop)}`,
+      180_000
+    );
+  }
+
+  function abrirVinculo(url: string, limiteMs: number) {
     setLinking(true);
     if (linkTimerRef.current) window.clearInterval(linkTimerRef.current);
-    const popup = window.open(
-      `/api/shopify/install?shop=${encodeURIComponent(shop)}`,
-      'shopify-connect',
-      'width=620,height=760'
-    );
+    const popup = window.open(url, 'shopify-connect', 'width=620,height=760');
     const started = Date.now();
     const timer = window.setInterval(async () => {
       try {
@@ -868,7 +886,7 @@ export function AgentEditor({
       } catch {
         /* sigue intentando */
       }
-      if ((popup && popup.closed) || Date.now() - started > 180_000) {
+      if ((popup && popup.closed) || Date.now() - started > limiteMs) {
         window.clearInterval(timer);
         setLinking(false);
       }
@@ -2058,7 +2076,10 @@ export function AgentEditor({
                           type="button"
                           size="sm"
                           variant="secondary"
-                          onClick={() => setShowLinkInput(true)}
+                          onClick={() =>
+                            shopifyOauth ? setShowLinkInput(true) : linkShopify()
+                          }
+                          disabled={linking}
                         >
                           <Image
                             src="/channels/shopify.svg"

@@ -6,12 +6,18 @@ import {
   getConnectionForUser,
   getConnectionForWorkspace,
 } from '@/lib/shopify/connection'
+import { shopifyScopes } from '@/lib/shopify/oauth'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 
 /**
  * Settings card connection state. Post-055 we prefer workspace_id (so a
  * second member of the same workspace sees the connection too), and
  * fall back to the legacy user_id read for users with no workspace yet.
+ *
+ * `oauth`: whether the public app can be installed on any store. Shopify
+ * only allows that once the App Store approves it, so it stays off until
+ * `SHOPIFY_APP_STORE_APPROVED=true`. `scopes`: what the merchant's own
+ * Dev Dashboard app must request.
  */
 export async function GET() {
   const supabase = await createClient()
@@ -24,8 +30,10 @@ export async function GET() {
   const conn = workspaceId
     ? await getConnectionForWorkspace(supabase, workspaceId)
     : await getConnectionForUser(supabase, user.id)
-  const configured = Boolean(process.env.SHOPIFY_API_KEY)
-  return NextResponse.json({ configured, connection: conn })
+  const oauth =
+    Boolean(process.env.SHOPIFY_API_KEY) &&
+    process.env.SHOPIFY_APP_STORE_APPROVED === 'true'
+  return NextResponse.json({ oauth, scopes: shopifyScopes(), connection: conn })
 }
 
 /** Disconnect (delete) the workspace's Shopify connection. */

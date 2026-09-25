@@ -16,7 +16,7 @@ interface ShopifyConnection {
   connection_method?: 'oauth' | 'admin_token' | 'client_credentials';
 }
 
-type Mode = 'idle' | 'oauth' | 'token' | 'clientCredentials';
+type Mode = 'idle' | 'oauth' | 'clientCredentials';
 
 /**
  * Settings → Canales card for Shopify. Matches the per-platform card
@@ -24,27 +24,26 @@ type Mode = 'idle' | 'oauth' | 'token' | 'clientCredentials';
  * connection rows below, action button at the bottom) so the row of
  * cards reads as a single uniform grid no matter the provider.
  *
- * Two connect paths:
- *  - OAuth (global app): only when the server has SHOPIFY_API_KEY set.
- *  - Custom-app token: always available. The merchant creates a custom app
- *    in their own Shopify admin and pastes the Admin API token + API secret
- *    key — no App Store review, fully self-contained per workspace.
+ * Only the connect paths that work are shown:
+ *  - Dev Dashboard app: the merchant creates an app in their store's
+ *    organization, installs it and pastes its Client ID + Client secret.
+ *  - OAuth (public app): only once the App Store approves it (`oauth` from
+ *    /api/shopify/status). Before that Shopify won't install it on real
+ *    stores.
+ *
+ * The custom-app token path is gone: Shopify stopped letting merchants
+ * create those apps on 2026-01-01.
  */
 export function ShopifyCard() {
   const fetchWithCsrf = useFetchWithCsrf();
   const t = useT();
   const [loading, setLoading] = useState(true);
-  const [configured, setConfigured] = useState(false);
+  const [oauth, setOauth] = useState(false);
+  const [scopes, setScopes] = useState('');
   const [connection, setConnection] = useState<ShopifyConnection | null>(null);
   const [shop, setShop] = useState('');
   const [disconnecting, setDisconnecting] = useState(false);
   const [mode, setMode] = useState<Mode>('idle');
-
-  // Token (custom app) form
-  const [tokenShop, setTokenShop] = useState('');
-  const [tokenAccess, setTokenAccess] = useState('');
-  const [tokenSecret, setTokenSecret] = useState('');
-  const [connectingToken, setConnectingToken] = useState(false);
 
   // Shopify Dev Dashboard app form
   const [clientShop, setClientShop] = useState('');
@@ -71,7 +70,8 @@ export function ShopifyCard() {
       setLoading(true);
       const res = await fetch('/api/shopify/status');
       const data = await res.json();
-      setConfigured(Boolean(data.configured));
+      setOauth(Boolean(data.oauth));
+      setScopes(typeof data.scopes === 'string' ? data.scopes : '');
       setConnection(data.connection ?? null);
     } catch {
       // ignore
@@ -89,44 +89,12 @@ export function ShopifyCard() {
     window.location.href = `/api/shopify/install?shop=${encodeURIComponent(trimmed)}`;
   }
 
-  async function handleTokenConnect() {
-    if (!tokenShop.trim() || !tokenAccess.trim() || !tokenSecret.trim()) {
-      toast.error(t('settings.shopifyTokenMissingFields'));
-      return;
-    }
-    setConnectingToken(true);
+  async function copyScopes() {
     try {
-      const res = await fetchWithCsrf('/api/shopify/connect-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          shop: tokenShop.trim(),
-          accessToken: tokenAccess.trim(),
-          apiSecret: tokenSecret.trim(),
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(
-          data.error ?? t('settings.shopifyConnectError', { reason: 'token' })
-        );
-        return;
-      }
-      toast.success(t('settings.shopifyConnected'));
-      setConnection({
-        shop_domain: data.shop_domain,
-        shop_name: data.shop_name ?? null,
-        status: 'active',
-        connection_method: 'admin_token',
-      });
-      setMode('idle');
-      setTokenShop('');
-      setTokenAccess('');
-      setTokenSecret('');
+      await navigator.clipboard.writeText(scopes);
+      toast.success(t('settings.shopifyScopesCopied'));
     } catch {
-      toast.error(t('settings.shopifyConnectError', { reason: 'token' }));
-    } finally {
-      setConnectingToken(false);
+      toast.error(t('settings.couldNotCopy'));
     }
   }
 
@@ -233,11 +201,6 @@ export function ShopifyCard() {
             <CheckCircle2 className="size-3.5 text-emerald-700 dark:text-emerald-400" />
             <span className="text-foreground flex-1 truncate text-xs">
               {connection?.shop_name || connection?.shop_domain}
-              {connection?.connection_method === 'admin_token' && (
-                <span className="text-muted-foreground ml-1 text-[10px]">
-                  ({t('settings.shopifyConnectedViaToken')})
-                </span>
-              )}
               {connection?.connection_method === 'client_credentials' && (
                 <span className="text-muted-foreground ml-1 text-[10px]">
                   ({t('settings.shopifyConnectedViaClientCredentials')})
@@ -264,7 +227,7 @@ export function ShopifyCard() {
 
       {!isConnected && (
         <div className="mt-auto space-y-2">
-          {mode === 'oauth' && configured ? (
+          {mode === 'oauth' && oauth ? (
             <>
               <Input
                 placeholder={t('settings.shopifyDomainPlaceholder')}
@@ -289,6 +252,21 @@ export function ShopifyCard() {
             </>
           ) : mode === 'clientCredentials' ? (
             <>
+              <p className="bg-muted/50 text-muted-foreground rounded-md px-2 py-1.5 text-[11px] leading-snug">
+                {t('settings.shopifyClientCredentialsGuide')}
+                {scopes && (
+                  <>
+                    {' '}
+                    <button
+                      type="button"
+                      onClick={() => void copyScopes()}
+                      className="text-foreground font-medium underline-offset-2 hover:underline"
+                    >
+                      {t('settings.shopifyCopyScopes')}
+                    </button>
+                  </>
+                )}
+              </p>
               <Input
                 placeholder={t('settings.shopifyDomainPlaceholder')}
                 value={clientShop}
@@ -328,93 +306,28 @@ export function ShopifyCard() {
                 </button>
               </div>
             </>
-          ) : mode === 'token' ? (
-            <>
-              <p className="bg-muted/50 text-muted-foreground rounded-md px-2 py-1.5 text-[11px] leading-snug">
-                {t('settings.shopifyTokenGuide')}
-              </p>
-              <Input
-                placeholder={t('settings.shopifyDomainPlaceholder')}
-                value={tokenShop}
-                onChange={(e) => setTokenShop(e.target.value)}
-                className="bg-background text-sm"
-              />
-              <Input
-                type="password"
-                placeholder={t('settings.shopifyTokenAccessPlaceholder')}
-                value={tokenAccess}
-                onChange={(e) => setTokenAccess(e.target.value)}
-                className="bg-background text-sm"
-              />
-              <Input
-                type="password"
-                placeholder={t('settings.shopifyTokenSecretPlaceholder')}
-                value={tokenSecret}
-                onChange={(e) => setTokenSecret(e.target.value)}
-                className="bg-background text-sm"
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={handleTokenConnect}
-                  disabled={connectingToken}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-60"
-                >
-                  {connectingToken && (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  )}
-                  {t('common.connect')}
-                </button>
-                <button
-                  onClick={() => setMode('idle')}
-                  className="border-border text-foreground hover:bg-accent rounded-lg border px-3 py-2 text-sm"
-                >
-                  {t('common.cancel')}
-                </button>
-              </div>
-            </>
           ) : (
             <>
-              {configured ? (
+              <button
+                onClick={() => setMode(oauth ? 'oauth' : 'clientCredentials')}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
+              >
+                <Image
+                  src="/channels/shopify.svg"
+                  alt=""
+                  width={16}
+                  height={16}
+                />
+                {t('common.connect')}
+              </button>
+              {oauth && (
                 <button
-                  onClick={() => setMode('oauth')}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
+                  onClick={() => setMode('clientCredentials')}
+                  className="text-muted-foreground hover:text-foreground flex w-full items-center justify-center text-[11px] font-medium"
                 >
-                  <Image
-                    src="/channels/shopify.svg"
-                    alt=""
-                    width={16}
-                    height={16}
-                  />
-                  {t('common.connect')}
+                  {t('settings.shopifyUseClientCredentialsLink')}
                 </button>
-              ) : null}
-              <button
-                onClick={() => setMode('clientCredentials')}
-                className={cn(
-                  'flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                  configured
-                    ? 'text-muted-foreground hover:text-foreground text-[11px]'
-                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
-                )}
-              >
-                {!configured && (
-                  <Image
-                    src="/channels/shopify.svg"
-                    alt=""
-                    width={16}
-                    height={16}
-                  />
-                )}
-                {configured
-                  ? t('settings.shopifyUseClientCredentialsLink')
-                  : t('settings.shopifyConnectClientCredentials')}
-              </button>
-              <button
-                onClick={() => setMode('token')}
-                className="text-muted-foreground hover:text-foreground flex w-full items-center justify-center text-[11px] font-medium"
-              >
-                {t('settings.shopifyUseTokenLink')}
-              </button>
+              )}
             </>
           )}
         </div>

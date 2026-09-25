@@ -298,10 +298,43 @@ export async function refreshShopifyToken(args: {
 }
 
 /**
+ * Shopify no aceptó el client id y el client secret. `motivo` es su código
+ * (`app_not_installed`, `invalid_client`…) cuando la respuesta lo trae.
+ */
+export class ShopifyCredentialsError extends Error {
+  constructor(
+    readonly status: number,
+    readonly motivo: string | null,
+    detalle: string
+  ) {
+    super(`Shopify client credentials exchange failed: ${status} ${detalle}`);
+    this.name = 'ShopifyCredentialsError';
+  }
+}
+
+/**
+ * El código del rechazo. Shopify lo manda en el título de una página HTML
+ * (`400 - Oauth error app_not_installed`) o en el campo `error` de un JSON.
+ */
+export function motivoDelRechazo(cuerpo: string): string | null {
+  const html = cuerpo.match(/Oauth error ([a-z_]+)/i);
+  if (html) return html[1].toLowerCase();
+  try {
+    const json = JSON.parse(cuerpo) as { error?: unknown };
+    return typeof json.error === 'string' ? json.error : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Obtiene el token de una app instalada desde Shopify Dev Dashboard.
  *
  * Estos tokens duran 24 horas. No llevan refresh token: se pide otro con el
  * mismo client id y client secret cuando está por vencer.
+ *
+ * Sólo funciona si la app está instalada en la tienda, y Shopify sólo deja
+ * instalarla en tiendas de la misma organización que la app.
  */
 export async function exchangeClientCredentialsForToken(args: {
   shop: string;
@@ -319,8 +352,10 @@ export async function exchangeClientCredentialsForToken(args: {
   });
   if (!res.ok) {
     const texto = await res.text().catch(() => '');
-    throw new Error(
-      `Shopify client credentials exchange failed: ${res.status} ${texto.slice(0, 200)}`
+    throw new ShopifyCredentialsError(
+      res.status,
+      motivoDelRechazo(texto),
+      texto.slice(0, 200)
     );
   }
   return leerToken(await res.json());

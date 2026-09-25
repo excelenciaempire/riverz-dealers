@@ -133,10 +133,22 @@ export const errProducts = {
     en: "No workspace was found for your user.",
   },
 
-  // --- /api/shopify/connect-token (custom app, admin-token path) ---
-  shopifyMissingTokenFields: {
-    es: "Faltan datos: dominio, token de Admin API y API secret key.",
-    en: "Missing fields: store domain, Admin API token and API secret key.",
+  // --- /api/shopify/connect-client-credentials (app del Dev Dashboard) ---
+  shopifyMissingCredentialFields: {
+    es: "Faltan datos: dominio, Client ID y Client secret.",
+    en: "Missing fields: store domain, Client ID and Client secret.",
+  },
+  shopifyAppNotInstalled: {
+    es: "La app no está instalada en esa tienda. Instálala desde el Dev Dashboard de la tienda y vuelve a conectar.",
+    en: "The app isn't installed on that store. Install it from the store's Dev Dashboard and connect again.",
+  },
+  shopifyCredentialsInvalid: {
+    es: "Shopify rechazó las credenciales. Revisa el dominio, el Client ID y el Client secret.",
+    en: "Shopify rejected the credentials. Check the domain, Client ID and Client secret.",
+  },
+  shopifyConnectFailed: {
+    es: "No se pudo guardar la conexión. Intenta de nuevo.",
+    en: "Couldn't save the connection. Try again.",
   },
   // --- /api/shopify/claim (App Store install-first flow) ---
   shopifyClaimExpired: {
@@ -146,10 +158,5 @@ export const errProducts = {
   shopifyClaimFailed: {
     es: "No se pudo conectar la tienda. Intenta de nuevo desde tu admin de Shopify.",
     en: "Couldn't connect the store. Try again from your Shopify admin.",
-  },
-
-  shopifyTokenInvalid: {
-    es: "El token no funcionó con esa tienda. Verifica el dominio y que el token tenga los permisos (read/write de pedidos, clientes y productos).",
-    en: "The token didn't work for that store. Check the domain and that the token has the right scopes (read/write orders, customers, products).",
   },
 } satisfies Namespace;

@@ -559,18 +559,6 @@ export const settings = {
   },
   addAnotherStore: { es: 'Añadir otra tienda', en: 'Add another store' },
   missingCredentials: { es: 'Faltan credenciales', en: 'Missing credentials' },
-  shopifyConnectToken: {
-    es: 'Conectar con token (custom app)',
-    en: 'Connect with token (custom app)',
-  },
-  shopifyUseTokenLink: {
-    es: 'Usar token de custom app',
-    en: 'Use a custom-app token',
-  },
-  shopifyConnectClientCredentials: {
-    es: 'Conectar con credenciales de Shopify',
-    en: 'Connect with Shopify credentials',
-  },
   shopifyUseClientCredentialsLink: {
     es: 'o usar credenciales de Shopify',
     en: 'or use Shopify credentials',
@@ -587,23 +575,12 @@ export const settings = {
     es: 'Completa el dominio, el Client ID y el Client secret.',
     en: 'Fill in the domain, Client ID and Client secret.',
   },
-  shopifyTokenGuide: {
-    es: 'En tu Shopify Admin → Configuración → Apps → Desarrollar apps: crea una app con permisos de lectura/escritura de pedidos, clientes y productos, instálala y copia el Admin API access token + la API secret key.',
-    en: 'In your Shopify Admin → Settings → Apps → Develop apps: create an app with read/write access to orders, customers and products, install it, and copy the Admin API access token + the API secret key.',
+  shopifyClientCredentialsGuide: {
+    es: 'Crea una app en el Dev Dashboard de la tienda (Configuración → Apps → Desarrollar apps) con los alcances de Riverz, instálala en la tienda y pega su Client ID y Client secret.',
+    en: "Create an app in the store's Dev Dashboard (Settings → Apps → Develop apps) with Riverz's scopes, install it on the store, and paste its Client ID and Client secret.",
   },
-  shopifyTokenAccessPlaceholder: {
-    es: 'Admin API access token (shpat_…)',
-    en: 'Admin API access token (shpat_…)',
-  },
-  shopifyTokenSecretPlaceholder: {
-    es: 'API secret key',
-    en: 'API secret key',
-  },
-  shopifyTokenMissingFields: {
-    es: 'Completa el dominio, el token y la API secret key.',
-    en: 'Fill in the domain, token and API secret key.',
-  },
-  shopifyConnectedViaToken: { es: 'vía custom app', en: 'via custom app' },
+  shopifyCopyScopes: { es: 'Copiar alcances', en: 'Copy scopes' },
+  shopifyScopesCopied: { es: 'Alcances copiados', en: 'Scopes copied' },
   shopifyConnectedViaClientCredentials: {
     es: 'vía credenciales de Shopify',
     en: 'via Shopify credentials',
