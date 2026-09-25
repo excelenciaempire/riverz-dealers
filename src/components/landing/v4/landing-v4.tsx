@@ -16,7 +16,7 @@ import { Oferta } from './oferta';
 import { Operator } from './operator';
 import { Pricing } from './pricing';
 import { Faq } from './faq';
-import type { PricingTier } from './pricing-tiers';
+import type { PublicPricing } from './pricing-tiers';
 import './editorial.css';
 
 /**
@@ -65,7 +65,7 @@ const STORES: { src: string; label: string }[] = [
   { src: '/channels/tiendanube.svg', label: 'Tiendanube' },
 ];
 
-export function LandingV4({ tiers }: { tiers: PricingTier[] }) {
+export function LandingV4(pricing: PublicPricing) {
   const t = useT();
   const { locale } = useLocale();
 
@@ -91,7 +91,7 @@ export function LandingV4({ tiers }: { tiers: PricingTier[] }) {
         <Comparison />
         <Channels />
         <Confianza />
-        <Pricing tiers={tiers} />
+        <Pricing {...pricing} />
         <Faq />
         <Cta />
       </main>

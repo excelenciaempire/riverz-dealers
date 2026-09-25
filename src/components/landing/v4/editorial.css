@@ -401,7 +401,8 @@
 }
 
 .sn-pricing-range:focus-visible,
-.sn-pricing-tiers button:focus-visible {
+.sn-pricing-tiers button:focus-visible,
+.sn-pricing-switch:focus-visible {
   outline: 2px solid var(--sn-ink);
   outline-offset: 6px;
 }

@@ -639,6 +639,16 @@ export const landingV4 = {
     es: 'Resultados y ventas atribuidas',
     en: 'Results and attributed sales',
   },
+  // Plan con saldo: aparece al tocar el título «Planes».
+  pricingBalanceContacts: { es: 'Contactos {unlimited}', en: '{unlimited} contacts' },
+  pricingBalanceUnlimited: { es: 'ilimitados', en: 'Unlimited' },
+  pricingBalancePlus: { es: '+ tu saldo', en: '+ your balance' },
+  pricingBalanceTerms: {
+    es: 'El consumo de IA se descuenta del saldo que recargas.',
+    en: 'AI usage is deducted from the balance you top up.',
+  },
+  pricingBalanceIncluded: { es: 'Incluido en el plan:', en: 'Included in the plan:' },
+  pricingBalanceAgents: { es: 'Todos los agentes', en: 'All agents' },
   roiTitle: {
     es: 'Calcula el retorno posible',
     en: 'Estimate your potential return',

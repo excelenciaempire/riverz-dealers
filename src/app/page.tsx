@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getT, getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import { LandingV4 } from "@/components/landing/v4/landing-v4";
-import { publicPricingTiers } from "@/lib/billing/public-pricing";
+import { publicPricing } from "@/lib/billing/public-pricing";
 
 // Idioma de la vista previa al compartir. Va atado al de la tarjeta
 // (src/components/og/share-card.tsx), que se renderiza en español: si se
@@ -116,7 +116,7 @@ export default async function RootPage() {
         nonce={nonce}
         dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
       />
-      <LandingV4 tiers={await publicPricingTiers()} />
+      <LandingV4 {...await publicPricing()} />
     </>
   );
 }
