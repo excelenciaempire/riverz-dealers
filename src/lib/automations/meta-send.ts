@@ -1,5 +1,6 @@
 import {
   sendTextMessage,
+  sendImageMessage,
   sendTemplateMessage,
   MetaApiError,
   type MetaSendResult,
@@ -54,6 +55,14 @@ interface SendTextArgs extends OriginArgs {
   text: string
 }
 
+interface SendImageArgs extends OriginArgs {
+  workspaceId: string
+  conversationId: string
+  contactId: string
+  url: string
+  reservedMessageId: string
+}
+
 interface SendTemplateArgs extends OriginArgs {
   workspaceId: string
   conversationId: string
@@ -74,6 +83,10 @@ export async function engineSendText(args: SendTextArgs): Promise<{ whatsapp_mes
   return sendViaMeta({ ...args, kind: 'text' })
 }
 
+export async function engineSendImage(args: SendImageArgs): Promise<{ whatsapp_message_id: string }> {
+  return sendViaMeta({ ...args, kind: 'image' })
+}
+
 export async function engineSendTemplate(
   args: SendTemplateArgs,
 ): Promise<{ whatsapp_message_id: string }> {
@@ -82,6 +95,7 @@ export async function engineSendTemplate(
 
 type SendInput =
   | (SendTextArgs & { kind: 'text' })
+  | (SendImageArgs & { kind: 'image' })
   | (SendTemplateArgs & { kind: 'template' })
 
 async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: string }> {
@@ -126,7 +140,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     db,
     workspaceId: input.workspaceId,
     contactId: input.contactId,
-    kind: input.kind,
+    kind: input.kind === 'image' ? 'text' : input.kind,
     reason: input.reason ?? 'transaccional',
     cooldownHours: input.cooldownHours,
   })
@@ -136,7 +150,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     await db.from('messages').insert({
       conversation_id: input.conversationId,
       sender_type: 'bot',
-      content_type: input.kind === 'template' ? 'template' : 'text',
+      content_type: input.kind === 'template' ? 'template' : input.kind,
       content_text: null,
       template_name: input.kind === 'template' ? input.templateName : null,
       status: 'failed',
@@ -270,6 +284,9 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
         buttonUrlIndex: input.buttonUrlIndex,
       })
     }
+    if (input.kind === 'image') {
+      return sendImageMessage({ phoneNumberId, accessToken, to: phone, url: input.url })
+    }
     return sendTextMessage({
       phoneNumberId,
       accessToken,
@@ -340,7 +357,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   // reemplazadas), no null: antes la bandeja mostraba una burbuja vacía porque
   // no había texto que renderizar. Reconstruimos el body desde message_templates
   // + los params posicionales que ya tenemos a mano.
-  const content_type = input.kind === 'template' ? (input.headerImageUrl ? 'image' : 'template') : 'text'
+  const content_type = input.kind === 'template' ? (input.headerImageUrl ? 'image' : 'template') : input.kind
   const template_name = input.kind === 'template' ? input.templateName : null
   let content_text: string | null = input.kind === 'text' ? textoPreparado : null
   // Botones resueltos de la plantilla, para que la bandeja los muestre con el
@@ -375,6 +392,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       content_text,
       template_name,
       ...(input.kind === 'template' && input.headerImageUrl ? { media_url: input.headerImageUrl } : {}),
+      ...(input.kind === 'image' ? { media_url: input.url } : {}),
       buttons,
       message_id: waMessageId,
       status: 'sent',
@@ -387,7 +405,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       // revisión de calidad" en vez de un 'sent' mudo.
       held_for_quality: sendResult.messageStatus === 'held_for_quality_assessment',
     }
-  const persistMessage = input.kind === 'template' && input.reservedMessageId
+  const persistMessage = input.kind !== 'text' && input.reservedMessageId
     ? db.from('messages').update(messageRow).eq('id', input.reservedMessageId).eq('conversation_id', input.conversationId)
     : db.from('messages').insert(messageRow)
   const { data: inserted, error: msgErr } = await persistMessage
@@ -413,7 +431,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       last_message_text:
         input.kind === 'template'
           ? content_text ?? `[${input.templateName}]`
-          : textoPreparado,
+          : input.kind === 'image' ? '📷' : textoPreparado,
       last_message_at: sentAt,
       last_sender_type: 'bot',
       updated_at: sentAt,

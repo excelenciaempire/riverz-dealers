@@ -56,5 +56,9 @@ export function purchaseConfirmationTemplates(locale: Locale) {
       : '*Referencia de tu pedido*\n{{1}}\n\nRevisa que corresponda a tu selección.',
     fields: ['purchase_item'], samples: [en ? '1 × Puma Suede XL (White / 36)' : '1 × Puma Suede XL (Blanco / 36)'],
     buttons: [],
+  }, {
+    name: 'deuna_foto_producto_v3', language: locale, headerType: 'image' as const,
+    body: en ? 'Photo of an item in your order.' : 'Foto de un producto de tu pedido.',
+    fields: [], samples: [], buttons: [],
   }];
 }

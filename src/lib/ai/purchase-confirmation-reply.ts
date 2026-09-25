@@ -6,7 +6,9 @@ import { confirmationSummary } from '@/lib/shopify/confirmation-summary';
 type PriorMessage = {
   sender_type: string;
   origin: string | null;
+  origin_name?: string | null;
   template_name: string | null;
+  content_type?: string;
   status: string;
   content_text: string | null;
 };
@@ -27,7 +29,9 @@ export function directPurchaseButtonIsSafe(input: {
     !/^deuna_resumen_compra_(?:1|2|general)_v1$/.test(summary.template_name ?? '') ||
     !['sent', 'delivered', 'read'].includes(summary.status) ||
     photos.some(message => message.sender_type !== 'bot' || message.origin !== 'automation' ||
-      message.template_name !== 'deuna_foto_referencia_v1' ||
+      (summary.origin_name && message.origin_name !== summary.origin_name) ||
+      !(['deuna_foto_referencia_v1', 'deuna_foto_producto_v3'].includes(message.template_name ?? '') ||
+        (message.content_type === 'image' && message.template_name === null && message.content_text === null)) ||
       !['sent', 'delivered', 'read'].includes(message.status))) return false;
   const shown = summary.content_text ?? '';
   if (String(context.order_items ?? '').split('\n').some(line => line && !shown.includes(line)) ||

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { engineSendTemplate } from './meta-send';
-import { purchaseLines, purchaseLineSummary, purchasedVariantImage } from './purchase-confirmation';
+import { engineSendImage, engineSendTemplate } from './meta-send';
+import { purchaseLines, purchasedVariantImage } from './purchase-confirmation';
 
 export async function sendPurchasePhotos(db: SupabaseClient, args: {
   workspaceId: string; conversationId: string; contactId: string;
@@ -12,13 +12,22 @@ export async function sendPurchasePhotos(db: SupabaseClient, args: {
   const shop = String(args.vars.purchase_shop_domain ?? '');
   const order = String(args.vars.order_id ?? '');
   if (!lines.length || !shop || !order) return 'photos: no order context';
-  const templateName = 'deuna_foto_referencia_v1';
-  const template = await db.from('message_templates').select('status,header_type,category,meta_status')
-    .eq('workspace_id', args.workspaceId).eq('name', templateName).eq('language', args.language).maybeSingle();
-  if (template.error) throw template.error;
-  if (template.data?.status !== 'Approved' || template.data?.header_type !== 'image' || template.data?.category !== 'Utility' ||
-    (template.data.meta_status && template.data.meta_status !== 'APPROVED')) {
-    return 'photos: utility image template not approved';
+  const templateName = 'deuna_foto_producto_v3';
+  const contact = await db.from('contacts').select('last_inbound_at')
+    .eq('workspace_id', args.workspaceId).eq('id', args.contactId).maybeSingle();
+  if (contact.error) throw contact.error;
+  const lastInbound = Date.parse(String(contact.data?.last_inbound_at ?? ''));
+  // Leave a five-minute margin so the service window cannot expire mid-send.
+  const bareImage = Number.isFinite(lastInbound) && lastInbound <= Date.now() &&
+    Date.now() - lastInbound < (24 * 60 - 5) * 60_000;
+  if (!bareImage) {
+    const template = await db.from('message_templates').select('status,header_type,category,meta_status')
+      .eq('workspace_id', args.workspaceId).eq('name', templateName).eq('language', args.language).maybeSingle();
+    if (template.error) throw template.error;
+    if (template.data?.status !== 'Approved' || template.data.header_type !== 'image' || template.data.category !== 'Utility' ||
+      (template.data.meta_status && template.data.meta_status !== 'APPROVED')) {
+      return 'photos: utility image template not approved';
+    }
   }
   const ids = [...new Set(lines.map(l => String(l.product_id ?? '')).filter(id => /^\d+$/.test(id)))];
   if (!ids.length) return 'photos: no product IDs';
@@ -37,20 +46,24 @@ export async function sendPurchasePhotos(db: SupabaseClient, args: {
       shop, order, line.id ?? index,
     ])).digest('hex');
     const id = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
-    const caption = purchaseLineSummary(line);
+    const caption = bareImage ? null : args.language === 'en'
+      ? 'Photo of an item in your order.' : 'Foto de un producto de tu pedido.';
     const claim = await db.from('messages').insert({
       id, conversation_id: args.conversationId, sender_type: 'bot', content_type: 'image',
-      content_text: caption, media_url: image, template_name: templateName,
+      content_text: caption,
+      media_url: image, template_name: bareImage ? null : templateName,
       origin: 'automation', origin_name: args.automationName, status: 'sending',
     });
     if (claim.error?.code === '23505') { existing++; continue; }
     if (claim.error) throw claim.error;
     try {
-      const result = await engineSendTemplate({
-        workspaceId: args.workspaceId, conversationId: args.conversationId, contactId: args.contactId,
-        automationName: args.automationName, language: args.language, templateName,
-        params: [caption], headerImageUrl: image, reservedMessageId: id, reason: 'transaccional',
-      });
+      const base = { workspaceId: args.workspaceId, conversationId: args.conversationId,
+        contactId: args.contactId, automationName: args.automationName,
+        reservedMessageId: id, reason: 'transaccional' as const };
+      const result = bareImage
+        ? await engineSendImage({ ...base, url: image })
+        : await engineSendTemplate({ ...base, language: args.language, templateName,
+          params: [], headerImageUrl: image });
       if (!result.whatsapp_message_id) throw new Error('Photo blocked by send gate');
       sent++;
     } catch (error) {

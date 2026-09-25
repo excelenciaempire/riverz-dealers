@@ -53,9 +53,17 @@ describe('direct purchase button eligibility', () => {
 
   it('allows the direct button response for Carlos’s unchanged two-pair order', () => {
     expect(directPurchaseButtonIsSafe(input)).toBe(true);
+    expect(directPurchaseButtonIsSafe({ ...input, priorMessages: [summary,
+      { ...photo, template_name: null, content_type: 'image', content_text: null },
+      { ...photo, template_name: null, content_type: 'image', content_text: null },
+    ] })).toBe(true);
   });
 
   it('falls back to the full conversation when a correction or another reply intervened', () => {
+    expect(directPurchaseButtonIsSafe({ ...input, priorMessages: [
+      { ...summary, origin_name: 'Confirmación de compra' },
+      { ...photo, origin_name: 'Otra automatización' },
+    ] })).toBe(false);
     expect(directPurchaseButtonIsSafe({ ...input, priorMessages: [
       { sender_type: 'customer', origin: null, template_name: null, status: 'delivered', content_text: 'Cambio de talla' }, ...input.priorMessages,
     ] })).toBe(false);

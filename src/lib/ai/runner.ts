@@ -771,7 +771,7 @@ export async function runAiAgent(
       const orderId = String(automationContext?.order_id ?? '');
       const [prior, currentOrder] = await Promise.all([
         db.from('messages')
-          .select('sender_type,origin,template_name,status,content_text')
+          .select('sender_type,origin,origin_name,template_name,content_type,status,content_text')
           .eq('conversation_id', args.conversation.id)
           .lt('created_at', args.inboundMessage.created_at)
           .order('created_at', { ascending: false })

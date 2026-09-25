@@ -2,7 +2,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 const send = vi.hoisted(() => vi.fn());
-vi.mock('./meta-send', () => ({ engineSendTemplate: send }));
+const sendImage = vi.hoisted(() => vi.fn());
+vi.mock('./meta-send', () => ({ engineSendTemplate: send, engineSendImage: sendImage }));
 import { sendPurchasePhotos } from './purchase-photos';
 
 const args = { workspaceId: 'w', conversationId: 'c', contactId: 'buyer', automationId: 'a',
@@ -15,7 +16,8 @@ const args = { workspaceId: 'w', conversationId: 'c', contactId: 'buyer', automa
 function fixture() {
   const tables: Record<string, any[]> = {
     messages: [],
-    message_templates: [{ workspace_id: 'w', name: 'deuna_foto_referencia_v1', language: 'es', status: 'Approved', category: 'Utility', header_type: 'image' }],
+    contacts: [{ workspace_id: 'w', id: 'buyer', last_inbound_at: null }],
+    message_templates: [{ workspace_id: 'w', name: 'deuna_foto_producto_v3', language: 'es', status: 'Approved', category: 'Utility', header_type: 'image' }],
     shopify_products: [
       { workspace_id: 'foreign', shop_domain: 'shop.myshopify.com', platform: 'shopify', external_id: 100, raw: { id: 100 } },
       { workspace_id: 'w', shop_domain: 'shop.myshopify.com', platform: 'shopify', external_id: 100,
@@ -46,18 +48,33 @@ function fixture() {
   } } as unknown as SupabaseClient;
   return { db, tables };
 }
-beforeEach(() => { send.mockReset().mockResolvedValue({ whatsapp_message_id: 'wamid.1' }); });
+beforeEach(() => {
+  send.mockReset().mockResolvedValue({ whatsapp_message_id: 'wamid.1' });
+  sendImage.mockReset().mockResolvedValue({ whatsapp_message_id: 'wamid.image' });
+});
 describe('purchase photo delivery', () => {
   it('sends exactly the purchased reference, skips missing images and deduplicates retries', async () => {
     const { db } = fixture();
     expect(await sendPurchasePhotos(db, args)).toContain('sent=1, unavailable=1');
     expect(send).toHaveBeenCalledWith(expect.objectContaining({
-      headerImageUrl: 'https://cdn.shopify.com/black.jpg', params: ['2 × Shoes (Black / 37)'], reason: 'transaccional',
+      headerImageUrl: 'https://cdn.shopify.com/black.jpg', params: [], reason: 'transaccional',
     }));
+    expect(sendImage).not.toHaveBeenCalled();
     expect(await sendPurchasePhotos(db, args)).toContain('already_claimed=1');
     expect(send).toHaveBeenCalledTimes(1);
     await sendPurchasePhotos(db, { ...args, vars: { ...args.vars, order_id: 'order-2' } });
     expect(send).toHaveBeenCalledTimes(2);
+  });
+  it('sends a captionless image when the customer service window is open', async () => {
+    const { db, tables } = fixture();
+    tables.contacts[0].last_inbound_at = new Date().toISOString();
+    tables.message_templates[0].status = 'Pending';
+    expect(await sendPurchasePhotos(db, args)).toContain('sent=1');
+    expect(sendImage).toHaveBeenCalledWith(expect.objectContaining({
+      url: 'https://cdn.shopify.com/black.jpg', reservedMessageId: expect.any(String),
+    }));
+    expect(send).not.toHaveBeenCalled();
+    expect(tables.messages[0]).toMatchObject({ content_text: null, template_name: null });
   });
   it('records an uncertain failure without resending or throwing away the textual confirmation', async () => {
     const { db, tables } = fixture();
