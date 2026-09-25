@@ -53,21 +53,26 @@ describe("mercadoLibreAppFor", () => {
 });
 
 describe("mirrorsMercadoLibreNotification", () => {
-  it("mirrors every notification while there is a single app", () => {
-    expect(mirrorsMercadoLibreNotification(RIVERZ.clientId)).toBe(true);
-  });
-
-  it("never mirrors notifications addressed to Riverz's app", () => {
+  it("never mirrors notifications addressed to Riverz's app, with or without the previous app", () => {
+    expect(mirrorsMercadoLibreNotification(Number(RIVERZ.clientId))).toBe(false);
     withLegacy();
     expect(mirrorsMercadoLibreNotification(Number(RIVERZ.clientId))).toBe(false);
-    expect(mirrorsMercadoLibreNotification(undefined)).toBe(false);
+  });
+
+  it("mirrors the merchant's own app, even after the previous app is removed", () => {
+    expect(mirrorsMercadoLibreNotification(Number(LEGACY.clientId))).toBe(true);
+    withLegacy();
     expect(mirrorsMercadoLibreNotification(Number(LEGACY.clientId))).toBe(true);
   });
 
-  it("recognizes app ids that JSON.parse rounds", () => {
-    vi.stubEnv("MERCADOLIBRE_LEGACY_CLIENT_ID", "9876543210987655");
-    vi.stubEnv("MERCADOLIBRE_LEGACY_CLIENT_SECRET", LEGACY.clientSecret);
+  it("does not mirror notifications without an app", () => {
+    expect(mirrorsMercadoLibreNotification(undefined)).toBe(false);
+    expect(mirrorsMercadoLibreNotification("")).toBe(false);
+  });
+
+  it("recognizes Riverz's app id even when JSON.parse rounds it", () => {
+    vi.stubEnv("MERCADOLIBRE_CLIENT_ID", "9876543210987655");
     const note = JSON.parse('{"application_id": 9876543210987655}') as { application_id: number };
-    expect(mirrorsMercadoLibreNotification(note.application_id)).toBe(true);
+    expect(mirrorsMercadoLibreNotification(note.application_id)).toBe(false);
   });
 });

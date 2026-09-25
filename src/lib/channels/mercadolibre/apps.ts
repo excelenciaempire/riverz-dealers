@@ -44,13 +44,14 @@ export function mercadoLibreAppFor(appId: unknown): MercadoLibreApp {
 
 /**
  * Si un aviso se repite a `MERCADOLIBRE_NOTIFY_MIRROR_URL`, el sistema del
- * comercio dueño de la aplicación anterior. Sólo le corresponden los avisos
- * de su aplicación: los de la de Riverz son de otros comercios.
+ * comercio dueño de la aplicación anterior. Nunca se repiten los dirigidos a
+ * la aplicación de Riverz, esté o no configurada la anterior: son de todos
+ * los comercios.
  *
  * Se compara como número: el id tiene 16 dígitos y `JSON.parse` redondea los
  * que pasan de 2^53, así que el texto del aviso ya parseado puede no coincidir.
  */
 export function mirrorsMercadoLibreNotification(applicationId: unknown): boolean {
-  const legacy = legacyMercadoLibreApp();
-  return !legacy || (applicationId != null && Number(applicationId) === Number(legacy.clientId));
+  if (applicationId == null || applicationId === "") return false;
+  return Number(applicationId) !== Number(mercadoLibreApp().clientId);
 }
