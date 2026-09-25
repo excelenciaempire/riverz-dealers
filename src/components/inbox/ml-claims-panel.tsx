@@ -6,6 +6,7 @@ import { ShieldAlert, ExternalLink, Loader2 } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
 import { cn } from "@/lib/utils";
+import { mercadoLibreWebOrigin } from "@/lib/channels/mercadolibre/sites";
 
 /**
  * Reclamos abiertos de Mercado Libre.
@@ -19,15 +20,20 @@ import { cn } from "@/lib/utils";
  * Sólo lectura: la gestión ocurre en Mercado Libre, y cada fila enlaza allá.
  */
 
-interface Claim {
+interface ClaimRow {
   id: string;
   claim_id: string;
+  connection_id: string | null;
   order_id: string | null;
   stage: string | null;
   status: string | null;
   type: string | null;
   reason: string | null;
   opened_at: string | null;
+}
+
+interface Claim extends ClaimRow {
+  url: string;
 }
 
 export function MlClaimsPanel({
@@ -55,14 +61,33 @@ export function MlClaimsPanel({
         return;
       }
       const supabase = createClient();
-      const { data } = await supabase
-        .from("ml_claims")
-        .select("id, claim_id, order_id, stage, status, type, reason, opened_at")
-        .eq("workspace_id", workspaceId)
-        .neq("status", "closed")
-        .order("opened_at", { ascending: false })
-        .limit(100);
-      if (!cancelled) setClaims((data ?? []) as Claim[]);
+      const [{ data }, { data: connections }] = await Promise.all([
+        supabase
+          .from("ml_claims")
+          .select("id, claim_id, connection_id, order_id, stage, status, type, reason, opened_at")
+          .eq("workspace_id", workspaceId)
+          .neq("status", "closed")
+          .order("opened_at", { ascending: false })
+          .limit(100),
+        // El reclamo se abre en el sitio del país de la cuenta.
+        supabase
+          .from("channel_connections")
+          .select("id, config")
+          .eq("workspace_id", workspaceId)
+          .eq("channel", "mercadolibre"),
+      ]);
+      const siteOf = new Map(
+        ((connections ?? []) as Array<{ id: string; config: Record<string, unknown> | null }>).map(
+          (c) => [c.id, c.config?.site_id],
+        ),
+      );
+      if (!cancelled)
+        setClaims(
+          ((data ?? []) as ClaimRow[]).map((c) => ({
+            ...c,
+            url: `${mercadoLibreWebOrigin(c.connection_id ? siteOf.get(c.connection_id) : null)}/reclamos/${c.claim_id}`,
+          })),
+        );
     })();
     return () => {
       cancelled = true;
@@ -100,7 +125,7 @@ export function MlClaimsPanel({
       {claims.map((c) => (
         <li key={c.id}>
           <a
-            href={`https://www.mercadolibre.com.ar/reclamos/${c.claim_id}`}
+            href={c.url}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-start gap-3 px-3 py-3 transition-colors hover:bg-accent/50"

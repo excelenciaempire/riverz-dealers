@@ -5,6 +5,7 @@ import type { InboundEvent } from "../types";
 import { supabaseAdmin } from "../admin-client";
 import { ingestInboundEvent } from "../inbox-writer";
 import { getFreshMLToken, resolveMlNickname } from "./adapter";
+import { mercadoLibreWebOrigin } from "./sites";
 import { ingestRawMedia } from "../media-ingest";
 import { getLogger } from "@/lib/log/logger";
 import {
@@ -334,7 +335,7 @@ async function mirrorReturn(
       workspace_id: conn.workspace_id,
       platform: "mercadolibre",
       external_id: claimId,
-      external_url: `https://www.mercadolibre.com.ar/reclamos/${claimId}`,
+      external_url: `${mercadoLibreWebOrigin((conn.config as Record<string, unknown> | null)?.site_id)}/reclamos/${claimId}`,
       order_id: orderRowId,
       contact_id: contactId,
       order_number: orderId,

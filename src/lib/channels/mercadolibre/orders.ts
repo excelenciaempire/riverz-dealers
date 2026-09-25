@@ -4,6 +4,7 @@ import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
 import { getFreshMLToken } from "./adapter";
 import { syncClaimsForConnection } from "./claims-poll";
+import { mercadoLibreWebOrigin } from "./sites";
 import { upsertContact } from "../inbox-writer";
 import { recordPurchases } from "@/lib/contacts/purchases";
 import { getLogger } from "@/lib/log/logger";
@@ -215,6 +216,7 @@ async function upsertOrder(
   }
 
   const addr = shipment?.receiver_address;
+  const saleUrl = `${mercadoLibreWebOrigin((conn.config as Record<string, unknown> | null)?.site_id)}/ventas/${o.id}/detalle`;
   const row = {
     workspace_id: conn.workspace_id,
     contact_id: contactId,
@@ -229,7 +231,7 @@ async function upsertOrder(
     shop_domain: `mercadolibre:${(conn.config as Record<string, unknown>)?.seller_id}`,
     shopify_order_id: String(o.id),
     order_number: String(o.id),
-    order_status_url: `https://www.mercadolibre.com.ar/ventas/${o.id}/detalle`,
+    order_status_url: saleUrl,
     currency: o.currency_id ?? null,
     total_price: Number(o.total_amount ?? 0),
     line_items: (o.order_items ?? []).map((i) => ({
@@ -255,9 +257,7 @@ async function upsertOrder(
     status: lifecycle(o, shipment),
     tracking_number: shipment?.tracking_number ?? null,
     tracking_company: shipment?.tracking_method ?? null,
-    tracking_url: shipment?.tracking_number
-      ? `https://www.mercadolibre.com.ar/ventas/${o.id}/detalle`
-      : null,
+    tracking_url: shipment?.tracking_number ? saleUrl : null,
     shipping_status: shipment?.status ?? null,
     created_by: "sync",
     created_at: o.date_created ?? new Date().toISOString(),
