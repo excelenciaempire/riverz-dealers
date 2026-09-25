@@ -70,6 +70,12 @@ export interface ThreadSyncArgs {
   sinceIso?: string;
   /** Techo inclusivo para importar sólo un rango de fechas. */
   untilIso?: string;
+  /**
+   * Sólo si el hilo EMPEZÓ en este rango, y entonces entra completo: desde su
+   * primer mensaje hasta el último. Si empezó antes o después, no entra nada.
+   * Manda sobre los demás cortes. Lo usa la importación manual.
+   */
+  startedBetween?: { sinceIso: string; untilIso: string };
   /** Páginas de 50 mensajes como máximo. */
   maxPages?: number;
   /** Persist only the opaque cursor, never an access token or provider URL. */
@@ -92,15 +98,23 @@ export interface ThreadSyncArgs {
  */
 export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> {
   const windowDays = args.windowDays ?? 0;
-  const desde = args.sinceIso ? new Date(args.sinceIso).getTime() : NaN;
-  const hasta = args.untilIso ? new Date(args.untilIso).getTime() : NaN;
+  const inicio = args.startedBetween
+    ? {
+        desde: new Date(args.startedBetween.sinceIso).getTime(),
+        hasta: new Date(args.startedBetween.untilIso).getTime(),
+      }
+    : null;
+  const desde = args.sinceIso && !inicio ? new Date(args.sinceIso).getTime() : NaN;
+  const hasta = args.untilIso && !inicio ? new Date(args.untilIso).getTime() : NaN;
   const cutoffMs = Number.isFinite(desde)
     ? desde
-    : windowDays > 0
+    : windowDays > 0 && !inicio
       ? Date.now() - windowDays * 86_400_000
       : 0;
+  // Con `startedBetween` el hilo se junta entero antes de guardar nada: recién
+  // al llegar a su primer mensaje se sabe si empezó en el rango.
+  const juntados: GraphMessage[] = [];
   const maxPages = args.maxPages ?? 4;
-  const admin = supabaseAdmin();
   let fields = RICH_FIELDS;
   let url: string | null =
     `${GRAPH}/${args.threadId}/messages?fields=${fields}&limit=50&access_token=${encodeURIComponent(args.token)}`;
@@ -128,6 +142,12 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
     const j = (await r.json()) as { data?: GraphMessage[]; paging?: { next?: string } };
 
     for (const m of j.data ?? []) {
+      if (inicio) {
+        // Un mensaje anterior al rango: el hilo empezó antes y no entra.
+        if (m.created_time && new Date(m.created_time).getTime() < inicio.desde) return 0;
+        juntados.push(m);
+        continue;
+      }
       // Newest-first: el primero fuera de la ventana implica que todo lo que
       // sigue también lo está.
       if (cutoffMs && m.created_time && new Date(m.created_time).getTime() < cutoffMs) {
@@ -135,38 +155,12 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
         break;
       }
       if (Number.isFinite(hasta) && m.created_time && new Date(m.created_time).getTime() > hasta) continue;
-      if (!m.id) continue;
-      const outbound = m.from?.id === args.selfId;
-      const parsed = await mapGraphMessage(m, args.connection.workspace_id, args.externalId);
-      if (outbound && isMetaCommentContextNotice(parsed.text)) continue;
-      // Nada que mostrar (Graph a veces devuelve el mensaje sin cuerpo ni
-      // adjunto legible): mejor no dejar una burbuja en blanco en el hilo.
-      if (!parsed.text && parsed.media.length === 0) continue;
-      const guardado = await ingestInboundEvent(admin, {
-        channel: args.connection.channel,
-        connection: args.connection,
-        externalContactId: args.externalId,
-        contactName: outbound
-          ? args.contactName
-          : (args.contactName ??
-            (m.from?.username ? `@${m.from.username}` : undefined) ??
-            m.from?.name ??
-            undefined),
-        externalMessageId: m.id,
-        text: parsed.text,
-        attachments: parsed.media.length ? parsed.media : undefined,
-        receivedAt: m.created_time ?? new Date().toISOString(),
-        outbound,
-        historical: true,
-        createIfMissing: args.createIfMissing,
-        raw: { backfill: true },
-      });
       // Sólo cuenta lo que ENTRÓ. `ingestInboundEvent` devuelve null cuando el
       // mensaje ya estaba (índice único por message_id), y contar igual hacía
       // que el barrido informara ~100 "ingested" por corrida releyendo la
       // misma historia: el número decía "el webhook pierde mensajes" cuando en
       // realidad no perdía ninguno.
-      if (guardado) ingested++;
+      if (await ingestGraphMessage(args, m)) ingested++;
     }
 
     if (reachedCutoff) {
@@ -179,9 +173,51 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
     }
     pages++;
   }
+  if (inicio) {
+    // Sin llegar al primer mensaje no se sabe cuándo empezó: no entra.
+    if (url) return 0;
+    const primero = juntados[juntados.length - 1]?.created_time;
+    if (!primero || new Date(primero).getTime() > inicio.hasta) return 0;
+    // Del más viejo al más nuevo, así la conversación nace con su fecha real.
+    for (const m of juntados.reverse()) {
+      if (await ingestGraphMessage(args, m)) ingested++;
+    }
+    return ingested;
+  }
   if (url && args.onCheckpoint) throw new Error('meta_thread_sync_pending');
   if (!url && args.onCheckpoint) await args.onCheckpoint(null);
   return ingested;
+}
+
+/** Guarda un mensaje de Graph en la bandeja. true si entró (no estaba). */
+async function ingestGraphMessage(args: ThreadSyncArgs, m: GraphMessage): Promise<boolean> {
+  if (!m.id) return false;
+  const outbound = m.from?.id === args.selfId;
+  const parsed = await mapGraphMessage(m, args.connection.workspace_id, args.externalId);
+  if (outbound && isMetaCommentContextNotice(parsed.text)) return false;
+  // Nada que mostrar (Graph a veces devuelve el mensaje sin cuerpo ni
+  // adjunto legible): mejor no dejar una burbuja en blanco en el hilo.
+  if (!parsed.text && parsed.media.length === 0) return false;
+  const guardado = await ingestInboundEvent(supabaseAdmin(), {
+    channel: args.connection.channel,
+    connection: args.connection,
+    externalContactId: args.externalId,
+    contactName: outbound
+      ? args.contactName
+      : (args.contactName ??
+        (m.from?.username ? `@${m.from.username}` : undefined) ??
+        m.from?.name ??
+        undefined),
+    externalMessageId: m.id,
+    text: parsed.text,
+    attachments: parsed.media.length ? parsed.media : undefined,
+    receivedAt: m.created_time ?? new Date().toISOString(),
+    outbound,
+    historical: true,
+    createIfMissing: args.createIfMissing,
+    raw: { backfill: true },
+  });
+  return Boolean(guardado);
 }
 
 /**

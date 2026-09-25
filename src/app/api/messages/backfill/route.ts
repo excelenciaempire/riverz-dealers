@@ -222,6 +222,11 @@ export async function POST(request: Request) {
   });
 }
 
+/**
+ * El rango elige QUÉ conversaciones: las que empezaron en él. Cada una entra
+ * completa, de su primer mensaje al último; una que empezó antes no entra
+ * aunque haya tenido actividad en el rango.
+ */
 async function pullConnection(
   connection: ChannelConnection,
   sinceIso: string,
@@ -292,8 +297,7 @@ async function pullConnection(
           externalId: other.id,
           contactName: other.username ? `@${other.username}` : other.name,
           createIfMissing: true,
-          sinceIso,
-          untilIso,
+          startedBetween: { sinceIso, untilIso },
           maxPages: Number.MAX_SAFE_INTEGER,
         });
       } catch (error) {

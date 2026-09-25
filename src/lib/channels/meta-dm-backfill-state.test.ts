@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isInsideMetaDmResumeWindow,
   readMetaDmBackfillPending,
+  syncFullThread,
   updateMetaDmBackfillCheckpoint,
 } from './meta-dm-backfill-state';
 
@@ -41,5 +42,23 @@ describe('Meta DM backfill checkpoint', () => {
 
     expect(next.dm_backfill_marca).toBe(objective);
     expect(next).not.toHaveProperty('dm_backfill_pendiente');
+  });
+});
+
+describe('syncFullThread', () => {
+  const base = { hasMark: true, knownContact: true, resuming: false, resumingFull: undefined };
+
+  it('trae completo el hilo la primera vez que se lo ve', () => {
+    expect(syncFullThread({ ...base, hasMark: false })).toBe(true);
+    expect(syncFullThread({ ...base, knownContact: false })).toBe(true);
+  });
+
+  it('con marca y contacto conocido sólo trae lo nuevo', () => {
+    expect(syncFullThread(base)).toBe(false);
+  });
+
+  it('un hilo retomado sigue en el modo en que empezó', () => {
+    expect(syncFullThread({ ...base, resuming: true, resumingFull: true })).toBe(true);
+    expect(syncFullThread({ ...base, hasMark: false, resuming: true, resumingFull: null })).toBe(false);
   });
 });

@@ -28,12 +28,8 @@ const MAX_BODY = 1_000_000;
 /** Filas por página: un cuerpo de historial puede pesar cientos de KB. */
 const PAGE = 50;
 
-/** Ids por consulta de mensajes existentes (van en la URL). */
+/** Ids por consulta (van en la URL). */
 const ID_CHUNK = 100;
-
-/** Meta puede entregar tarde; el reloj de Meta y el nuestro no coinciden al segundo. */
-const RECEIVED_SLACK_BEFORE_MS = 10 * 60_000;
-const RECEIVED_SLACK_AFTER_MS = 24 * 60 * 60_000;
 
 /**
  * Reacciones, ediciones y borrados modifican otro mensaje. Releerlos fuera de
@@ -46,6 +42,10 @@ export interface JournalItem {
   id?: string;
   type?: string;
   timestamp?: string;
+  /** Quien escribe: el cliente en los mensajes entrantes. */
+  from?: string;
+  /** El cliente en los ecos del teléfono del comercio. */
+  to?: string;
 }
 
 interface JournalValue {
@@ -119,17 +119,19 @@ export async function journalWhatsappDelivery(
 /**
  * La parte de una entrega que el backfill puede reconstruir para ESTE número:
  * mensajes del cliente, ecos del teléfono del comercio e historial, filtrados
- * por `keep`. Los acuses (`statuses`) se sacan: viajan en el mismo campo
- * `messages` y el adaptador los atiende primero, salteando lo demás. Devuelve
- * null si no queda nada.
+ * por `keep`, que recibe también el contacto de la conversación. Los acuses
+ * (`statuses`) se sacan: viajan en el mismo campo `messages` y el adaptador los
+ * atiende primero, salteando lo demás. Devuelve null si no queda nada.
  */
 export function replayablePayload(
   body: JournalBody,
   phoneNumberId: string,
-  keep: (item: JournalItem) => boolean,
+  keep: (item: JournalItem, contact: string) => boolean,
 ): JournalBody | null {
-  const usable = (item: JournalItem) =>
-    Boolean(item?.id) && !NOT_REPLAYABLE.has(String(item.type)) && keep(item);
+  const usable = (contactOf: (item: JournalItem) => unknown) => (item: JournalItem) =>
+    Boolean(item?.id) &&
+    !NOT_REPLAYABLE.has(String(item.type)) &&
+    keep(item, String(contactOf(item) ?? ""));
   const entries: NonNullable<JournalBody["entry"]> = [];
   for (const entry of body.entry ?? []) {
     const changes: Array<{ field?: string; value?: JournalValue }> = [];
@@ -139,17 +141,20 @@ export function replayablePayload(
       const rest: JournalValue = { ...value };
       delete rest.statuses;
       if (change.field === "messages") {
-        const messages = (value.messages ?? []).filter(usable);
+        const messages = (value.messages ?? []).filter(usable((item) => item.from));
         if (messages.length) changes.push({ ...change, value: { ...rest, messages } });
       } else if (change.field === "smb_message_echoes") {
-        const echoes = (value.message_echoes ?? []).filter(usable);
+        const echoes = (value.message_echoes ?? []).filter(usable((item) => item.to));
         if (echoes.length) changes.push({ ...change, value: { ...rest, message_echoes: echoes } });
       } else if (change.field === "history") {
         const history = (value.history ?? [])
           .map((chunk) => ({
             ...chunk,
             threads: (chunk?.threads ?? [])
-              .map((thread) => ({ ...thread, messages: (thread?.messages ?? []).filter(usable) }))
+              .map((thread) => ({
+                ...thread,
+                messages: (thread?.messages ?? []).filter(usable(() => thread?.id)),
+              }))
               .filter((thread) => thread.messages.length > 0),
           }))
           .filter((chunk) => chunk.threads.length > 0);
@@ -159,6 +164,22 @@ export function replayablePayload(
     if (changes.length) entries.push({ ...entry, changes });
   }
   return entries.length ? { ...body, entry: entries } : null;
+}
+
+/** Anota en `first` el primer mensaje (ms) de cada contacto de este número. */
+export function recordFirstMessages(
+  body: JournalBody,
+  phoneNumberId: string,
+  first: Map<string, number>,
+): void {
+  // Mismo recorrido que la relectura: sólo mira, no arma nada.
+  replayablePayload(body, phoneNumberId, (item, contact) => {
+    const at = Number(item.timestamp) * 1000;
+    if (contact && Number.isFinite(at) && at < (first.get(contact) ?? Infinity)) {
+      first.set(contact, at);
+    }
+    return false;
+  });
 }
 
 function itemIds(body: JournalBody): string[] {
@@ -205,27 +226,72 @@ async function knownMessageIds(
   return known;
 }
 
+/**
+ * De estos contactos, los que ya tienen en la bandeja un mensaje anterior a
+ * `sinceIso`: su conversación empezó antes, aunque el diario no lo muestre.
+ */
+async function startedEarlier(
+  db: SupabaseClient,
+  workspaceId: string,
+  contacts: string[],
+  sinceIso: string,
+): Promise<Set<string>> {
+  const earlier = new Set<string>();
+  for (let i = 0; i < contacts.length; i += ID_CHUNK) {
+    const { data: found, error } = await db
+      .from("contacts")
+      .select("id, external_id")
+      .eq("workspace_id", workspaceId)
+      .eq("channel", "whatsapp")
+      .in("external_id", contacts.slice(i, i + ID_CHUNK));
+    if (error) throw new Error(`contact lookup: ${error.code ?? error.message}`);
+    const byId = new Map(
+      ((found ?? []) as Array<{ id: string; external_id: string }>).map((c) => [c.id, c.external_id]),
+    );
+    if (byId.size === 0) continue;
+    const { data: convs, error: convError } = await db
+      .from("conversations")
+      .select("id, contact_id")
+      .eq("workspace_id", workspaceId)
+      .eq("channel", "whatsapp")
+      .in("contact_id", [...byId.keys()]);
+    if (convError) throw new Error(`conversation lookup: ${convError.code ?? convError.message}`);
+    for (const conv of (convs ?? []) as Array<{ id: string; contact_id: string }>) {
+      const contact = byId.get(conv.contact_id);
+      if (!contact || earlier.has(contact)) continue;
+      const { data: older, error: olderError } = await db
+        .from("messages")
+        .select("id")
+        .eq("conversation_id", conv.id)
+        .lt("created_at", sinceIso)
+        .limit(1);
+      if (olderError) throw new Error(`message lookup: ${olderError.code ?? olderError.message}`);
+      if (older?.length) earlier.add(contact);
+    }
+  }
+  return earlier;
+}
+
 type Source = "journal" | "failures";
 
 async function readPage(
   db: SupabaseClient,
   source: Source,
-  args: { phoneNumberId: string; fromIso: string; toIso: string; offset: number },
+  phoneNumberId: string,
+  offset: number,
 ): Promise<Array<{ raw_body: string }>> {
   let query = db.from("webhook_events_raw").select("id, raw_body");
   query =
     source === "journal"
-      ? query.eq("provider", WHATSAPP_JOURNAL_PROVIDER).eq("account_id", args.phoneNumberId)
+      ? query.eq("provider", WHATSAPP_JOURNAL_PROVIDER).eq("account_id", phoneNumberId)
       : query
           .in("provider", FAILURE_PROVIDERS)
           .is("processed_at", null)
-          .ilike("raw_body", `%${args.phoneNumberId}%`);
+          .ilike("raw_body", `%${phoneNumberId}%`);
   const { data, error } = await query
-    .gte("received_at", args.fromIso)
-    .lte("received_at", args.toIso)
     .order("received_at", { ascending: true })
     .order("id", { ascending: true })
-    .range(args.offset, args.offset + PAGE - 1);
+    .range(offset, offset + PAGE - 1);
   if (error) throw new Error(`${source} read: ${error.code ?? error.message}`);
   return (data ?? []) as Array<{ raw_body: string }>;
 }
@@ -240,9 +306,40 @@ function parseBody(raw: string): JournalBody | null {
 }
 
 /**
- * Backfill de una conexión de WhatsApp, coexistencia o no: relee las entregas
- * del diario (y las fallas capturadas) de su número y hace entrar los mensajes
- * con fecha dentro de la ventana que todavía no están. Todo entra como
+ * Recorre todas las entregas del número —el diario y las fallas capturadas—,
+ * de a una página. Devuelve el código de error si alguna fuente no se pudo leer.
+ */
+async function forEachDelivery(
+  db: SupabaseClient,
+  phoneNumberId: string,
+  onBody: (body: JournalBody) => Promise<void> | void,
+): Promise<string | undefined> {
+  let error: string | undefined;
+  for (const source of ["journal", "failures"] as const) {
+    for (let offset = 0; ; offset += PAGE) {
+      let rows: Array<{ raw_body: string }>;
+      try {
+        rows = await readPage(db, source, phoneNumberId, offset);
+      } catch (err) {
+        console.error("[whatsapp/journal] lectura fallida", { phoneNumberId, err });
+        error ??= source === "journal" ? "journal_unavailable" : "journal_read_failed";
+        break;
+      }
+      for (const row of rows) {
+        const body = parseBody(row.raw_body);
+        if (body) await onBody(body);
+      }
+      if (rows.length < PAGE) break;
+    }
+  }
+  return error;
+}
+
+/**
+ * Backfill de una conexión de WhatsApp, coexistencia o no. Como en Instagram y
+ * Messenger, el rango elige QUÉ conversaciones: las que empezaron en él. Cada
+ * una entra completa con todo lo que el diario tiene de ese contacto; una que
+ * empezó antes —en el diario o en la bandeja— no entra. Todo entra como
  * histórico: no suma no leídos ni despierta a la IA, las automatizaciones o los
  * flujos. Idempotente.
  */
@@ -254,24 +351,8 @@ export async function backfillWhatsappConnection(
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
   const phoneNumberId = String(cfg.phone_number_id ?? connection.external_account_id ?? "");
   if (!/^\d+$/.test(phoneNumberId)) return { ingested: 0, error: "missing_config" };
-
   const sinceMs = Date.parse(window.sinceIso);
   const untilMs = Date.parse(window.untilIso);
-  const fromIso = new Date(sinceMs - RECEIVED_SLACK_BEFORE_MS).toISOString();
-  const toIso = new Date(
-    Math.min(untilMs + RECEIVED_SLACK_AFTER_MS, Date.now() + 60_000),
-  ).toISOString();
-  const inWindow = (item: JournalItem) => {
-    const at = Number(item.timestamp) * 1000;
-    return Number.isFinite(at) && at >= sinceMs && at <= untilMs;
-  };
-
-  const adapter = getAdapter("whatsapp");
-  const request = new Request("https://riverz.co/api/messages/backfill");
-  // Ids ya resueltos en esta corrida: guardados de antes o ya intentados. La
-  // misma entrega puede estar en el diario y en las fallas, y Meta reentrega;
-  // sin esto la media se bajaría dos veces.
-  const handled = new Set<string>();
   let ingested = 0;
   let error: string | undefined;
   const fail = (err: unknown) => {
@@ -279,62 +360,73 @@ export async function backfillWhatsappConnection(
     console.error("[whatsapp/journal] relectura fallida", { connectionId: connection.id, err });
     error ??= "replay_failed";
   };
+  const done = () => (error ? { ingested, error } : { ingested });
 
-  for (const source of ["journal", "failures"] as const) {
-    for (let offset = 0; ; offset += PAGE) {
-      let rows: Array<{ raw_body: string }>;
-      try {
-        rows = await readPage(db, source, { phoneNumberId, fromIso, toIso, offset });
-      } catch (err) {
-        console.error("[whatsapp/journal] lectura fallida", { connectionId: connection.id, err });
-        error ??= source === "journal" ? "journal_unavailable" : "journal_read_failed";
-        break;
+  // 1. Cuándo empezó cada conversación según el diario.
+  const first = new Map<string, number>();
+  error = await forEachDelivery(db, phoneNumberId, (body) =>
+    recordFirstMessages(body, phoneNumberId, first),
+  );
+  const candidates = [...first]
+    .filter(([, at]) => at >= sinceMs && at <= untilMs)
+    .map(([contact]) => contact);
+  if (candidates.length === 0) return done();
+
+  // 2. Sin las que la bandeja ya tenía de antes.
+  let chosen: Set<string>;
+  try {
+    const earlier = await startedEarlier(db, connection.workspace_id, candidates, window.sinceIso);
+    chosen = new Set(candidates.filter((contact) => !earlier.has(contact)));
+  } catch (err) {
+    fail(err);
+    return done();
+  }
+  if (chosen.size === 0) return done();
+
+  // 3. Cada una completa.
+  const adapter = getAdapter("whatsapp");
+  const request = new Request("https://riverz.co/api/messages/backfill");
+  // Ids ya resueltos en esta corrida: guardados de antes o ya intentados. La
+  // misma entrega puede estar en el diario y en las fallas, y Meta reentrega;
+  // sin esto la media se bajaría dos veces.
+  const handled = new Set<string>();
+  const replayError = await forEachDelivery(db, phoneNumberId, async (body) => {
+    const candidate = replayablePayload(body, phoneNumberId, (_item, contact) =>
+      chosen.has(contact),
+    );
+    if (!candidate) return;
+    try {
+      const pending = itemIds(candidate).filter((id) => !handled.has(id));
+      for (const id of await knownMessageIds(db, connection.workspace_id, pending)) {
+        handled.add(id);
       }
-      const candidates: JournalBody[] = [];
-      for (const row of rows) {
-        const body = parseBody(row.raw_body);
-        const candidate = body && replayablePayload(body, phoneNumberId, inWindow);
-        if (candidate) candidates.push(candidate);
-      }
+    } catch (err) {
+      fail(err);
+      return;
+    }
+    const payload = replayablePayload(candidate, phoneNumberId, (item) => !handled.has(String(item.id)));
+    if (!payload) return;
+    for (const id of itemIds(payload)) handled.add(id);
+    let events: InboundEvent[];
+    try {
+      events = await adapter.parseWebhook({ request, rawBody: "", payload }, connection);
+    } catch (err) {
+      fail(err);
+      return;
+    }
+    for (const event of events) {
       try {
-        const pending = candidates.flatMap(itemIds).filter((id) => !handled.has(id));
-        for (const id of await knownMessageIds(db, connection.workspace_id, pending)) {
-          handled.add(id);
-        }
+        const saved = await ingestInboundEvent(db, {
+          ...event,
+          historical: true,
+          suppressAutoReply: true,
+        });
+        if (saved) ingested++;
       } catch (err) {
         fail(err);
-        candidates.length = 0;
       }
-      for (const candidate of candidates) {
-        const payload = replayablePayload(
-          candidate,
-          phoneNumberId,
-          (item) => !handled.has(String(item.id)),
-        );
-        if (!payload) continue;
-        for (const id of itemIds(payload)) handled.add(id);
-        let events: InboundEvent[];
-        try {
-          events = await adapter.parseWebhook({ request, rawBody: "", payload }, connection);
-        } catch (err) {
-          fail(err);
-          continue;
-        }
-        for (const event of events) {
-          try {
-            const saved = await ingestInboundEvent(db, {
-              ...event,
-              historical: true,
-              suppressAutoReply: true,
-            });
-            if (saved) ingested++;
-          } catch (err) {
-            fail(err);
-          }
-        }
-      }
-      if (rows.length < PAGE) break;
     }
-  }
-  return error ? { ingested, error } : { ingested };
+  });
+  error ??= replayError;
+  return done();
 }

@@ -238,8 +238,8 @@ export const igAgent = {
   backfillTitle: { es: 'Importar historial', en: 'Import history' },
   backfillOpen: { es: 'Importar', en: 'Import' },
   backfillDialogDescription: {
-    es: 'Recupera comentarios y mensajes sin enviar respuestas.',
-    en: 'Recover comments and messages without sending replies.',
+    es: 'Recupera comentarios y las conversaciones completas que empezaron en el periodo, sin enviar respuestas.',
+    en: 'Recover comments and the complete conversations that started in the period, without sending replies.',
   },
   backfillDays: { es: 'Periodo', en: 'Period' },
   backfillDays7: { es: '7 días', en: '7 days' },

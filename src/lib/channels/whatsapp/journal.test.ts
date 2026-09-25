@@ -242,41 +242,64 @@ describe("backfillWhatsappConnection", () => {
     sinceIso: new Date(Date.now() - 24 * HOUR).toISOString(),
     untilIso: new Date().toISOString(),
   };
+  const msg = (id: string, from: string, hoursAgo: number, type = "text") => ({
+    id,
+    from,
+    type,
+    timestamp: seconds(hoursAgo * HOUR),
+  });
 
-  it("hace entrar como histórico sólo lo que falta y cae en la ventana", async () => {
-    const journalBody = JSON.stringify(
-      delivery([
-        messagesChange(
-          PHONE,
-          [
-            { id: "stored", type: "text", timestamp: seconds(HOUR) },
-            { id: "missing", type: "text", timestamp: seconds(2 * HOUR) },
-            { id: "too-old", type: "text", timestamp: seconds(30 * HOUR) },
-            { id: "react", type: "reaction", timestamp: seconds(HOUR) },
-          ],
-          { statuses: [{ id: "s", status: "read" }] },
-        ),
-      ]),
-    );
+  /** La bandeja: qué contactos existen y si tienen mensajes anteriores. */
+  function inbox(call: Call, opts: { contacts?: string[]; earlier?: boolean } = {}) {
+    if (call.table === "contacts") {
+      return { data: (opts.contacts ?? []).map((c) => ({ id: `id-${c}`, external_id: c })), error: null };
+    }
+    if (call.table === "conversations") {
+      return { data: (opts.contacts ?? []).map((c) => ({ id: `conv-${c}`, contact_id: `id-${c}` })), error: null };
+    }
+    if (call.table === "messages") {
+      // Mensaje anterior al rango en la bandeja / ids ya guardados.
+      if (has(call, "lt")) return { data: opts.earlier ? [{ id: "viejo" }] : [], error: null };
+      return { data: [], error: null };
+    }
+    return null;
+  }
+
+  it("entra completa la conversación que empezó en el rango, y no la que empezó antes", async () => {
+    const hasta12 = { ...window, untilIso: new Date(Date.now() - 12 * HOUR).toISOString() };
+    const rows = [
+      JSON.stringify(delivery([messagesChange(PHONE, [msg("a-1", "ana", 20), msg("b-1", "beto", 30)])])),
+      JSON.stringify(
+        delivery([
+          messagesChange(
+            PHONE,
+            [msg("a-2", "ana", 2), msg("b-2", "beto", 2), msg("a-react", "ana", 2, "reaction")],
+            { statuses: [{ id: "s", status: "read" }] },
+          ),
+        ]),
+      ),
+    ];
     const { db, calls } = fakeDb((call) => {
-      if (call.table === "messages") return { data: [{ message_id: "stored" }], error: null };
+      const bandeja = inbox(call, { contacts: ["ana"] });
+      if (bandeja) return bandeja;
       if (has(call, "eq", "provider", WHATSAPP_JOURNAL_PROVIDER)) {
-        return { data: [{ id: "r1", raw_body: journalBody }], error: null };
+        return { data: rows.map((raw_body, i) => ({ id: `r${i}`, raw_body })), error: null };
       }
       return { data: [], error: null };
     });
 
-    const result = await backfillWhatsappConnection(db, connection, window);
+    const result = await backfillWhatsappConnection(db, connection, hasta12);
 
-    expect(result).toEqual({ ingested: 1 });
-    expect(parsed).toHaveLength(1);
-    const value = (parsed[0] as { entry: Array<{ changes: Array<{ value: Record<string, unknown> }> }> })
-      .entry[0].changes[0].value;
-    expect((value.messages as Array<{ id: string }>).map((m) => m.id)).toEqual(["missing"]);
-    expect(value).not.toHaveProperty("statuses");
-    expect(ingested).toEqual([
-      expect.objectContaining({ externalMessageId: "missing", historical: true, suppressAutoReply: true }),
-    ]);
+    // Ana empezó en el rango: entra entera, también lo posterior al "hasta".
+    // Beto empezó antes: no entra nada suyo aunque escribió en el rango.
+    expect(result).toEqual({ ingested: 2 });
+    expect(ingested.map((e) => e.externalMessageId)).toEqual(["a-1", "a-2"]);
+    expect(ingested.every((e) => e.historical === true && e.suppressAutoReply === true)).toBe(true);
+    for (const payload of parsed) {
+      const value = (payload as { entry: Array<{ changes: Array<{ value: Record<string, unknown> }> }> })
+        .entry[0].changes[0].value;
+      expect(value).not.toHaveProperty("statuses");
+    }
     // El diario se busca por número y la captura de fallas por el cuerpo.
     const journalRead = calls.find((c) => has(c, "eq", "provider", WHATSAPP_JOURNAL_PROVIDER));
     expect(journalRead && has(journalRead, "eq", "account_id", PHONE)).toBe(true);
@@ -284,12 +307,26 @@ describe("backfillWhatsappConnection", () => {
     expect(failuresRead && has(failuresRead, "ilike", "raw_body", `%${PHONE}%`)).toBe(true);
   });
 
-  it("sin el diario sigue con las fallas capturadas y avisa que quedó incompleto", async () => {
-    const failureBody = JSON.stringify(
-      delivery([messagesChange(PHONE, [{ id: "lost", type: "text", timestamp: seconds(HOUR) }])]),
-    );
+  it("no entra la conversación que la bandeja ya tenía desde antes del rango", async () => {
+    const row = JSON.stringify(delivery([messagesChange(PHONE, [msg("a-1", "ana", 5)])]));
     const { db } = fakeDb((call) => {
-      if (call.table === "messages") return { data: [], error: null };
+      const bandeja = inbox(call, { contacts: ["ana"], earlier: true });
+      if (bandeja) return bandeja;
+      if (has(call, "eq", "provider", WHATSAPP_JOURNAL_PROVIDER)) {
+        return { data: [{ id: "r1", raw_body: row }], error: null };
+      }
+      return { data: [], error: null };
+    });
+
+    expect(await backfillWhatsappConnection(db, connection, window)).toEqual({ ingested: 0 });
+    expect(parsed).toHaveLength(0);
+  });
+
+  it("sin el diario sigue con las fallas capturadas y avisa que quedó incompleto", async () => {
+    const failureBody = JSON.stringify(delivery([messagesChange(PHONE, [msg("lost", "ana", 1)])]));
+    const { db } = fakeDb((call) => {
+      const bandeja = inbox(call);
+      if (bandeja) return bandeja;
       if (has(call, "eq", "provider", WHATSAPP_JOURNAL_PROVIDER)) {
         return { data: null, error: { code: "42703", message: "column account_id does not exist" } };
       }
@@ -303,11 +340,10 @@ describe("backfillWhatsappConnection", () => {
   });
 
   it("una entrega repetida en el diario y en las fallas entra una sola vez", async () => {
-    const body = JSON.stringify(
-      delivery([messagesChange(PHONE, [{ id: "dup", type: "text", timestamp: seconds(HOUR) }])]),
-    );
+    const body = JSON.stringify(delivery([messagesChange(PHONE, [msg("dup", "ana", 1)])]));
     const { db } = fakeDb((call) => {
-      if (call.table === "messages") return { data: [], error: null };
+      const bandeja = inbox(call);
+      if (bandeja) return bandeja;
       return { data: [{ id: "row", raw_body: body }, { id: "row-2", raw_body: body }], error: null };
     });
 

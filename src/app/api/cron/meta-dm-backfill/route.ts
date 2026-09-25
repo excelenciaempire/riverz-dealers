@@ -14,6 +14,7 @@ import {
   META_DM_BACKFILL_MARK,
   META_DM_BACKFILL_PENDING,
   readMetaDmBackfillPending,
+  syncFullThread,
   updateMetaDmBackfillCheckpoint,
 } from "@/lib/channels/meta-dm-backfill-state";
 import type { ChannelConnection } from "@/types";
@@ -29,7 +30,8 @@ const GRAPH = "https://graph.facebook.com/v22.0";
  */
 const SOLAPE_MS = 15 * 60_000;
 
-/** Cuánto historial mira la PRIMERA corrida de una conexión (no hay marca). */
+/** Qué hilos mira la PRIMERA corrida de una conexión (no hay marca): los que
+ *  tuvieron actividad en estos días. Cada uno entra completo. */
 const ARRANQUE_DIAS = 30;
 
 /** Páginas de la lista de conversaciones (50 hilos cada una) por corrida. */
@@ -235,6 +237,13 @@ async function cronHandler(request: Request) {
               .eq("channel", c.channel)
               .eq("external_id", externalId)
               .maybeSingle();
+            const retomado = cfg.dm_backfill_thread_id === conv.id;
+            const completo = syncFullThread({
+              hasMark: Boolean(marca),
+              knownContact: Boolean(contacto),
+              resuming: retomado,
+              resumingFull: cfg.dm_backfill_thread_full,
+            });
             hilos++;
             ingested += await syncThreadMessages({
               token,
@@ -252,13 +261,16 @@ async function cronHandler(request: Request) {
               // desconocido —el hilo que el comercio inició desde la app— se
               // crea.
               createIfMissing: !contacto,
-              sinceIso: pisoIso,
+              // La conversación completa, no sólo la franja: la primera vez que
+              // se la ve entra entera.
+              sinceIso: completo ? undefined : pisoIso,
               deadlineMs: connectionDeadline,
-              after: cfg.dm_backfill_thread_id === conv.id ? String(cfg.dm_backfill_thread_after ?? '') || undefined : undefined,
+              after: retomado ? String(cfg.dm_backfill_thread_after ?? '') || undefined : undefined,
               onCheckpoint: async (after) => {
                 await savePollState(admin, c.id, {
                   dm_backfill_thread_id: after ? conv.id : null,
                   dm_backfill_thread_after: after,
+                  dm_backfill_thread_full: after ? completo : null,
                 }, null, { complete: false });
               },
             });

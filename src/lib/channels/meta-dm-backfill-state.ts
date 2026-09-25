@@ -36,6 +36,22 @@ export function isInsideMetaDmResumeWindow(
   return !pending || updatedAtMs <= new Date(pending.hasta).getTime();
 }
 
+/**
+ * Si un hilo se trae completo o sólo desde la marca. Completo la primera vez
+ * que se lo ve —pasada inicial o participante que Riverz no conocía—; después
+ * alcanza con lo nuevo. Un hilo retomado a mitad sigue en el modo en que empezó:
+ * si no, lo que faltaba de un hilo completo se cortaría en la marca.
+ */
+export function syncFullThread(args: {
+  hasMark: boolean;
+  knownContact: boolean;
+  resuming: boolean;
+  resumingFull: unknown;
+}): boolean {
+  if (args.resuming) return args.resumingFull === true;
+  return !args.hasMark || !args.knownContact;
+}
+
 export function updateMetaDmBackfillCheckpoint(
   config: Record<string, unknown>,
   outcome: {
