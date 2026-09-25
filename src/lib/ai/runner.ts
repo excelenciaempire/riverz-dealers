@@ -8,7 +8,7 @@ import {
   renderProductOptionsImage,
   type ProductOptionsImage,
 } from '../products/options-image';
-import { purchaseConfirmationReply } from './purchase-confirmation-reply';
+import { directPurchaseButtonIsSafe, purchaseConfirmationReply } from './purchase-confirmation-reply';
 import { enrichConversationEvidence, evidenceText, type EvidenceRow } from './conversation-evidence';
 import { DEUNA_WORKSPACE, ORDER_CONVERSATION_POLICY, ORDER_OPERATION_POLICY, orderConversationModel } from './order-conversation-policy';
 import {
@@ -760,6 +760,55 @@ export async function runAiAgent(
         message_id: messageId,
       });
       return;
+    }
+
+    // A plain CONFIRMAR/CORREGIR directly after the purchase summary needs
+    // one short response, not another sales pitch and a repeat of every order
+    // field. This is deliberately narrow: once the customer or team has said
+    // anything else, or Shopify no longer matches the summary, the agent must
+    // read the full conversation (Efra's competing-order case).
+    if (purchaseButtonReply && args.channel === 'whatsapp') {
+      const orderId = String(automationContext?.order_id ?? '');
+      const [prior, currentOrder] = await Promise.all([
+        db.from('messages')
+          .select('sender_type,origin,template_name,status,content_text')
+          .eq('conversation_id', args.conversation.id)
+          .lt('created_at', args.inboundMessage.created_at)
+          .order('created_at', { ascending: false })
+          .limit(26),
+        db.from('orders')
+          .select('shopify_order_id,status,fulfillment_status,financial_status,line_items,shipping_address,customer_phone')
+          .eq('workspace_id', args.workspaceId)
+          .eq('contact_id', args.contact.id)
+          .eq('shopify_order_id', orderId)
+          .maybeSingle(),
+      ]);
+      if (!prior.error && !currentOrder.error && directPurchaseButtonIsSafe({
+        context: automationContext,
+        priorMessages: prior.data ?? [],
+        order: currentOrder.data,
+      })) {
+        if (await replyWasSuperseded(db, args.conversation.id, args.inboundMessage)) {
+          await logReply(db, agent, args, { status: 'skipped', skip_reason: 'stale_by_newer_inbound' });
+          return;
+        }
+        const fresh = await db.from('conversations')
+          .select('ai_enabled,assigned_agent_id,status')
+          .eq('id', args.conversation.id)
+          .maybeSingle();
+        if (fresh.error) throw fresh.error;
+        const nowSkip = fresh.data && shouldSkip(agent, {
+          ...args,
+          conversation: { ...args.conversation, ...fresh.data } as Conversation,
+        });
+        if (nowSkip) {
+          await logReply(db, agent, args, { status: 'skipped', skip_reason: nowSkip });
+          return;
+        }
+        const messageId = await sendDeterministicAgentReply(db, agent, args, purchaseButtonReply);
+        await logReply(db, agent, args, { status: 'sent', message_id: messageId });
+        return;
+      }
     }
 
     // El catálogo sincronizado sirve para describir; para COTIZAR se verifica
