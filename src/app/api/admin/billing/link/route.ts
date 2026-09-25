@@ -4,7 +4,8 @@ import { csrfGuard } from '@/lib/csrf';
 import { requireAdmin } from '@/lib/admin/guard';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { aSuscripcion } from '@/lib/billing/plan';
-import { eligibleForFirstMonthOffer, firstMonthCents, FIRST_MONTH_DISCOUNT_PERCENT } from '@/lib/billing/first-month-offer';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 import {
   cuponesVigentes,
   stripeDisponible,
@@ -23,8 +24,8 @@ import {
  * el id viaja en la metadata, así que cuando el pago entra, el webhook sabe a
  * quién activarle la cuenta sin que nadie lo cruce después.
  *
- *   GET  ?workspace_id=… → los cupones que se pueden aplicar
- *   POST { workspace_id, cupon? } → la URL para mandarle
+ *   GET → los cupones que se pueden aplicar
+ *   POST { workspace_id, cupon?, primer_mes_sin_cargo? } → la URL para mandarle
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -73,24 +74,14 @@ async function suscripcionDe(
   return aSuscripcion(data as any);
 }
 
-export async function GET(request: Request) {
+export async function GET() {
   const gate = await requireAdmin();
   if (!gate.ok) return gate.res;
-  const workspaceId = new URL(request.url).searchParams.get('workspace_id');
-  const s = workspaceId ? await suscripcionDe(supabaseAdmin(), workspaceId) : null;
-  const promo = s && eligibleForFirstMonthOffer(s)
-    ? {
-        percent: FIRST_MONTH_DISCOUNT_PERCENT,
-        firstMonthCents: firstMonthCents(s.precioAcuerdoCentavos),
-        monthlyCents: s.precioAcuerdoCentavos,
-        currency: s.plan?.moneda ?? 'usd',
-      }
-    : null;
   if (!stripeDisponible()) {
-    return NextResponse.json({ cupones: [], stripe: false, promo });
+    return NextResponse.json({ cupones: [], stripe: false });
   }
   try {
-    return NextResponse.json({ cupones: await cuponesVigentes(), stripe: true, promo });
+    return NextResponse.json({ cupones: await cuponesVigentes(), stripe: true });
   } catch (e) {
     const motivo = e instanceof Error ? e.message : 'no se pudo leer Stripe';
     return NextResponse.json({ error: motivo }, { status: 400 });
@@ -113,14 +104,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'falta la cuenta' }, { status: 400 });
   }
   if (!stripeDisponible()) {
-    return NextResponse.json({ error: 'Stripe no está configurado.' }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(await getLocale(), 'admin.billingStripeUnavailable') },
+      { status: 400 },
+    );
   }
 
   const db = supabaseAdmin();
   const s = await suscripcionDe(db, workspaceId);
   if (!s) {
     return NextResponse.json(
-      { error: 'Esta cuenta todavía no tiene una suscripción cargada.' },
+      { error: translate(await getLocale(), 'admin.billingNoSubscription') },
       { status: 400 },
     );
   }
@@ -141,7 +135,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ url });
   } catch (e) {
-    const motivo = e instanceof Error ? e.message : 'no se pudo armar el link';
+    const motivo = e instanceof Error ? e.message : translate(await getLocale(), 'admin.billingLinkFailed');
     return NextResponse.json({ error: motivo }, { status: 400 });
   }
 }

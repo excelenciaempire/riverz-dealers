@@ -6,7 +6,12 @@ import { useFormat } from "@/hooks/use-format";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import type { ModeloCobro, Plan } from "@/lib/billing/plan";
 import type { CuponDeStripe } from "@/lib/billing/stripe";
-import type { CuentaDelNegocio, Negocio } from "@/lib/billing/negocio";
+import type { CuentaDelNegocio, EstadoDePago, Negocio } from "@/lib/billing/negocio";
+import {
+  eligibleForFirstMonthOffer,
+  firstMonthCents,
+  FIRST_MONTH_DISCOUNT_PERCENT,
+} from "@/lib/billing/first-month-offer";
 import type { Tarifa } from "@/lib/wallet/tarifas";
 import {
   useAdminData,
@@ -37,11 +42,10 @@ import {
  * operar la cuenta de un comercio de punta a punta y no había dónde anotar que
  * ese comercio paga.
  *
- * Las cuentas de **cortesía** —los primeros comercios, a los que se les instala
- * gratis— cuentan como clientes con MRR 0 y no se excluyen. En esta etapa son
- * la mayoría, y sacarlas del cuadro haría parecer que no hay nadie usando la
- * plataforma cuando el costo de atenderlas es real y es justo lo que hay que
- * mirar.
+ * Cada cuenta muestra si ya paga en Stripe, no el estado interno: lo que hay
+ * que saber de un comercio es si completó el link y si el cobro sigue entrando.
+ * Las que todavía no pagan cuentan con MRR 0 y no se excluyen: el costo de
+ * atenderlas es real y es justo lo que hay que mirar.
  *
  * El precio se edita acá y no en el código: en una etapa donde todavía se está
  * descubriendo, tenerlo compilado significa que cada prueba cuesta un deploy.
@@ -54,16 +58,14 @@ interface Payload {
   diasDePrueba: number;
 }
 
-const ESTADOS = ["prueba", "activa", "cortesia", "vencida", "cancelada"] as const;
-const ESTADOS_RESUMEN = ["sin_configurar", ...ESTADOS] as const;
-
-const TONO: Record<string, Tone> = {
-  sin_configurar: "warn",
-  activa: "ok",
-  cortesia: "muted",
-  prueba: "warn",
-  vencida: "error",
-  cancelada: "error",
+/** Cómo se ve cada estado de pago, en el orden del resumen. */
+const PAGO: Record<EstadoDePago, { tono: Tone; etiqueta: string }> = {
+  al_dia: { tono: "ok", etiqueta: "admin.billingPago_al_dia" },
+  sin_pagar: { tono: "warn", etiqueta: "admin.billingPago_sin_pagar" },
+  fallido: { tono: "error", etiqueta: "admin.billingPago_fallido" },
+  cancelado: { tono: "error", etiqueta: "admin.billingPago_cancelado" },
+  sin_mensualidad: { tono: "muted", etiqueta: "admin.billingPago_sin_mensualidad" },
+  sin_configurar: { tono: "warn", etiqueta: "admin.billingPago_sin_configurar" },
 };
 
 const usd = (centavos: number) =>
@@ -140,7 +142,8 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
     (hasta ? `&to=${encodeURIComponent(hasta)}` : "");
   const { data, loading, error, reload, live } = useAdminData<Payload>(url);
 
-  const guardarCuenta = async (cuenta: Record<string, unknown>) => {
+  /** `true` si quedó guardado: el link de pago se arma recién después. */
+  const guardarCuenta = async (cuenta: Record<string, unknown>): Promise<boolean> => {
     setGuardando(true);
     setErrorCuenta(null);
     try {
@@ -152,11 +155,13 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
       if (!res.ok) {
         const json = (await res.json().catch(() => null)) as { error?: string } | null;
         setErrorCuenta(json?.error ?? t("admin.billingSaveFailed"));
-        return;
+        return false;
       }
       reload();
+      return true;
     } catch {
       setErrorCuenta(t("admin.billingSaveFailed"));
+      return false;
     } finally {
       setGuardando(false);
     }
@@ -183,7 +188,7 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         setAlta(false);
         reload();
       } else {
-        setErrorAlta(json.error ?? "no se pudo");
+        setErrorAlta(json.error ?? t("admin.billingSaveFailed"));
       }
     } finally {
       setGuardando(false);
@@ -271,19 +276,13 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
           <div>
             <p className="font-medium text-foreground">{c.nombre}</p>
             {c.correo && <Muted>{c.correo}</Muted>}
-            {c.nota && <Muted>{c.nota}</Muted>}
           </div>
         ),
       },
       {
-        key: "estado",
-        header: t("admin.billingState"),
-        cell: (c) => (
-          <StatusPill
-            tone={TONO[c.estado] ?? "muted"}
-            label={t(`admin.billingState_${c.estado}`)}
-          />
-        ),
+        key: "pago",
+        header: t("admin.billingPayment"),
+        cell: (c) => <EstadoDelPago cuenta={c} />,
       },
       {
         key: "plan",
@@ -294,19 +293,18 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         },
       },
       {
-        key: "mrr",
-        header: t("admin.billingMrr"),
+        key: "mensualidad",
+        header: t("admin.billingMonthlyFee"),
         cell: (c) => (
           <span className="tabular-nums">
-            {usd(c.mrrCentavos)}
-            {c.tratoPropio && <Muted> · {t("admin.billingOwnDeal")}</Muted>}
+            {c.precioAcuerdoCentavos > 0 ? usd(c.precioAcuerdoCentavos) : "—"}
           </span>
         ),
       },
       {
         key: "modelo",
         header: t("admin.billingModel"),
-        cell: (c) => t(`admin.billingModel_${c.modeloCobro}`),
+        cell: (c) => (c.tieneSuscripcion ? t(`admin.billingModel_${c.modeloCobro}`) : "—"),
       },
       {
         key: "uso",
@@ -323,12 +321,10 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         key: "saldo",
         header: t("admin.walletBalance"),
         cell: (c) => {
-          if (c.modeloCobro !== "saldo") {
-            return <Muted>{t(`admin.billingModel_${c.modeloCobro}`)}</Muted>;
-          }
-          // El rojo es sólo cuando el saldo cero APAGA algo. Pintar en rojo a
-          // una cuenta de cortesía —que nunca se apaga— es inventar una alarma.
-          const apagada = c.bloqueaSinSaldo && c.saldoCentavos <= 0;
+          if (c.modeloCobro !== "saldo") return <Muted>—</Muted>;
+          // El rojo es sólo cuando el saldo cero APAGA la IA, como lo decide la
+          // puerta: la cuenta que todavía no paga el link nunca se apaga.
+          const apagada = c.tieneSuscripcion && c.estado !== "cortesia" && c.saldoCentavos <= 0;
           return (
             <span className="tabular-nums">
               <span className={apagada ? "text-destructive" : undefined}>
@@ -399,7 +395,7 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         <Stat
           label={t("admin.billingArpu")}
           value={usd(negocio.arpuCentavos)}
-          hint={t("admin.billingPaying", { n: negocio.clientes.pagando })}
+          hint={t("admin.billingPaying", { n: negocio.pagando })}
         />
       </div>
 
@@ -428,26 +424,14 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
 
       <Panel title={t("admin.billingCustomers")}>
         <div className="flex flex-wrap gap-4 p-4 text-sm">
-          {ESTADOS_RESUMEN.map((e) => {
-            const n =
-              e === "sin_configurar"
-                ? negocio.clientes.sinConfigurar
-                : e === "activa"
-                ? negocio.clientes.pagando
-                : e === "cortesia"
-                  ? negocio.clientes.cortesia
-                  : e === "prueba"
-                    ? negocio.clientes.enPrueba
-                    : e === "vencida"
-                      ? negocio.clientes.vencidas
-                      : negocio.clientes.canceladas;
-            return (
-              <span key={e} className="tabular-nums">
-                <strong className="text-foreground">{n}</strong>{" "}
-                <Muted>{t(`admin.billingState_${e}`)}</Muted>
+          {(Object.keys(PAGO) as EstadoDePago[])
+            .filter((p) => negocio.porPago[p] > 0)
+            .map((p) => (
+              <span key={p} className="tabular-nums">
+                <strong className="text-foreground">{negocio.porPago[p]}</strong>{" "}
+                <Muted>{t(PAGO[p].etiqueta)}</Muted>
               </span>
-            );
-          })}
+            ))}
         </div>
       </Panel>
 
@@ -571,7 +555,6 @@ function BloqueBilletera({
 }) {
   const t = useT();
   const [monto, setMonto] = useState("");
-  const [motivo, setMotivo] = useState("");
 
   const cargar = () => {
     const dolares = Number(monto.replace(",", "."));
@@ -580,14 +563,12 @@ function BloqueBilletera({
       workspace_id: cuenta.workspaceId,
       centavos: Math.round(dolares * 100),
       tipo: "bono",
-      motivo,
     });
     setMonto("");
-    setMotivo("");
   };
 
   return (
-    <div className="mt-3 space-y-3 rounded-xl border border-border p-3">
+    <div className="space-y-3 rounded-xl border border-border p-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-foreground">
           {t("admin.walletBalance")}:{" "}
@@ -626,28 +607,23 @@ function BloqueBilletera({
           </label>
         </div>
       </div>
-      <div className="grid grid-cols-2 items-end gap-2 lg:grid-cols-4">
-        <Campo label={t("admin.walletGrantAmount")}>
-          <input
-            className={INPUT}
-            inputMode="decimal"
-            placeholder="50"
-            value={monto}
-            onChange={(e) => setMonto(e.target.value)}
-          />
-        </Campo>
-        <Campo label={t("admin.walletGrantWhy")}>
-          <input
-            className={INPUT}
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-          />
-        </Campo>
+      <div className="flex items-end gap-2">
+        <div className="w-40">
+          <Campo label={t("admin.walletGrantAmount")}>
+            <input
+              className={INPUT}
+              inputMode="decimal"
+              placeholder="50"
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+            />
+          </Campo>
+        </div>
         <button
           type="button"
           disabled={guardando || !monto}
           onClick={cargar}
-          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-60"
+          className="h-[34px] rounded-lg border border-border px-3 text-xs font-medium text-foreground disabled:opacity-50"
         >
           {t("admin.walletGrant")}
         </button>
@@ -819,7 +795,7 @@ function FilaPlan({
 }
 
 /**
- * El trato de una cuenta: con saldo, con plan o BYOK.
+ * El trato de una cuenta —con saldo, con plan o BYOK— y su cobro.
  *
  * Cada sistema de cobro muestra sólo lo suyo. Con plan elige un plan de
  * contactos y su cupo. Con saldo no tiene cupo ni plan que elegir: lleva el
@@ -843,7 +819,7 @@ function FormularioCuenta({
   planes: Plan[];
   guardando: boolean;
   error: string | null;
-  onGuardar: (c: Record<string, unknown>) => void;
+  onGuardar: (c: Record<string, unknown>) => Promise<boolean>;
   onCerrar: () => void;
   onMover: (s: Record<string, unknown>) => void;
   onBloqueo: (workspaceId: string, cambio: Record<string, unknown>) => void;
@@ -854,7 +830,6 @@ function FormularioCuenta({
     plan_id: "",
     precio: "",
     incluidas: "",
-    nota: cuenta.nota ?? "",
   });
   const oficial = f.modelo === "oficial";
   const planActual = planes.find((p) => p.slug === cuenta.planSlug);
@@ -869,11 +844,22 @@ function FormularioCuenta({
   const incluidasEscritas = f.incluidas.trim();
   const incluidasValidas = !oficial || incluidasEscritas === "" ||
     (Number.isInteger(Number(incluidasEscritas)) && Number(incluidasEscritas) >= 0);
+  const valido = planValido && precioValido && incluidasValidas;
   // La mensualidad pactada al guardar: la escrita, la del plan nuevo o la de hoy.
-  const precioFinal = precioEscrito ? precio : f.plan_id ? plan?.precioCentavos ?? 0 : cuenta.precioAcuerdoCentavos;
-  // Un link armado con el trato anterior cobraría otra cosa.
-  const cambiaElCobro = f.modelo !== cuenta.modeloCobro || plan?.id !== planActual?.id ||
-    precioFinal !== cuenta.precioAcuerdoCentavos;
+  const mensualidad = precioEscrito
+    ? precio ?? 0
+    : f.plan_id ? plan?.precioCentavos ?? 0 : cuenta.precioAcuerdoCentavos;
+  const pendiente = !cuenta.tieneSuscripcion || f.modelo !== cuenta.modeloCobro ||
+    plan?.id !== planActual?.id || mensualidad !== cuenta.precioAcuerdoCentavos ||
+    (oficial && incluidasEscritas !== "");
+  // La promoción del primer mes con el trato como va a quedar: la misma
+  // cuenta que hace el checkout.
+  const conPromo = !cuenta.suscripcionExterna && eligibleForFirstMonthOffer({
+    modeloCobro: f.modelo,
+    plan: plan ? { slug: plan.slug } : null,
+    stripeSubscriptionId: null,
+    precioAcuerdoCentavos: mensualidad,
+  });
 
   const cambiarModelo = (modelo: ModeloCobro) =>
     setF({
@@ -886,9 +872,11 @@ function FormularioCuenta({
       incluidas: "",
     });
 
-  const guardar = () => {
-    if (!precioValido || !incluidasValidas || !planValido) return;
-    onGuardar({
+  /** Guarda lo que falte. `true` si lo guardado es lo que muestra el formulario. */
+  const guardarPendiente = async () => {
+    if (!pendiente) return true;
+    if (!valido) return false;
+    return onGuardar({
       workspace_id: cuenta.workspaceId,
       modelo_cobro: f.modelo,
       ...(f.plan_id ? { plan_id: f.plan_id } : {}),
@@ -898,13 +886,16 @@ function FormularioCuenta({
       ...(oficial && incluidasEscritas !== ""
         ? { incluidas_override: Number(incluidasEscritas) }
         : f.plan_id ? { incluidas_override: null, excedente_centavos_override: null } : {}),
-      nota: f.nota,
     });
+  };
+
+  const guardar = async () => {
+    if (await guardarPendiente()) onCerrar();
   };
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-2">
         <div className="grid gap-4 sm:grid-cols-2">
           <Campo label={t("admin.billingModel")}>
             <select
@@ -991,46 +982,20 @@ function FormularioCuenta({
               </Campo>
             </>
           )}
-          <div className="sm:col-span-2">
-            <Campo label={t("admin.billingNote")}>
-              <input
-                className={INPUT}
-                value={f.nota}
-                onChange={(e) => setF({ ...f, nota: e.target.value })}
-              />
-            </Campo>
-          </div>
         </div>
         {f.modelo === "byok" && !cuenta.tieneClavePropia && (
           <p className="text-xs text-amber-600 dark:text-amber-400">{t("admin.billingByokNoKey")}</p>
         )}
-        {cuenta.linkPagoDisponible && !cambiaElCobro ? (
-          <LinkDePago workspaceId={cuenta.workspaceId} mensualidadCentavos={cuenta.precioAcuerdoCentavos} />
-        ) : (
-          cuenta.admiteLinkPago && planValido && plan && precioFinal !== null && precioFinal > 0 && (
-            <p className="text-xs text-muted-foreground">{t("admin.billingSaveBeforeLink")}</p>
-          )
-        )}
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        <div className="flex justify-end gap-2 border-t border-border pt-4">
-          <button
-            type="button"
-            disabled={guardando}
-            onClick={onCerrar}
-            className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
-          >
-            {t("admin.billingCancel")}
-          </button>
-          <button
-            type="button"
-            disabled={guardando || !precioValido || !incluidasValidas || !planValido}
-            onClick={guardar}
-            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
-          >
-            {t("admin.billingSave")}
-          </button>
-        </div>
       </div>
+      <Cobro
+        cuenta={cuenta}
+        disponible={cuenta.admiteLinkPago && valido && Boolean(plan) && mensualidad > 0}
+        mensualidadCentavos={mensualidad}
+        conPromo={conPromo}
+        trato={`${f.modelo}|${plan?.id ?? ""}|${mensualidad}`}
+        ocupado={guardando}
+        antesDeArmar={guardarPendiente}
+      />
       {f.modelo === "saldo" ? (
         <BloqueBilletera
           cuenta={cuenta}
@@ -1043,6 +1008,25 @@ function FormularioCuenta({
           {t("admin.billingModelOfficialNote")}
         </p>
       ) : null}
+      <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+        {error && <p className="mr-auto text-xs text-destructive">{error}</p>}
+        <button
+          type="button"
+          disabled={guardando}
+          onClick={onCerrar}
+          className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+        >
+          {t("admin.billingCancel")}
+        </button>
+        <button
+          type="button"
+          disabled={guardando || !valido}
+          onClick={guardar}
+          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+        >
+          {t("admin.billingSave")}
+        </button>
+      </div>
     </>
   );
 }
@@ -1074,7 +1058,6 @@ function FormularioAlta({
     modelo: "oficial" as ModeloCobro,
     plan_id: planesOficiales[0]?.id ?? "",
     precio: "",
-    nota: "",
   });
   const oficial = f.modelo === "oficial";
   const plan = planes.find((p) => p.id === f.plan_id);
@@ -1083,7 +1066,7 @@ function FormularioAlta({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
         <Campo label={t("admin.billingEmail")}>
           <input
             className={INPUT}
@@ -1134,13 +1117,6 @@ function FormularioAlta({
             onChange={(e) => setF({ ...f, precio: e.target.value })}
           />
         </Campo>
-        <Campo label={t("admin.billingNote")}>
-          <input
-            className={INPUT}
-            value={f.nota}
-            onChange={(e) => setF({ ...f, nota: e.target.value })}
-          />
-        </Campo>
       </div>
       {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex items-center gap-2">
@@ -1154,7 +1130,6 @@ function FormularioAlta({
               nombre: f.nombre,
               modelo_cobro: f.modelo,
               plan_id: f.plan_id || undefined,
-              nota: f.nota,
               ...(precioEscrito && precio !== null ? { precio_centavos: precio } : {}),
             })
           }
@@ -1174,52 +1149,82 @@ function FormularioAlta({
   );
 }
 
+/** Si la cuenta ya paga en Stripe y, si paga, cuándo vuelve a cobrarse. */
+function EstadoDelPago({ cuenta }: { cuenta: CuentaDelNegocio }) {
+  const t = useT();
+  const fmt = useFormat();
+  const { tono, etiqueta } = PAGO[cuenta.pago];
+  const fecha = cuenta.pago === "al_dia" && cuenta.periodoHasta
+    ? fmt.date(cuenta.periodoHasta, { day: "numeric", month: "short" })
+    : null;
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <StatusPill tone={tono} label={t(etiqueta)} />
+      {fecha && (
+        <Muted>
+          · {t(cuenta.cancelarAlFinal ? "admin.billingEndsOn" : "admin.billingNextCharge", { date: fecha })}
+        </Muted>
+      )}
+    </span>
+  );
+}
+
 /** Valor del selector para el link cuyo primer mes no se cobra. */
 const PRIMER_MES_SIN_CARGO = "primer-mes-sin-cargo";
 
 /**
- * El link de pago de esta cuenta.
+ * El cobro de la cuenta: si ya paga en Stripe y, si todavía no, su link.
  *
- * Existe para que cerrar un cliente no dependa de que alguien con la clave
- * secreta arme la sesión de Stripe a mano. El descuento se ELIGE de los cupones
- * que ya están en Stripe: inventarlo acá sería poder regalar plata con un
- * click, y sin rastro de quién lo hizo. La única excepción es el primer mes sin
- * cargo, para quien ya lo pagó por fuera, y queda en la auditoría.
+ * El link existe para que cerrar un cliente no dependa de que alguien con la
+ * clave secreta arme la sesión de Stripe a mano. Stripe cobra lo guardado, así
+ * que armarlo guarda antes lo que haya cambiado en el formulario.
+ *
+ * El descuento se ELIGE de los cupones que ya están en Stripe: inventarlo acá
+ * sería poder regalar plata con un click, y sin rastro de quién lo hizo. Las
+ * excepciones son la promoción del primer mes y el primer mes sin cargo, para
+ * quien ya lo pagó por fuera, y quedan en la auditoría.
  */
-function LinkDePago({ workspaceId, mensualidadCentavos }: { workspaceId: string; mensualidadCentavos: number }) {
+function Cobro({
+  cuenta,
+  disponible,
+  mensualidadCentavos,
+  conPromo,
+  trato,
+  ocupado,
+  antesDeArmar,
+}: {
+  cuenta: CuentaDelNegocio;
+  /** Se puede armar el link con el trato del formulario. */
+  disponible: boolean;
+  mensualidadCentavos: number;
+  conPromo: boolean;
+  /** El trato del formulario: un link armado con otro cobraría otra cosa. */
+  trato: string;
+  ocupado: boolean;
+  antesDeArmar: () => Promise<boolean>;
+}) {
   const t = useT();
-  const fmt = useFormat();
   const fetchWithCsrf = useFetchWithCsrf();
   const [cupones, setCupones] = useState<CuponDeStripe[] | null>(null);
-  const [cupon, setCupon] = useState("");
-  const [url, setUrl] = useState<string | null>(null);
+  const [primerMes, setPrimerMes] = useState("");
+  const [link, setLink] = useState<{ url: string; para: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pidiendo, setPidiendo] = useState(false);
+  const [armando, setArmando] = useState(false);
   const [copiado, setCopiado] = useState(false);
-  const [promo, setPromo] = useState<{
-    percent: number;
-    firstMonthCents: number;
-    monthlyCents: number;
-    currency: string;
-  } | null>(null);
-  const sinCargo = cupon === PRIMER_MES_SIN_CARGO;
-  const moneda = (promo?.currency ?? "usd").toUpperCase();
-  // Lo que se cobra el primer mes y después, salvo con un cupón de Stripe.
-  const resumen = sinCargo
-    ? { primero: 0, despues: mensualidadCentavos }
-    : promo && !cupon
-      ? { primero: promo.firstMonthCents, despues: promo.monthlyCents }
-      : null;
+  const sinCargo = primerMes === PRIMER_MES_SIN_CARGO;
+  const para = `${trato}|${primerMes}`;
+  const url = link?.para === para ? link.url : null;
+  // Lo que se cobra el primer mes. Con un cupón de Stripe lo dice el cupón.
+  const primero = sinCargo ? 0 : !primerMes && conPromo ? firstMonthCents(mensualidadCentavos) : null;
+  const pedirCupones = disponible && cupones === null;
 
   useEffect(() => {
+    if (!pedirCupones) return;
     let vivo = true;
-    fetch(`/api/admin/billing/link?workspace_id=${encodeURIComponent(workspaceId)}`)
+    fetch("/api/admin/billing/link")
       .then((r) => r.json())
-      .then((d) => {
-        if (vivo) {
-          setCupones((d.cupones as CuponDeStripe[]) ?? []);
-          setPromo(d.promo ?? null);
-        }
+      .then((d: { cupones?: CuponDeStripe[] }) => {
+        if (vivo) setCupones(d.cupones ?? []);
       })
       .catch(() => {
         if (vivo) setCupones([]);
@@ -1227,89 +1232,101 @@ function LinkDePago({ workspaceId, mensualidadCentavos }: { workspaceId: string;
     return () => {
       vivo = false;
     };
-  }, [workspaceId]);
+  }, [pedirCupones]);
 
-  async function generar() {
-    setPidiendo(true);
+  async function armar() {
     setError(null);
-    setUrl(null);
     setCopiado(false);
+    if (!(await antesDeArmar())) return;
+    setArmando(true);
     try {
       const res = await fetchWithCsrf("/api/admin/billing/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          workspace_id: workspaceId,
-          cupon: sinCargo ? null : cupon || null,
+          workspace_id: cuenta.workspaceId,
+          cupon: sinCargo ? null : primerMes || null,
           primer_mes_sin_cargo: sinCargo,
         }),
       });
-      const d = await res.json();
-      if (!res.ok) setError(d.error ?? "no se pudo");
-      else setUrl(d.url as string);
+      const d = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (res.ok && d.url) setLink({ url: d.url, para });
+      else setError(d.error ?? t("admin.billingLinkFailed"));
     } catch {
-      setError("no se pudo");
+      setError(t("admin.billingLinkFailed"));
     } finally {
-      setPidiendo(false);
+      setArmando(false);
     }
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
-      <Campo label={t("admin.billingCoupon")}>
-        <select
-          className={INPUT}
-          value={cupon}
-          onChange={(e) => {
-            // Un link ya armado cobra lo anterior: se descarta al cambiar.
-            setCupon(e.target.value);
-            setUrl(null);
-            setError(null);
-          }}
-        >
-          <option value="">{promo
-            ? t("admin.billingFirstMonthPromo", { percent: promo.percent })
-            : t("admin.billingNoCoupon")}</option>
-          <option value={PRIMER_MES_SIN_CARGO}>{t("admin.billingFirstMonthFree")}</option>
-          {(cupones ?? []).map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nombre} {c.detalle}
-            </option>
-          ))}
-        </select>
-      </Campo>
-      <button
-        type="button"
-        disabled={pidiendo}
-        onClick={generar}
-        className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground disabled:opacity-50"
-      >
-        {t("admin.billingPayLink")}
-      </button>
-      {resumen && (
-        <p className="w-full text-xs text-muted-foreground">
-          {t("admin.billingFirstMonthSummary", {
-            first: fmt.money(resumen.primero / 100, moneda),
-            regular: fmt.money(resumen.despues / 100, moneda),
-          })}
-        </p>
+    <div className="space-y-3 rounded-xl border border-border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <span className="text-foreground">{t("admin.billingPayment")}</span>
+        <EstadoDelPago cuenta={cuenta} />
+      </div>
+      {disponible && (
+        <>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="min-w-48 flex-1">
+              <Campo label={t("admin.billingFirstMonth")}>
+                <select
+                  className={INPUT}
+                  value={primerMes}
+                  onChange={(e) => {
+                    setPrimerMes(e.target.value);
+                    setError(null);
+                  }}
+                >
+                  <option value="">
+                    {conPromo
+                      ? t("admin.billingFirstMonthPromo", { percent: FIRST_MONTH_DISCOUNT_PERCENT })
+                      : t("admin.billingFullPrice")}
+                  </option>
+                  <option value={PRIMER_MES_SIN_CARGO}>{t("admin.billingFirstMonthFree")}</option>
+                  {(cupones ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre} {c.detalle}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+            </div>
+            <button
+              type="button"
+              disabled={ocupado || armando}
+              onClick={armar}
+              className="h-[34px] rounded-lg border border-border px-3 text-xs font-medium text-foreground disabled:opacity-50"
+            >
+              {t("admin.billingPayLink")}
+            </button>
+          </div>
+          {primero !== null && (
+            <p className="text-xs text-muted-foreground">
+              {t("admin.billingFirstMonthSummary", {
+                first: usd(primero),
+                regular: usd(mensualidadCentavos),
+              })}
+            </p>
+          )}
+          {url && (
+            <div className="flex items-center gap-2">
+              <input readOnly value={url} className={`${INPUT} min-w-0 flex-1`} />
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(url);
+                  setCopiado(true);
+                }}
+                className="h-[34px] shrink-0 rounded-lg border border-border px-3 text-xs font-medium text-foreground"
+              >
+                {copiado ? t("admin.billingCopied") : t("admin.billingCopy")}
+              </button>
+            </div>
+          )}
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </>
       )}
-      {url && (
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <input readOnly value={url} className={`${INPUT} min-w-0 flex-1`} />
-          <button
-            type="button"
-            onClick={() => {
-              void navigator.clipboard.writeText(url);
-              setCopiado(true);
-            }}
-            className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
-          >
-            {copiado ? t("admin.billingCopied") : t("admin.billingCopy")}
-          </button>
-        </div>
-      )}
-      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }

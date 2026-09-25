@@ -6,10 +6,11 @@
  * mismo: las suscripciones dicen lo que entra, `billing_usage_daily` dice lo
  * que sale.
  *
- * Un detalle que cambia la lectura del cuadro: las cuentas de **cortesía**
- * cuentan como clientes con MRR 0, no se excluyen. En esta etapa son la mayoría
- * y sacarlas del cuadro haría parecer que la plataforma no tiene nadie usándola
- * — cuando el costo de atenderlas es real y es justo lo que hay que mirar.
+ * Un detalle que cambia la lectura del cuadro: las cuentas que todavía no
+ * pagan cuentan como clientes con MRR 0, no se excluyen. En esta etapa son la
+ * mayoría y sacarlas del cuadro haría parecer que la plataforma no tiene nadie
+ * usándola — cuando el costo de atenderlas es real y es justo lo que hay que
+ * mirar.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
@@ -19,25 +20,57 @@ import {
   type Suscripcion,
 } from './plan'
 
+/**
+ * Si la cuenta ya paga en Stripe (o Shopify), leído de su suscripción. Es lo
+ * que ve el panel en lugar del estado interno.
+ *
+ *   sin_configurar  — todavía no tiene trato.
+ *   sin_pagar       — tiene mensualidad y no completó el link.
+ *   al_dia          — la suscripción está viva, incluido el mes sin cargo.
+ *   fallido         — el último cobro falló.
+ *   cancelado       — dio de baja la suscripción.
+ *   sin_mensualidad — no paga mensualidad: sólo el consumo desde el saldo.
+ */
+export type EstadoDePago =
+  | 'sin_configurar'
+  | 'sin_pagar'
+  | 'al_dia'
+  | 'fallido'
+  | 'cancelado'
+  | 'sin_mensualidad'
+
+export function estadoDePago(s: Suscripcion | undefined): EstadoDePago {
+  if (!s) return 'sin_configurar'
+  if (s.estado === 'vencida') return 'fallido'
+  if (s.estado === 'cancelada') return 'cancelado'
+  if (s.stripeSubscriptionId && s.estado === 'activa') return 'al_dia'
+  if (s.precioAcuerdoCentavos <= 0) return 'sin_mensualidad'
+  return 'sin_pagar'
+}
+
 export interface CuentaDelNegocio {
   workspaceId: string
   nombre: string
   correo: string | null
   estado: EstadoSuscripcion | 'sin_configurar'
+  /** Si ya paga en Stripe o todavía no. */
+  pago: EstadoDePago
+  /** Cuándo vuelve a cobrarse, o cuándo termina si canceló al final del período. */
+  periodoHasta: string | null
+  cancelarAlFinal: boolean
+  /** Tiene una suscripción de Stripe o Shopify, viva o no. */
+  suscripcionExterna: boolean
   tieneSuscripcion: boolean
   /** Cobra con link de pago: no tiene una suscripción de Stripe o Shopify en curso. */
   admiteLinkPago: boolean
-  linkPagoDisponible: boolean
   plan: string | null
   planSlug: string | null
-  /** Lo que paga por mes, en centavos. La cortesía es 0. */
+  /** Lo que paga por mes, en centavos. Sólo cuenta si está al día. */
   mrrCentavos: number
   /** La mensualidad pactada, aunque hoy esté en cortesía. */
   precioAcuerdoCentavos: number
   /** Contactos incluidos por mes, con el trato de esta cuenta. */
   incluidas: number
-  tratoPropio: boolean
-  nota: string | null
   conversaciones: number
   contactosAtendidos: number
   costoUsd: number
@@ -72,14 +105,10 @@ export interface Negocio {
   costoUsd: number
   /** Margen bruto sobre la IA, en porcentaje. Null si todavía no entra plata. */
   margenPct: number | null
-  clientes: {
-    pagando: number
-    cortesia: number
-    enPrueba: number
-    vencidas: number
-    canceladas: number
-    sinConfigurar: number
-  }
+  /** Cuántas cuentas hay en cada estado de pago. */
+  porPago: Record<EstadoDePago, number>
+  /** Cuentas al día: el divisor del ingreso medio. */
+  pagando: number
   /** Ingreso medio por cuenta que paga. */
   arpuCentavos: number
   // ── Billetera ──
@@ -216,24 +245,26 @@ export async function leerNegocio(
       const l = libro.get(workspaceId) ?? { cargado: 0, gastado: 0, costo: 0 }
       const admiteLinkPago = !s || (s.billingProvider === 'stripe' &&
         (!s.stripeSubscriptionId || s.estado === 'cancelada'))
+      const pago = estadoDePago(s)
       return {
         workspaceId,
         nombre: identidad.nombre,
         correo: identidad.correo,
         estado: s?.estado ?? 'sin_configurar',
+        pago,
+        periodoHasta: s?.periodoHasta ?? null,
+        cancelarAlFinal: s?.cancelarAlFinal ?? false,
+        suscripcionExterna: Boolean(s?.stripeSubscriptionId),
         tieneSuscripcion: Boolean(s),
         admiteLinkPago,
-        linkPagoDisponible: Boolean(admiteLinkPago && s?.plan && s.precioAcuerdoCentavos > 0),
         plan: s?.plan?.nombre ?? null,
         planSlug: s?.plan?.slug ?? null,
-        // Sólo lo ACTIVO es recurrente. Una prueba todavía no paga y una
-        // cancelada dejó de pagar: contarlas infla el número que se usa para
-        // tomar decisiones.
-        mrrCentavos: s?.estado === 'activa' ? s.precioCentavos : 0,
+        // Sólo lo que Stripe cobra es recurrente. Una cuenta sin pagar todavía
+        // no paga y una cancelada dejó de pagar: contarlas infla el número que
+        // se usa para tomar decisiones.
+        mrrCentavos: pago === 'al_dia' ? s?.precioCentavos ?? 0 : 0,
         precioAcuerdoCentavos: s?.precioAcuerdoCentavos ?? 0,
         incluidas: s?.incluidas ?? 0,
-        tratoPropio: s?.tratoPropio ?? false,
-        nota: s?.nota ?? null,
         conversaciones: u.conversaciones,
         contactosAtendidos: 0,
         costoUsd: u.costoUsd,
@@ -249,7 +280,7 @@ export async function leerNegocio(
         tieneClavePropia: conClavePropia.has(workspaceId),
       }
     })
-    .sort((a, b) => Number(b.estado === 'sin_configurar') - Number(a.estado === 'sin_configurar') ||
+    .sort((a, b) => Number(b.pago === 'sin_configurar') - Number(a.pago === 'sin_configurar') ||
       b.mrrCentavos - a.mrrCentavos || b.conversaciones - a.conversaciones)
 
   await Promise.all(cuentas.filter((c) => c.tieneSuscripcion && c.modeloCobro === 'oficial').map(async (c) => {
@@ -268,7 +299,11 @@ export async function leerNegocio(
   const gastado = cuentas.reduce((n, c) => n + c.gastadoCentavos, 0)
   const costoBilletera = cuentas.reduce((n, c) => n + c.costoBilleteraCentavos, 0)
   const costoUsd = cuentas.reduce((n, c) => n + c.costoUsd, 0)
-  const pagando = cuentas.filter((c) => c.estado === 'activa').length
+  const porPago: Record<EstadoDePago, number> = {
+    sin_configurar: 0, sin_pagar: 0, al_dia: 0, fallido: 0, cancelado: 0, sin_mensualidad: 0,
+  }
+  for (const c of cuentas) porPago[c.pago] += 1
+  const pagando = porPago.al_dia
   const ingresoUsd = mrr / 100
 
   return {
@@ -276,14 +311,8 @@ export async function leerNegocio(
     arrCentavos: mrr * 12,
     costoUsd,
     margenPct: ingresoUsd > 0 ? Math.round(((ingresoUsd - costoUsd) / ingresoUsd) * 100) : null,
-    clientes: {
-      pagando,
-      cortesia: cuentas.filter((c) => c.estado === 'cortesia').length,
-      enPrueba: cuentas.filter((c) => c.estado === 'prueba').length,
-      vencidas: cuentas.filter((c) => c.estado === 'vencida').length,
-      canceladas: cuentas.filter((c) => c.estado === 'cancelada').length,
-      sinConfigurar: cuentas.filter((c) => c.estado === 'sin_configurar').length,
-    },
+    porPago,
+    pagando,
     arpuCentavos: pagando > 0 ? Math.round(mrr / pagando) : 0,
     saldoTotalCentavos: saldoTotal,
     cargadoCentavos: cargado,

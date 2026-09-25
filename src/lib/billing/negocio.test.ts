@@ -50,10 +50,10 @@ describe('cuentas de Negocio', () => {
     const { db } = base()
     const negocio = await leerNegocio(db, periodo)
     expect(negocio.cuentas).toHaveLength(2)
-    expect(negocio.clientes.sinConfigurar).toBe(2)
+    expect(negocio.porPago.sin_configurar).toBe(2)
     expect(negocio.cuentas[0]).toMatchObject({
       nombre: 'Tienda Nueva', correo: 'cliente@example.com',
-      estado: 'sin_configurar', tieneSuscripcion: false, linkPagoDisponible: false,
+      pago: 'sin_configurar', tieneSuscripcion: false,
       admiteLinkPago: true, precioAcuerdoCentavos: 0, tieneClavePropia: false,
     })
     expect(negocio.cuentas[1]).toMatchObject({ nombre: 'Otra Tienda', tieneClavePropia: true })
@@ -67,13 +67,27 @@ describe('cuentas de Negocio', () => {
     const negocio = await leerNegocio(db, periodo)
     const cuenta = (id: string) => negocio.cuentas.find((c) => c.workspaceId === id)
     expect(cuenta('w1')).toMatchObject({
-      estado: 'cortesia', modeloCobro: 'saldo', mrrCentavos: 0, precioAcuerdoCentavos: 39900,
-      incluidas: 0, admiteLinkPago: true, linkPagoDisponible: true,
+      pago: 'sin_pagar', modeloCobro: 'saldo', mrrCentavos: 0, precioAcuerdoCentavos: 39900,
+      incluidas: 0, admiteLinkPago: true, suscripcionExterna: false,
     })
     expect(cuenta('w2')).toMatchObject({
-      estado: 'activa', mrrCentavos: 39900, precioAcuerdoCentavos: 39900,
-      admiteLinkPago: false, linkPagoDisponible: false,
+      pago: 'al_dia', mrrCentavos: 39900, precioAcuerdoCentavos: 39900,
+      admiteLinkPago: false, suscripcionExterna: true,
     })
+    expect(negocio.porPago).toMatchObject({ al_dia: 1, sin_pagar: 1 })
+    expect(negocio.pagando).toBe(1)
+  })
+
+  it('dice si ya paga en Stripe o todavía no', async () => {
+    const { db } = base(false, [
+      suscripcion('w1', { estado: 'activa', precio_centavos_override: 0 }),
+      suscripcion('w2', { estado: 'vencida', stripe_subscription_id: 'sub_2' }),
+    ])
+    const negocio = await leerNegocio(db, periodo)
+    const cuenta = (id: string) => negocio.cuentas.find((c) => c.workspaceId === id)
+    expect(cuenta('w1')?.pago).toBe('sin_mensualidad')
+    expect(cuenta('w2')?.pago).toBe('fallido')
+    expect(negocio.mrrCentavos).toBe(0)
   })
 
   it('no oculta cuentas silenciosamente cuando falla su lectura', async () => {

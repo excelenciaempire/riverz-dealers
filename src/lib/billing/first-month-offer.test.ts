@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { eligibleForFirstMonthOffer, endOfFreeFirstMonth, firstMonthCents, firstMonthCouponId, firstMonthDiscountCents } from './first-month-offer'
+import { eligibleForFirstMonthOffer, firstMonthCents, firstMonthCouponId, firstMonthDiscountCents } from './first-month-offer'
 
 describe('first month offer', () => {
   it('discounts the first invoice and keeps the monthly base intact', () => {
@@ -10,14 +10,6 @@ describe('first month offer', () => {
     expect(firstMonthDiscountCents(39900)).toBe(14000)
     expect(firstMonthCouponId(39900, 'USD')).toBe('riverz-first-month-35-usd-39900-v2')
     expect(firstMonthCouponId(99900, 'USD')).not.toBe(firstMonthCouponId(39900, 'USD'))
-  })
-
-  it('charges a free first month on the same day next month', () => {
-    const next = (iso: string) => endOfFreeFirstMonth(new Date(iso)).toISOString()
-    expect(next('2026-09-25T18:30:00.000Z')).toBe('2026-10-25T18:30:00.000Z')
-    expect(next('2026-12-15T00:00:00.000Z')).toBe('2027-01-15T00:00:00.000Z')
-    expect(next('2026-01-31T12:00:00.000Z')).toBe('2026-02-28T12:00:00.000Z')
-    expect(next('2028-01-31T12:00:00.000Z')).toBe('2028-02-29T12:00:00.000Z')
   })
 
   it('applies to the private unlimited-balance offer but not other legacy balances', () => {

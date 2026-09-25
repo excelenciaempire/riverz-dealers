@@ -21,7 +21,7 @@ import { costoAmpliacionCentavos } from './upgrade-policy'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
-import { eligibleForFirstMonthOffer, endOfFreeFirstMonth, firstMonthCouponId, firstMonthDiscountCents, FIRST_MONTH_DISCOUNT_PERCENT } from './first-month-offer'
+import { eligibleForFirstMonthOffer, firstMonthCouponId, firstMonthDiscountCents, FIRST_MONTH_DISCOUNT_PERCENT, FREE_FIRST_MONTH_DAYS } from './first-month-offer'
 
 let cliente: Stripe | null = null
 
@@ -194,7 +194,7 @@ export async function urlDeCheckout(
     // prueba de Stripe: se guarda la tarjeta y no se cobra hasta que termina.
     subscription_data: {
       metadata: { workspace_id: workspaceId },
-      ...(sinCargo ? { trial_end: Math.floor(endOfFreeFirstMonth(new Date()).getTime() / 1000) } : {}),
+      ...(sinCargo ? { trial_period_days: FREE_FIRST_MONTH_DAYS } : {}),
     },
     ...(coupon ? { discounts: [{ coupon }] } : {}),
     success_url: volverA('/ajustes?facturacion=lista'),

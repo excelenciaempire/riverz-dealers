@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Suscripcion } from './plan'
 
@@ -80,17 +80,14 @@ describe('link de pago', () => {
       id: 'riverz-first-month-35-usd-39900-v2', valid: true, duration: 'once', amount_off: 14000, currency: 'usd',
     })
   })
-  afterEach(() => vi.useRealTimers())
 
-  it('no cobra el primer mes ya pagado y cobra la mensualidad completa al mes siguiente', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date('2026-09-25T18:30:00.000Z'))
+  it('no cobra el primer mes ya pagado: 30 días de prueba y después la mensualidad completa', async () => {
     const url = await urlDeCheckout(db, 'w1', saldo, quien, { primerMesSinCargo: true })
     expect(url).toBe('https://checkout.stripe.com/c/pay/cs_test_1')
     const sesion = mocks.createSession.mock.calls[0][0]
     expect(sesion.subscription_data).toEqual({
       metadata: { workspace_id: 'w1' },
-      trial_end: Date.parse('2026-10-25T18:30:00.000Z') / 1000,
+      trial_period_days: 30,
     })
     expect(sesion.discounts).toBeUndefined()
     expect(mocks.retrieveCoupon).not.toHaveBeenCalled()
