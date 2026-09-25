@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getAnthropic } from './anthropic-client';
 import { esfuerzo } from './esfuerzo';
 import { secureSystemPrompt } from './input-security';
+import { esCuentaByok } from './platform-key';
 import { redactModelSecrets } from '@/lib/security/model-secrets';
 
 /**
@@ -322,7 +323,12 @@ export async function completeTextConUso(
     }
   }
 
-  for (const p of fallbackProviders()) {
+  // BYOK paga su IA: los proveedores de respaldo los paga Riverz.
+  const proveedores = fallbackProviders();
+  const respaldos = proveedores.length && (await esCuentaByok(o.billing.workspaceId))
+    ? []
+    : proveedores;
+  for (const p of respaldos) {
     try {
       const r = await completeOpenAICompat(p, o);
       if (r.text) {

@@ -21,6 +21,8 @@ interface WorkspaceRow {
   name: string;
   covered: boolean;
   explicit: boolean;
+  /** Paga su IA con su clave: la de Riverz no la cubre en ningún modo. */
+  byok: boolean;
   calls: number;
   spend_platform_usd: number;
   spend_own_usd: number;
@@ -298,7 +300,11 @@ export function Texto() {
                     {usd(w.spend_own_usd)}
                   </td>
                   <td className="px-3 py-2 text-right">
-                    {data.mode === 'all' ? (
+                    {w.byok ? (
+                      <span className="text-xs text-muted-foreground">
+                        {t('admin.billingModel_byok')}
+                      </span>
+                    ) : data.mode === 'all' ? (
                       <span className="text-xs text-muted-foreground">
                         {t('admin.aiKeyAllOn')}
                       </span>

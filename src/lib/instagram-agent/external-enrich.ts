@@ -4,6 +4,7 @@ import {
   hasLlm,
   toImageMediaType,
 } from '@/lib/ai/llm-client';
+import { resolveAnthropicKey, type ResolvedKey } from '@/lib/ai/platform-key';
 import { resolveWorkspaceKeyConOrigen } from '@/lib/integrations/workspace-key';
 import type { BillingContext } from '@/lib/wallet/operacion';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -203,12 +204,29 @@ async function scrapeProfile(
   }
 }
 
+/**
+ * La misma clave que el resto de la IA: una cuenta BYOK paga con la suya, y el
+ * cobro sabe de quién fue para no descontarle al comercio lo que ya le cobra
+ * Anthropic.
+ */
+async function claveDeLaCuenta(
+  billing: BillingContext
+): Promise<{ key: string | null; cobro: BillingContext }> {
+  const clave: ResolvedKey | null = await resolveAnthropicKey(billing.db, {
+    workspaceId: billing.workspaceId,
+  });
+  return {
+    key: clave?.key ?? null,
+    cobro: { ...billing, origenDeLaClave: clave?.source },
+  };
+}
+
 /** Derive a non-sensitive interest persona from bio + captions + one photo. */
 async function analyze(
   p: ApifyProfile,
   billing: BillingContext
 ): Promise<string | null> {
-  const key = process.env.ANTHROPIC_API_KEY ?? null;
+  const { key, cobro } = await claveDeLaCuenta(billing);
   if (!hasLlm(key)) return null;
   const ps = postsOf(p);
   const captions = ps
@@ -236,7 +254,7 @@ async function analyze(
       if (r.ok) {
         const buf = Buffer.from(await r.arrayBuffer());
         const out = await describeImage({
-          billing,
+          billing: cobro,
           base64: buf.toString('base64'),
           mediaType: toImageMediaType(r.headers.get('content-type')),
           system: EXTERNAL_SYSTEM,
@@ -250,7 +268,7 @@ async function analyze(
     // Text-only fallback (works through any provider).
     if (textContext) {
       const out = await completeText({
-        billing,
+        billing: cobro,
         tier: 'triage',
         system: EXTERNAL_SYSTEM,
         user: `Perfil:\n${textContext}\n\nDa la pista de interés.`,
@@ -270,7 +288,7 @@ async function findOpener(
   p: ApifyProfile,
   billing: BillingContext
 ): Promise<string | null> {
-  const key = process.env.ANTHROPIC_API_KEY ?? null;
+  const { key, cobro } = await claveDeLaCuenta(billing);
   if (!hasLlm(key)) return null;
   const captions = postsOf(p)
     .map((x) => x.caption)
@@ -281,7 +299,7 @@ async function findOpener(
   if (!captions.trim()) return null;
   try {
     const out = await completeText({
-      billing,
+      billing: cobro,
       // Este texto se le dice a la persona en la primera línea: si el modelo se
       // equivoca de tono, quedamos como intrusos. Vale el modelo bueno.
       tier: 'premium',

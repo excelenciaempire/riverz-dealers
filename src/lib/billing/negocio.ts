@@ -59,6 +59,8 @@ export interface CuentaDelNegocio {
   cobraACosto: boolean
   /** `oficial` incluye el uso; `saldo` conserva la billetera anterior. */
   modeloCobro: ModeloCobro
+  /** Cargó su clave de Anthropic en algún agente: sin ella, una cuenta BYOK no responde. */
+  tieneClavePropia: boolean
 }
 
 export interface Negocio {
@@ -107,7 +109,7 @@ export async function leerNegocio(
 ): Promise<Negocio> {
   const dia = (d: Date) => d.toISOString().slice(0, 10)
 
-  const [subsRes, wsRes, usoRes, billeterasRes, movimientosRes] = await Promise.all([
+  const [subsRes, wsRes, usoRes, billeterasRes, movimientosRes, clavesRes] = await Promise.all([
     db.from('workspace_subscriptions').select(
       `workspace_id, plan_id, estado, prueba_hasta, periodo_desde, periodo_hasta,
        precio_centavos_override, incluidas_override, excedente_centavos_override,
@@ -132,10 +134,15 @@ export async function leerNegocio(
       .gte('creado_en', periodo.desde.toISOString())
       .lt('creado_en', periodo.hasta.toISOString())
       .limit(100_000),
+    // Sólo si existe; la clave nunca sale de la base.
+    db.from('ai_agents').select('workspace_id').not('api_key_encrypted', 'is', null),
   ])
-  for (const result of [subsRes, wsRes, usoRes, billeterasRes, movimientosRes]) {
+  for (const result of [subsRes, wsRes, usoRes, billeterasRes, movimientosRes, clavesRes]) {
     if (result.error) throw result.error
   }
+  const conClavePropia = new Set(
+    ((clavesRes.data ?? []) as { workspace_id: string }[]).map((a) => a.workspace_id),
+  )
 
   const workspaces = (wsRes.data ?? []) as FilaWorkspace[]
   const dueños = [...new Set(workspaces.map((w) => w.owner_id).filter((id): id is string => Boolean(id)))]
@@ -239,6 +246,7 @@ export async function leerNegocio(
         bloqueaSinSaldo: b.bloquea,
         cobraACosto: b.aCosto,
         modeloCobro: s?.modeloCobro ?? 'oficial',
+        tieneClavePropia: conClavePropia.has(workspaceId),
       }
     })
     .sort((a, b) => Number(b.estado === 'sin_configurar') - Number(a.estado === 'sin_configurar') ||

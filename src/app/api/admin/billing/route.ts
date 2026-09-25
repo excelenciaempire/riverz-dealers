@@ -4,7 +4,8 @@ import { csrfGuard } from '@/lib/csrf';
 import { requireAdmin } from '@/lib/admin/guard';
 import { adminGet, rangeFromSearch } from '@/lib/admin/route';
 import { recordAdminAction } from '@/lib/admin/audit';
-import { listarPlanes, leerSuscripcion, DIAS_DE_PRUEBA } from '@/lib/billing/plan';
+import { listarPlanes, leerSuscripcion, DIAS_DE_PRUEBA, type ModeloCobro } from '@/lib/billing/plan';
+import { invalidatePlatformKeyCache } from '@/lib/ai/platform-key';
 import { sincronizarPrecioSuscripcion } from '@/lib/billing/stripe';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -65,7 +66,7 @@ interface CuerpoCuenta {
   precio_centavos_override?: number | null;
   incluidas_override?: number | null;
   excedente_centavos_override?: number | null;
-  modelo_cobro?: 'oficial' | 'saldo';
+  modelo_cobro?: ModeloCobro;
   nota?: string | null;
 }
 
@@ -192,6 +193,11 @@ export async function PUT(request: Request) {
         error: translate(await getLocale(), 'admin.billingUnlimitedRequiresBalance'),
       }, { status: 400 });
     }
+    if ((plan?.slug === 'byok') !== (modelo === 'byok')) {
+      return NextResponse.json({
+        error: translate(await getLocale(), 'admin.billingByokPlanRequired'),
+      }, { status: 400 });
+    }
     const suscripcionStripeViva = previa?.billingProvider === 'stripe' &&
       Boolean(previa?.stripeSubscriptionId) &&
       (previa?.estado === 'activa' || previa?.estado === 'vencida');
@@ -208,6 +214,9 @@ export async function PUT(request: Request) {
     // porque el formulario no mandó un campo.
     if (c.plan_id !== undefined) fila.plan_id = c.plan_id || null;
     if (c.estado !== undefined) fila.estado = c.estado;
+    // La cuenta que se configura por primera vez no paga hasta completar el
+    // link: el webhook de Stripe la pasa a activa.
+    else if (!previa) fila.estado = 'cortesia';
     if (c.prueba_hasta !== undefined) fila.prueba_hasta = c.prueba_hasta || null;
     else if (!previa && c.estado === 'prueba') {
       fila.prueba_hasta = new Date(Date.now() + DIAS_DE_PRUEBA * 24 * 60 * 60 * 1000).toISOString();
@@ -218,12 +227,12 @@ export async function PUT(request: Request) {
       fila.incluidas_override = ENTERO(c.incluidas_override);
     if (c.excedente_centavos_override !== undefined)
       fila.excedente_centavos_override = ENTERO(c.excedente_centavos_override);
-    if (plan?.slug === 'saldo-ilimitado') {
+    if (plan?.slug === 'saldo-ilimitado' || plan?.slug === 'byok') {
       fila.incluidas_override = null;
       fila.excedente_centavos_override = null;
     }
     if (c.modelo_cobro !== undefined) {
-      if (c.modelo_cobro !== 'oficial' && c.modelo_cobro !== 'saldo') {
+      if (c.modelo_cobro !== 'oficial' && c.modelo_cobro !== 'saldo' && c.modelo_cobro !== 'byok') {
         return NextResponse.json({ error: 'modelo de cobro inválido' }, { status: 400 });
       }
       fila.modelo_cobro = c.modelo_cobro;
@@ -234,6 +243,9 @@ export async function PUT(request: Request) {
       .from('workspace_subscriptions')
       .upsert(fila, { onConflict: 'workspace_id' });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    // Quién paga la IA depende del sistema de cobro: BYOK deja de usar la de
+    // Riverz ya, no cuando venza la caché.
+    if (c.modelo_cobro !== undefined) invalidatePlatformKeyCache();
 
     if (previa && suscripcionStripeViva) {
       const nueva = await leerSuscripcion(db, c.workspace_id);
@@ -260,9 +272,9 @@ export async function PUT(request: Request) {
       }
     }
 
-    // Al pasar a todo incluido se apaga cualquier recarga automática anterior.
+    // Al dejar el saldo se apaga cualquier recarga automática anterior.
     // Se conserva la tarjeta y el libro por si el acuerdo vuelve a saldo.
-    if (c.modelo_cobro === 'oficial') {
+    if (c.modelo_cobro !== undefined && c.modelo_cobro !== 'saldo') {
       const { error: walletError } = await db
         .from('wallet_accounts')
         .update({

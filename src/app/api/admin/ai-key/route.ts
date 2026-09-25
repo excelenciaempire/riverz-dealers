@@ -33,13 +33,15 @@ async function aiKeyPayload() {
   const db = supabaseAdmin();
   const since = new Date(Date.now() - DAYS * 86_400_000).toISOString();
 
-  const [settingsRes, enabledRes, usage, costo] = await Promise.all([
+  const [settingsRes, enabledRes, byokRes, usage, costo] = await Promise.all([
     db
       .from('platform_ai_settings')
       .select('mode, anthropic_key_encrypted, updated_at')
       .eq('id', true)
       .maybeSingle(),
     db.from('platform_ai_workspaces').select('workspace_id, enabled'),
+    // BYOK paga su IA: la clave de Riverz no la cubre en ningún modo.
+    db.from('workspace_subscriptions').select('workspace_id').eq('modelo_cobro', 'byok'),
     // El mismo RPC que /admin/uso, en vez de un barrido propio.
     //
     // Antes esta ruta se traía hasta 50.000 filas de `ai_replies` a Node y las
@@ -63,6 +65,9 @@ async function aiKeyPayload() {
     ((enabledRes.data ?? []) as { workspace_id: string; enabled: boolean }[])
       .filter((r) => r.enabled)
       .map((r) => r.workspace_id),
+  );
+  const byokSet = new Set(
+    ((byokRes.data ?? []) as { workspace_id: string }[]).map((r) => r.workspace_id),
   );
 
   const mode = settings?.mode ?? 'selected';
@@ -88,8 +93,10 @@ async function aiKeyPayload() {
     return {
       id: row.workspace_id,
       name: row.workspace_name,
-      covered: mode === 'all' ? true : enabledSet.has(row.workspace_id),
+      covered: !byokSet.has(row.workspace_id) &&
+        (mode === 'all' || enabledSet.has(row.workspace_id)),
       explicit: enabledSet.has(row.workspace_id),
+      byok: byokSet.has(row.workspace_id),
       calls: Object.values(bySource).reduce((a, v) => a + (v?.calls ?? 0), 0),
       spend_platform_usd: Number(parte('platform').toFixed(4)),
       spend_own_usd: Number((total - parte('platform')).toFixed(4)),

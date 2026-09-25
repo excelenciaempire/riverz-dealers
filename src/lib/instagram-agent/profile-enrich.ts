@@ -1,4 +1,5 @@
 import { describeImage, toImageMediaType } from '@/lib/ai/llm-client';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { decrypt } from '@/lib/channels/encryption';
 import { ingestRawMedia } from '@/lib/channels/media-ingest';
 import { withAppsecretProof } from '@/lib/channels/meta-graph';
@@ -50,8 +51,9 @@ async function visionProfilePic(
   prevHash: string | null,
   prevHint: string | null
 ): Promise<{ hint: string | null; hash: string | null }> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return { hint: prevHint, hash: prevHash };
+  // La misma clave que el resto de la IA: una cuenta BYOK paga con la suya.
+  const clave = await resolveAnthropicKey(billing.db, { workspaceId: billing.workspaceId });
+  if (!clave) return { hint: prevHint, hash: prevHash };
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return { hint: prevHint, hash: prevHash };
@@ -60,13 +62,13 @@ async function visionProfilePic(
     // Unchanged pic → keep the cached hint, skip the (paid) vision call.
     if (prevHash && hash === prevHash) return { hint: prevHint, hash };
     const out = await describeImage({
-      billing,
+      billing: { ...billing, origenDeLaClave: clave.source },
       base64: buf.toString('base64'),
       mediaType: toImageMediaType(res.headers.get('content-type')),
       system: VISION_SYSTEM,
       user: 'Esta es la foto de perfil de una persona. Da la pista de interés.',
       maxTokens: 40,
-      anthropicKey: key,
+      anthropicKey: clave.key,
     });
     const clean = out.text.replace(/^["'“”]|["'“”]$/g, '').trim();
     const hint =

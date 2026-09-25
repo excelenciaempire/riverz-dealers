@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { decrypt } from '@/lib/whatsapp/encryption'
 
 /**
@@ -33,8 +34,61 @@ interface PlatformSettings {
 let cache: { at: number; value: PlatformSettings } | null = null
 const CACHE_MS = 60_000
 
+/** Qué cuentas son BYOK, con la misma caché de un minuto, por cuenta. */
+const byokCache = new Map<string, { at: number; value: boolean }>()
+
 export function invalidatePlatformKeyCache(): void {
   cache = null
+  byokCache.clear()
+}
+
+/**
+ * ¿Esta cuenta paga su IA con su propia clave?
+ *
+ * Se lee con la llave de servicio y no con el cliente de quien llama: la
+ * suscripción no tiene políticas de lectura, y un cliente de sesión la vería
+ * vacía y le daría la clave de Riverz a una cuenta BYOK.
+ *
+ * Si la consulta falla se responde que no: una base caída no puede dejar muda
+ * a todas las cuentas. Ese resultado no se cachea.
+ */
+export async function esCuentaByok(workspaceId: string): Promise<boolean> {
+  if (!workspaceId) return false
+  const hit = byokCache.get(workspaceId)
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.value
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from('workspace_subscriptions')
+      .select('modelo_cobro')
+      .eq('workspace_id', workspaceId)
+      .maybeSingle()
+    if (error) return false
+    const value = (data as { modelo_cobro?: string } | null)?.modelo_cobro === 'byok'
+    byokCache.set(workspaceId, { at: Date.now(), value })
+    return value
+  } catch {
+    return false
+  }
+}
+
+/** La clave que el comercio cargó en alguno de sus agentes; primero los activos. */
+async function claveDelComercio(workspaceId: string): Promise<ResolvedKey | null> {
+  const { data } = await supabaseAdmin()
+    .from('ai_agents')
+    .select('api_key_encrypted')
+    .eq('workspace_id', workspaceId)
+    .not('api_key_encrypted', 'is', null)
+    .order('is_active', { ascending: false })
+    .limit(5)
+  for (const row of (data ?? []) as { api_key_encrypted: string }[]) {
+    try {
+      const key = decrypt(row.api_key_encrypted)
+      if (key) return { key, source: 'agent' }
+    } catch {
+      /* la siguiente */
+    }
+  }
+  return null
 }
 
 async function loadSettings(db: SupabaseClient): Promise<PlatformSettings> {
@@ -96,6 +150,10 @@ export async function workspaceUsesPlatformKey(
  *
  * Devuelve null cuando no hay ninguna: quien llama decide si eso es un error
  * (contestar un DM) o simplemente no hacer nada (resumir una conversación).
+ *
+ * Una cuenta BYOK sólo usa la suya: sin ella no hay respaldo de Riverz, ni la
+ * de plataforma ni la del entorno. Quien no pasa la clave del agente recibe la
+ * que el comercio cargó en cualquiera de sus agentes.
  */
 export async function resolveAnthropicKey(
   db: SupabaseClient,
@@ -108,6 +166,10 @@ export async function resolveAnthropicKey(
     } catch {
       /* sigue al siguiente origen */
     }
+  }
+
+  if (await esCuentaByok(opts.workspaceId)) {
+    return claveDelComercio(opts.workspaceId)
   }
 
   const s = await loadSettings(db)

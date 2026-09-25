@@ -26,9 +26,10 @@ export type EstadoSuscripcion =
  *
  * `oficial` es el precio público actual: la mensualidad incluye el uso y la
  * billetera no interviene. `saldo` conserva el acuerdo anterior de las cuentas
- * que recargan y pagan cada consumo por separado.
+ * que recargan y pagan cada consumo por separado. `byok` paga la mensualidad y
+ * la IA con su propia clave de Anthropic: la de Riverz nunca la cubre.
  */
-export type ModeloCobro = 'oficial' | 'saldo'
+export type ModeloCobro = 'oficial' | 'saldo' | 'byok'
 export type ProveedorFacturacion = 'stripe' | 'shopify'
 
 export interface Plan {
@@ -204,7 +205,7 @@ export function aSuscripcion(f: FilaSuscripcion): Suscripcion {
     shopifySubscriptionId: shopify ? f.stripe_subscription_id : null,
     shopifyShopDomain: shopify ? f.stripe_customer_id : null,
     cancelarAlFinal: f.cancelar_al_final,
-    modeloCobro: f.modelo_cobro === 'saldo' ? 'saldo' : 'oficial',
+    modeloCobro: f.modelo_cobro === 'saldo' || f.modelo_cobro === 'byok' ? f.modelo_cobro : 'oficial',
     precioCentavos: precio,
     precioAcuerdoCentavos: precioAcuerdo,
     incluidas: f.incluidas_override ?? plan?.incluidas ?? 0,

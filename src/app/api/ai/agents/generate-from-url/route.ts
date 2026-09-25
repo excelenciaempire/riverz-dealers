@@ -1,4 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 import type { AiAgent, AiResponseMode, AiTone } from '@/lib/ai/types';
 import { serverError } from '@/lib/api/errors';
@@ -393,15 +394,17 @@ export async function POST(request: Request) {
     );
   }
 
-  // 2) Generate config with Claude (fallback if no knowledge or AI fails)
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  // 2) Generate config with Claude (fallback if no knowledge or AI fails).
+  // La misma clave que el resto de la IA: una cuenta BYOK paga con la suya.
+  const clave = await resolveAnthropicKey(admin, { workspaceId });
   let config: AgentConfigSuggestion = fallbackConfig(parsed.toString(), locale);
-  if (anthropicKey && knowledge.trim().length > 200) {
+  if (clave && knowledge.trim().length > 200) {
     try {
-      const client = getAnthropic(anthropicKey, {
+      const client = getAnthropic(clave.key, {
         db: admin,
         workspaceId,
         concepto: 'ia_asistencia',
+        origenDeLaClave: clave.source,
       });
       const completion = await client.messages.create({
         model: 'claude-sonnet-5',

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocale, useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
-import type { Plan } from "@/lib/billing/plan";
+import type { ModeloCobro, Plan } from "@/lib/billing/plan";
 import type { CuponDeStripe } from "@/lib/billing/stripe";
 import type { CuentaDelNegocio, Negocio } from "@/lib/billing/negocio";
 import type { Tarifa } from "@/lib/wallet/tarifas";
@@ -89,6 +89,15 @@ function aCentavos(texto: string): number | null {
 /** El plan del acuerdo por saldo: mensualidad fija y el consumo desde la billetera. */
 const PLAN_DE_SALDO = "saldo-ilimitado";
 
+/** El plan de las cuentas BYOK: sin precio de lista, la mensualidad es de cada cuenta. */
+const PLAN_BYOK = "byok";
+
+/** El plan que lleva una cuenta con saldo o BYOK: no eligen plan de contactos. */
+function planPropio(planes: Plan[], modelo: ModeloCobro): Plan | undefined {
+  const slug = modelo === "saldo" ? PLAN_DE_SALDO : modelo === "byok" ? PLAN_BYOK : null;
+  return planes.find((p) => p.slug === slug && p.activo);
+}
+
 /** Todo incluido sólo admite un plan de contactos activo. */
 const esPlanOficial = (p: Plan | undefined): p is Plan => Boolean(p?.activo && p.incluidas > 0);
 
@@ -99,6 +108,7 @@ function nombrePlan(p: Plan, t: ReturnType<typeof useT>): string {
     case "contactos-5000": return t("settings.billingPlan5000");
     case "contactos-10000": return t("settings.billingPlan10000");
     case "saldo-ilimitado": return t("settings.billingPlanSaldoUnlimited");
+    case "byok": return t("settings.billingPlanByok");
     default: return p.nombre;
   }
 }
@@ -313,8 +323,8 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         key: "saldo",
         header: t("admin.walletBalance"),
         cell: (c) => {
-          if (c.modeloCobro === "oficial") {
-            return <Muted>{t("admin.billingModel_oficial")}</Muted>;
+          if (c.modeloCobro !== "saldo") {
+            return <Muted>{t(`admin.billingModel_${c.modeloCobro}`)}</Muted>;
           }
           // El rojo es sólo cuando el saldo cero APAGA algo. Pintar en rojo a
           // una cuenta de cortesía —que nunca se apaga— es inventar una alarma.
@@ -809,11 +819,15 @@ function FilaPlan({
 }
 
 /**
- * El trato de una cuenta.
+ * El trato de una cuenta: con saldo, con plan o BYOK.
  *
- * Cada sistema de cobro muestra sólo lo suyo. Todo incluido elige un plan de
- * contactos y su cupo. Saldo por consumo no tiene cupo ni plan que elegir:
- * lleva el plan de saldo, una mensualidad y la billetera.
+ * Cada sistema de cobro muestra sólo lo suyo. Con plan elige un plan de
+ * contactos y su cupo. Con saldo no tiene cupo ni plan que elegir: lleva el
+ * plan de saldo, una mensualidad y la billetera. BYOK lleva la mensualidad que
+ * se pacta con la cuenta, y la IA corre con su propia clave de Anthropic.
+ *
+ * El estado no se elige acá: la cuenta nueva arranca sin cargo y Stripe la
+ * pasa a activa cuando paga el link.
  */
 function FormularioCuenta({
   cuenta,
@@ -836,24 +850,24 @@ function FormularioCuenta({
 }) {
   const t = useT();
   const [f, setF] = useState({
-    estado: cuenta.estado === "sin_configurar" ? "cortesia" : cuenta.estado,
     modelo: cuenta.modeloCobro,
     plan_id: "",
     precio: "",
     incluidas: "",
     nota: cuenta.nota ?? "",
   });
-  const saldo = f.modelo === "saldo";
+  const oficial = f.modelo === "oficial";
   const planActual = planes.find((p) => p.slug === cuenta.planSlug);
-  const planDeSaldo = planes.find((p) => p.slug === PLAN_DE_SALDO && p.activo);
+  const planDeSaldo = planPropio(planes, "saldo");
   // El plan con el que queda la cuenta al guardar.
   const plan = f.plan_id ? planes.find((p) => p.id === f.plan_id) : planActual;
-  const planValido = saldo || esPlanOficial(plan);
+  const planValido = f.modelo === "saldo" ||
+    (f.modelo === "byok" ? plan?.slug === PLAN_BYOK : esPlanOficial(plan));
   const precioEscrito = f.precio.trim() !== "";
   const precio = aCentavos(f.precio);
   const precioValido = !precioEscrito || precio !== null;
   const incluidasEscritas = f.incluidas.trim();
-  const incluidasValidas = saldo || incluidasEscritas === "" ||
+  const incluidasValidas = !oficial || incluidasEscritas === "" ||
     (Number.isInteger(Number(incluidasEscritas)) && Number(incluidasEscritas) >= 0);
   // La mensualidad pactada al guardar: la escrita, la del plan nuevo o la de hoy.
   const precioFinal = precioEscrito ? precio : f.plan_id ? plan?.precioCentavos ?? 0 : cuenta.precioAcuerdoCentavos;
@@ -861,13 +875,13 @@ function FormularioCuenta({
   const cambiaElCobro = f.modelo !== cuenta.modeloCobro || plan?.id !== planActual?.id ||
     precioFinal !== cuenta.precioAcuerdoCentavos;
 
-  const cambiarModelo = (modelo: typeof f.modelo) =>
+  const cambiarModelo = (modelo: ModeloCobro) =>
     setF({
       ...f,
       modelo,
-      // Al pasar a saldo se asigna su plan. Una cuenta que ya está en saldo
+      // Saldo y BYOK llevan su plan. Una cuenta que ya está en ese sistema
       // conserva el suyo: cambiarlo mueve su cobro, y eso se elige a propósito.
-      plan_id: modelo === "saldo" && cuenta.modeloCobro !== "saldo" ? planDeSaldo?.id ?? "" : "",
+      plan_id: modelo !== "oficial" && cuenta.modeloCobro !== modelo ? planPropio(planes, modelo)?.id ?? "" : "",
       precio: "",
       incluidas: "",
     });
@@ -876,13 +890,12 @@ function FormularioCuenta({
     if (!precioValido || !incluidasValidas || !planValido) return;
     onGuardar({
       workspace_id: cuenta.workspaceId,
-      estado: f.estado,
       modelo_cobro: f.modelo,
       ...(f.plan_id ? { plan_id: f.plan_id } : {}),
       ...(precioEscrito
         ? { precio_centavos_override: precio }
         : f.plan_id ? { precio_centavos_override: null } : {}),
-      ...(!saldo && incluidasEscritas !== ""
+      ...(oficial && incluidasEscritas !== ""
         ? { incluidas_override: Number(incluidasEscritas) }
         : f.plan_id ? { incluidas_override: null, excedente_centavos_override: null } : {}),
       nota: f.nota,
@@ -893,54 +906,50 @@ function FormularioCuenta({
     <>
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Campo label={t("admin.billingState")}>
-            <select
-              className={INPUT}
-              value={f.estado}
-              onChange={(e) => setF({ ...f, estado: e.target.value as typeof f.estado })}
-            >
-              {ESTADOS.map((e) => (
-                <option key={e} value={e}>
-                  {t(`admin.billingState_${e}`)}
-                </option>
-              ))}
-            </select>
-          </Campo>
           <Campo label={t("admin.billingModel")}>
             <select
               className={INPUT}
               value={f.modelo}
-              onChange={(e) => cambiarModelo(e.target.value as typeof f.modelo)}
+              onChange={(e) => cambiarModelo(e.target.value as ModeloCobro)}
             >
-              <option value="oficial">{t("admin.billingModel_oficial")}</option>
               <option value="saldo">{t("admin.billingModel_saldo")}</option>
+              <option value="oficial">{t("admin.billingModel_oficial")}</option>
+              <option value="byok">{t("admin.billingModel_byok")}</option>
             </select>
           </Campo>
-          {!saldo && (
-            <div className="sm:col-span-2">
-              <Campo label={t("admin.billingPlan")}>
-                <select
-                  className={INPUT}
-                  value={f.plan_id}
-                  onChange={(e) => setF({ ...f, plan_id: e.target.value })}
-                >
-                  <option value="">
-                    {esPlanOficial(planActual)
-                      ? `${t("admin.billingKeep")} · ${nombrePlan(planActual, t)}`
-                      : t("admin.billingChoosePlan")}
+          {oficial ? (
+            <Campo label={t("admin.billingPlan")}>
+              <select
+                className={INPUT}
+                value={f.plan_id}
+                onChange={(e) => setF({ ...f, plan_id: e.target.value })}
+              >
+                <option value="">
+                  {esPlanOficial(planActual)
+                    ? `${t("admin.billingKeep")} · ${nombrePlan(planActual, t)}`
+                    : t("admin.billingChoosePlan")}
+                </option>
+                {planes.filter(esPlanOficial).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {nombrePlan(p, t)}
                   </option>
-                  {planes.filter(esPlanOficial).map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {nombrePlan(p, t)}
-                    </option>
-                  ))}
-                </select>
-              </Campo>
-            </div>
+                ))}
+              </select>
+            </Campo>
+          ) : (
+            <Campo label={t("admin.billingMonthlyFee")}>
+              <input
+                className={INPUT}
+                inputMode="decimal"
+                placeholder={usdExacto(f.plan_id ? plan?.precioCentavos ?? 0 : cuenta.precioAcuerdoCentavos)}
+                value={f.precio}
+                onChange={(e) => setF({ ...f, precio: e.target.value })}
+              />
+            </Campo>
           )}
           {/* Sólo una cuenta que ya estaba en saldo con otro plan elige: pasarla
               al plan de saldo cambia lo que paga. */}
-          {saldo && cuenta.modeloCobro === "saldo" && planDeSaldo && planActual?.id !== planDeSaldo.id && (
+          {f.modelo === "saldo" && cuenta.modeloCobro === "saldo" && planDeSaldo && planActual?.id !== planDeSaldo.id && (
             <div className="sm:col-span-2">
               <Campo label={t("admin.billingPlan")}>
                 <select
@@ -956,29 +965,31 @@ function FormularioCuenta({
               </Campo>
             </div>
           )}
-          <Campo label={t(saldo ? "admin.billingMonthlyFee" : "admin.billingOwnPrice")}>
-            <input
-              className={INPUT}
-              inputMode="decimal"
-              placeholder={saldo || esPlanOficial(plan)
-                ? usdExacto(f.plan_id ? plan?.precioCentavos ?? 0 : cuenta.precioAcuerdoCentavos)
-                : undefined}
-              value={f.precio}
-              onChange={(e) => setF({ ...f, precio: e.target.value })}
-            />
-          </Campo>
-          {!saldo && (
-            <Campo label={t("admin.billingOwnIncluded")}>
-              <input
-                className={INPUT}
-                inputMode="numeric"
-                placeholder={esPlanOficial(plan)
-                  ? String(f.plan_id ? plan.incluidas : cuenta.incluidas)
-                  : undefined}
-                value={f.incluidas}
-                onChange={(e) => setF({ ...f, incluidas: e.target.value })}
-              />
-            </Campo>
+          {oficial && (
+            <>
+              <Campo label={t("admin.billingOwnPrice")}>
+                <input
+                  className={INPUT}
+                  inputMode="decimal"
+                  placeholder={esPlanOficial(plan)
+                    ? usdExacto(f.plan_id ? plan.precioCentavos : cuenta.precioAcuerdoCentavos)
+                    : undefined}
+                  value={f.precio}
+                  onChange={(e) => setF({ ...f, precio: e.target.value })}
+                />
+              </Campo>
+              <Campo label={t("admin.billingOwnIncluded")}>
+                <input
+                  className={INPUT}
+                  inputMode="numeric"
+                  placeholder={esPlanOficial(plan)
+                    ? String(f.plan_id ? plan.incluidas : cuenta.incluidas)
+                    : undefined}
+                  value={f.incluidas}
+                  onChange={(e) => setF({ ...f, incluidas: e.target.value })}
+                />
+              </Campo>
+            </>
           )}
           <div className="sm:col-span-2">
             <Campo label={t("admin.billingNote")}>
@@ -990,6 +1001,9 @@ function FormularioCuenta({
             </Campo>
           </div>
         </div>
+        {f.modelo === "byok" && !cuenta.tieneClavePropia && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">{t("admin.billingByokNoKey")}</p>
+        )}
         {cuenta.linkPagoDisponible && !cambiaElCobro ? (
           <LinkDePago workspaceId={cuenta.workspaceId} mensualidadCentavos={cuenta.precioAcuerdoCentavos} />
         ) : (
@@ -1017,18 +1031,18 @@ function FormularioCuenta({
           </button>
         </div>
       </div>
-      {saldo ? (
+      {f.modelo === "saldo" ? (
         <BloqueBilletera
           cuenta={cuenta}
           guardando={guardando}
           onMover={onMover}
           onBloqueo={onBloqueo}
         />
-      ) : (
+      ) : oficial ? (
         <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
           {t("admin.billingModelOfficialNote")}
         </p>
-      )}
+      ) : null}
     </>
   );
 }
@@ -1036,9 +1050,8 @@ function FormularioCuenta({
 /**
  * Alta de un comercio.
  *
- * Nace en cortesia por defecto porque es lo que pasa de verdad hoy: se le
- * instala sin cargo. El estado se puede cambiar en el mismo formulario, pero el
- * defecto tiene que ser el caso real, no el que suena mas prolijo.
+ * Nace sin cargo porque es lo que pasa de verdad hoy: se le instala gratis, y
+ * Stripe la pasa a activa cuando paga el link.
  */
 function FormularioAlta({
   planes,
@@ -1055,17 +1068,15 @@ function FormularioAlta({
 }) {
   const t = useT();
   const planesOficiales = planes.filter(esPlanOficial);
-  const planDeSaldo = planes.find((p) => p.slug === PLAN_DE_SALDO);
   const [f, setF] = useState({
     email: "",
     nombre: "",
-    estado: "cortesia" as "cortesia" | "prueba" | "activa",
-    modelo: "oficial" as "oficial" | "saldo",
+    modelo: "oficial" as ModeloCobro,
     plan_id: planesOficiales[0]?.id ?? "",
     precio: "",
     nota: "",
   });
-  const saldo = f.modelo === "saldo";
+  const oficial = f.modelo === "oficial";
   const plan = planes.find((p) => p.id === f.plan_id);
   const precio = aCentavos(f.precio);
   const precioEscrito = f.precio.trim() !== "";
@@ -1088,43 +1099,33 @@ function FormularioAlta({
             onChange={(e) => setF({ ...f, nombre: e.target.value })}
           />
         </Campo>
-        <Campo label={t("admin.billingState")}>
-          <select
-            className={INPUT}
-            value={f.estado}
-            onChange={(e) => setF({ ...f, estado: e.target.value as typeof f.estado })}
-          >
-            <option value="cortesia">{t("admin.billingState_cortesia")}</option>
-            <option value="prueba">{t("admin.billingState_prueba")}</option>
-            <option value="activa">{t("admin.billingState_activa")}</option>
-          </select>
-        </Campo>
         <Campo label={t("admin.billingModel")}>
           <select
             className={INPUT}
             value={f.modelo}
             onChange={(e) => {
-              const modelo = e.target.value as typeof f.modelo;
+              const modelo = e.target.value as ModeloCobro;
               setF({
                 ...f,
                 modelo,
-                plan_id: (modelo === "saldo" ? planDeSaldo : planesOficiales[0])?.id ?? "",
+                plan_id: (modelo === "oficial" ? planesOficiales[0] : planPropio(planes, modelo))?.id ?? "",
                 precio: "",
               });
             }}
           >
-            <option value="oficial">{t("admin.billingModel_oficial")}</option>
             <option value="saldo">{t("admin.billingModel_saldo")}</option>
+            <option value="oficial">{t("admin.billingModel_oficial")}</option>
+            <option value="byok">{t("admin.billingModel_byok")}</option>
           </select>
         </Campo>
-        {!saldo && (
+        {oficial && (
           <Campo label={t("admin.billingPlan")}>
             <select className={INPUT} value={f.plan_id} onChange={(e) => setF({ ...f, plan_id: e.target.value })}>
               {planesOficiales.map((p) => <option key={p.id} value={p.id}>{nombrePlan(p, t)}</option>)}
             </select>
           </Campo>
         )}
-        <Campo label={t(saldo ? "admin.billingMonthlyFee" : "admin.billingOwnPrice")}>
+        <Campo label={t(oficial ? "admin.billingOwnPrice" : "admin.billingMonthlyFee")}>
           <input
             className={INPUT}
             inputMode="decimal"
@@ -1145,12 +1146,12 @@ function FormularioAlta({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          disabled={guardando || !f.email.trim() || (precioEscrito && precio === null)}
+          disabled={guardando || !f.email.trim() || (precioEscrito && precio === null) ||
+            (f.modelo === "byok" && plan?.slug !== PLAN_BYOK)}
           onClick={() =>
             onCrear({
               email: f.email,
               nombre: f.nombre,
-              estado: f.estado,
               modelo_cobro: f.modelo,
               plan_id: f.plan_id || undefined,
               nota: f.nota,

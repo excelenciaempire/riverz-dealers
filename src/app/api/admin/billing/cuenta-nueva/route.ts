@@ -4,7 +4,7 @@ import { csrfGuard } from '@/lib/csrf';
 import { requireAdmin } from '@/lib/admin/guard';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { ensureWorkspace } from '@/lib/workspaces/ensure';
-import { planPorDefecto } from '@/lib/billing/plan';
+import { planPorDefecto, type ModeloCobro } from '@/lib/billing/plan';
 
 /**
  * Dar de alta un comercio desde el panel, con su trato ya definido.
@@ -30,7 +30,7 @@ interface Cuerpo {
   nota?: string;
   precio_centavos?: number | null;
   plan_id?: string;
-  modelo_cobro?: 'oficial' | 'saldo';
+  modelo_cobro?: ModeloCobro;
 }
 
 export async function POST(request: Request) {
@@ -46,10 +46,14 @@ export async function POST(request: Request) {
   }
 
   const db = supabaseAdmin();
+  const modelo: ModeloCobro =
+    body?.modelo_cobro === 'saldo' || body?.modelo_cobro === 'byok' ? body.modelo_cobro : 'oficial';
   const plan = body?.plan_id
-    ? (await db.from('billing_plans').select('id,activo,incluidas').eq('id', body.plan_id).maybeSingle()).data
+    ? (await db.from('billing_plans').select('id,slug,activo,incluidas').eq('id', body.plan_id).maybeSingle()).data
     : await planPorDefecto(db);
-  if (!plan?.activo || (body?.modelo_cobro !== 'saldo' && plan.incluidas <= 0)) {
+  // Todo incluido lleva un plan de contactos; BYOK, el suyo.
+  if (!plan?.activo || (modelo === 'oficial' && plan.incluidas <= 0) ||
+      (plan.slug === 'byok') !== (modelo === 'byok')) {
     return NextResponse.json({ error: 'plan inválido' }, { status: 400 });
   }
   const nombre = body?.nombre?.trim() || `${email.split('@')[0]}'s workspace`;
@@ -88,7 +92,7 @@ export async function POST(request: Request) {
       workspace_id: workspaceId,
       plan_id: plan?.id ?? null,
       estado,
-      modelo_cobro: body?.modelo_cobro === 'saldo' ? 'saldo' : 'oficial',
+      modelo_cobro: modelo,
       // La prueba sólo tiene sentido si el estado es prueba. En cortesía, una
       // fecha de vencimiento guardada es una bomba de tiempo escrita al lado
       // de un acuerdo que dice lo contrario.
@@ -113,7 +117,7 @@ export async function POST(request: Request) {
       alta: true,
       email,
       estado,
-      modelo_cobro: body?.modelo_cobro === 'saldo' ? 'saldo' : 'oficial',
+      modelo_cobro: modelo,
       invitado,
     },
   });

@@ -16,7 +16,7 @@
  */
 import Stripe from 'stripe'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { leerSuscripcion, listarPlanes, type Plan, type Suscripcion } from './plan'
+import { leerSuscripcion, listarPlanes, type ModeloCobro, type Plan, type Suscripcion } from './plan'
 import { costoAmpliacionCentavos } from './upgrade-policy'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { translate } from '@/lib/i18n/translate'
@@ -78,6 +78,8 @@ export function lineItemsDeSuscripcion(
     ? translate(locale, 'settings.billingPlan500')
     : s.plan.slug === 'saldo-ilimitado'
       ? translate(locale, 'settings.billingPlanSaldoUnlimited')
+    : s.plan.slug === 'byok'
+      ? translate(locale, 'settings.billingPlanByok')
     : s.plan.slug === 'contactos-2000'
       ? translate(locale, 'settings.billingPlan2000')
       : s.plan.slug === 'contactos-5000'
@@ -270,7 +272,7 @@ export async function sincronizarPrecioSuscripcion(
   s: Suscripcion,
   precioCentavos: number,
   moneda: string,
-  modelo: 'oficial' | 'saldo',
+  modelo: ModeloCobro,
   cambio?: { planId: string; invoiceId?: string },
   sinMedido = false,
 ): Promise<void> {
@@ -281,7 +283,7 @@ export async function sincronizarPrecioSuscripcion(
   if (!base) throw new Error('La suscripción de Stripe no tiene una mensualidad editable.')
   const medidos = sub.items.data.filter((i) => i.price.recurring?.usage_type === 'metered')
   const cambiaPrecio = base.price.unit_amount !== precioCentavos || base.price.currency !== moneda
-  const quitarMedidos = modelo === 'oficial' || sinMedido
+  const quitarMedidos = modelo !== 'saldo' || sinMedido
   if (!cambiaPrecio && (!quitarMedidos || medidos.length === 0) && !cambio) return
 
   let priceId = base.price.id

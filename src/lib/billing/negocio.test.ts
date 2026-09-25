@@ -29,12 +29,13 @@ function base(fallarWorkspaces = false, suscripciones: unknown[] = []) {
     billing_usage_daily: [],
     wallet_accounts: [],
     wallet_movimientos: [],
+    ai_agents: [{ workspace_id: 'w2' }],
   }
   const from = vi.fn((table: string) => {
     const result = { data: rows[table] ?? [], error: table === 'workspaces' && fallarWorkspaces ? new Error('DB unavailable') : null }
     const q = {
       select: () => q, is: () => q, gte: () => q, lt: () => q,
-      limit: () => q, in: () => q,
+      limit: () => q, in: () => q, not: () => q,
       then: (resolve: (value: typeof result) => unknown) => Promise.resolve(result).then(resolve),
     }
     return q
@@ -53,8 +54,9 @@ describe('cuentas de Negocio', () => {
     expect(negocio.cuentas[0]).toMatchObject({
       nombre: 'Tienda Nueva', correo: 'cliente@example.com',
       estado: 'sin_configurar', tieneSuscripcion: false, linkPagoDisponible: false,
-      admiteLinkPago: true, precioAcuerdoCentavos: 0,
+      admiteLinkPago: true, precioAcuerdoCentavos: 0, tieneClavePropia: false,
     })
+    expect(negocio.cuentas[1]).toMatchObject({ nombre: 'Otra Tienda', tieneClavePropia: true })
   })
 
   it('expone la mensualidad pactada y si todavía se cobra con link', async () => {

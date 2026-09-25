@@ -21,7 +21,7 @@ import { getAnthropic } from './anthropic-client';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import { ESTILO_HUMANO, humanizarTexto } from './estilo-humano';
 import { cargarReglas, reglasATexto } from './guidance';
-import { claveRechazada, resolveAnthropicKey } from './platform-key';
+import { claveRechazada, esCuentaByok, resolveAnthropicKey } from './platform-key';
 import { resolverRegistro } from './registro-rioplatense';
 import {
   buildSystemPrompt,
@@ -156,7 +156,10 @@ export async function componerBorrador(
       if (plataforma?.key && !claves.includes(plataforma.key))
         claves.push(plataforma.key);
     }
-    const delServidor = process.env.ANTHROPIC_API_KEY;
+    // BYOK paga su IA: la del servidor tampoco la cubre.
+    const delServidor = (await esCuentaByok(input.workspaceId))
+      ? undefined
+      : process.env.ANTHROPIC_API_KEY;
     if (delServidor && !claves.includes(delServidor)) claves.push(delServidor);
     if (claves.length === 0) return { text: null, error: 'sin_clave' };
 

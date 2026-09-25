@@ -892,8 +892,17 @@ export const admin = {
   billingState_vencida: { es: 'vencida', en: 'past due' },
   billingState_cancelada: { es: 'cancelada', en: 'canceled' },
   billingModel: { es: 'Sistema de cobro', en: 'Billing system' },
-  billingModel_oficial: { es: 'Todo incluido', en: 'All included' },
-  billingModel_saldo: { es: 'Saldo por consumo', en: 'Usage balance' },
+  billingModel_oficial: { es: 'Con plan', en: 'Plan' },
+  billingModel_saldo: { es: 'Con saldo', en: 'Balance' },
+  billingModel_byok: { es: 'BYOK', en: 'BYOK' },
+  billingByokNoKey: {
+    es: 'Todavía no cargó su clave de Anthropic: la IA no responde.',
+    en: "No Anthropic key loaded yet: the AI won't reply.",
+  },
+  billingByokPlanRequired: {
+    es: 'Una cuenta BYOK lleva el plan de clave propia.',
+    en: 'A BYOK account uses the own-key plan.',
+  },
   billingModelOfficialNote: {
     es: 'La mensualidad incluye todo el consumo. Esta cuenta no usa saldo ni recargas.',
     en: 'The monthly fee includes all usage. This account does not use a balance or top-ups.',

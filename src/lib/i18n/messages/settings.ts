@@ -1288,6 +1288,7 @@ export const settings = {
   billingTitle: { es: 'Plan y facturación', en: 'Plan and billing' },
   billingPlan500: { es: 'Hasta 500 contactos', en: 'Up to 500 contacts' },
   billingPlanSaldoUnlimited: { es: 'Contactos ilimitados con saldo', en: 'Unlimited contacts with balance' },
+  billingPlanByok: { es: 'Clave propia de IA', en: 'Own AI key' },
   billingSaldoUnlimitedCheckout: {
     es: 'El uso de la IA se descuenta del saldo que recargas por separado.',
     en: 'AI usage is deducted from a balance you fund separately.',
@@ -1364,6 +1365,7 @@ export const settings = {
   billingModelLabel: { es: 'Sistema de cobro', en: 'Billing model' },
   billingAllIncluded: { es: 'Todo incluido', en: 'All included' },
   billingBalanceModel: { es: 'Saldo por consumo', en: 'Usage balance' },
+  billingByokModel: { es: 'Tu propia clave de IA', en: 'Your own AI key' },
   billingServedContacts: {
     es: 'Contactos atendidos este período',
     en: 'Contacts served this period',

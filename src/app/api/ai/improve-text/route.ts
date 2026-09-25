@@ -195,7 +195,7 @@ export async function POST(request: Request): Promise<Response> {
     const platform = await resolveAnthropicKey(admin, { workspaceId });
     if (platform?.key && platform.key !== withAgent.key) {
       keys.push(platform.key);
-      deAgente.push(false);
+      deAgente.push(platform.source === 'agent');
     }
   }
   if (keys.length === 0) {

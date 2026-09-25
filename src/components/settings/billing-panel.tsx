@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils';
 
 interface Estado {
   estado: 'prueba' | 'activa' | 'vencida' | 'cancelada' | 'cortesia';
-  modeloCobro: 'oficial' | 'saldo';
+  modeloCobro: 'oficial' | 'saldo' | 'byok';
   plan: { nombre: string; slug: string } | null;
   acceso: { puede: boolean; diasDePrueba: number | null };
   cuenta: {
@@ -203,6 +203,8 @@ export function BillingPanel() {
     ? t('settings.billingPlan500')
     : e.plan?.slug === 'saldo-ilimitado'
       ? t('settings.billingPlanSaldoUnlimited')
+    : e.plan?.slug === 'byok'
+      ? t('settings.billingPlanByok')
     : e.plan?.slug === 'contactos-2000'
       ? t('settings.billingPlan2000')
       : e.plan?.slug === 'contactos-5000'
@@ -250,7 +252,9 @@ export function BillingPanel() {
         <div className="flex items-baseline justify-between gap-4">
           <span className="text-muted-foreground">{t('settings.billingModelLabel')}</span>
           <span className="font-medium text-foreground">
-            {t(e.modeloCobro === 'oficial' ? 'settings.billingAllIncluded' : 'settings.billingBalanceModel')}
+            {t(e.modeloCobro === 'oficial'
+              ? 'settings.billingAllIncluded'
+              : e.modeloCobro === 'byok' ? 'settings.billingByokModel' : 'settings.billingBalanceModel')}
           </span>
         </div>
         {e.modeloCobro === 'oficial' && cuenta.incluidas > 0 && (

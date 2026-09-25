@@ -1,4 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
@@ -56,14 +57,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: translate(locale, 'errWhatsapp.aiNotConfigured') },
-        { status: 503 }
-      );
-    }
-
     const limit = checkRateLimit(
       `template-ai:${user.id}`,
       RATE_LIMITS.broadcast
@@ -76,6 +69,16 @@ export async function POST(request: Request) {
       supabaseAdmin(),
       user.id
     );
+    // La misma clave que el resto de la IA: una cuenta BYOK paga con la suya.
+    const clave = await resolveAnthropicKey(supabaseAdmin(), {
+      workspaceId: workspaceId ?? '',
+    });
+    if (!clave) {
+      return NextResponse.json(
+        { error: translate(locale, 'errWhatsapp.aiNotConfigured') },
+        { status: 503 }
+      );
+    }
     const sinSaldo = await aiBudgetGuard(workspaceId, 'standard');
     if (sinSaldo) return sinSaldo;
 
@@ -92,10 +95,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const client = getAnthropic(apiKey, {
+    const client = getAnthropic(clave.key, {
       db: supabaseAdmin(),
       workspaceId: workspaceId ?? '',
       concepto: 'ia_asistencia',
+      origenDeLaClave: clave.source,
     });
 
     const userPrompt = [
