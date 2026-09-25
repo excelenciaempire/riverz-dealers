@@ -35,4 +35,13 @@ describe('importe de Checkout', () => {
     expect(items).toHaveLength(2)
     expect(items[1].price).toBe('price_legacy_metered')
   })
+
+  it('nombra la oferta privada y no añade cobro medido si el uso sale del saldo', () => {
+    const items = lineItemsDeSuscripcion(cuenta({
+      modeloCobro: 'saldo', incluidas: 0,
+      plan: { ...cuenta().plan!, slug: 'saldo-ilimitado', nombre: 'Contactos ilimitados con saldo', incluidas: 0 },
+    }), 'en')
+    expect(items).toHaveLength(1)
+    expect(items[0].price_data?.product_data?.name).toBe('Riverz · Unlimited contacts with balance')
+  })
 })

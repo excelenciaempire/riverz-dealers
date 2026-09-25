@@ -22,7 +22,10 @@ import {
 export interface CuentaDelNegocio {
   workspaceId: string
   nombre: string
-  estado: EstadoSuscripcion
+  correo: string | null
+  estado: EstadoSuscripcion | 'sin_configurar'
+  tieneSuscripcion: boolean
+  linkPagoDisponible: boolean
   plan: string | null
   planSlug: string | null
   /** Lo que paga por mes, en centavos. La cortesía es 0. */
@@ -67,6 +70,7 @@ export interface Negocio {
     enPrueba: number
     vencidas: number
     canceladas: number
+    sinConfigurar: number
   }
   /** Ingreso medio por cuenta que paga. */
   arpuCentavos: number
@@ -88,6 +92,7 @@ export interface Negocio {
 interface FilaWorkspace {
   id: string
   name: string | null
+  owner_id: string | null
 }
 
 export async function leerNegocio(
@@ -104,7 +109,7 @@ export async function leerNegocio(
        billing_plans ( id, slug, nombre, activo, precio_centavos, moneda, incluidas,
                        excedente_centavos, stripe_price_id, stripe_price_excedente_id, orden )`,
     ),
-    db.from('workspaces').select('id, name').is('deleted_at', null),
+    db.from('workspaces').select('id, name, owner_id').is('deleted_at', null),
     db
       .from('billing_usage_daily')
       .select('workspace_id, conversaciones, costo_usd')
@@ -122,10 +127,22 @@ export async function leerNegocio(
       .lt('creado_en', periodo.hasta.toISOString())
       .limit(100_000),
   ])
+  for (const result of [subsRes, wsRes, usoRes, billeterasRes, movimientosRes]) {
+    if (result.error) throw result.error
+  }
 
-  const nombres = new Map(
-    ((wsRes.data ?? []) as FilaWorkspace[]).map((w) => [w.id, w.name ?? 'sin nombre']),
-  )
+  const workspaces = (wsRes.data ?? []) as FilaWorkspace[]
+  const dueños = [...new Set(workspaces.map((w) => w.owner_id).filter((id): id is string => Boolean(id)))]
+  const perfilesRes = dueños.length
+    ? await db.from('profiles').select('user_id, email').in('user_id', dueños)
+    : { data: [], error: null }
+  if (perfilesRes.error) throw perfilesRes.error
+  const correos = new Map(((perfilesRes.data ?? []) as { user_id: string; email: string | null }[])
+    .map((p) => [p.user_id, p.email]))
+  const nombres = new Map(workspaces.map((w) => [w.id, {
+    nombre: w.name ?? 'sin nombre',
+    correo: w.owner_id ? correos.get(w.owner_id) ?? null : null,
+  }]))
 
   const uso = new Map<string, { conversaciones: number; costoUsd: number }>()
   for (const u of (usoRes.data ?? []) as {
@@ -177,42 +194,47 @@ export async function leerNegocio(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const subs: Suscripcion[] = ((subsRes.data ?? []) as any[]).map(aSuscripcion)
 
-  const cuentas: CuentaDelNegocio[] = subs
-    // Una suscripción de un workspace borrado no es un cliente.
-    .filter((s) => nombres.has(s.workspaceId))
-    .map((s) => {
-      const u = uso.get(s.workspaceId) ?? { conversaciones: 0, costoUsd: 0 }
-      const b = billeteras.get(s.workspaceId) ?? { saldo: 0, bloquea: false, aCosto: false }
-      const l = libro.get(s.workspaceId) ?? { cargado: 0, gastado: 0, costo: 0 }
+  const suscripciones = new Map(subs.map((s) => [s.workspaceId, s]))
+  const cuentas: CuentaDelNegocio[] = [...nombres.entries()]
+    .map(([workspaceId, identidad]): CuentaDelNegocio => {
+      const s = suscripciones.get(workspaceId)
+      const u = uso.get(workspaceId) ?? { conversaciones: 0, costoUsd: 0 }
+      const b = billeteras.get(workspaceId) ?? { saldo: 0, bloquea: false, aCosto: false }
+      const l = libro.get(workspaceId) ?? { cargado: 0, gastado: 0, costo: 0 }
       return {
-        workspaceId: s.workspaceId,
-        nombre: nombres.get(s.workspaceId) ?? 'sin nombre',
-        estado: s.estado,
-        plan: s.plan?.nombre ?? null,
-        planSlug: s.plan?.slug ?? null,
+        workspaceId,
+        nombre: identidad.nombre,
+        correo: identidad.correo,
+        estado: s?.estado ?? 'sin_configurar',
+        tieneSuscripcion: Boolean(s),
+        linkPagoDisponible: Boolean(s?.plan && s.precioAcuerdoCentavos > 0 &&
+          s.billingProvider === 'stripe' && (!s.stripeSubscriptionId || s.estado === 'cancelada')),
+        plan: s?.plan?.nombre ?? null,
+        planSlug: s?.plan?.slug ?? null,
         // Sólo lo ACTIVO es recurrente. Una prueba todavía no paga y una
         // cancelada dejó de pagar: contarlas infla el número que se usa para
         // tomar decisiones.
-        mrrCentavos: s.estado === 'activa' ? s.precioCentavos : 0,
-        tratoPropio: s.tratoPropio,
-        nota: s.nota,
+        mrrCentavos: s?.estado === 'activa' ? s.precioCentavos : 0,
+        tratoPropio: s?.tratoPropio ?? false,
+        nota: s?.nota ?? null,
         conversaciones: u.conversaciones,
         contactosAtendidos: 0,
         costoUsd: u.costoUsd,
-        pruebaHasta: s.pruebaHasta,
-        vencidaDesde: s.vencidaDesde,
+        pruebaHasta: s?.pruebaHasta ?? null,
+        vencidaDesde: s?.vencidaDesde ?? null,
         saldoCentavos: b.saldo,
         cargadoCentavos: l.cargado,
         gastadoCentavos: l.gastado,
         costoBilleteraCentavos: Math.round(l.costo),
         bloqueaSinSaldo: b.bloquea,
         cobraACosto: b.aCosto,
-        modeloCobro: s.modeloCobro,
+        modeloCobro: s?.modeloCobro ?? 'oficial',
       }
     })
-    .sort((a, b) => b.mrrCentavos - a.mrrCentavos || b.conversaciones - a.conversaciones)
+    .sort((a, b) => Number(b.estado === 'sin_configurar') - Number(a.estado === 'sin_configurar') ||
+      b.mrrCentavos - a.mrrCentavos || b.conversaciones - a.conversaciones)
 
-  await Promise.all(cuentas.filter((c) => c.modeloCobro === 'oficial').map(async (c) => {
+  await Promise.all(cuentas.filter((c) => c.tieneSuscripcion && c.modeloCobro === 'oficial').map(async (c) => {
     const { data, error } = await db.rpc('billing_contactos_atendidos', {
       p_workspace: c.workspaceId,
       p_desde: periodo.desde.toISOString(),
@@ -242,6 +264,7 @@ export async function leerNegocio(
       enPrueba: cuentas.filter((c) => c.estado === 'prueba').length,
       vencidas: cuentas.filter((c) => c.estado === 'vencida').length,
       canceladas: cuentas.filter((c) => c.estado === 'cancelada').length,
+      sinConfigurar: cuentas.filter((c) => c.estado === 'sin_configurar').length,
     },
     arpuCentavos: pagando > 0 ? Math.round(mrr / pagando) : 0,
     saldoTotalCentavos: saldoTotal,

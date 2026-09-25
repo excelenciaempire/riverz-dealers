@@ -47,9 +47,9 @@ export async function POST(request: Request) {
 
   const db = supabaseAdmin();
   const plan = body?.plan_id
-    ? (await db.from('billing_plans').select('id,activo').eq('id', body.plan_id).maybeSingle()).data
+    ? (await db.from('billing_plans').select('id,activo,incluidas').eq('id', body.plan_id).maybeSingle()).data
     : await planPorDefecto(db);
-  if (!plan?.activo) {
+  if (!plan?.activo || (body?.modelo_cobro !== 'saldo' && plan.incluidas <= 0)) {
     return NextResponse.json({ error: 'plan inválido' }, { status: 400 });
   }
   const nombre = body?.nombre?.trim() || `${email.split('@')[0]}'s workspace`;

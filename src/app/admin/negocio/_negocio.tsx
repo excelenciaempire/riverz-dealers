@@ -55,8 +55,10 @@ interface Payload {
 }
 
 const ESTADOS = ["prueba", "activa", "cortesia", "vencida", "cancelada"] as const;
+const ESTADOS_RESUMEN = ["sin_configurar", ...ESTADOS] as const;
 
 const TONO: Record<string, Tone> = {
+  sin_configurar: "warn",
   activa: "ok",
   cortesia: "muted",
   prueba: "warn",
@@ -73,6 +75,7 @@ function nombrePlan(p: Plan, t: ReturnType<typeof useT>): string {
     case "contactos-2000": return t("settings.billingPlan2000");
     case "contactos-5000": return t("settings.billingPlan5000");
     case "contactos-10000": return t("settings.billingPlan10000");
+    case "saldo-ilimitado": return t("settings.billingPlanSaldoUnlimited");
     default: return p.nombre;
   }
 }
@@ -93,6 +96,7 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
   const [editando, setEditando] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [alta, setAlta] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
   const [errorAlta, setErrorAlta] = useState<string | null>(null);
   const [errorCuenta, setErrorCuenta] = useState<string | null>(null);
   const [errorPlan, setErrorPlan] = useState<string | null>(null);
@@ -117,7 +121,6 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         setErrorCuenta(json?.error ?? t("admin.billingSaveFailed"));
         return;
       }
-      setEditando(null);
       reload();
     } catch {
       setErrorCuenta(t("admin.billingSaveFailed"));
@@ -234,6 +237,7 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         cell: (c) => (
           <div>
             <p className="font-medium text-foreground">{c.nombre}</p>
+            {c.correo && <Muted>{c.correo}</Muted>}
             {c.nota && <Muted>{c.nota}</Muted>}
           </div>
         ),
@@ -328,6 +332,10 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
 
   const { negocio, planes, tarifas } = data;
   const cuentaEditada = negocio.cuentas.find((c) => c.workspaceId === editando);
+  const termino = busqueda.trim().toLocaleLowerCase();
+  const cuentasFiltradas = termino
+    ? negocio.cuentas.filter((c) => `${c.nombre} ${c.correo ?? ""}`.toLocaleLowerCase().includes(termino))
+    : negocio.cuentas;
 
   return (
     <div className="space-y-6">
@@ -387,9 +395,11 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
 
       <Panel title={t("admin.billingCustomers")}>
         <div className="flex flex-wrap gap-4 p-4 text-sm">
-          {ESTADOS.map((e) => {
+          {ESTADOS_RESUMEN.map((e) => {
             const n =
-              e === "activa"
+              e === "sin_configurar"
+                ? negocio.clientes.sinConfigurar
+                : e === "activa"
                 ? negocio.clientes.pagando
                 : e === "cortesia"
                   ? negocio.clientes.cortesia
@@ -411,7 +421,14 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
       {vista === "cuentas" ? (
         <Panel title={t("admin.billingAccounts")}>
           <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-            <Muted>{t("admin.billingNewHint")}</Muted>
+            <input
+              type="search"
+              className={`${INPUT} max-w-xs`}
+              aria-label={t("admin.billingSearchAccounts")}
+              placeholder={t("admin.billingSearchAccounts")}
+              value={busqueda}
+              onChange={(event) => setBusqueda(event.target.value)}
+            />
             <button
               type="button"
               onClick={() => {
@@ -434,7 +451,7 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
               />
             </div>
           )}
-          <DataTable rows={negocio.cuentas} columns={columns} rowKey={(c) => c.workspaceId} />
+          <DataTable rows={cuentasFiltradas} columns={columns} rowKey={(c) => c.workspaceId} />
         </Panel>
       ) : (
         <>
@@ -795,7 +812,7 @@ function FormularioCuenta({
 }) {
   const t = useT();
   const [f, setF] = useState({
-    estado: cuenta.estado,
+    estado: cuenta.estado === "sin_configurar" ? "cortesia" : cuenta.estado,
     modelo: cuenta.modeloCobro,
     plan_id: "",
     precio: "",
@@ -804,11 +821,14 @@ function FormularioCuenta({
   });
   const planActual = planes.find((p) => p.slug === cuenta.planSlug);
   const planPredeterminado = planes.find((p) => p.activo && p.incluidas > 0);
+  const planSeleccionado = f.plan_id ? planes.find((p) => p.id === f.plan_id) : planActual;
+  const esPlanDeSaldoIlimitado = planSeleccionado?.slug === "saldo-ilimitado";
+  const planValido = Boolean(f.plan_id || planActual);
   const precioValido = f.precio === "" || (Number.isFinite(Number(f.precio.replace(",", "."))) && Number(f.precio.replace(",", ".")) >= 0);
   const incluidasValidas = f.incluidas === "" || (Number.isInteger(Number(f.incluidas)) && Number(f.incluidas) >= 0);
 
   const guardar = () => {
-    if (!precioValido || !incluidasValidas) return;
+    if (!precioValido || !incluidasValidas || !planValido) return;
     onGuardar({
       workspace_id: cuenta.workspaceId,
       estado: f.estado,
@@ -817,7 +837,9 @@ function FormularioCuenta({
       ...(f.precio !== ""
         ? { precio_centavos_override: Math.round(Number(f.precio.replace(",", ".")) * 100) }
         : f.plan_id ? { precio_centavos_override: null } : {}),
-      ...(f.incluidas !== ""
+      ...(esPlanDeSaldoIlimitado
+        ? { incluidas_override: null, excedente_centavos_override: null }
+        : f.incluidas !== ""
         ? { incluidas_override: Number(f.incluidas) }
         : f.plan_id ? { incluidas_override: null, excedente_centavos_override: null } : {}),
       nota: f.nota,
@@ -846,12 +868,11 @@ function FormularioCuenta({
             value={f.modelo}
             onChange={(e) => {
               const modelo = e.target.value as typeof f.modelo;
+              const seleccionado = f.plan_id ? planes.find((p) => p.id === f.plan_id) : planActual;
               setF({
                 ...f,
                 modelo,
-                plan_id: modelo === "oficial" && !(f.plan_id
-                  ? planes.find((p) => p.id === f.plan_id)?.activo
-                  : planActual?.activo)
+                plan_id: modelo === "oficial" && (!seleccionado?.activo || seleccionado.incluidas <= 0)
                   ? planPredeterminado?.id ?? ""
                   : f.plan_id,
               });
@@ -868,14 +889,17 @@ function FormularioCuenta({
               value={f.plan_id}
               onChange={(e) => setF({ ...f, plan_id: e.target.value })}
             >
-              <option value="">{planActual ? `${t("admin.billingKeep")} · ${nombrePlan(planActual, t)}` : t("admin.billingKeep")}</option>
-              {planes.filter((p) => f.modelo === "saldo" || p.activo).map((p) => (
+              <option value="">{planActual ? `${t("admin.billingKeep")} · ${nombrePlan(planActual, t)}` : t("admin.billingChoosePlan")}</option>
+              {planes.filter((p) => f.modelo === "saldo" || (p.activo && p.incluidas > 0)).map((p) => (
                 <option key={p.id} value={p.id}>
                   {nombrePlan(p, t)}
                 </option>
               ))}
             </select>
           </Campo>
+          {esPlanDeSaldoIlimitado && (
+            <p className="mt-1 text-xs text-muted-foreground">{t("admin.billingUnlimitedBalanceNote")}</p>
+          )}
         </div>
         <Campo label={t("admin.billingOwnPrice")}>
           <input
@@ -886,15 +910,17 @@ function FormularioCuenta({
             onChange={(e) => setF({ ...f, precio: e.target.value })}
           />
         </Campo>
-        <Campo label={t("admin.billingOwnIncluded")}>
-          <input
-            className={INPUT}
-            inputMode="numeric"
-            placeholder={t("admin.billingKeep")}
-            value={f.incluidas}
-            onChange={(e) => setF({ ...f, incluidas: e.target.value })}
-          />
-        </Campo>
+        {!esPlanDeSaldoIlimitado && (
+          <Campo label={t("admin.billingOwnIncluded")}>
+            <input
+              className={INPUT}
+              inputMode="numeric"
+              placeholder={t("admin.billingKeep")}
+              value={f.incluidas}
+              onChange={(e) => setF({ ...f, incluidas: e.target.value })}
+            />
+          </Campo>
+        )}
         <div className="sm:col-span-2">
           <Campo label={t("admin.billingNote")}>
             <input
@@ -905,7 +931,11 @@ function FormularioCuenta({
           </Campo>
         </div>
       </div>
-      <LinkDePago workspaceId={cuenta.workspaceId} />
+      {cuenta.linkPagoDisponible
+        ? <LinkDePago workspaceId={cuenta.workspaceId} />
+        : !cuenta.tieneSuscripcion && (
+          <p className="text-xs text-muted-foreground">{t("admin.billingSaveBeforeLink")}</p>
+        )}
       {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex justify-end gap-2 border-t border-border pt-4">
         <button
@@ -918,7 +948,7 @@ function FormularioCuenta({
         </button>
         <button
           type="button"
-          disabled={guardando || !precioValido || !incluidasValidas}
+          disabled={guardando || !precioValido || !incluidasValidas || !planValido}
           onClick={guardar}
           className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
         >
@@ -993,7 +1023,13 @@ function FormularioAlta({
           <select
             className={INPUT}
             value={f.modelo}
-            onChange={(e) => setF({ ...f, modelo: e.target.value as typeof f.modelo })}
+            onChange={(e) => {
+              const modelo = e.target.value as typeof f.modelo;
+              setF({ ...f, modelo,
+                plan_id: modelo === "oficial" && planes.find((p) => p.id === f.plan_id)?.incluidas === 0
+                  ? planes.find((p) => p.incluidas > 0)?.id ?? ""
+                  : f.plan_id });
+            }}
           >
             <option value="oficial">{t("admin.billingModel_oficial")}</option>
             <option value="saldo">{t("admin.billingModel_saldo")}</option>
@@ -1001,9 +1037,13 @@ function FormularioAlta({
         </Campo>
         <Campo label={t("admin.billingPlans")}>
           <select className={INPUT} value={f.plan_id} onChange={(e) => setF({ ...f, plan_id: e.target.value })}>
-            {planes.map((p) => <option key={p.id} value={p.id}>{nombrePlan(p, t)}</option>)}
+            {planes.filter((p) => f.modelo === "saldo" || p.incluidas > 0)
+              .map((p) => <option key={p.id} value={p.id}>{nombrePlan(p, t)}</option>)}
           </select>
         </Campo>
+        {planes.find((p) => p.id === f.plan_id)?.slug === "saldo-ilimitado" && (
+          <p className="col-span-2 text-xs text-muted-foreground">{t("admin.billingUnlimitedBalanceNote")}</p>
+        )}
         <Campo label={t("admin.billingOwnPrice")}>
           <input
             className={INPUT}

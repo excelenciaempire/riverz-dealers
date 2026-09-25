@@ -1287,6 +1287,11 @@ export const settings = {
   // Facturación, en Ajustes.
   billingTitle: { es: 'Plan y facturación', en: 'Plan and billing' },
   billingPlan500: { es: 'Hasta 500 contactos', en: 'Up to 500 contacts' },
+  billingPlanSaldoUnlimited: { es: 'Contactos ilimitados con saldo', en: 'Unlimited contacts with balance' },
+  billingSaldoUnlimitedCheckout: {
+    es: 'El uso de la IA se descuenta del saldo que recargas por separado.',
+    en: 'AI usage is deducted from a balance you fund separately.',
+  },
   billingPlan2000: { es: 'Hasta 2.000 contactos', en: 'Up to 2,000 contacts' },
   billingPlan5000: { es: 'Hasta 5.000 contactos', en: 'Up to 5,000 contacts' },
   billingPlan10000: {

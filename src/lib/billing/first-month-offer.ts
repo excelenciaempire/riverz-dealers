@@ -16,9 +16,12 @@ export function firstMonthCouponId(monthlyCents: number, currency: string): stri
 }
 
 export function eligibleForFirstMonthOffer(
-  subscription: Pick<Suscripcion, 'modeloCobro' | 'stripeSubscriptionId' | 'precioAcuerdoCentavos'>,
+  subscription: Pick<Suscripcion, 'modeloCobro' | 'stripeSubscriptionId' | 'precioAcuerdoCentavos'> & {
+    plan?: Pick<NonNullable<Suscripcion['plan']>, 'slug'> | null
+  },
 ): boolean {
-  return subscription.modeloCobro === 'oficial' &&
+  return (subscription.modeloCobro === 'oficial' ||
+    (subscription.modeloCobro === 'saldo' && subscription.plan?.slug === 'saldo-ilimitado')) &&
     !subscription.stripeSubscriptionId && subscription.precioAcuerdoCentavos > 0 &&
     firstMonthCents(subscription.precioAcuerdoCentavos) > 0
 }

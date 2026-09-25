@@ -187,6 +187,11 @@ export async function PUT(request: Request) {
         error: translate(await getLocale(), 'admin.billingOfficialPlanRequired'),
       }, { status: 400 });
     }
+    if (plan?.slug === 'saldo-ilimitado' && modelo !== 'saldo') {
+      return NextResponse.json({
+        error: translate(await getLocale(), 'admin.billingUnlimitedRequiresBalance'),
+      }, { status: 400 });
+    }
     const suscripcionStripeViva = previa?.billingProvider === 'stripe' &&
       Boolean(previa?.stripeSubscriptionId) &&
       (previa?.estado === 'activa' || previa?.estado === 'vencida');
@@ -204,12 +209,19 @@ export async function PUT(request: Request) {
     if (c.plan_id !== undefined) fila.plan_id = c.plan_id || null;
     if (c.estado !== undefined) fila.estado = c.estado;
     if (c.prueba_hasta !== undefined) fila.prueba_hasta = c.prueba_hasta || null;
+    else if (!previa && c.estado === 'prueba') {
+      fila.prueba_hasta = new Date(Date.now() + DIAS_DE_PRUEBA * 24 * 60 * 60 * 1000).toISOString();
+    }
     if (c.precio_centavos_override !== undefined)
       fila.precio_centavos_override = ENTERO(c.precio_centavos_override);
     if (c.incluidas_override !== undefined)
       fila.incluidas_override = ENTERO(c.incluidas_override);
     if (c.excedente_centavos_override !== undefined)
       fila.excedente_centavos_override = ENTERO(c.excedente_centavos_override);
+    if (plan?.slug === 'saldo-ilimitado') {
+      fila.incluidas_override = null;
+      fila.excedente_centavos_override = null;
+    }
     if (c.modelo_cobro !== undefined) {
       if (c.modelo_cobro !== 'oficial' && c.modelo_cobro !== 'saldo') {
         return NextResponse.json({ error: 'modelo de cobro inválido' }, { status: 400 });
@@ -229,9 +241,13 @@ export async function PUT(request: Request) {
         if (nueva && (
           nueva.precioCentavos !== previa.precioCentavos ||
           nueva.modeloCobro !== previa.modeloCobro ||
-          nueva.plan?.moneda !== previa.plan?.moneda
+          nueva.plan?.moneda !== previa.plan?.moneda ||
+          nueva.plan?.id !== previa.plan?.id ||
+          (nueva.plan?.slug === 'saldo-ilimitado' && previa.plan?.slug !== 'saldo-ilimitado')
         )) await sincronizarPrecioSuscripcion(
           previa, nueva.precioCentavos, nueva.plan?.moneda ?? 'usd', nueva.modeloCobro,
+          nueva.plan ? { planId: nueva.plan.id } : undefined,
+          nueva.plan?.slug === 'saldo-ilimitado',
         );
       } catch (stripeError) {
         const { error: rollbackError } = await db.from('workspace_subscriptions')

@@ -201,6 +201,8 @@ export function BillingPanel() {
   const { cuenta } = e;
   const planNombre = e.plan?.slug === 'contactos-500'
     ? t('settings.billingPlan500')
+    : e.plan?.slug === 'saldo-ilimitado'
+      ? t('settings.billingPlanSaldoUnlimited')
     : e.plan?.slug === 'contactos-2000'
       ? t('settings.billingPlan2000')
       : e.plan?.slug === 'contactos-5000'

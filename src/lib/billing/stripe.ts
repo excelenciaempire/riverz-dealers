@@ -76,6 +76,8 @@ export function lineItemsDeSuscripcion(
   if (!s.plan || s.precioAcuerdoCentavos <= 0) return []
   const nombrePlan = s.plan.slug === 'contactos-500'
     ? translate(locale, 'settings.billingPlan500')
+    : s.plan.slug === 'saldo-ilimitado'
+      ? translate(locale, 'settings.billingPlanSaldoUnlimited')
     : s.plan.slug === 'contactos-2000'
       ? translate(locale, 'settings.billingPlan2000')
       : s.plan.slug === 'contactos-5000'
@@ -88,11 +90,16 @@ export function lineItemsDeSuscripcion(
       currency: s.plan.moneda,
       unit_amount: s.precioAcuerdoCentavos,
       recurring: { interval: 'month' },
-      product_data: { name: `Riverz · ${nombrePlan}` },
+      product_data: {
+        name: `Riverz · ${nombrePlan}`,
+        ...(s.plan.slug === 'saldo-ilimitado'
+          ? { description: translate(locale, 'settings.billingSaldoUnlimitedCheckout') }
+          : {}),
+      },
     },
     quantity: 1,
   }]
-  if (s.modeloCobro === 'saldo' && s.plan.stripePriceExcedenteId) {
+  if (s.modeloCobro === 'saldo' && s.plan.stripePriceExcedenteId && s.plan.slug !== 'saldo-ilimitado') {
     items.push({ price: s.plan.stripePriceExcedenteId })
   }
   return items
@@ -253,7 +260,8 @@ export async function sincronizarPrecioSuscripcion(
   precioCentavos: number,
   moneda: string,
   modelo: 'oficial' | 'saldo',
-  ampliacionPagada?: { planId: string; invoiceId: string },
+  cambio?: { planId: string; invoiceId?: string },
+  sinMedido = false,
 ): Promise<void> {
   if (!s.stripeSubscriptionId) return
   if (precioCentavos <= 0) throw new Error('La suscripción activa necesita un precio mensual positivo.')
@@ -262,7 +270,8 @@ export async function sincronizarPrecioSuscripcion(
   if (!base) throw new Error('La suscripción de Stripe no tiene una mensualidad editable.')
   const medidos = sub.items.data.filter((i) => i.price.recurring?.usage_type === 'metered')
   const cambiaPrecio = base.price.unit_amount !== precioCentavos || base.price.currency !== moneda
-  if (!cambiaPrecio && (modelo !== 'oficial' || medidos.length === 0)) return
+  const quitarMedidos = modelo === 'oficial' || sinMedido
+  if (!cambiaPrecio && (!quitarMedidos || medidos.length === 0) && !cambio) return
 
   let priceId = base.price.id
   if (cambiaPrecio) {
@@ -282,15 +291,18 @@ export async function sincronizarPrecioSuscripcion(
   await stripe().subscriptions.update(s.stripeSubscriptionId, {
     items: [
       { id: base.id, price: priceId, quantity: 1 },
-      ...(modelo === 'oficial' ? medidos.map((i) => ({ id: i.id, deleted: true as const })) : []),
+      ...(quitarMedidos ? medidos.map((i) => ({ id: i.id, deleted: true as const })) : []),
     ],
     proration_behavior: 'none',
     billing_cycle_anchor: 'unchanged',
-    ...(ampliacionPagada ? {
-      metadata: { plan_id: ampliacionPagada.planId, capacity_upgrade_invoice_id: ampliacionPagada.invoiceId },
+    ...(cambio ? {
+      metadata: {
+        plan_id: cambio.planId,
+        ...(cambio.invoiceId ? { capacity_upgrade_invoice_id: cambio.invoiceId } : {}),
+      },
     } : {}),
-  }, ampliacionPagada ? {
-    idempotencyKey: `riverz-paid-upgrade-${ampliacionPagada.invoiceId}`,
+  }, cambio?.invoiceId ? {
+    idempotencyKey: `riverz-paid-upgrade-${cambio.invoiceId}`,
   } : undefined)
 }
 

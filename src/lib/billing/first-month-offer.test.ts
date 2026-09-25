@@ -12,9 +12,11 @@ describe('first month offer', () => {
     expect(firstMonthCouponId(99900, 'USD')).not.toBe(firstMonthCouponId(39900, 'USD'))
   })
 
-  it('does not apply to legacy balances or an existing subscription', () => {
+  it('applies to the private unlimited-balance offer but not other legacy balances', () => {
     expect(eligibleForFirstMonthOffer({ modeloCobro: 'oficial', stripeSubscriptionId: null, precioAcuerdoCentavos: 39900 })).toBe(true)
     expect(eligibleForFirstMonthOffer({ modeloCobro: 'saldo', stripeSubscriptionId: null, precioAcuerdoCentavos: 39900 })).toBe(false)
+    expect(eligibleForFirstMonthOffer({ modeloCobro: 'saldo', plan: { slug: 'saldo-ilimitado' }, stripeSubscriptionId: null, precioAcuerdoCentavos: 39900 })).toBe(true)
     expect(eligibleForFirstMonthOffer({ modeloCobro: 'oficial', stripeSubscriptionId: 'sub_old', precioAcuerdoCentavos: 39900 })).toBe(false)
+    expect(eligibleForFirstMonthOffer({ modeloCobro: 'saldo', plan: { slug: 'saldo-ilimitado' }, stripeSubscriptionId: 'sub_old', precioAcuerdoCentavos: 39900 })).toBe(false)
   })
 })
