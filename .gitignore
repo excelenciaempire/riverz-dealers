@@ -43,8 +43,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# claude code (per-developer tool settings — keep local)
-.claude/
+# claude code: los permisos del proyecto (settings.json) se comparten con
+# todas las sesiones; lo demás es local de cada una.
+.claude/*
+!.claude/settings.json
 
 # Screen recordings / demo videos (never commit binaries)
 *.mp4
