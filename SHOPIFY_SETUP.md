@@ -98,7 +98,11 @@ que vuelva a abrir la app desde su admin de Shopify.
    los datos de arriba → **Instalar app** en su tienda.
 2. En Riverz, el mismo formulario con su Client ID y Client secret. Instalada y
    en la misma organización, conecta al instante por client credentials
-   (`connection_method='client_credentials'`, token de 24 h).
+   (`connection_method='client_credentials'`, token de 24 h). Si todavía no
+   está instalada, queda esperando y Riverz reintenta solo con las credenciales
+   guardadas (`conectarPendientes`: cada 15 minutos en el cron
+   `shopify-token-refresh`, y cada 30 segundos mientras la tarjeta está
+   abierta), así que se conecta aunque la URL de la app no sea la de Riverz.
 
 En los dos casos Riverz renueva el token solo y verifica los webhooks con el
 secreto de esa app. Rotar el secreto en Shopify obliga a volver a pegarlo.

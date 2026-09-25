@@ -1,17 +1,10 @@
-import { after, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { csrfGuard } from '@/lib/csrf';
-import {
-  exchangeClientCredentialsForToken,
-  normalizeShopDomain,
-  ShopifyCredentialsError,
-} from '@/lib/shopify/oauth';
-import { persistShopifyConnection } from '@/lib/shopify/connection';
+import { normalizeShopDomain } from '@/lib/shopify/oauth';
 import { registrarAppDelComercio } from '@/lib/shopify/apps-del-comercio';
-import { ShopifyAdminClient } from '@/lib/shopify/admin-client';
-import { syncShopifyProducts } from '@/lib/shopify/product-sync';
-import { scrapeShopifyCatalogSources } from '@/lib/products/scrape-catalog-sources';
+import { conectarConCredenciales } from '@/lib/shopify/conectar-con-credenciales';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -73,24 +66,22 @@ export async function POST(request: Request) {
     );
   }
 
-  let token: Awaited<ReturnType<typeof exchangeClientCredentialsForToken>>;
-  try {
-    token = await exchangeClientCredentialsForToken({
-      shop,
-      clientId,
-      clientSecret,
-    });
-  } catch (err) {
-    log.warn('credential_exchange_failed', {
-      shop,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    if (
-      err instanceof ShopifyCredentialsError &&
-      err.motivo === 'app_not_installed'
-    ) {
+  const admin = supabaseAdmin();
+  const r = await conectarConCredenciales(admin, {
+    userId: user.id,
+    workspaceId,
+    shop,
+    clientId,
+    clientSecret,
+    callbackBase:
+      process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin,
+    locale,
+  });
+  if (!r.ok) {
+    log.warn('connect_failed', { shop, motivo: r.motivo, error: r.error });
+    if (r.motivo === 'no_instalada') {
       try {
-        await registrarAppDelComercio(supabaseAdmin(), {
+        await registrarAppDelComercio(admin, {
           workspaceId,
           userId: user.id,
           shopDomain: shop,
@@ -115,82 +106,17 @@ export async function POST(request: Request) {
       });
     }
     return NextResponse.json(
-      { error: translate(locale, 'errProducts.shopifyCredentialsInvalid') },
-      { status: 400 }
+      {
+        error: translate(
+          locale,
+          r.motivo === 'guardar'
+            ? 'errProducts.shopifyConnectFailed'
+            : 'errProducts.shopifyCredentialsInvalid'
+        ),
+      },
+      { status: r.motivo === 'guardar' ? 500 : 400 }
     );
   }
-  const client = new ShopifyAdminClient(shop, token.access_token);
-  let shopName: string | null = null;
-  try {
-    shopName = (await client.getShopInfo()).name || null;
-  } catch (err) {
-    log.warn('token_validation_failed', {
-      shop,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return NextResponse.json(
-      { error: translate(locale, 'errProducts.shopifyCredentialsInvalid') },
-      { status: 400 }
-    );
-  }
-
-  const admin = supabaseAdmin();
-  try {
-    await persistShopifyConnection(admin, {
-      userId: user.id,
-      workspaceId,
-      shopDomain: shop,
-      shopName,
-      accessToken: token.access_token,
-      scope: token.scope || null,
-      webhookSecret: clientSecret,
-      clientId,
-      connectionMethod: 'client_credentials',
-      expiresIn: token.expires_in,
-      refreshToken: null,
-      refreshTokenExpiresIn: null,
-    });
-  } catch (err) {
-    log.error('persist_failed', {
-      shop,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return NextResponse.json(
-      { error: translate(locale, 'errProducts.shopifyConnectFailed') },
-      { status: 500 }
-    );
-  }
-
-  const callbackBase =
-    process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
-  try {
-    await client.registerWebhooks(callbackBase);
-  } catch (err) {
-    log.error('webhook_register_failed', {
-      shop,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-  after(async () => {
-    try {
-      await syncShopifyProducts(admin, {
-        userId: user.id,
-        workspaceId,
-        shopDomain: shop,
-        accessToken: token.access_token,
-      });
-      await scrapeShopifyCatalogSources(admin, {
-        workspaceId,
-        shopDomain: shop,
-        locale,
-      });
-    } catch (err) {
-      log.error('initial_catalog_sync_or_scrape_failed', {
-        shop,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  });
 
   log.info('connect_client_credentials_success', {
     shop,
@@ -200,6 +126,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     shop_domain: shop,
-    shop_name: shopName,
+    shop_name: r.shopName,
   });
 }

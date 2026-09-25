@@ -8,8 +8,14 @@ import {
 } from '@/lib/shopify/connection'
 import { shopifyRedirectUri, shopifyScopes } from '@/lib/shopify/oauth'
 import { tiendaEsperandoInstalacion } from '@/lib/shopify/apps-del-comercio'
+import { conectarPendientes } from '@/lib/shopify/conectar-con-credenciales'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+
+/** Último reintento de la tienda en espera, por workspace: la tarjeta pregunta
+ *  seguido y cada intento es una llamada a Shopify. */
+const ultimoIntento = new Map<string, number>()
+const ESPERA_MS = 20_000
 
 /**
  * Settings card connection state. Post-055 we prefer workspace_id (so a
@@ -20,9 +26,10 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
  * only allows that once the App Store approves it, so it stays off until
  * `SHOPIFY_APP_STORE_APPROVED=true`. `config`: what a merchant's own app
  * must be created with, in the Dev Dashboard. `pendiente`: the store whose
- * saved app hasn't been installed yet.
+ * saved app hasn't been installed yet; while there is one, each read retries
+ * it, so the card flips to connected as soon as the owner installs.
  */
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -30,7 +37,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id)
-  const conn = workspaceId
+  let conn = workspaceId
     ? await getConnectionForWorkspace(supabase, workspaceId)
     : await getConnectionForUser(supabase, user.id)
   const oauth =
@@ -40,12 +47,27 @@ export async function GET() {
   const config = appUrl
     ? { appUrl, redirectUrl: shopifyRedirectUri(), scopes: shopifyScopes() }
     : null
-  const pendiente =
+  let pendiente =
     workspaceId && conn?.status !== 'active'
       ? await tiendaEsperandoInstalacion(supabaseAdmin(), workspaceId).catch(
           () => null,
         )
       : null
+  if (
+    pendiente &&
+    workspaceId &&
+    Date.now() - (ultimoIntento.get(workspaceId) ?? 0) > ESPERA_MS
+  ) {
+    ultimoIntento.set(workspaceId, Date.now())
+    const conectadas = await conectarPendientes(supabaseAdmin(), {
+      workspaceId,
+      callbackBase: appUrl ?? new URL(request.url).origin,
+    }).catch(() => 0)
+    if (conectadas > 0) {
+      conn = await getConnectionForWorkspace(supabase, workspaceId)
+      pendiente = null
+    }
+  }
   return NextResponse.json({ oauth, config, pendiente, connection: conn })
 }
 

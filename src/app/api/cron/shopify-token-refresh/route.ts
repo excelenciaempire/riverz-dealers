@@ -4,6 +4,8 @@ import { assertCronAuth } from '@/lib/auth/cron'
 import { withCronRun } from '@/lib/cron/heartbeat'
 import { getLogger } from '@/lib/log/logger'
 import { tokenVivo, COLUMNAS_TOKEN } from '@/lib/shopify/token-vivo'
+import { conectarPendientes } from '@/lib/shopify/conectar-con-credenciales'
+import { publicBaseUrl } from '@/lib/base-url'
 
 const log = getLogger('cron.shopify-token-refresh')
 
@@ -27,6 +29,9 @@ const log = getLogger('cron.shopify-token-refresh')
  *
  * Corre seguido —cada quince minutos— porque la ventana es de una hora: con una
  * corrida diaria, cualquier tienda estaría vencida el 96% del tiempo.
+ *
+ * De paso conecta las tiendas que esperaban que instalaran su app: la del
+ * comercio no avisa cuando la instalan (ver `conectarPendientes`).
  *
  * Auth: cabecera `x-cron-secret` contra `AUTOMATION_CRON_SECRET`.
  */
@@ -80,12 +85,22 @@ async function cronHandler(request: Request) {
     }
   }
 
+  let conectadas = 0
+  try {
+    conectadas = await conectarPendientes(admin, { callbackBase: publicBaseUrl() })
+  } catch (err) {
+    log.warn('pending_connect_failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+
   return NextResponse.json(
     {
       ok: fallaron === 0,
       porVencer: filas.length,
       renovados,
       fallaron,
+      conectadas,
     },
     { status: fallaron ? 207 : 200 }
   )

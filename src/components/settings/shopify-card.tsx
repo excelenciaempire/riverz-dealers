@@ -80,6 +80,28 @@ export function ShopifyCard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Mientras una tienda espera que instalen su app, se vuelve a preguntar: el
+  // servidor reintenta con las credenciales guardadas y la tarjeta pasa sola
+  // a conectada.
+  const conectada = connection?.status === 'active';
+  useEffect(() => {
+    if (!pendiente || conectada) return;
+    const id = window.setInterval(async () => {
+      try {
+        const res = await fetch('/api/shopify/status');
+        const data = await res.json();
+        if (data.connection?.status === 'active') {
+          setConnection(data.connection);
+          setPendiente(null);
+          toast.success(t('settings.shopifyConnected'));
+        }
+      } catch {
+        // Sigue esperando.
+      }
+    }, 30_000);
+    return () => window.clearInterval(id);
+  }, [pendiente, conectada, t]);
+
   async function load() {
     try {
       setLoading(true);
