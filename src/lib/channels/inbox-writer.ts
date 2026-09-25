@@ -8,6 +8,7 @@ import type {
   Contact,
   Conversation,
   Message,
+  MessageAttachment,
 } from "@/types";
 import type { InboundEvent } from "./types";
 import { runAiAgent } from "@/lib/ai/runner";
@@ -156,12 +157,27 @@ export async function ingestInboundEvent(
   if (event.externalMessageId) {
     const { data: already } = await db
       .from("messages")
-      .select("id, conversations!inner(workspace_id)")
+      .select("id, content_text, media_url, conversations!inner(workspace_id)")
       .eq("message_id", event.externalMessageId)
       .eq("conversations.workspace_id", workspaceId)
       .limit(1)
       .maybeSingle();
-    if (already) return null;
+    if (already) {
+      // El historial de coexistencia manda primero el mensaje con un marcador
+      // en lugar del archivo y después el MISMO mensaje con su archivo. Llega
+      // como repetido: se completa la fila en vez de tirar el archivo.
+      if (fillsMediaPlaceholder(already, event)) {
+        await db
+          .from("messages")
+          .update({
+            ...mediaColumns(channel, event.attachments),
+            attachments: event.attachments,
+            content_text: event.text,
+          })
+          .eq("id", already.id);
+      }
+      return null;
+    }
   }
 
   // Para ingestas HISTÓRICAS (backfill de DMs / echoes viejos / respuestas de
@@ -298,55 +314,17 @@ export async function ingestInboundEvent(
   }
 
   // 3. Insert message — idempotent on external id.
-  // Si el adapter trajo media, derivamos las columnas estructuradas
-  // (media_type/media_mime/media_size/media_url) desde el primer
-  // attachment. El JSONB `attachments` queda como historial completo
-  // (cuando un mensaje ship múltiples archivos, sólo el primero llena
-  // las columnas estructuradas — el resto sigue accesible vía JSONB).
-  const firstAttachment = event.attachments?.[0];
-  const baseContentType: string =
-    channel === "gmail" || channel === "outlook" || channel === "zoho"
-      ? "email"
-      : channel === "fb_comment" || channel === "ig_comment"
-        ? "comment"
-        : "text";
-  let contentType = baseContentType;
-  let mediaUrl: string | null = null;
-  let mediaType: string | null = null;
-  let mediaMime: string | null = null;
-  let mediaSize: number | null = null;
-  if (firstAttachment && firstAttachment.url) {
-    mediaUrl = firstAttachment.url;
-    mediaMime = firstAttachment.mime_type ?? null;
-    mediaSize = firstAttachment.size ?? null;
-    mediaType = mediaMime ? mimeToCategory(mediaMime) : null;
-    // Si todavía estamos en texto pero hay media, bumpeamos el
-    // content_type para que el inbox y los filtros sepan que hay
-    // adjunto. Email/comment mantienen su tipo de alto nivel.
-    if (baseContentType === "text" && mediaType) {
-      contentType =
-        mediaType === "voice"
-          ? "audio"
-          : mediaType === "sticker"
-            ? "image"
-            : mediaType;
-    }
-  }
   const insertPayload: Record<string, unknown> = {
     conversation_id: conversation.id,
     channel,
     // Sent-folder emails come back as outbound (we authored them), so
     // they land as agent messages on the right side of the thread.
     sender_type: event.outbound ? "agent" : "customer",
-    content_type: contentType,
+    ...mediaColumns(channel, event.attachments),
     content_text: event.text,
     html_body: event.htmlBody,
     subject: event.subject,
     attachments: event.attachments ?? null,
-    media_url: mediaUrl,
-    media_type: mediaType,
-    media_mime: mediaMime,
-    media_size: mediaSize,
     message_id: event.externalMessageId,
     status: event.outbound ? "sent" : "delivered",
     created_at: event.receivedAt,
@@ -726,6 +704,77 @@ export interface UpsertContactInput {
   /** Momento histórico del primer mensaje visto (backfill); si se omite, la DB
    *  usa NOW(). Solo aplica al INSERT — nunca reescribe un contacto existente. */
   created_at?: string;
+}
+
+/**
+ * Columnas estructuradas del mensaje según el canal y el primer adjunto. El
+ * JSONB `attachments` guarda todos; sólo el primero llena estas columnas.
+ */
+function mediaColumns(
+  channel: Channel,
+  attachments: MessageAttachment[] | undefined,
+): {
+  content_type: string;
+  media_url: string | null;
+  media_type: string | null;
+  media_mime: string | null;
+  media_size: number | null;
+} {
+  const baseContentType: string =
+    channel === "gmail" || channel === "outlook" || channel === "zoho"
+      ? "email"
+      : channel === "fb_comment" || channel === "ig_comment"
+        ? "comment"
+        : "text";
+  const first = attachments?.[0];
+  if (!first?.url) {
+    return {
+      content_type: baseContentType,
+      media_url: null,
+      media_type: null,
+      media_mime: null,
+      media_size: null,
+    };
+  }
+  const mime = first.mime_type ?? null;
+  const mediaType = mime ? mimeToCategory(mime) : null;
+  // Si todavía estamos en texto pero hay media, bumpeamos el content_type para
+  // que el inbox y los filtros sepan que hay adjunto. Email/comment mantienen
+  // su tipo de alto nivel.
+  const contentType =
+    baseContentType === "text" && mediaType
+      ? mediaType === "voice"
+        ? "audio"
+        : mediaType === "sticker"
+          ? "image"
+          : mediaType
+      : baseContentType;
+  return {
+    content_type: contentType,
+    media_url: first.url,
+    media_type: mediaType,
+    media_mime: mime,
+    media_size: first.size ?? null,
+  };
+}
+
+/** Marcador que deja el adaptador de WhatsApp para un `media_placeholder`. */
+const MEDIA_PLACEHOLDER = "[unsupported message type: media_placeholder]";
+
+/**
+ * ¿El evento trae el archivo de un mensaje que quedó guardado como marcador?
+ * Pasa en el historial de coexistencia, que manda el archivo en una segunda
+ * entrega con el mismo id.
+ */
+export function fillsMediaPlaceholder(
+  existing: { content_text?: string | null; media_url?: string | null },
+  event: Pick<InboundEvent, "attachments">,
+): boolean {
+  return Boolean(
+    event.attachments?.some((a) => a.url) &&
+      !existing.media_url &&
+      String(existing.content_text ?? "").startsWith(MEDIA_PLACEHOLDER),
+  );
 }
 
 /**

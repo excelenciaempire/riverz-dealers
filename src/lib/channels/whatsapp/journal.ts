@@ -65,7 +65,11 @@ interface JournalBody {
   }>;
 }
 
-/** Números (phone_number_id) de una entrega que trae mensajes o ecos. */
+/**
+ * Números (phone_number_id) de una entrega que trae mensajes, ecos o historial.
+ * El historial también: Meta lo manda una sola vez, y sin copia un archivo que
+ * no entra no se recupera nunca.
+ */
 export function journalAccounts(payload: unknown): string[] {
   const accounts = new Set<string>();
   for (const entry of (payload as JournalBody | null)?.entry ?? []) {
@@ -75,7 +79,8 @@ export function journalAccounts(payload: unknown): string[] {
       if (!account) continue;
       if (
         (change.field === "messages" && value.messages?.length) ||
-        (change.field === "smb_message_echoes" && value.message_echoes?.length)
+        (change.field === "smb_message_echoes" && value.message_echoes?.length) ||
+        (change.field === "history" && value.history?.length)
       ) {
         accounts.add(String(account));
       }

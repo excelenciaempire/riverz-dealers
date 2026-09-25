@@ -132,6 +132,16 @@ describe("journalAccounts", () => {
     expect(journalAccounts(payload)).toEqual([PHONE, OTHER_PHONE]);
   });
 
+  it("anota también el historial de coexistencia", () => {
+    const payload = delivery([
+      {
+        field: "history",
+        value: { metadata: { phone_number_id: PHONE }, history: [{ threads: [{ id: "5491155555555", messages: [] }] }] },
+      },
+    ]);
+    expect(journalAccounts(payload)).toEqual([PHONE]);
+  });
+
   it("ignora los acuses de entrega", () => {
     const payload = delivery([
       {
