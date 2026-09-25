@@ -21,7 +21,7 @@ import { costoAmpliacionCentavos } from './upgrade-policy'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
-import { eligibleForFirstMonthOffer, firstMonthCouponId, firstMonthDiscountCents, FIRST_MONTH_DISCOUNT_PERCENT } from './first-month-offer'
+import { eligibleForFirstMonthOffer, endOfFreeFirstMonth, firstMonthCouponId, firstMonthDiscountCents, FIRST_MONTH_DISCOUNT_PERCENT } from './first-month-offer'
 
 let cliente: Stripe | null = null
 
@@ -151,8 +151,12 @@ export async function urlDeCheckout(
    * Sólo se **elige** uno existente: crearlo desde el panel sería poder
    * inventar un descuento con un click. Los cupones se arman en Stripe, que es
    * donde queda el rastro de quién lo hizo y por qué.
+   *
+   * `primerMesSinCargo`: el primer mes ya se cobró por fuera. La suscripción
+   * arranca con un mes de prueba y el primer cobro es la mensualidad
+   * completa, sin la promoción.
    */
-  opciones?: { cupon?: string | null },
+  opciones?: { cupon?: string | null; primerMesSinCargo?: boolean },
 ): Promise<string> {
   const locale = await localeDeCuenta(db, workspaceId)
   if (!s.plan || s.precioAcuerdoCentavos <= 0) {
@@ -166,7 +170,10 @@ export async function urlDeCheckout(
   }
   const customer = await clienteDe(db, workspaceId, s, quien.email, quien.nombre)
   const items = lineItemsDeSuscripcion(s, locale)
-  const coupon = opciones?.cupon || (eligibleForFirstMonthOffer(s) ? await couponForFirstMonth(s.precioAcuerdoCentavos, s.plan.moneda) : null)
+  const sinCargo = opciones?.primerMesSinCargo === true
+  const coupon = sinCargo
+    ? null
+    : opciones?.cupon || (eligibleForFirstMonthOffer(s) ? await couponForFirstMonth(s.precioAcuerdoCentavos, s.plan.moneda) : null)
 
   const sesion = await stripe().checkout.sessions.create({
     mode: 'subscription',
@@ -181,8 +188,12 @@ export async function urlDeCheckout(
     phone_number_collection: { enabled: true },
     line_items: items,
     // El id de la cuenta viaja con la suscripción: el webhook llega sin sesión
-    // y sin esto habría que adivinar de quién es.
-    subscription_data: { metadata: { workspace_id: workspaceId } },
+    // y sin esto habría que adivinar de quién es. El mes sin cargo es una
+    // prueba de Stripe: se guarda la tarjeta y no se cobra hasta que termina.
+    subscription_data: {
+      metadata: { workspace_id: workspaceId },
+      ...(sinCargo ? { trial_end: Math.floor(endOfFreeFirstMonth(new Date()).getTime() / 1000) } : {}),
+    },
     ...(coupon ? { discounts: [{ coupon }] } : {}),
     success_url: volverA('/ajustes?facturacion=lista'),
     cancel_url: volverA('/ajustes?facturacion=cancelada'),

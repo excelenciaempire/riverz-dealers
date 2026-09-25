@@ -106,6 +106,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     workspace_id?: string;
     cupon?: string | null;
+    primer_mes_sin_cargo?: boolean;
   } | null;
   const workspaceId = body?.workspace_id;
   if (!workspaceId) {
@@ -124,15 +125,19 @@ export async function POST(request: Request) {
     );
   }
 
+  // Regalar el primer mes es regalar plata: queda en la auditoría como el cupón.
+  const primerMesSinCargo = body?.primer_mes_sin_cargo === true;
+  const cupon = primerMesSinCargo ? null : body?.cupon || null;
   try {
     const url = await urlDeCheckout(db, workspaceId, s, await duenoDe(db, workspaceId), {
-      cupon: body?.cupon || null,
+      cupon,
+      primerMesSinCargo,
     });
     await recordAdminAction(gate.actor, request, {
       action: 'update.billing_subscription',
       targetType: 'workspace',
       targetId: workspaceId,
-      meta: { linkDePago: true, cupon: body?.cupon || null },
+      meta: { linkDePago: true, cupon, primerMesSinCargo },
     });
     return NextResponse.json({ url });
   } catch (e) {

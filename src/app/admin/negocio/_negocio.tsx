@@ -991,7 +991,7 @@ function FormularioCuenta({
           </div>
         </div>
         {cuenta.linkPagoDisponible && !cambiaElCobro ? (
-          <LinkDePago workspaceId={cuenta.workspaceId} />
+          <LinkDePago workspaceId={cuenta.workspaceId} mensualidadCentavos={cuenta.precioAcuerdoCentavos} />
         ) : (
           cuenta.admiteLinkPago && planValido && plan && precioFinal !== null && precioFinal > 0 && (
             <p className="text-xs text-muted-foreground">{t("admin.billingSaveBeforeLink")}</p>
@@ -1173,15 +1173,19 @@ function FormularioAlta({
   );
 }
 
+/** Valor del selector para el link cuyo primer mes no se cobra. */
+const PRIMER_MES_SIN_CARGO = "primer-mes-sin-cargo";
+
 /**
  * El link de pago de esta cuenta.
  *
  * Existe para que cerrar un cliente no dependa de que alguien con la clave
  * secreta arme la sesión de Stripe a mano. El descuento se ELIGE de los cupones
  * que ya están en Stripe: inventarlo acá sería poder regalar plata con un
- * click, y sin rastro de quién lo hizo.
+ * click, y sin rastro de quién lo hizo. La única excepción es el primer mes sin
+ * cargo, para quien ya lo pagó por fuera, y queda en la auditoría.
  */
-function LinkDePago({ workspaceId }: { workspaceId: string }) {
+function LinkDePago({ workspaceId, mensualidadCentavos }: { workspaceId: string; mensualidadCentavos: number }) {
   const t = useT();
   const fmt = useFormat();
   const fetchWithCsrf = useFetchWithCsrf();
@@ -1197,6 +1201,14 @@ function LinkDePago({ workspaceId }: { workspaceId: string }) {
     monthlyCents: number;
     currency: string;
   } | null>(null);
+  const sinCargo = cupon === PRIMER_MES_SIN_CARGO;
+  const moneda = (promo?.currency ?? "usd").toUpperCase();
+  // Lo que se cobra el primer mes y después, salvo con un cupón de Stripe.
+  const resumen = sinCargo
+    ? { primero: 0, despues: mensualidadCentavos }
+    : promo && !cupon
+      ? { primero: promo.firstMonthCents, despues: promo.monthlyCents }
+      : null;
 
   useEffect(() => {
     let vivo = true;
@@ -1220,11 +1232,16 @@ function LinkDePago({ workspaceId }: { workspaceId: string }) {
     setPidiendo(true);
     setError(null);
     setUrl(null);
+    setCopiado(false);
     try {
       const res = await fetchWithCsrf("/api/admin/billing/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspace_id: workspaceId, cupon: cupon || null }),
+        body: JSON.stringify({
+          workspace_id: workspaceId,
+          cupon: sinCargo ? null : cupon || null,
+          primer_mes_sin_cargo: sinCargo,
+        }),
       });
       const d = await res.json();
       if (!res.ok) setError(d.error ?? "no se pudo");
@@ -1242,11 +1259,17 @@ function LinkDePago({ workspaceId }: { workspaceId: string }) {
         <select
           className={INPUT}
           value={cupon}
-          onChange={(e) => setCupon(e.target.value)}
+          onChange={(e) => {
+            // Un link ya armado cobra lo anterior: se descarta al cambiar.
+            setCupon(e.target.value);
+            setUrl(null);
+            setError(null);
+          }}
         >
           <option value="">{promo
             ? t("admin.billingFirstMonthPromo", { percent: promo.percent })
             : t("admin.billingNoCoupon")}</option>
+          <option value={PRIMER_MES_SIN_CARGO}>{t("admin.billingFirstMonthFree")}</option>
           {(cupones ?? []).map((c) => (
             <option key={c.id} value={c.id}>
               {c.nombre} {c.detalle}
@@ -1262,11 +1285,11 @@ function LinkDePago({ workspaceId }: { workspaceId: string }) {
       >
         {t("admin.billingPayLink")}
       </button>
-      {promo && !cupon && (
+      {resumen && (
         <p className="w-full text-xs text-muted-foreground">
           {t("admin.billingFirstMonthSummary", {
-            first: fmt.money(promo.firstMonthCents / 100, promo.currency.toUpperCase()),
-            regular: fmt.money(promo.monthlyCents / 100, promo.currency.toUpperCase()),
+            first: fmt.money(resumen.primero / 100, moneda),
+            regular: fmt.money(resumen.despues / 100, moneda),
           })}
         </p>
       )}

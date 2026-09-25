@@ -905,6 +905,7 @@ export const admin = {
   billingEdit: { es: 'Configurar', en: 'Configure' },
   billingEditTitle: { es: 'Configurar cuenta', en: 'Configure account' },
   billingFirstMonthPromo: { es: 'Promoción primer mes · {percent} %', en: 'First-month offer · {percent}%' },
+  billingFirstMonthFree: { es: 'Primer mes sin cargo', en: 'First month free' },
   billingFirstMonthSummary: {
     es: 'Primer mes {first}; después {regular} al mes.',
     en: 'First month {first}; then {regular} per month.',
