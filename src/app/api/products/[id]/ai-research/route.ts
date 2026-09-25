@@ -4,6 +4,7 @@ import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { enrichProduct } from '@/lib/products/enrich';
+import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 
 /**
  * POST /api/products/[id]/ai-research
@@ -29,6 +30,19 @@ export async function POST(
   }
 
   const locale = await getLocale();
+
+  // Lo pide una persona: si la cuenta no puede usar la IA, que la pantalla lo
+  // diga. La sesión sólo ve productos de sus cuentas.
+  const { data: producto } = await supabase
+    .from('shopify_products')
+    .select('workspace_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (!producto) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+  const over = await aiBudgetGuard((producto as { workspace_id: string }).workspace_id);
+  if (over) return over;
 
   const body = (await req.json().catch(() => null)) as {
     refresh_sources?: unknown;

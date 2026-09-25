@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { scoreLeads } from './lead-scoring';
 import { hayJev, preguntarJev } from '@/lib/ai/jev';
 import { completeText } from '@/lib/ai/llm-client';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 
 vi.mock('@/lib/ai/jev', () => ({ hayJev: vi.fn(), preguntarJev: vi.fn() }));
 vi.mock('@/lib/ai/llm-client', () => ({ hasLlm: () => true, completeText: vi.fn() }));
+vi.mock('@/lib/wallet/puerta', () => ({ puedeUsarIa: vi.fn(async () => true) }));
 const billing = { db: {}, workspaceId: 'workspace', concepto: 'ia_clasificacion' } as never;
 const comment = 'No dice cuánto vale entonces cuál es negocio';
 const post = 'Puma Suede XL: el segundo par gratis';
@@ -18,6 +20,14 @@ describe('publication context in comment classification', () => {
     expect(preguntarJev).toHaveBeenCalledWith(expect.objectContaining({
       state: { publicacion: post, mensajes: [comment] },
     }));
+    expect(completeText).not.toHaveBeenCalled();
+  });
+
+  it('does not classify when the account cannot use AI', async () => {
+    vi.mocked(puedeUsarIa).mockResolvedValueOnce(false);
+    vi.mocked(hayJev).mockReturnValue(true);
+    await expect(scoreLeads('key', [comment], billing, post)).rejects.toThrow('sin_ia');
+    expect(preguntarJev).not.toHaveBeenCalled();
     expect(completeText).not.toHaveBeenCalled();
   });
 

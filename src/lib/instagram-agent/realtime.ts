@@ -426,6 +426,9 @@ export async function maybeInstantOutreach(
     windowMs: 60_000,
   });
   if (!gate.success) return;
+  // Puntuar y redactar el DM se cobra: sin IA —sin pagar o sin saldo— la fila
+  // queda en cola y el cron la manda cuando la cuenta pueda.
+  if (!(await puedeUsarIa(db, opts.workspaceId))) return;
 
   const apiKey =
     (await resolveAnthropicKey(db, { workspaceId: opts.workspaceId }))?.key ??
@@ -1774,8 +1777,10 @@ export async function maybeRunCloser(
   }
 ): Promise<boolean> {
   // Si no queda capacidad para una persona nueva, el runner genérico dejará
-  // el hilo para una persona; el cerrador no debe saltarse esa decisión.
+  // el hilo para una persona; el cerrador no debe saltarse esa decisión. Sin
+  // IA —sin pagar o sin saldo— tampoco: el runner deja dicho por qué.
   if (!(await puedeAtenderContacto(db, opts.workspaceId, opts.contact.id))) return false;
+  if (!(await puedeUsarIa(db, opts.workspaceId))) return false;
   const { data: recRow } = await db
     .from('instagram_campaign_recipients')
     .select('id, status, discount_code, lead_score, campaign_id')

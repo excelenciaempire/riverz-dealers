@@ -1,4 +1,6 @@
+import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { firecrawlScrape, workspaceDelProducto } from '@/lib/firecrawl/client';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 import type { Locale } from '@/lib/i18n/config';
 import { isPublicHttpsUrl } from '@/lib/security/url-guard';
 import { detectOffersFromScrapedContent } from '@/lib/shopify/offer-learning';
@@ -26,8 +28,8 @@ export interface EnrichResult {
   ok: boolean;
   faqsCount?: number;
   error?: string;
-  /** 'not_found' | 'no_api_key' | 'model' — lets callers map to HTTP codes. */
-  reason?: 'not_found' | 'no_api_key' | 'model';
+  /** 'not_found' | 'no_api_key' | 'model' | 'sin_ia' — lets callers map to HTTP codes. */
+  reason?: 'not_found' | 'no_api_key' | 'model' | 'sin_ia';
 }
 
 /** Scrape the product's URLs if we have none yet; detect offers from the read. */
@@ -107,6 +109,12 @@ export async function enrichProduct(
     .maybeSingle();
   if (error || !product)
     return { ok: false, reason: 'not_found', error: 'not found' };
+
+  // Investigar se cobra: la cuenta que no puede gastar —sin pagar o sin saldo—
+  // no investiga, y el producto queda como estaba para cuando pueda.
+  if (!(await puedeUsarIa(supabaseAdmin(), String(product.workspace_id)))) {
+    return { ok: false, reason: 'sin_ia', error: 'sin_ia' };
+  }
 
   await db
     .from('shopify_products')

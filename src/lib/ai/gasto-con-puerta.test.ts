@@ -38,7 +38,7 @@ const SIN_PUERTA = new Map([
 
 /** Cómo se ve una llamada al modelo. */
 const LLAMA_AL_MODELO =
-  /getAnthropic\(|messages\.create\(|completeText\(|completeTextMedido\(|runWithTools\(/
+  /getAnthropic\(|messages\.create\(|completeText\(|completeTextConUso\(|completeTextMedido\(|runWithTools\(/
 
 /** Cualquiera de las dos puertas. */
 const TIENE_PUERTA = /aiBudgetGuard\(|exigirSaldo\(|puedeUsarIa\(|puertaDeIa\(/

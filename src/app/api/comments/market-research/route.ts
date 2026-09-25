@@ -1,5 +1,6 @@
 import { completeTextConUso, hasLlm } from '@/lib/ai/llm-client';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
+import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import {
   analyzeCommentMetrics,
@@ -270,6 +271,8 @@ export async function POST(request: Request) {
       { status: 403 }
     );
   }
+  const over = await aiBudgetGuard(workspaceId);
+  if (over) return over;
   const admin = supabaseAdmin();
 
   const encoder = new TextEncoder();

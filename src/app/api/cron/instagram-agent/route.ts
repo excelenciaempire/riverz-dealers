@@ -7,6 +7,7 @@ import { replyToComments } from '@/lib/instagram-agent/comment-reply';
 import { detectRepliesAndCapture } from '@/lib/instagram-agent/capture';
 import { attributeAndRollup } from '@/lib/instagram-agent/attribution';
 import { coercePlan, type InstagramCampaign } from '@/lib/instagram-agent/types';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
@@ -68,10 +69,15 @@ async function cronHandler(request: Request) {
     };
 
     try {
+      // Puntuar y redactar cada DM se cobra: la cuenta que no puede usar la
+      // IA —sin pagar o sin saldo— no envía. Lo que sigue no gasta y corre igual.
+      const conIa = await puedeUsarIa(db, raw.workspace_id);
       // Lead scoring + supresión de spam antes de enviar (prioriza alta
       // intención, descarta spam/hate).
-      const score = await scoreCampaignRecipients(db, raw.id);
-      const send = await sendCampaignBatch(db, campaign);
+      const score = conIa ? await scoreCampaignRecipients(db, raw.id) : { scored: 0, spam: 0 };
+      const send = conIa
+        ? await sendCampaignBatch(db, campaign)
+        : { sent: 0, failed: 0, remaining: 0, skipped: 'sin_ia' };
       // Responder públicamente a comentarios de alta intención (→ DM).
       const comments = await replyToComments(db, campaign);
       // Detectar respuestas + capturar email/teléfono de los ya enviados.
@@ -98,7 +104,9 @@ async function cronHandler(request: Request) {
         incremental_revenue: metrics.incremental_revenue,
         uplift_pct: metrics.uplift_pct,
       });
-      if ((send as { skipped?: string }).skipped) failures += 1;
+      // Sin IA no es una falla del cron: es una cuenta que no puede gastar.
+      const skipped = (send as { skipped?: string }).skipped;
+      if (skipped && skipped !== 'sin_ia') failures += 1;
     } catch (err) {
       failures += 1;
       results.push({

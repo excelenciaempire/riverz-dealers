@@ -3,6 +3,7 @@ import { describeImage, toImageMediaType } from '@/lib/ai/llm-client';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { transcribeBuffer, transcripcionDisponible } from '@/lib/ai/transcribe';
 import type { BillingContext } from '@/lib/wallet/operacion';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 import type { ChannelConnection } from '@/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { decrypt } from './encryption';
@@ -184,8 +185,22 @@ export async function entenderPendientes(
   const filas = (data ?? []) as FilaContexto[];
   let entendidos = 0;
   const hasta = Date.now() + PRESUPUESTO_MS;
+  // Ver la imagen y transcribir el video se cobran. La cuenta que no puede
+  // usar la IA —sin pagar o sin saldo— espera su turno sin gastar un intento,
+  // y sin tapar la cola de las demás.
+  const puede = new Map<string, boolean>();
   for (const fila of filas) {
     if (Date.now() > hasta) break;
+    if (!puede.has(fila.workspace_id)) {
+      puede.set(fila.workspace_id, await puedeUsarIa(db, fila.workspace_id));
+    }
+    if (!puede.get(fila.workspace_id)) {
+      await db
+        .from('publicacion_contexto')
+        .update({ intentado_at: new Date().toISOString() })
+        .eq('id', fila.id);
+      continue;
+    }
     try {
       if (await entenderUna(db, fila)) entendidos++;
     } catch (err) {

@@ -6,6 +6,7 @@ import { getVoiceModelResolved } from '@/lib/voice/model-config';
 import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import { exigirSaldo } from '@/lib/wallet/puerta';
 import {
   isVoiceAdmin,
   isVoiceMember,
@@ -377,6 +378,10 @@ export async function POST(request: Request) {
       { status: 403 }
     );
   }
+  // Clonar una voz se cobra: la cuenta que no puede gastar —sin pagar o sin
+  // saldo— no clona, y la pantalla dice por qué.
+  const sinPuerta = await exigirSaldo(supabaseAdmin(), workspaceId);
+  if (sinPuerta) return sinPuerta;
   if (
     name.trim().length > 80 ||
     samples.length > MAX_SAMPLES ||

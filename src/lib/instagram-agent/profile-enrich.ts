@@ -4,6 +4,7 @@ import { decrypt } from '@/lib/channels/encryption';
 import { ingestRawMedia } from '@/lib/channels/media-ingest';
 import { withAppsecretProof } from '@/lib/channels/meta-graph';
 import type { BillingContext } from '@/lib/wallet/operacion';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 import type { ChannelConnection } from '@/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
@@ -51,6 +52,9 @@ async function visionProfilePic(
   prevHash: string | null,
   prevHint: string | null
 ): Promise<{ hint: string | null; hash: string | null }> {
+  // Mirar la foto se cobra; el resto del perfil no. La cuenta que no puede
+  // usar la IA —sin pagar o sin saldo— se queda con la pista que tenía.
+  if (!(await puedeUsarIa(billing.db, billing.workspaceId))) return { hint: prevHint, hash: prevHash };
   // La misma clave que el resto de la IA: una cuenta BYOK paga con la suya.
   const clave = await resolveAnthropicKey(billing.db, { workspaceId: billing.workspaceId });
   if (!clave) return { hint: prevHint, hash: prevHash };

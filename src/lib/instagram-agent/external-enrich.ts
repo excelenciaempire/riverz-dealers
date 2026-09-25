@@ -7,6 +7,7 @@ import {
 import { resolveAnthropicKey, type ResolvedKey } from '@/lib/ai/platform-key';
 import { resolveWorkspaceKeyConOrigen } from '@/lib/integrations/workspace-key';
 import type { BillingContext } from '@/lib/wallet/operacion';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { runProfileBilled } from './apify-billing';
 import { getProviderCooldown, setProviderCooldown } from './provider-cooldown';
@@ -361,6 +362,9 @@ export async function enrichExternalProfile(
   try {
     const uname = opts.username.replace(/^@/, '').trim();
     if (!uname) return 'skipped';
+    // Rastrear el perfil y leerlo con la IA se cobra: la cuenta que no puede
+    // usar la IA —sin pagar o sin saldo— no lo investiga.
+    if (!opts.workspaceId || !(await puedeUsarIa(db, opts.workspaceId))) return 'skipped';
     // El token que el comercio conectó en Integraciones; la variable de entorno
     // queda solo como respaldo para despliegues de un solo negocio.
     const llave = await resolveWorkspaceKeyConOrigen(

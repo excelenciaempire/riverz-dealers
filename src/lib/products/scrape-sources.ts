@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/automations/admin-client'
+import { puedeUsarIa } from '@/lib/wallet/puerta'
 import { firecrawlScrape, FirecrawlError, workspaceDelProducto } from '@/lib/firecrawl/client'
 import { isPublicHttpsUrl } from '@/lib/security/url-guard'
 import { detectOffersFromScrapedContent } from '@/lib/shopify/offer-learning'
@@ -57,6 +59,10 @@ export async function leerFuentes(
   const id = String(product.id ?? '')
   const sites = fuentesDe(product)
   if (!id || sites.length === 0) return { ok: false, error: 'sin_fuentes' }
+  // Sin poder gastar —sin pagar o sin saldo— no se lee: el producto queda como
+  // estaba, sin marcarse fallido, y se lee cuando la cuenta pueda.
+  const ws = typeof product.workspace_id === 'string' ? product.workspace_id : ''
+  if (!ws || !(await puedeUsarIa(supabaseAdmin(), ws))) return { ok: false, error: 'sin_ia' }
 
   // Se marca antes de la llamada externa: la lectura tarda y el editor
   // consulta este estado para poder mostrar que está en curso.

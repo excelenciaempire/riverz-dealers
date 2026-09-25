@@ -2,6 +2,7 @@ import { hayJev, preguntarJev, type Pregunta, type RespuestasDe } from '@/lib/ai
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import type { BillingContext } from '@/lib/wallet/operacion';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { latestInboundText } from './engagement';
 
@@ -219,6 +220,9 @@ export async function scoreLeads(
   publicationContext?: string | null
 ): Promise<ScoredLead[]> {
   if (texts.length === 0) return [];
+  // Sin IA —sin pagar o sin saldo— no se clasifica, ni con Jev ni con el
+  // modelo: que Jev diga que no no puede terminar en una llamada sin puerta.
+  if (!(await puedeUsarIa(billing.db, billing.workspaceId))) throw new Error('sin_ia');
   if (hayJev()) {
     const porJev = await scoreLeadsConJev(texts, billing, publicationContext);
     if (porJev) return porJev;

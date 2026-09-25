@@ -3,6 +3,7 @@ const mocks = vi.hoisted(() => ({ key: vi.fn(), rpc: vi.fn() }));
 vi.mock('@/lib/integrations/workspace-key', () => ({
   resolveWorkspaceKeyConOrigen: mocks.key,
 }));
+vi.mock('@/lib/wallet/puerta', () => ({ puedeUsarIa: async () => true }));
 import {
   classifyApifyFailure,
   enrichExternalProfile,

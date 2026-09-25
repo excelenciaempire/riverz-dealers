@@ -1,4 +1,5 @@
 import { transcribeBuffer, transcripcionDisponible } from '@/lib/ai/transcribe';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 import type { ChannelConnection } from '@/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -129,8 +130,10 @@ export async function transcribirPendientes(
     .lt('transcript_attempts', MAX_INTENTOS)
     .not('share_url', 'is', null)
     .order('posted_at', { ascending: false, nullsFirst: false })
-    .limit(limite);
-  const pendientes = (data ?? []) as Array<{
+    // De más: los de cuentas que no pueden usar la IA se saltean abajo, y no
+    // pueden tapar la cola de las demás.
+    .limit(limite * 5);
+  const candidatos = (data ?? []) as Array<{
     id: string;
     video_id: string;
     share_url: string;
@@ -138,6 +141,16 @@ export async function transcribirPendientes(
     /** De quién es el video: sin esto no se sabe a quién cobrarle el minuto. */
     workspace_id: string | null;
   }>;
+  // Transcribir se cobra. El video de la cuenta sin IA —sin pagar o sin
+  // saldo— queda pendiente y se transcribe cuando pueda.
+  const puede = new Map<string, boolean>();
+  const pendientes: typeof candidatos = [];
+  for (const v of candidatos) {
+    if (pendientes.length >= limite) break;
+    if (!v.workspace_id) continue;
+    if (!puede.has(v.workspace_id)) puede.set(v.workspace_id, await puedeUsarIa(db, v.workspace_id));
+    if (puede.get(v.workspace_id)) pendientes.push(v);
+  }
 
   let transcriptos = 0;
   for (const v of pendientes) {

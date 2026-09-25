@@ -7,6 +7,7 @@ import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { redactModelSecrets } from '@/lib/security/model-secrets';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { exigirSaldo } from '@/lib/wallet/puerta';
 import { currentNumberSubscription, purchaseNumber, releaseBilledNumber } from '@/lib/voice/number-billing';
 import { verifyNumberQuote } from '@/lib/voice/number-quote';
 import {
@@ -80,6 +81,10 @@ export async function POST(request: Request) {
   }
   if (!(await isVoiceAdmin(user.id, body.workspace_id)))
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  // Un número se paga todos los meses: la cuenta que no puede gastar —sin
+  // pagar o sin saldo— no lo compra, y la pantalla dice por qué.
+  const sinPuerta = await exigirSaldo(supabaseAdmin(), body.workspace_id);
+  if (sinPuerta) return sinPuerta;
 
   // Sin conexión de voz configurada, `orderNumber` OMITE `connection_id` del
   // pedido: Telnyx cobra el número, lo entrega, y las llamadas entrantes no

@@ -274,6 +274,8 @@ export function VoiceNumberCard() {
         }),
       });
       const json = await res.json().catch(() => ({}));
+      // 402: el cartel de cobro ya dice por qué, sin repetirlo en un aviso.
+      if (res.status === 402) return;
       if (!res.ok) {
         toast.error(
           json.error ? `${t('voice.numberBuyError')} (${json.error})` : t('voice.numberBuyError'),

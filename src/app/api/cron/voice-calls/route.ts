@@ -332,13 +332,14 @@ async function cronHandler(request: Request) {
     const stuckBefore = new Date(Date.now() - STUCK_AFTER_MS).toISOString();
     const { data: stuck } = await db
       .from('voice_calls')
-      .select('id, direction, language, started_at')
+      .select('id, workspace_id, direction, language, started_at')
       .in('status', ['dialing', 'in_progress'])
       .lt('started_at', stuckBefore)
       .is('ended_at', null)
       .limit(CLAIM_BATCH);
     for (const row of (stuck ?? []) as {
       id: string;
+      workspace_id: string;
       direction: string;
       language: string | null;
       started_at: string | null;
@@ -355,10 +356,14 @@ async function cronHandler(request: Request) {
       try {
         if (await recordingExists(db, row.id)) {
           recordingUrl = recordingKey(row.id);
-          transcript = await transcribeRecording(db, row.id, {
-            language: row.language ?? 'es',
-            direction: row.direction,
-          });
+          // Transcribir se cobra: sin IA —sin pagar o sin saldo— queda la
+          // grabación enlazada y nada más.
+          if ((await puertaDeIa(db, row.workspace_id)).puede) {
+            transcript = await transcribeRecording(db, row.id, {
+              language: row.language ?? 'es',
+              direction: row.direction,
+            });
+          }
         }
       } catch (err) {
         console.error('[cron/voice-calls] rescate falló:', row.id, err);

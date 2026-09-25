@@ -3,6 +3,7 @@ import sharp from 'sharp';
 import { describeImage } from '@/lib/ai/llm-client';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { ingestRawMedia } from '@/lib/channels/media-ingest';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 import { displayCarrierName } from '@/lib/shopify/carrier-tracking';
 import { captureCarrierScreenshot } from './carrier-screenshot';
 import { validateTrackingVision, type TrackingVisionResult } from './evidence-policy';
@@ -30,6 +31,9 @@ export async function prepareTrackingEvidence(db: SupabaseClient, input: {
     throw new Error('tracking_evidence: live guide or carrier changed');
   }
 
+  // Validar la captura con la IA se cobra: sin IA —sin pagar o sin saldo— el
+  // paso no manda una evidencia que nadie revisó.
+  if (!(await puedeUsarIa(db, input.workspaceId))) throw new Error('tracking_evidence: sin_ia');
   const capture = await captureCarrierScreenshot({ carrier: company, guide });
   const key = await resolveAnthropicKey(db, { workspaceId: input.workspaceId });
   if (!key) throw new Error('tracking_evidence: Anthropic key unavailable');

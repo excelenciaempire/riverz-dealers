@@ -561,6 +561,8 @@ export function VoiceSettings({
         error?: string;
         voice?: CuratedVoice;
       } | null;
+      // 402: el cartel de cobro ya dice por qué, sin repetirlo en un aviso.
+      if (res.status === 402) return;
       if (!res.ok || !json?.voice) {
         toast.error(json?.error ?? t('voice.voiceCloneFailed'));
         return;

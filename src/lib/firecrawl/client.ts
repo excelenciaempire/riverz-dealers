@@ -1,4 +1,6 @@
+import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { cancelar, liquidar, reservar } from '@/lib/wallet/operacion';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 import type { SupabaseClient } from '@supabase/supabase-js';
 /**
  * Firecrawl client — scrape product URLs to enrich the AI knowledge.
@@ -101,6 +103,12 @@ export async function firecrawlScrape(
   };
 
   if (!opts?.cobrarA) throw new Error('wallet_billing_context_required');
+  // Leer una página se cobra: la cuenta que no puede gastar —sin pagar o sin
+  // saldo— no la lee. Con la llave de servicio: la sesión de quien llama no
+  // ve la suscripción, y sin verla la puerta dejaría pasar a cualquiera.
+  if (!(await puedeUsarIa(supabaseAdmin(), opts.cobrarA.workspaceId))) {
+    throw new Error('sin_ia');
+  }
   if (!Number.isFinite(USD_POR_PAGINA) || USD_POR_PAGINA < 0)
     throw new Error('wallet_firecrawl_rate_not_configured');
   const billing = { ...opts.cobrarA, concepto: 'lectura_de_pagina' };
