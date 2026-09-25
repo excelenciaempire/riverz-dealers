@@ -92,6 +92,14 @@ export function shopifyApiVersion(): string {
   return API_VERSION;
 }
 
+/** Adónde vuelve Shopify después de autorizar. Toda app tiene que permitirla. */
+export function shopifyRedirectUri(): string {
+  return (
+    process.env.SHOPIFY_OAUTH_REDIRECT_URI ||
+    `${process.env.NEXT_PUBLIC_SITE_URL}/api/shopify/oauth/callback`
+  );
+}
+
 export function shopifyScopes(
   identity: 'public' | 'legacy' = 'public'
 ): string {

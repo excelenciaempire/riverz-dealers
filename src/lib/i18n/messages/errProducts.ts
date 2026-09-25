@@ -138,10 +138,6 @@ export const errProducts = {
     es: "Faltan datos: dominio, Client ID y Client secret.",
     en: "Missing fields: store domain, Client ID and Client secret.",
   },
-  shopifyAppNotInstalled: {
-    es: "La app no está instalada en esa tienda. Instálala desde el Dev Dashboard de la tienda y vuelve a conectar.",
-    en: "The app isn't installed on that store. Install it from the store's Dev Dashboard and connect again.",
-  },
   shopifyCredentialsInvalid: {
     es: "Shopify rechazó las credenciales. Revisa el dominio, el Client ID y el Client secret.",
     en: "Shopify rejected the credentials. Check the domain, Client ID and Client secret.",

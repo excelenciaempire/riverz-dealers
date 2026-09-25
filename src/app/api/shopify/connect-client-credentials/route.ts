@@ -8,6 +8,7 @@ import {
   ShopifyCredentialsError,
 } from '@/lib/shopify/oauth';
 import { persistShopifyConnection } from '@/lib/shopify/connection';
+import { registrarAppDelComercio } from '@/lib/shopify/apps-del-comercio';
 import { ShopifyAdminClient } from '@/lib/shopify/admin-client';
 import { syncShopifyProducts } from '@/lib/shopify/product-sync';
 import { scrapeShopifyCatalogSources } from '@/lib/products/scrape-catalog-sources';
@@ -18,7 +19,17 @@ import { getLogger } from '@/lib/log/logger';
 
 const log = getLogger('shopify.connect-client-credentials');
 
-/** Connect a store to a Shopify Dev Dashboard app using client credentials. */
+/**
+ * Connect a store with the Client ID + Client secret of a Shopify app.
+ *
+ * Two kinds of app land here:
+ *  - The merchant's own app, in the store's organization: the client
+ *    credentials grant works once it's installed, and we connect right away.
+ *  - An app Riverz created for this store with custom distribution, or the
+ *    merchant's own app before installing it: Shopify answers
+ *    `app_not_installed`. We save the credentials and the store connects by
+ *    itself when the owner installs it (OAuth start/callback, migration 275).
+ */
 export async function POST(request: Request) {
   const block = await csrfGuard(request);
   if (block) return block;
@@ -74,20 +85,37 @@ export async function POST(request: Request) {
       shop,
       error: err instanceof Error ? err.message : String(err),
     });
-    // Sin instalar es el error de siempre: la app se creó pero falta
-    // instalarla en la tienda, o se creó en otra organización.
-    const noInstalada =
+    if (
       err instanceof ShopifyCredentialsError &&
-      err.motivo === 'app_not_installed';
+      err.motivo === 'app_not_installed'
+    ) {
+      try {
+        await registrarAppDelComercio(supabaseAdmin(), {
+          workspaceId,
+          userId: user.id,
+          shopDomain: shop,
+          clientId,
+          clientSecret,
+        });
+      } catch (regErr) {
+        log.error('custom_app_register_failed', {
+          shop,
+          error: regErr instanceof Error ? regErr.message : String(regErr),
+        });
+        return NextResponse.json(
+          { error: translate(locale, 'errProducts.shopifyConnectFailed') },
+          { status: 500 }
+        );
+      }
+      log.info('custom_app_registered', { shop, workspaceId });
+      return NextResponse.json({
+        ok: true,
+        pendiente: true,
+        shop_domain: shop,
+      });
+    }
     return NextResponse.json(
-      {
-        error: translate(
-          locale,
-          noInstalada
-            ? 'errProducts.shopifyAppNotInstalled'
-            : 'errProducts.shopifyCredentialsInvalid'
-        ),
-      },
+      { error: translate(locale, 'errProducts.shopifyCredentialsInvalid') },
       { status: 400 }
     );
   }

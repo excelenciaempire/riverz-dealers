@@ -3,9 +3,13 @@ import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import {
   normalizeShopDomain,
-  verifyOAuthHmac,
   exchangeCodeForToken,
 } from '@/lib/shopify/oauth'
+import {
+  appQueFirmo,
+  appsGlobales,
+  appsParaLaTienda,
+} from '@/lib/shopify/apps-del-comercio'
 import { completeShopifyConnection } from '@/lib/shopify/complete-connection'
 import {
   createPendingInstall,
@@ -106,29 +110,23 @@ async function resolveOwnerUserId(
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams
-  // Two app identities during the App Store transition: the public
-  // "Riverz" app (primary) and the legacy custom-distribution app. The
-  // HMAC tells us which app signed this callback, and the code exchange
-  // MUST use that same app's credentials.
-  const pairs = [
-    {
-      apiKey: process.env.SHOPIFY_API_KEY,
-      apiSecret: process.env.SHOPIFY_API_SECRET,
-    },
-    {
-      apiKey: process.env.SHOPIFY_API_KEY_LEGACY,
-      apiSecret: process.env.SHOPIFY_API_SECRET_LEGACY,
-    },
-  ].filter((p): p is { apiKey: string; apiSecret: string } =>
-    Boolean(p.apiKey && p.apiSecret),
-  )
+  const admin = supabaseAdmin()
+  // Several app identities can sign this callback: the public "Riverz" app,
+  // the legacy custom-distribution app, and each merchant's own app
+  // (migration 275). The HMAC tells us which one signed it, and the code
+  // exchange MUST use that same app's credentials. The shop param is only
+  // used to find candidate secrets; nothing is trusted until one verifies.
+  const shopParam = normalizeShopDomain(params.get('shop') || '')
+  const pairs = shopParam
+    ? await appsParaLaTienda(admin, shopParam)
+    : appsGlobales()
   if (!pairs.length) {
     log.error('not_configured', {})
     return bounce(request, { shopify: 'error', reason: 'not_configured' })
   }
 
   // 1. HMAC over the query string. This is the security gate for ALL flows.
-  const pair = pairs.find((p) => verifyOAuthHmac(params, p.apiSecret))
+  const pair = appQueFirmo(pairs, params)
   if (!pair) {
     // Solo diagnóstico NO sensible. No recomputamos ni logueamos el HMAC, el
     // mensaje firmado, el raw_query ni fragmento/longitud del secreto —
@@ -221,15 +219,19 @@ export async function GET(request: Request) {
     return bounce(request, { shopify: 'error', reason: 'exchange', shop })
   }
 
-  const admin = supabaseAdmin()
   const callbackBase =
     process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
 
-  // 5. Resolve which user/workspace owns this connection.
-  const userId = await resolveOwnerUserId(cookieUserId, shop)
-  const workspaceId = userId
-    ? cookieWorkspaceId || (await resolveWorkspaceIdForUser(admin, userId))
-    : null
+  // 5. Resolve which user/workspace owns this connection. A merchant's own
+  //    app was registered from a workspace, and that registration decides:
+  //    the owner who installs it usually has no Riverz session at all.
+  const userId =
+    pair.destino?.userId ?? (await resolveOwnerUserId(cookieUserId, shop))
+  const workspaceId =
+    pair.destino?.workspaceId ??
+    (userId
+      ? cookieWorkspaceId || (await resolveWorkspaceIdForUser(admin, userId))
+      : null)
 
   // 5b. Flow (c): brand-new merchant with no Riverz identity. Park the
   //     token and send them to create/sign into an account; the dashboard
@@ -287,6 +289,10 @@ export async function GET(request: Request) {
       expiresIn,
       refreshToken,
       refreshTokenExpiresIn: refreshExpiresIn,
+      // Its token renews and its webhooks verify with ITS secret.
+      ...(pair.destino
+        ? { connectionMethod: 'custom_app' as const, webhookSecret: pair.apiSecret }
+        : {}),
     })
 
     log.info('install_success', {
@@ -294,9 +300,14 @@ export async function GET(request: Request) {
       userId,
       scope: grantedScope,
       flow: isAppInitiated ? 'app_initiated' : 'shopify_initiated',
+      customApp: Boolean(pair.destino),
     })
 
-    const res = bounce(request, { shopify: 'connected', shop })
+    // The owner who installed a merchant app usually has no Riverz account:
+    // show a confirmation instead of the Riverz login.
+    const res = pair.destino
+      ? NextResponse.redirect(new URL('/shopify/instalada', callbackBase))
+      : bounce(request, { shopify: 'connected', shop })
     res.cookies.delete('shopify_oauth_state')
     res.cookies.delete('shopify_oauth_user')
     res.cookies.delete('shopify_oauth_workspace')

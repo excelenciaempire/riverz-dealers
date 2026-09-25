@@ -7,8 +7,9 @@ import { resolveShopWebhookSecret } from './connection'
  * HMAC.
  *
  * Two connection models coexist:
- *  - admin_token: the merchant's own custom app signs its webhooks with
- *    THAT app's API secret key, stored (encrypted) per connection.
+ *  - per store (admin_token, client_credentials, custom_app): the merchant's
+ *    own app signs its webhooks with THAT app's secret, stored (encrypted)
+ *    per connection.
  *  - oauth: the global app signs with SHOPIFY_API_SECRET. During the App
  *    Store transition TWO global apps coexist — the new public "Riverz"
  *    app (primary env pair) and the legacy custom-distribution "Riverz

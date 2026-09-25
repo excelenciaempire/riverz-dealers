@@ -45,7 +45,12 @@ interface FilaConexion {
   token_expires_at: string | null;
   refresh_token_encrypted: string | null;
   refresh_token_expires_at: string | null;
-  connection_method: 'oauth' | 'admin_token' | 'client_credentials' | null;
+  connection_method:
+    | 'oauth'
+    | 'admin_token'
+    | 'client_credentials'
+    | 'custom_app'
+    | null;
   client_id_encrypted: string | null;
   webhook_secret: string | null;
 }
@@ -127,18 +132,29 @@ export async function tokenVivo(
   // Las dos apps, como en el callback: la principal y la de distribución
   // heredada. Una tienda conectada por la segunda no se renueva con el secreto
   // de la primera, y el error sería indistinguible de un refresh vencido.
-  const pares = [
-    {
-      apiKey: process.env.SHOPIFY_API_KEY,
-      apiSecret: process.env.SHOPIFY_API_SECRET,
-    },
-    {
-      apiKey: process.env.SHOPIFY_API_KEY_LEGACY,
-      apiSecret: process.env.SHOPIFY_API_SECRET_LEGACY,
-    },
-  ].filter((p): p is { apiKey: string; apiSecret: string } =>
-    Boolean(p.apiKey && p.apiSecret)
-  );
+  // La app de un comercio (migración 275) se renueva sólo con la suya.
+  const pares =
+    fila.connection_method === 'custom_app'
+      ? fila.client_id_encrypted && fila.webhook_secret
+        ? [
+            {
+              apiKey: decrypt(fila.client_id_encrypted),
+              apiSecret: decrypt(fila.webhook_secret),
+            },
+          ]
+        : []
+      : [
+          {
+            apiKey: process.env.SHOPIFY_API_KEY,
+            apiSecret: process.env.SHOPIFY_API_SECRET,
+          },
+          {
+            apiKey: process.env.SHOPIFY_API_KEY_LEGACY,
+            apiSecret: process.env.SHOPIFY_API_SECRET_LEGACY,
+          },
+        ].filter((p): p is { apiKey: string; apiSecret: string } =>
+          Boolean(p.apiKey && p.apiSecret)
+        );
 
   if (!fila.refresh_token_encrypted || pares.length === 0) {
     // Vencido y sin con qué renovar: reconectar es lo único que queda, y quien

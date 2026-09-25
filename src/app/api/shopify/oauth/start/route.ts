@@ -3,9 +3,15 @@ import { randomBytes } from 'crypto'
 import {
   normalizeShopDomain,
   buildAuthorizeUrl,
+  shopifyRedirectUri,
   shopifyScopes,
-  verifyOAuthHmac,
 } from '@/lib/shopify/oauth'
+import {
+  appQueFirmo,
+  appsGlobales,
+  appsParaLaTienda,
+  type AppDeShopify,
+} from '@/lib/shopify/apps-del-comercio'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { getConnectionByShop } from '@/lib/shopify/connection'
 import { hasPendingInstall } from '@/lib/shopify/pending-install'
@@ -25,14 +31,6 @@ import { translate } from '@/lib/i18n/translate'
 export async function GET(request: Request) {
   const locale = await getLocale()
 
-  const apiKey = process.env.SHOPIFY_API_KEY
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: translate(locale, 'errProducts.shopifyNotConfigured') },
-      { status: 503 },
-    )
-  }
-
   const url = new URL(request.url)
   const shop = normalizeShopDomain(url.searchParams.get('shop') || '')
   if (!shop) {
@@ -42,22 +40,32 @@ export async function GET(request: Request) {
     )
   }
 
-  // Shopify-initiated hits (App URL bootstrap) arrive signed. When the
-  // signature is present, verify it — a forged/tampered query then fails
-  // instead of silently starting OAuth for an attacker-chosen shop. Both
-  // app identities share the App URL, so accept either secret (primary
-  // public app / legacy custom-distribution app).
-  const secrets = [
-    process.env.SHOPIFY_API_SECRET,
-    process.env.SHOPIFY_API_SECRET_LEGACY,
-  ].filter((s): s is string => Boolean(s))
-  if (url.searchParams.get('hmac') && secrets.length) {
-    if (!secrets.some((s) => verifyOAuthHmac(url.searchParams, s))) {
-      return NextResponse.json(
-        { error: translate(locale, 'errProducts.invalidShopDomain') },
-        { status: 400 },
-      )
+  const base = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
+
+  // Shopify-initiated hits (App URL bootstrap) arrive signed, and the
+  // signature tells us WHICH app is being installed or opened: the public
+  // one, the legacy custom-distribution one, or a merchant's own app
+  // (migration 275), all sharing the App URL. A forged/tampered query
+  // verifies against none of them and never starts OAuth.
+  let app: AppDeShopify | null
+  if (url.searchParams.get('hmac')) {
+    app = appQueFirmo(await appsParaLaTienda(supabaseAdmin(), shop), url.searchParams)
+    if (!app) {
+      // Also what the owner sees when a merchant app gets installed before
+      // anyone saved its credentials in Riverz.
+      const aviso = new URL('/shopify/instalada', base)
+      aviso.searchParams.set('estado', 'error')
+      return NextResponse.redirect(aviso)
     }
+  } else {
+    // Unsigned, app-initiated start: always the public app.
+    app = appsGlobales().find((a) => a.apiKey === process.env.SHOPIFY_API_KEY) ?? null
+  }
+  if (!app) {
+    return NextResponse.json(
+      { error: translate(locale, 'errProducts.shopifyNotConfigured') },
+      { status: 503 },
+    )
   }
 
   // Shopify loads the App URL (which the proxy forwards here) both to START
@@ -67,37 +75,40 @@ export async function GET(request: Request) {
   // connected — or has an unclaimed pending install from a just-completed
   // OAuth round-trip — send the merchant INTO the app instead of re-running
   // OAuth: sign in to the workspace that owns it, or claim the pending store.
-  const base = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
-  try {
-    const admin = supabaseAdmin()
-    if (await getConnectionByShop(admin, shop)) {
-      return NextResponse.redirect(new URL(localizePath('/ingresar', locale), base))
+  //
+  // A merchant app is not embedded and opens top-level, so re-running OAuth
+  // is harmless there: it refreshes the connection and shows the owner the
+  // confirmation page.
+  if (!app.destino) {
+    try {
+      const admin = supabaseAdmin()
+      if (await getConnectionByShop(admin, shop)) {
+        return NextResponse.redirect(new URL(localizePath('/ingresar', locale), base))
+      }
+      if (await hasPendingInstall(admin, shop)) {
+        // Hay una instalacion estacionada: el comercio crea su cuenta y el
+        // panel reclama la tienda solo. La cookie de reclamo le abre /crear
+        // aunque el alta publica este cerrada.
+        const claimUrl = new URL(
+          localizePath('/crear', locale),
+          base,
+        )
+        claimUrl.searchParams.set('shopify', 'pending')
+        claimUrl.searchParams.set('shop', shop)
+        return NextResponse.redirect(claimUrl)
+      }
+    } catch {
+      // Lookup failed — fall through to OAuth so a fresh install still works.
     }
-    if (await hasPendingInstall(admin, shop)) {
-      // Hay una instalacion estacionada: el comercio crea su cuenta y el
-      // panel reclama la tienda solo. La cookie de reclamo le abre /crear
-      // aunque el alta publica este cerrada.
-      const claimUrl = new URL(
-        localizePath('/crear', locale),
-        base,
-      )
-      claimUrl.searchParams.set('shopify', 'pending')
-      claimUrl.searchParams.set('shop', shop)
-      return NextResponse.redirect(claimUrl)
-    }
-  } catch {
-    // Lookup failed — fall through to OAuth so a fresh install still works.
   }
 
-  const redirectUri =
-    process.env.SHOPIFY_OAUTH_REDIRECT_URI ||
-    `${process.env.NEXT_PUBLIC_SITE_URL}/api/shopify/oauth/callback`
+  const redirectUri = shopifyRedirectUri()
 
   const state = randomBytes(32).toString('hex')
   const authorizeUrl = buildAuthorizeUrl({
     shop,
     state,
-    apiKey,
+    apiKey: app.apiKey,
     redirectUri,
     scopes: shopifyScopes(),
   })

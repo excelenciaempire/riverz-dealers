@@ -24,7 +24,8 @@ retirarse.
 
 Ojo: el app público **no puede instalarse en tiendas reales hasta ser aprobado** —
 solo en tiendas de desarrollo del Partner org. Onboarding de merchants reales
-mientras tanto: app del Dev Dashboard con credenciales (SHOPIFY_SETUP.md §6).
+mientras tanto: una app propia por comercio, con enlace de instalación o creada
+por el comercio (SHOPIFY_SETUP.md §6).
 Integraciones esconde **Conectar** (OAuth) hasta que `SHOPIFY_APP_STORE_APPROVED=true`.
 
 Estado (2026-07-18): **código listo + configuración del Dev Dashboard hecha + datos
@@ -141,8 +142,8 @@ contra esa misma instalación.
 
 - Las conexiones existentes (OAuth de Pilar, apps del Dev Dashboard con credenciales)
   siguen funcionando: el review no congela credenciales ni afecta instalaciones vigentes.
-- El camino de credenciales del Dev Dashboard (SHOPIFY_SETUP.md §6) es el onboarding
-  de tiendas reales mientras el listing no esté aprobado.
+- La app propia por comercio (SHOPIFY_SETUP.md §6) es el onboarding de tiendas
+  reales mientras el listing no esté aprobado.
 
 ## 8. Env en Render (prod) — ✅ SETEADAS 2026-07-18
 

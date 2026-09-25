@@ -43,6 +43,10 @@ export async function completeShopifyConnection(
     expiresIn?: number | null;
     refreshToken?: string | null;
     refreshTokenExpiresIn?: number | null;
+    /** `custom_app` para la app de un comercio (migración 275), que además
+     *  guarda su secreto: con él se renueva el token y se verifican sus webhooks. */
+    connectionMethod?: 'oauth' | 'custom_app';
+    webhookSecret?: string;
   }
 ): Promise<void> {
   const { userId, workspaceId, shopDomain, accessToken, scope } = args;
@@ -72,7 +76,8 @@ export async function completeShopifyConnection(
     scope,
     // Mark the connection authoritatively as OAuth so webhook verification
     // uses the global secret even if this shop was previously admin_token.
-    connectionMethod: 'oauth',
+    connectionMethod: args.connectionMethod ?? 'oauth',
+    webhookSecret: args.webhookSecret,
     clientId: args.clientId,
   });
 

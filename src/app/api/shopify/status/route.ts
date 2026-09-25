@@ -6,7 +6,9 @@ import {
   getConnectionForUser,
   getConnectionForWorkspace,
 } from '@/lib/shopify/connection'
-import { shopifyScopes } from '@/lib/shopify/oauth'
+import { shopifyRedirectUri, shopifyScopes } from '@/lib/shopify/oauth'
+import { tiendaEsperandoInstalacion } from '@/lib/shopify/apps-del-comercio'
+import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 
 /**
@@ -16,8 +18,9 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
  *
  * `oauth`: whether the public app can be installed on any store. Shopify
  * only allows that once the App Store approves it, so it stays off until
- * `SHOPIFY_APP_STORE_APPROVED=true`. `scopes`: what the merchant's own
- * Dev Dashboard app must request.
+ * `SHOPIFY_APP_STORE_APPROVED=true`. `config`: what a merchant's own app
+ * must be created with, in the Dev Dashboard. `pendiente`: the store whose
+ * saved app hasn't been installed yet.
  */
 export async function GET() {
   const supabase = await createClient()
@@ -33,7 +36,17 @@ export async function GET() {
   const oauth =
     Boolean(process.env.SHOPIFY_API_KEY) &&
     process.env.SHOPIFY_APP_STORE_APPROVED === 'true'
-  return NextResponse.json({ oauth, scopes: shopifyScopes(), connection: conn })
+  const appUrl = process.env.NEXT_PUBLIC_SITE_URL ?? null
+  const config = appUrl
+    ? { appUrl, redirectUrl: shopifyRedirectUri(), scopes: shopifyScopes() }
+    : null
+  const pendiente =
+    workspaceId && conn?.status !== 'active'
+      ? await tiendaEsperandoInstalacion(supabaseAdmin(), workspaceId).catch(
+          () => null,
+        )
+      : null
+  return NextResponse.json({ oauth, config, pendiente, connection: conn })
 }
 
 /** Disconnect (delete) the workspace's Shopify connection. */
@@ -56,6 +69,12 @@ export async function DELETE(req: Request) {
       .eq('platform', 'shopify')
       .eq('workspace_id', workspaceId)
     if (error) return serverError(error)
+    // Its saved app too: otherwise opening it from Shopify reconnects the store.
+    const { error: appsError } = await supabaseAdmin()
+      .from('shopify_custom_apps')
+      .delete()
+      .eq('workspace_id', workspaceId)
+    if (appsError) return serverError(appsError)
   } else {
     // Legacy fallback for users without a workspace row.
     const { error } = await supabase

@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { CheckCircle2, Loader2, Trash2 } from 'lucide-react';
+import { CheckCircle2, Copy, Loader2, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -13,7 +13,18 @@ interface ShopifyConnection {
   shop_domain: string;
   shop_name: string | null;
   status: string;
-  connection_method?: 'oauth' | 'admin_token' | 'client_credentials';
+  connection_method?:
+    | 'oauth'
+    | 'admin_token'
+    | 'client_credentials'
+    | 'custom_app';
+}
+
+/** Con qué se crea la app del comercio en el Dev Dashboard. */
+interface AppConfig {
+  appUrl: string;
+  redirectUrl: string;
+  scopes: string;
 }
 
 type Mode = 'idle' | 'oauth' | 'clientCredentials';
@@ -25,8 +36,11 @@ type Mode = 'idle' | 'oauth' | 'clientCredentials';
  * cards reads as a single uniform grid no matter the provider.
  *
  * Only the connect paths that work are shown:
- *  - Dev Dashboard app: the merchant creates an app in their store's
- *    organization, installs it and pastes its Client ID + Client secret.
+ *  - A merchant's own Shopify app, by Client ID + Client secret. Either the
+ *    merchant creates it in their organization, or Riverz creates it in its
+ *    own with custom distribution and sends the owner the install link. If
+ *    it isn't installed yet, the credentials are saved and the store connects
+ *    by itself on install.
  *  - OAuth (public app): only once the App Store approves it (`oauth` from
  *    /api/shopify/status). Before that Shopify won't install it on real
  *    stores.
@@ -39,7 +53,8 @@ export function ShopifyCard() {
   const t = useT();
   const [loading, setLoading] = useState(true);
   const [oauth, setOauth] = useState(false);
-  const [scopes, setScopes] = useState('');
+  const [config, setConfig] = useState<AppConfig | null>(null);
+  const [pendiente, setPendiente] = useState<string | null>(null);
   const [connection, setConnection] = useState<ShopifyConnection | null>(null);
   const [shop, setShop] = useState('');
   const [disconnecting, setDisconnecting] = useState(false);
@@ -71,7 +86,8 @@ export function ShopifyCard() {
       const res = await fetch('/api/shopify/status');
       const data = await res.json();
       setOauth(Boolean(data.oauth));
-      setScopes(typeof data.scopes === 'string' ? data.scopes : '');
+      setConfig(data.config ?? null);
+      setPendiente(data.pendiente ?? null);
       setConnection(data.connection ?? null);
     } catch {
       // ignore
@@ -89,10 +105,10 @@ export function ShopifyCard() {
     window.location.href = `/api/shopify/install?shop=${encodeURIComponent(trimmed)}`;
   }
 
-  async function copyScopes() {
+  async function copiar(valor: string) {
     try {
-      await navigator.clipboard.writeText(scopes);
-      toast.success(t('settings.shopifyScopesCopied'));
+      await navigator.clipboard.writeText(valor);
+      toast.success(t('settings.shopifyValueCopied'));
     } catch {
       toast.error(t('settings.couldNotCopy'));
     }
@@ -125,6 +141,15 @@ export function ShopifyCard() {
         );
         return;
       }
+      setMode('idle');
+      setClientShop('');
+      setClientId('');
+      setClientSecret('');
+      if (data.pendiente) {
+        toast.success(t('settings.shopifyAwaitingInstallToast'));
+        setPendiente(data.shop_domain);
+        return;
+      }
       toast.success(t('settings.shopifyConnected'));
       setConnection({
         shop_domain: data.shop_domain,
@@ -132,10 +157,6 @@ export function ShopifyCard() {
         status: 'active',
         connection_method: 'client_credentials',
       });
-      setMode('idle');
-      setClientShop('');
-      setClientId('');
-      setClientSecret('');
     } catch {
       toast.error(t('settings.shopifyConnectError', { reason: 'credentials' }));
     } finally {
@@ -201,7 +222,8 @@ export function ShopifyCard() {
             <CheckCircle2 className="size-3.5 text-emerald-700 dark:text-emerald-400" />
             <span className="text-foreground flex-1 truncate text-xs">
               {connection?.shop_name || connection?.shop_domain}
-              {connection?.connection_method === 'client_credentials' && (
+              {(connection?.connection_method === 'client_credentials' ||
+                connection?.connection_method === 'custom_app') && (
                 <span className="text-muted-foreground ml-1 text-[10px]">
                   ({t('settings.shopifyConnectedViaClientCredentials')})
                 </span>
@@ -254,19 +276,38 @@ export function ShopifyCard() {
             <>
               <p className="bg-muted/50 text-muted-foreground rounded-md px-2 py-1.5 text-[11px] leading-snug">
                 {t('settings.shopifyClientCredentialsGuide')}
-                {scopes && (
-                  <>
-                    {' '}
-                    <button
-                      type="button"
-                      onClick={() => void copyScopes()}
-                      className="text-foreground font-medium underline-offset-2 hover:underline"
-                    >
-                      {t('settings.shopifyCopyScopes')}
-                    </button>
-                  </>
-                )}
               </p>
+              {config && (
+                <ul className="space-y-1">
+                  {(
+                    [
+                      ['settings.shopifyAppUrlLabel', config.appUrl],
+                      ['settings.shopifyRedirectUrlLabel', config.redirectUrl],
+                      ['settings.shopifyScopesLabel', config.scopes],
+                    ] as const
+                  ).map(([etiqueta, valor]) => (
+                    <li
+                      key={etiqueta}
+                      className="bg-muted/60 flex items-center gap-2 rounded-md px-2 py-1"
+                    >
+                      <span className="text-muted-foreground shrink-0 text-[10px]">
+                        {t(etiqueta)}
+                      </span>
+                      <code className="text-foreground min-w-0 flex-1 truncate text-[10px]">
+                        {valor}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => void copiar(valor)}
+                        aria-label={t('settings.copy')}
+                        className="text-muted-foreground hover:bg-accent hover:text-foreground rounded p-0.5"
+                      >
+                        <Copy className="size-3" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <Input
                 placeholder={t('settings.shopifyDomainPlaceholder')}
                 value={clientShop}
@@ -308,6 +349,11 @@ export function ShopifyCard() {
             </>
           ) : (
             <>
+              {pendiente && (
+                <p className="text-muted-foreground text-center text-[11px] leading-snug">
+                  {t('settings.shopifyAwaitingInstall', { shop: pendiente })}
+                </p>
+              )}
               <button
                 onClick={() => setMode(oauth ? 'oauth' : 'clientCredentials')}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"

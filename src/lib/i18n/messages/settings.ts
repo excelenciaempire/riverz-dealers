@@ -576,11 +576,37 @@ export const settings = {
     en: 'Fill in the domain, Client ID and Client secret.',
   },
   shopifyClientCredentialsGuide: {
-    es: 'Crea una app en el Dev Dashboard de la tienda (Configuración → Apps → Desarrollar apps) con los alcances de Riverz, instálala en la tienda y pega su Client ID y Client secret.',
-    en: "Create an app in the store's Dev Dashboard (Settings → Apps → Develop apps) with Riverz's scopes, install it on the store, and paste its Client ID and Client secret.",
+    es: 'Crea la app en el Dev Dashboard con estos datos, sin «Incrustar app», y pega su Client ID y Client secret. Si todavía no está instalada, la tienda se conecta sola al instalarla.',
+    en: 'Create the app in the Dev Dashboard with these values, without “Embed app”, and paste its Client ID and Client secret. If it isn’t installed yet, the store connects by itself once it is.',
   },
-  shopifyCopyScopes: { es: 'Copiar alcances', en: 'Copy scopes' },
-  shopifyScopesCopied: { es: 'Alcances copiados', en: 'Scopes copied' },
+  shopifyAppUrlLabel: { es: 'URL de la app', en: 'App URL' },
+  shopifyRedirectUrlLabel: { es: 'Redirección', en: 'Redirect URL' },
+  shopifyScopesLabel: { es: 'Alcances', en: 'Scopes' },
+  shopifyValueCopied: { es: 'Copiado', en: 'Copied' },
+  shopifyAwaitingInstallToast: {
+    es: 'Credenciales guardadas. La tienda se conecta sola cuando se instale la app.',
+    en: 'Credentials saved. The store connects by itself once the app is installed.',
+  },
+  shopifyAwaitingInstall: {
+    es: 'Esperando que se instale la app en {shop}',
+    en: 'Waiting for the app to be installed on {shop}',
+  },
+  shopifyInstalledTitle: {
+    es: 'Tu tienda quedó conectada a Riverz',
+    en: 'Your store is connected to Riverz',
+  },
+  shopifyInstalledBody: {
+    es: 'Ya puedes cerrar esta pestaña.',
+    en: 'You can close this tab.',
+  },
+  shopifyInstallErrorTitle: {
+    es: 'No pudimos conectar tu tienda',
+    en: "We couldn't connect your store",
+  },
+  shopifyInstallErrorBody: {
+    es: 'Avísale a quien te envió el enlace. Cuando te confirme, abre la app desde tu admin de Shopify.',
+    en: 'Let whoever sent you the link know. Once they confirm, open the app from your Shopify admin.',
+  },
   shopifyConnectedViaClientCredentials: {
     es: 'vía credenciales de Shopify',
     en: 'via Shopify credentials',

@@ -13,7 +13,7 @@ export interface ShopifyConnectionRow {
   installed_at: string | null;
   uninstalled_at: string | null;
   /** Cómo obtiene Riverz el token para esta tienda. */
-  connection_method: 'oauth' | 'admin_token' | 'client_credentials';
+  connection_method: 'oauth' | 'admin_token' | 'client_credentials' | 'custom_app';
 }
 
 /**
@@ -39,7 +39,7 @@ export async function persistShopifyConnection(
      * Omit for the OAuth path (webhooks verify against SHOPIFY_API_SECRET).
      */
     webhookSecret?: string | null;
-    connectionMethod?: 'oauth' | 'admin_token' | 'client_credentials';
+    connectionMethod?: 'oauth' | 'admin_token' | 'client_credentials' | 'custom_app';
     /** Client ID de una app creada en Shopify Dev Dashboard. */
     clientId?: string | null;
     /** Segundos de vida del token. Presente desde que Shopify dio de baja los
@@ -227,7 +227,8 @@ export async function resolveShopWebhookSecret(
   if (!row) return { mode: 'global' };
   if (
     row.connection_method === 'admin_token' ||
-    row.connection_method === 'client_credentials'
+    row.connection_method === 'client_credentials' ||
+    row.connection_method === 'custom_app'
   ) {
     if (!row.webhook_secret) return { mode: 'fail_closed' };
     try {

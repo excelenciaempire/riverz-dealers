@@ -6,10 +6,11 @@ proyecto (auth de Supabase, cifrado AES-256-GCM existente).
 
 Hay **dos formas de conectar**:
 
-- **A) App del Dev Dashboard (credenciales)** — el merchant crea una app en el
-  Dev Dashboard de la organización de SU tienda, la instala y pega el Client ID
-  + Client secret. **Sin App Store, sin review.** Cada conexión es
-  self-contained por workspace (no usa `SHOPIFY_API_KEY`). Ver sección **6**.
+- **A) App propia por comercio (Client ID + Client secret)** — sin App Store ni
+  review. La crea el comercio en su organización, o Riverz en la suya con
+  distribución personalizada y le manda el enlace de instalación. Cada
+  conexión es self-contained por workspace (no usa `SHOPIFY_API_KEY`). Ver
+  sección **6**.
 - **B) OAuth (app pública)** — un único app con `SHOPIFY_API_KEY/SECRET`. Sólo
   se instala en tiendas reales cuando Shopify la aprueba en el App Store; hasta
   entonces la tarjeta no muestra **Conectar** (`SHOPIFY_APP_STORE_APPROVED`).
@@ -61,31 +62,46 @@ Integraciones → tarjeta **Shopify** → **Conectar** → escribe
 `tu-tienda.myshopify.com`. Tras aceptar permisos vuelves a Integraciones con la
 tienda conectada. Requiere `SHOPIFY_APP_STORE_APPROVED=true`.
 
-## 6. Opción A — App del Dev Dashboard (credenciales), sin App Store
+## 6. Opción A — App propia por comercio, sin App Store
 
-Para cada merchant:
+Las dos variantes se crean con los mismos datos, que la tarjeta de Shopify
+muestra con botón de copiar (Integraciones → Shopify → Conectar):
 
-1. Desde el admin de la tienda, **Configuración → Apps → Desarrollar apps** abre
-   el Dev Dashboard de su organización. Si lo hace otra persona (por ejemplo el
-   equipo de Riverz), el dueño le asigna el rol **Desarrollador de apps** en
-   Configuración → Usuarios, y esa persona elige la organización de la tienda
-   abajo a la izquierda del Dev Dashboard.
-2. **Crear app**:
-   - URL de la app: `https://riverz.co/integraciones`. No la raíz: ahí arranca
-     el OAuth de la app pública.
-   - Sin "Incrustar app", sin "flujo de instalación heredado" y sin URLs de
-     redirección.
-   - Alcances: los de `shopifyScopes()`. La tarjeta los copia con **Copiar
-     alcances**.
-3. **Panel general → Instalar app** en la tienda. La app y la tienda tienen que
-   estar en la misma organización; si no, Shopify responde `app_not_installed`.
-4. En Riverz: **Integraciones → Shopify → Conectar** → dominio
-   `*.myshopify.com`, Client ID y Client secret.
+- **URL de la app**: `https://riverz.co` (la raíz: ahí Riverz reconoce la
+  instalación).
+- **URL de redireccionamiento**: la de `shopifyRedirectUri()`.
+- **Alcances**: los de `shopifyScopes()`.
+- Sin **Incrustar app** y sin **flujo de instalación heredado**.
 
-Riverz canjea las credenciales por un token de 24 h
-(`connection_method='client_credentials'`) y lo renueva solo; el client secret
-también verifica la firma de los webhooks. Después registra los webhooks y
-sincroniza el catálogo. Rotar el secreto en Shopify obliga a reconectar.
+### A1. Enlace de instalación (el dueño sólo pulsa Instalar)
+
+1. En el Dev Dashboard de **Riverz**: **Crear app** ("Riverz – <comercio>") con
+   los datos de arriba.
+2. En el workspace del comercio en Riverz: **Integraciones → Shopify →
+   Conectar** → dominio `xxxx.myshopify.com`, Client ID y Client secret de esa
+   app. Como todavía no está instalada, Riverz guarda las credenciales
+   (`shopify_custom_apps`, migración 275) y la tarjeta queda "esperando".
+3. En la app: **Distribución → Distribución personalizada** → el dominio de la
+   tienda → **Generar enlace**. Ese enlace es el del dueño: sólo sirve para esa
+   tienda y vence a los 7 días.
+4. El dueño lo abre y pulsa **Instalar**. Shopify lo manda a `https://riverz.co`,
+   la firma dice qué app es, Riverz completa el OAuth con sus credenciales y la
+   tienda queda en el workspace del paso 2 (`connection_method='custom_app'`).
+   El dueño ve `/shopify/instalada`, no el login.
+
+Si el dueño instala antes del paso 2, ve un aviso; al guardar las credenciales,
+que vuelva a abrir la app desde su admin de Shopify.
+
+### A2. El comercio crea la app en su organización
+
+1. En su admin: **Configuración → Apps → Desarrollar apps** → **Crear app** con
+   los datos de arriba → **Instalar app** en su tienda.
+2. En Riverz, el mismo formulario con su Client ID y Client secret. Instalada y
+   en la misma organización, conecta al instante por client credentials
+   (`connection_method='client_credentials'`, token de 24 h).
+
+En los dos casos Riverz renueva el token solo y verifica los webhooks con el
+secreto de esa app. Rotar el secreto en Shopify obliga a volver a pegarlo.
 
 ## 7. Flujo de carrito abandonado
 
