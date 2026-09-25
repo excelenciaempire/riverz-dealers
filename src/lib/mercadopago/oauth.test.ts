@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { refreshTokens } from './oauth'
+import { authorizeUrl, oauthConfigured, refreshTokens } from './oauth'
 
 /** Mercado Pago acepta el refresh sólo de la aplicación que lo emitió. */
 function tokenEndpoint(owner: string) {
@@ -16,37 +16,50 @@ function clientIds(fetchMock: ReturnType<typeof tokenEndpoint>): string[] {
   return fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init.body)).client_id)
 }
 
-describe('refreshTokens', () => {
-  beforeEach(() => {
+beforeEach(() => {
+  vi.stubEnv('MERCADOPAGO_CLIENT_ID', '333')
+  vi.stubEnv('MERCADOPAGO_CLIENT_SECRET', 'mp-secret')
+  vi.stubEnv('MERCADOLIBRE_CLIENT_ID', '111')
+  vi.stubEnv('MERCADOLIBRE_CLIENT_SECRET', 'riverz-secret')
+  vi.stubEnv('MERCADOLIBRE_LEGACY_CLIENT_ID', '222')
+  vi.stubEnv('MERCADOLIBRE_LEGACY_CLIENT_SECRET', 'legacy-secret')
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
+})
+
+describe('authorization', () => {
+  it('connects through the Mercado Pago app', () => {
+    expect(oauthConfigured()).toBe(true)
+    expect(new URL(authorizeUrl('ws-1', 'verifier')).searchParams.get('client_id')).toBe('333')
+  })
+
+  it('never falls back to the Mercado Libre app', () => {
     vi.stubEnv('MERCADOPAGO_CLIENT_ID', '')
     vi.stubEnv('MERCADOPAGO_CLIENT_SECRET', '')
-    vi.stubEnv('MERCADOLIBRE_CLIENT_ID', '111')
-    vi.stubEnv('MERCADOLIBRE_CLIENT_SECRET', 'riverz-secret')
-    vi.stubEnv('MERCADOLIBRE_LEGACY_CLIENT_ID', '222')
-    vi.stubEnv('MERCADOLIBRE_LEGACY_CLIENT_SECRET', 'legacy-secret')
+    expect(oauthConfigured()).toBe(false)
   })
+})
 
-  afterEach(() => {
-    vi.unstubAllEnvs()
-    vi.unstubAllGlobals()
-  })
-
-  it("uses Riverz's app first", async () => {
-    const fetchMock = tokenEndpoint('111')
+describe('refreshTokens', () => {
+  it('uses the Mercado Pago app first', async () => {
+    const fetchMock = tokenEndpoint('333')
     vi.stubGlobal('fetch', fetchMock)
     await expect(refreshTokens('refresh')).resolves.toMatchObject({ accessToken: 'new' })
-    expect(clientIds(fetchMock)).toEqual(['111'])
+    expect(clientIds(fetchMock)).toEqual(['333'])
   })
 
-  it('renews integrations authorized by the previous app', async () => {
+  it('renews integrations authorized by a Mercado Libre app', async () => {
     const fetchMock = tokenEndpoint('222')
     vi.stubGlobal('fetch', fetchMock)
     await expect(refreshTokens('refresh')).resolves.toMatchObject({ refreshToken: 'rotated' })
-    expect(clientIds(fetchMock)).toEqual(['111', '222'])
+    expect(clientIds(fetchMock)).toEqual(['333', '111', '222'])
   })
 
   it('fails when no app owns the token', async () => {
-    vi.stubGlobal('fetch', tokenEndpoint('333'))
+    vi.stubGlobal('fetch', tokenEndpoint('999'))
     await expect(refreshTokens('refresh')).rejects.toThrow(/400/)
   })
 })

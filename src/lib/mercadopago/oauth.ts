@@ -2,14 +2,15 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { publicBaseUrl } from '@/lib/base-url'
-import { legacyMercadoLibreApp } from '@/lib/channels/mercadolibre/apps'
+import { legacyMercadoLibreApp, mercadoLibreApp } from '@/lib/channels/mercadolibre/apps'
 
 /**
  * OAuth de Mercado Pago: conectar con un clic.
  *
- * Mercado Pago comparte el sistema de aplicaciones con Mercado Libre, así
- * que las mismas credenciales que ya usa ese canal sirven acá. Lo que
- * cambia es el dominio de autorización y el endpoint de token.
+ * Usa su propia aplicación: desde el 30 de agosto de 2026 Mercado Libre exige
+ * una aplicación por unidad, y la de Mercado Libre que tenga permisos de
+ * Mercado Pago pierde acceso a su API. Sin `MERCADOPAGO_CLIENT_ID` queda el
+ * camino de pegar el Access Token.
  *
  * El token de acceso vence a los **180 días** y sólo el flujo de
  * autorización devuelve `refresh_token`. Sin renovarlo, la recuperación de
@@ -28,13 +29,11 @@ export function oauthConfigured(): boolean {
 }
 
 function clientId(): string {
-  // Reusa la aplicación de Mercado Libre si no hay una propia: es la misma
-  // consola de desarrolladores y la misma app sirve para los dos.
-  return process.env.MERCADOPAGO_CLIENT_ID || process.env.MERCADOLIBRE_CLIENT_ID || ''
+  return process.env.MERCADOPAGO_CLIENT_ID || ''
 }
 
 function clientSecret(): string {
-  return process.env.MERCADOPAGO_CLIENT_SECRET || process.env.MERCADOLIBRE_CLIENT_SECRET || ''
+  return process.env.MERCADOPAGO_CLIENT_SECRET || ''
 }
 
 export function redirectUri(): string {
@@ -144,15 +143,20 @@ export function exchangeCode(code: string, verifier: string): Promise<MpTokens> 
 
 /**
  * Un refresh sólo se canjea con la aplicación que lo emitió, y la integración
- * no guarda cuál fue: las autorizadas con la aplicación anterior de Mercado
- * Libre se renuevan con ella. La actual va primero, así sus tokens nunca pasan
- * por la anterior.
+ * no guarda cuál fue. Las autorizadas antes de la separación usaron una de
+ * Mercado Libre y se renuevan con ella. La de Mercado Pago va primero, así sus
+ * tokens nunca pasan por las otras.
  */
 function refreshApps(): Array<{ id: string; secret: string }> {
-  const apps = [{ id: clientId(), secret: clientSecret() }]
-  const legacy = legacyMercadoLibreApp()
-  if (legacy && legacy.clientId !== apps[0].id) {
-    apps.push({ id: legacy.clientId, secret: legacy.clientSecret })
+  const apps: Array<{ id: string; secret: string }> = []
+  const candidates = [
+    { clientId: clientId(), clientSecret: clientSecret() },
+    mercadoLibreApp(),
+    legacyMercadoLibreApp(),
+  ]
+  for (const app of candidates) {
+    if (!app?.clientId || !app.clientSecret || apps.some((a) => a.id === app.clientId)) continue
+    apps.push({ id: app.clientId, secret: app.clientSecret })
   }
   return apps
 }
@@ -171,7 +175,7 @@ export async function refreshTokens(refreshToken: string): Promise<MpTokens> {
       firstError ??= err
     }
   }
-  throw firstError
+  throw firstError ?? new Error('mercadopago oauth: no app configured')
 }
 
 interface StoredIntegration {

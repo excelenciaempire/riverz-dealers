@@ -17,7 +17,7 @@ export interface MercadoLibreApp {
 }
 
 /** La aplicación de Riverz: la única con la que se conecta una cuenta. */
-function mercadoLibreApp(): MercadoLibreApp {
+export function mercadoLibreApp(): MercadoLibreApp {
   return {
     clientId: process.env.MERCADOLIBRE_CLIENT_ID ?? "",
     clientSecret: process.env.MERCADOLIBRE_CLIENT_SECRET ?? "",

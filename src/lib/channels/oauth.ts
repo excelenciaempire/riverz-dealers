@@ -212,8 +212,8 @@ const ML_AUTH_HOSTS: Record<string, string> = {
 
 /**
  * Resuelve el host de autorización de ML para un código de país (el que manda
- * la UI). Fallback: MERCADOLIBRE_AUTH_HOST o Argentina (sitio de origen de la
- * app). El vendedor debe loguearse en el dominio de SU país.
+ * la UI). Fallback: MERCADOLIBRE_AUTH_HOST o Argentina. El vendedor debe
+ * loguearse en el dominio de SU país, sea cual sea el país de la app.
  */
 export function mercadoLibreAuthHost(country?: string | null): string {
   const key = (country || "").trim().toUpperCase();
