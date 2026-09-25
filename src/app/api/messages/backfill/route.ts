@@ -9,6 +9,8 @@ import {
 } from '@/lib/channels/meta-dm-history';
 import { withAppsecretProof } from '@/lib/channels/meta-graph';
 import { fetchMetaGraph } from '@/lib/channels/meta-fetch';
+import { backfillWhatsappConnection } from '@/lib/channels/whatsapp/journal';
+import { retryCoexistenceHistorySync } from '@/lib/channels/whatsapp/history-sync';
 import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -16,7 +18,7 @@ import type { ChannelConnection } from '@/types';
 
 const GRAPH = 'https://graph.facebook.com/v22.0';
 const GRAPH_TIMEOUT_MS = 30_000;
-const CHANNELS = ['facebook', 'instagram'] as const;
+const CHANNELS = ['facebook', 'instagram', 'whatsapp'] as const;
 type BackfillChannel = (typeof CHANNELS)[number];
 
 interface GraphConversation {
@@ -30,10 +32,10 @@ interface GraphConversation {
 /**
  * GET /api/messages/backfill?workspace_id=…
  *
- * Capacidades reales del importador. WhatsApp Cloud no ofrece una API para leer
- * chats antiguos; en coexistencia Meta empuja el bundle de historial al conectar
- * el número. Exponerlo aquí evita mostrar una casilla que promete un pull que
- * técnicamente no existe.
+ * Capacidades reales del importador. WhatsApp no ofrece una API para leer chats
+ * antiguos (ni Cloud ni coexistencia): su backfill relee las entregas que llegaron
+ * a Riverz (whatsapp/journal.ts), así que sirve en los dos modos y también con la
+ * conexión en error — el token no hace falta para eso.
  */
 export async function GET(request: Request) {
   const locale = await getLocale();
@@ -67,14 +69,14 @@ export async function GET(request: Request) {
       { status: 403 }
     );
   }
-  const connections = await listConnections(admin, {
+  const live = await listConnections(admin, {
     workspaceId,
     channels: ['messenger', 'instagram', 'tiktok_comment', 'whatsapp'],
-    statuses: ['connected'],
   });
-  const whatsapp = connections.find(
-    (connection) => connection.channel === 'whatsapp'
+  const connections = live.filter(
+    (connection) => connection.status === 'connected'
   );
+  const whatsapp = live.find((connection) => connection.channel === 'whatsapp');
   const waConfig = (whatsapp?.config ?? {}) as Record<string, unknown>;
   return NextResponse.json({
     comments: {
@@ -97,20 +99,18 @@ export async function GET(request: Request) {
       ),
       whatsapp: {
         connected: Boolean(whatsapp),
-        // Coexistencia = Meta entrega `history` por webhook en el onboarding.
-        // No hay endpoint Graph que permita volver a pedir el historial.
         mode: whatsapp
           ? waConfig.coexistence === true
             ? 'coexistence'
             : 'cloud'
           : 'disconnected',
-        manual_backfill: false,
+        manual_backfill: Boolean(whatsapp),
       },
     },
   });
 }
 
-/** Recupera el historial de DMs de Facebook e Instagram sin disparar IA. */
+/** Recupera el historial de DMs de Facebook, Instagram y WhatsApp sin disparar IA. */
 export async function POST(request: Request) {
   const block = await csrfGuard(request);
   if (block) return block;
@@ -171,20 +171,35 @@ export async function POST(request: Request) {
     );
   }
 
-  const connectionChannels: Array<'messenger' | 'instagram'> = selected.map(
-    (channel) => (channel === 'facebook' ? 'messenger' : 'instagram')
+  const connectionChannels: Array<'messenger' | 'instagram' | 'whatsapp'> =
+    selected.map((channel) => (channel === 'facebook' ? 'messenger' : channel));
+  // Messenger e Instagram leen de Graph y necesitan el token vivo. WhatsApp
+  // relee lo que ya llegó, así que también sirve con la conexión en error.
+  const connections = (
+    await listConnections(admin, {
+      workspaceId,
+      channels: connectionChannels,
+    })
+  ).filter(
+    (connection) =>
+      connection.channel === 'whatsapp' || connection.status === 'connected'
   );
-  const connections = await listConnections(admin, {
-    workspaceId,
-    channels: connectionChannels,
-    statuses: ['connected'],
-  });
   const startMs = allHistory ? 0 : (fromMs ?? Date.now() - days * 86_400_000);
   const sinceIso = new Date(startMs).toISOString();
   const untilIso = new Date(untilMs ?? Date.now()).toISOString();
   const result = await Promise.all(
     connections.map(async (connection) => {
       try {
+        if (connection.channel === 'whatsapp') {
+          await retryCoexistenceHistorySync(admin, connection);
+          return {
+            channel: connection.channel,
+            ...(await backfillWhatsappConnection(admin, connection, {
+              sinceIso,
+              untilIso,
+            })),
+          };
+        }
         return await pullConnection(connection, sinceIso, untilIso);
       } catch (error) {
         console.error('[messages/backfill] connection recovery failed', {

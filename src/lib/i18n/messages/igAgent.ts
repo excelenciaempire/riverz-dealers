@@ -254,13 +254,9 @@ export const igAgent = {
   backfillChannels: { es: 'Canales', en: 'Channels' },
   backfillMessageChannels: { es: 'Mensajes en', en: 'Messages on' },
   backfillWhatsApp: { es: 'WhatsApp', en: 'WhatsApp' },
-  backfillWhatsAppCoexistence: {
-    es: 'El historial disponible se sincroniza automáticamente al conectar un número en coexistencia. No activa respuestas ni automatizaciones.',
-    en: 'Available history is synced automatically when a coexistence number is connected. It does not trigger replies or automations.',
-  },
-  backfillWhatsAppCloud: {
-    es: 'WhatsApp Cloud API no permite descargar chats anteriores. Los mensajes nuevos se sincronizan desde que se conecta el número.',
-    en: 'WhatsApp Cloud API cannot download earlier chats. New messages sync from the moment the number is connected.',
+  backfillWhatsAppWindow: {
+    es: 'WhatsApp recupera hasta 14 días atrás.',
+    en: 'WhatsApp recovers up to 14 days back.',
   },
   backfillRun: { es: 'Importar historial', en: 'Import history' },
   backfillRunning: { es: 'Importando…', en: 'Importing…' },

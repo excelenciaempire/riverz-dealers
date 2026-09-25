@@ -100,7 +100,8 @@ async function cronHandler(request: Request) {
 
 /** Días que se conservan las corridas de los trabajos de fondo. */
 const CRON_RUNS_DAYS = 30
-/** Días que se conserva un webhook YA procesado. */
+/** Días que se conserva un webhook YA procesado. Es también hasta dónde llega
+ *  el backfill de WhatsApp, que relee este diario (igAgent.backfillWhatsAppWindow). */
 const WEBHOOK_DAYS = 14
 
 /**

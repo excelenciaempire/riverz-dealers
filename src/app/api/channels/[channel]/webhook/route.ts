@@ -6,6 +6,7 @@ import { listConnections, sellarEntregaPorPush } from "@/lib/channels/connection
 import { verifyChannelWebhook } from "@/lib/channels/verify-webhook";
 import { getLogger } from "@/lib/log/logger";
 import { captureWebhookFailure } from "@/lib/webhooks/capture";
+import { journalWhatsappDelivery } from "@/lib/channels/whatsapp/journal";
 import { handlePaymentNotification, isPaymentTopic } from "@/lib/mercadopago/notify";
 import type { Channel, ChannelConnection } from "@/types";
 
@@ -234,6 +235,15 @@ async function processChannelsWebhookAsync(
   // different connection rows.
   const adapterChannels = relatedChannels(channel);
   const db = supabaseAdmin();
+  // WhatsApp no deja volver a pedir un mensaje pasado: la entrega queda anotada
+  // antes de enrutarla, así el backfill puede releerla aunque se pierda después.
+  if (channel === "whatsapp") {
+    void journalWhatsappDelivery(db, {
+      rawBody,
+      payload,
+      signature: req.headers.get("x-hub-signature-256"),
+    });
+  }
   for (const c of adapterChannels) {
     // El `?connection_id=` afirma UNA conexión, y esa conexión es de UN canal.
     // Al correrse los canales hermanos con esa misma fila, el adaptador de

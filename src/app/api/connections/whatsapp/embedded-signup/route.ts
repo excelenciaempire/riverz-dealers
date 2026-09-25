@@ -10,6 +10,7 @@ import {
   syncLegacyWhatsAppConfig,
   WhatsAppAlreadyConnectedError,
 } from "@/lib/channels/whatsapp/connect";
+import { requestCoexistenceHistorySync } from "@/lib/channels/whatsapp/history-sync";
 import {
   fetchWhatsAppAccountHealth,
   persistWhatsAppHealthSnapshot,
@@ -242,6 +243,18 @@ export async function POST(req: Request): Promise<Response> {
       platformType: phone.platform_type,
       onboarding: coexistence ? "embedded_signup_coexistence" : "embedded_signup",
     });
+
+    // 5b. Coexistencia: pedir ahora los contactos y el historial de la app. Meta
+    //     sólo lo acepta en las 24 horas posteriores al onboarding y una sola
+    //     vez; sin este pedido los chats anteriores no llegan nunca. No bloquea
+    //     la conexión: el resultado queda anotado y el backfill lo reintenta.
+    if (coexistence) {
+      await requestCoexistenceHistorySync(admin, {
+        connectionId,
+        phoneNumberId: body.phone_number_id,
+        token,
+      });
+    }
 
     // Cache the WABA messaging-tier so bulk paths can gate sends without
     // a Meta roundtrip per message. Best-effort: errors leave the

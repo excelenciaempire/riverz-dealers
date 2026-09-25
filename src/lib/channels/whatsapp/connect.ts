@@ -116,6 +116,9 @@ export async function upsertSingleWhatsAppConnection(
     coexistence: Boolean(args.coexistence),
     platform_type: args.platformType,
     onboarding: args.onboarding,
+    // Abre la ventana de 24 h en que Meta acepta pedir el historial de
+    // coexistencia (history-sync.ts).
+    connected_at: new Date().toISOString(),
   };
   const secrets = { access_token: encrypt(args.token) };
 

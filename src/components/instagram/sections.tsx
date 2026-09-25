@@ -2568,7 +2568,7 @@ function CommentBackfill({
   onComplete?: () => void;
 }) {
   type CommentBackfillChannel = 'ig_comment' | 'fb_comment' | 'tiktok_comment';
-  type MessageBackfillChannel = 'instagram' | 'facebook';
+  type MessageBackfillChannel = 'instagram' | 'facebook' | 'whatsapp';
   type BackfillCapabilities = {
     comments: { instagram: boolean; facebook: boolean; tiktok: boolean };
     messages: {
@@ -2598,7 +2598,7 @@ function CommentBackfill({
   ]);
   const [messageChannels, setMessageChannels] = useState<
     MessageBackfillChannel[]
-  >(['instagram', 'facebook']);
+  >(['instagram', 'facebook', 'whatsapp']);
   const [capabilities, setCapabilities] = useState<BackfillCapabilities | null>(
     null
   );
@@ -2626,7 +2626,9 @@ function CommentBackfill({
           current.filter(
             (channel) =>
               (channel === 'instagram' && payload.messages.instagram) ||
-              (channel === 'facebook' && payload.messages.facebook)
+              (channel === 'facebook' && payload.messages.facebook) ||
+              (channel === 'whatsapp' &&
+                payload.messages.whatsapp.manual_backfill)
           )
         );
       })
@@ -2739,7 +2741,8 @@ function CommentBackfill({
   const messageAvailable = (channel: MessageBackfillChannel) =>
     !capabilities ||
     (channel === 'instagram' && capabilities.messages.instagram) ||
-    (channel === 'facebook' && capabilities.messages.facebook);
+    (channel === 'facebook' && capabilities.messages.facebook) ||
+    (channel === 'whatsapp' && capabilities.messages.whatsapp.manual_backfill);
 
   return (
     <div className="space-y-4">
@@ -2908,6 +2911,7 @@ function CommentBackfill({
               [
                 ['instagram', 'igAgent.network_instagram'],
                 ['facebook', 'igAgent.network_facebook'],
+                ['whatsapp', 'igAgent.backfillWhatsApp'],
               ] as const
             ).map(([channel, label]) => (
               <label
@@ -2931,17 +2935,10 @@ function CommentBackfill({
               </label>
             ))}
           </div>
-          {capabilities?.messages.whatsapp.connected && (
-            <div className="border-border bg-muted/30 flex items-start gap-2 rounded-lg border px-2.5 py-2 text-xs leading-5">
-              <span className="text-foreground shrink-0 font-medium">
-                {t('igAgent.backfillWhatsApp')}
-              </span>
-              <p className="text-muted-foreground">
-                {capabilities.messages.whatsapp.mode === 'coexistence'
-                  ? t('igAgent.backfillWhatsAppCoexistence')
-                  : t('igAgent.backfillWhatsAppCloud')}
-              </p>
-            </div>
+          {messageChannels.includes('whatsapp') && (
+            <p className="text-muted-foreground text-xs">
+              {t('igAgent.backfillWhatsAppWindow')}
+            </p>
           )}
         </div>
       )}
