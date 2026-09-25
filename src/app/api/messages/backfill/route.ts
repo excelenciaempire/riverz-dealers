@@ -10,7 +10,6 @@ import {
 import { withAppsecretProof } from '@/lib/channels/meta-graph';
 import { fetchMetaGraph } from '@/lib/channels/meta-fetch';
 import { backfillWhatsappConnection } from '@/lib/channels/whatsapp/journal';
-import { retryCoexistenceHistorySync } from '@/lib/channels/whatsapp/history-sync';
 import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -191,7 +190,6 @@ export async function POST(request: Request) {
     connections.map(async (connection) => {
       try {
         if (connection.channel === 'whatsapp') {
-          await retryCoexistenceHistorySync(admin, connection);
           return {
             channel: connection.channel,
             ...(await backfillWhatsappConnection(admin, connection, {

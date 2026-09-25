@@ -28,6 +28,10 @@ import {
   fetchWhatsAppAccountHealth,
   persistWhatsAppHealthSnapshot,
 } from "@/lib/whatsapp/account-health";
+import {
+  ensureCoexistenceHistorySync,
+  historyWebhookLive,
+} from "@/lib/channels/whatsapp/history-sync";
 
 const log = getLogger("cron.meta-webhook-subscriptions");
 
@@ -347,9 +351,24 @@ async function cronHandler(request: Request) {
   }
   // Releer para no reportar un hueco que acabamos de cerrar (y para que el 207
   // refleje lo que quedó, no lo que había).
+  let liveSubs = appSubs;
   if (subscriptionFixes.some((f) => f.ok)) {
     const reread = await getAppWebhookSubscriptions();
-    if (reread) appGaps = appSubscriptionGaps(reread);
+    if (reread) {
+      liveSubs = reread;
+      appGaps = appSubscriptionGaps(reread);
+    }
+  }
+
+  // Coexistencia: el historial de la app del comercio se pide una sola vez y
+  // sólo en las 24 horas posteriores al onboarding. Va después de la
+  // reparación: sin el campo `history` suscrito, Meta lo manda y se pierde.
+  const historySync: Array<{ id: string; requested: boolean }> = [];
+  if (historyWebhookLive(liveSubs)) {
+    for (const c of (waConns ?? []) as ChannelConnection[]) {
+      const requested = await ensureCoexistenceHistorySync(admin, c);
+      if (requested !== null) historySync.push({ id: c.id, requested });
+    }
   }
 
   // Flip the Render cron red (207) ONLY on a CONFIRMED gap, so a transient
@@ -372,6 +391,7 @@ async function cronHandler(request: Request) {
       appGaps,
       subscriptionFixes,
       callbackFixes,
+      historySync,
     },
     { status: anyMissing || anyAppGap ? 207 : 200 },
   );

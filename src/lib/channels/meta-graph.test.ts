@@ -135,6 +135,8 @@ describe("appSubscriptionGaps", () => {
       fields: [
         "messages",
         "smb_message_echoes",
+        "smb_app_state_sync",
+        "history",
         "message_template_status_update",
         "message_template_quality_update",
       ],
@@ -181,12 +183,31 @@ describe("appSubscriptionGaps", () => {
 
   it("reporta los eventos de plantillas de WhatsApp cuando faltan", () => {
     const subs = healthy();
-    subs.whatsapp_business_account.fields = ["messages", "smb_message_echoes"];
+    subs.whatsapp_business_account.fields = [
+      "messages",
+      "smb_message_echoes",
+      "smb_app_state_sync",
+      "history",
+    ];
     const gaps = appSubscriptionGaps(subs);
     expect(gaps).toHaveLength(1);
     expect(gaps[0].missing).toEqual([
       "message_template_status_update",
       "message_template_quality_update",
     ]);
+  });
+
+  it("reporta el historial de coexistencia cuando falta", () => {
+    // Meta lo manda una sola vez: si la app no está suscrita, se pierde.
+    const subs = healthy();
+    subs.whatsapp_business_account.fields = [
+      "messages",
+      "smb_message_echoes",
+      "message_template_status_update",
+      "message_template_quality_update",
+    ];
+    const gaps = appSubscriptionGaps(subs);
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0].missing).toEqual(["smb_app_state_sync", "history"]);
   });
 });

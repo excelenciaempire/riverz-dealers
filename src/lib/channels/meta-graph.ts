@@ -698,6 +698,11 @@ export const APP_WEBHOOK_EXPECTATIONS: Record<string, string[]> = {
   whatsapp_business_account: [
     'messages',
     'smb_message_echoes',
+    // Coexistencia: los contactos y el historial de la app del comercio. Meta
+    // los manda una sola vez, cuando se piden tras el onboarding
+    // (whatsapp/history-sync.ts); sin estos campos esa entrega se pierde.
+    'smb_app_state_sync',
+    'history',
     // La aprobación o pausa de una plantilla cambia fuera de Riverz. Sin
     // estos eventos, el catálogo queda en Pending para siempre y los flujos
     // armados nunca se activan aunque Meta ya permita enviarlos.

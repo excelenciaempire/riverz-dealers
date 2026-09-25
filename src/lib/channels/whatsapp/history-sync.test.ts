@@ -7,21 +7,26 @@ vi.mock("../encryption", () => ({ decrypt: (value: string) => `plain-${value}` }
 
 import { savePollState } from "../poll-state";
 import {
+  ensureCoexistenceHistorySync,
+  historyWebhookLive,
   requestCoexistenceHistorySync,
-  retryCoexistenceHistorySync,
 } from "./history-sync";
 
 const db = {} as SupabaseClient;
 const PHONE = "1234567890123";
 const HOUR = 60 * 60_000;
 
-function coexistence(config: Record<string, unknown>): ChannelConnection {
+function coexistence(
+  config: Record<string, unknown>,
+  createdAt = new Date(Date.now() - 400 * HOUR).toISOString(),
+): ChannelConnection {
   return {
     id: "conn-wa",
     workspace_id: "ws-1",
     channel: "whatsapp",
     status: "connected",
     external_account_id: PHONE,
+    created_at: createdAt,
     config: { phone_number_id: PHONE, coexistence: true, ...config },
     secrets: { access_token: "enc" },
   } as unknown as ChannelConnection;
@@ -88,47 +93,65 @@ describe("requestCoexistenceHistorySync", () => {
   });
 });
 
-describe("retryCoexistenceHistorySync", () => {
+describe("historyWebhookLive", () => {
+  const sub = (fields: string[], active = true) => ({
+    whatsapp_business_account: { active, fields, callbackUrl: "https://riverz.co/x" },
+  });
+
+  it("sólo con el campo history suscrito y activo", () => {
+    expect(historyWebhookLive(sub(["messages", "history"]))).toBe(true);
+    expect(historyWebhookLive(sub(["messages", "smb_message_echoes"]))).toBe(false);
+    expect(historyWebhookLive(sub(["history"], false))).toBe(false);
+    expect(historyWebhookLive(null)).toBe(false);
+  });
+});
+
+describe("ensureCoexistenceHistorySync", () => {
   beforeEach(() => {
     fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
   });
 
-  it("reintenta dentro de las 24 horas si el pedido no salió", async () => {
-    await retryCoexistenceHistorySync(
+  it("pide el historial dentro de las 24 horas si todavía no salió", async () => {
+    const out = await ensureCoexistenceHistorySync(
       db,
       coexistence({ connected_at: new Date(Date.now() - HOUR).toISOString() }),
     );
+    expect(out).toBe(true);
     expect(syncTypes()).toEqual(["smb_app_state_sync", "history"]);
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer plain-enc");
   });
 
+  it("sin connected_at usa el alta de la conexión", async () => {
+    const recent = new Date(Date.now() - 2 * HOUR).toISOString();
+    expect(await ensureCoexistenceHistorySync(db, coexistence({}, recent))).toBe(true);
+    fetchMock.mockClear();
+    expect(await ensureCoexistenceHistorySync(db, coexistence({}))).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("no pide nada fuera de la ventana, ya pedido o sin coexistencia", async () => {
     const connectedAt = new Date(Date.now() - HOUR).toISOString();
-    await retryCoexistenceHistorySync(
-      db,
+    const cases = [
       coexistence({ connected_at: new Date(Date.now() - 25 * HOUR).toISOString() }),
-    );
-    await retryCoexistenceHistorySync(
-      db,
       coexistence({ connected_at: connectedAt, history_sync_requested_at: new Date().toISOString() }),
-    );
-    await retryCoexistenceHistorySync(
-      db,
       coexistence({ connected_at: connectedAt, coexistence: false }),
-    );
-    await retryCoexistenceHistorySync(db, coexistence({}));
+    ];
+    for (const connection of cases) {
+      expect(await ensureCoexistenceHistorySync(db, connection)).toBeNull();
+    }
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("un pedido de una conexión anterior no cuenta para la nueva", async () => {
-    await retryCoexistenceHistorySync(
+    const out = await ensureCoexistenceHistorySync(
       db,
       coexistence({
         connected_at: new Date(Date.now() - HOUR).toISOString(),
         history_sync_requested_at: new Date(Date.now() - 48 * HOUR).toISOString(),
       }),
     );
+    expect(out).toBe(true);
     expect(syncTypes()).toEqual(["smb_app_state_sync", "history"]);
   });
 });

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelConnection } from "@/types";
 import { decrypt } from "../encryption";
-import { withAppsecretProof } from "../meta-graph";
+import { withAppsecretProof, type AppSubscription } from "../meta-graph";
 import { savePollState } from "../poll-state";
 
 const GRAPH = "https://graph.facebook.com/v25.0";
@@ -71,33 +71,46 @@ export async function requestCoexistenceHistorySync(
 }
 
 /**
- * Segundo intento desde el backfill, para cuando el pedido del onboarding
- * falló: sólo en coexistencia, dentro de la ventana de Meta y si el pedido de
- * esta conexión todavía no salió.
+ * La app ya recibe el campo `history` de WhatsApp. Pedir el historial antes es
+ * gastar el único intento en entregas que nadie escucha.
  */
-export async function retryCoexistenceHistorySync(
+export function historyWebhookLive(
+  subs: Record<string, AppSubscription> | null | undefined,
+): boolean {
+  const wa = subs?.whatsapp_business_account;
+  return Boolean(wa?.active && wa.fields.includes("history"));
+}
+
+/**
+ * Pide el historial de una conexión de coexistencia si todavía se puede: dentro
+ * de la ventana de Meta y sin un pedido aceptado desde que se conectó. Lo corre
+ * el cron de suscripciones, así no depende de que alguien lo pida a mano en las
+ * primeras 24 horas. Devuelve null cuando no corresponde pedir nada.
+ */
+export async function ensureCoexistenceHistorySync(
   db: SupabaseClient,
   connection: ChannelConnection,
-): Promise<void> {
+): Promise<boolean | null> {
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
-  if (cfg.coexistence !== true) return;
-  const connectedAt = Date.parse(String(cfg.connected_at ?? ""));
-  if (!Number.isFinite(connectedAt) || Date.now() - connectedAt > SYNC_WINDOW_MS) return;
+  if (cfg.coexistence !== true) return null;
+  // Las conexiones previas a `connected_at` usan el alta de la fila.
+  const connectedAt = Date.parse(String(cfg.connected_at ?? connection.created_at ?? ""));
+  if (!Number.isFinite(connectedAt) || Date.now() - connectedAt > SYNC_WINDOW_MS) return null;
   const requestedAt = Date.parse(String(cfg.history_sync_requested_at ?? ""));
-  if (Number.isFinite(requestedAt) && requestedAt >= connectedAt) return;
+  if (Number.isFinite(requestedAt) && requestedAt >= connectedAt) return null;
 
   const encrypted = String(
     (connection.secrets as Record<string, unknown> | null)?.access_token ?? "",
   );
   const phoneNumberId = String(cfg.phone_number_id ?? connection.external_account_id ?? "");
-  if (!encrypted || !phoneNumberId) return;
+  if (!encrypted || !phoneNumberId) return null;
   let token: string;
   try {
     token = decrypt(encrypted);
   } catch {
-    return;
+    return null;
   }
-  await requestCoexistenceHistorySync(db, {
+  return requestCoexistenceHistorySync(db, {
     connectionId: connection.id,
     phoneNumberId,
     token,
