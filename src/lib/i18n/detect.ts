@@ -6,9 +6,9 @@ import { DEFAULT_LOCALE, isLocale, LOCALES, type Locale } from "./config";
  *
  * Priority:
  *  1. An explicit geo/country header (set by the upstream CDN/proxy, e.g.
- *     Cloudflare `cf-ipcountry`, Vercel `x-vercel-ip-country`). If the
- *     visitor is in a primarily Spanish-speaking country → "es", otherwise
- *     → "en". This is the "por IP" rule the product wants.
+ *     Cloudflare `cf-ipcountry`). If the visitor is in a primarily
+ *     Spanish-speaking country → "es", otherwise → "en". This is the
+ *     "por IP" rule the product wants.
  *  2. The `Accept-Language` header (the browser's own language order) as a
  *     fallback when no geo header is present.
  *  3. DEFAULT_LOCALE ("es").
@@ -24,7 +24,6 @@ const SPANISH_COUNTRIES = new Set([
 
 const GEO_HEADERS = [
   "cf-ipcountry",
-  "x-vercel-ip-country",
   "x-geo-country",
   "x-country-code",
 ];

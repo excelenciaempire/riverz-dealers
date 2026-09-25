@@ -7,9 +7,9 @@ import { withCronRun } from "@/lib/cron/heartbeat";
 import { serverError } from '@/lib/api/errors'
 
 /**
- * Drain due `automation_pending_executions` rows. Meant to be hit
- * on a schedule (Vercel Cron / external pinger) — requires a shared
- * secret via the `x-cron-secret` header to match
+ * Drain due `automation_pending_executions` rows. Hit every minute by
+ * the in-process scheduler (`src/lib/cron/schedule.ts`) — requires a
+ * shared secret via the `x-cron-secret` header to match
  * `AUTOMATION_CRON_SECRET`.
  *
  * The claim step (status = 'running') serves as a simple lock so

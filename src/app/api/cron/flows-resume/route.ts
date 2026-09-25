@@ -8,9 +8,9 @@ import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
  * Drain due `flow_pending_executions` rows — the `wait` flow node
- * inserts them with `run_at` set to now + delta. Hit on a schedule
- * (Vercel Cron / external pinger) with the shared `x-cron-secret`
- * header matching `AUTOMATION_CRON_SECRET`.
+ * inserts them with `run_at` set to now + delta. Hit every minute by
+ * the in-process scheduler (`src/lib/cron/schedule.ts`) with the shared
+ * `x-cron-secret` header matching `AUTOMATION_CRON_SECRET`.
  *
  * Mirrors the automations cron route: two-step claim (UPDATE to
  * 'running' filtered by 'pending') prevents double-processing under

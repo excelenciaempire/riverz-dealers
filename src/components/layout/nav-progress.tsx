@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 /**
- * Barra de progreso de navegación (estilo GitHub/Vercel).
+ * Barra de progreso de navegación (estilo GitHub).
  *
  * La navegación del dashboard ES cliente (SPA) — el shell no se recarga — pero
  * algunas páginas tardan 1-2s en traer sus datos y el área de contenido queda

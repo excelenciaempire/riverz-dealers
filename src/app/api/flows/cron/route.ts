@@ -23,10 +23,9 @@ import { withCronRun } from "@/lib/cron/heartbeat";
  * and this one) are independent operations; we keep them on separate
  * URLs so one failing doesn't block the other.
  *
- * Hosting: hit on a schedule (Vercel Cron / GitHub Actions / external
- * pinger). A 5-minute interval is more than enough for a 24h timeout
- * default; once per hour would also be acceptable for low-volume
- * tenants.
+ * Hit every 15 minutes by the in-process scheduler
+ * (`src/lib/cron/schedule.ts`), more than enough for the 24h timeout
+ * default.
  */
 async function cronHandler(request: Request) {
   try {

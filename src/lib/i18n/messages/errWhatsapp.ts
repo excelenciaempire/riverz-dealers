@@ -179,8 +179,8 @@ export const errWhatsapp = {
     en: "No WhatsApp configuration saved yet. Fill in the form and click Save Configuration.",
   },
   tokenCorrupted: {
-    es: 'El token de acceso guardado no se puede descifrar con la ENCRYPTION_KEY actual. Suele significar que la clave cambió o que difiere entre entornos (local vs Hostinger vs Vercel). Haz clic en "Restablecer configuración" abajo y vuelve a guardar.',
-    en: 'The stored access token cannot be decrypted with the current ENCRYPTION_KEY. This usually means the key changed, or it differs between environments (local vs Hostinger vs Vercel). Click "Reset Configuration" below, then re-save.',
+    es: 'El token de acceso guardado no se puede descifrar con la ENCRYPTION_KEY actual. Suele significar que la clave cambió o que difiere entre entornos (local vs producción). Haz clic en "Restablecer configuración" abajo y vuelve a guardar.',
+    en: 'The stored access token cannot be decrypted with the current ENCRYPTION_KEY. This usually means the key changed, or it differs between environments (local vs production). Click "Reset Configuration" below, then re-save.',
   },
 
   // ── React (reactions) ──
