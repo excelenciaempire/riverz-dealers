@@ -208,9 +208,14 @@ describe('las otras superficies que leen el catálogo', () => {
     // y cuando esa lógica se mudó a `loadProductCatalog` —donde corresponde— el
     // test se puso rojo aunque el panel había quedado más parecido a producción,
     // no menos.
+    //
+    // La ruta delega en `lib/ai/simulacion`, que comparte con "Probar como
+    // cliente": es ahí donde tiene que estar el cargador.
     const ruta = leer('src/app/api/ai/agents/[id]/test/route.ts')
-    expect(ruta).toContain('loadProductCatalog')
-    expect(ruta).toContain('productosPermitidos')
+    expect(ruta).toContain('simularRespuesta')
+    const simulacion = leer('src/lib/ai/simulacion.ts')
+    expect(simulacion).toContain('loadProductCatalog')
+    expect(simulacion).toContain('productosPermitidos')
     // Y que el cargador compartido siga plegando por producto principal.
     const runner = leer('src/lib/ai/runner.ts')
     expect(runner).toMatch(/loadProductCatalog[\s\S]*?unificarFilas/)

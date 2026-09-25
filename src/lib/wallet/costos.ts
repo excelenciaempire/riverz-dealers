@@ -119,6 +119,18 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     cobro: 'por_uso',
   },
   {
+    // El número propio para llamadas. Telnyx le pone precio al comprarlo —varía
+    // por país y tipo— y se cobra tal cual: el alta con el primer mes, y
+    // después cada renovación mensual.
+    concepto: 'numero_telefono',
+    nombreEs: 'Número de teléfono propio',
+    nombreEn: 'Dedicated phone number',
+    centavos: 0,
+    unidad: 'mes',
+    proveedor: 'Telnyx',
+    cobro: 'por_uso',
+  },
+  {
     concepto: 'entender_publicacion',
     nombreEs: 'Entender una publicación o un anuncio',
     nombreEn: 'Understanding a post or ad',
