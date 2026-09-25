@@ -69,6 +69,29 @@ const TONO: Record<string, Tone> = {
 const usd = (centavos: number) =>
   `US$${(centavos / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
+/**
+ * Un precio tal como se escribiría en el campo: con centavos sólo si los
+ * tiene y sin separador de miles, que el campo leería como decimal.
+ */
+const usdExacto = (centavos: number) =>
+  `US$${(centavos / 100).toLocaleString("en-US", {
+    useGrouping: false,
+    minimumFractionDigits: centavos % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+/** Dólares escritos a mano, en centavos. `null` si no es un monto válido. */
+function aCentavos(texto: string): number | null {
+  const dolares = Number(texto.trim().replace(",", "."));
+  return Number.isFinite(dolares) && dolares >= 0 ? Math.round(dolares * 100) : null;
+}
+
+/** El plan del acuerdo por saldo: mensualidad fija y el consumo desde la billetera. */
+const PLAN_DE_SALDO = "saldo-ilimitado";
+
+/** Todo incluido sólo admite un plan de contactos activo. */
+const esPlanOficial = (p: Plan | undefined): p is Plan => Boolean(p?.activo && p.incluidas > 0);
+
 function nombrePlan(p: Plan, t: ReturnType<typeof useT>): string {
   switch (p.slug) {
     case "contactos-500": return t("settings.billingPlan500");
@@ -501,19 +524,9 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
                 error={errorCuenta}
                 onGuardar={guardarCuenta}
                 onCerrar={() => setEditando(null)}
+                onMover={moverSaldo}
+                onBloqueo={cambiarBloqueo}
               />
-              {cuentaEditada.modeloCobro === "saldo" ? (
-                <BloqueBilletera
-                  cuenta={cuentaEditada}
-                  guardando={guardando}
-                  onMover={moverSaldo}
-                  onBloqueo={cambiarBloqueo}
-                />
-              ) : (
-                <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-                  {t("admin.billingModelOfficialNote")}
-                </p>
-              )}
             </div>
           </DialogContent>
         )}
@@ -795,6 +808,13 @@ function FilaPlan({
   );
 }
 
+/**
+ * El trato de una cuenta.
+ *
+ * Cada sistema de cobro muestra sólo lo suyo. Todo incluido elige un plan de
+ * contactos y su cupo. Saldo por consumo no tiene cupo ni plan que elegir:
+ * lleva el plan de saldo, una mensualidad y la billetera.
+ */
 function FormularioCuenta({
   cuenta,
   planes,
@@ -802,6 +822,8 @@ function FormularioCuenta({
   error,
   onGuardar,
   onCerrar,
+  onMover,
+  onBloqueo,
 }: {
   cuenta: CuentaDelNegocio;
   planes: Plan[];
@@ -809,6 +831,8 @@ function FormularioCuenta({
   error: string | null;
   onGuardar: (c: Record<string, unknown>) => void;
   onCerrar: () => void;
+  onMover: (s: Record<string, unknown>) => void;
+  onBloqueo: (workspaceId: string, cambio: Record<string, unknown>) => void;
 }) {
   const t = useT();
   const [f, setF] = useState({
@@ -819,13 +843,34 @@ function FormularioCuenta({
     incluidas: "",
     nota: cuenta.nota ?? "",
   });
+  const saldo = f.modelo === "saldo";
   const planActual = planes.find((p) => p.slug === cuenta.planSlug);
-  const planPredeterminado = planes.find((p) => p.activo && p.incluidas > 0);
-  const planSeleccionado = f.plan_id ? planes.find((p) => p.id === f.plan_id) : planActual;
-  const esPlanDeSaldoIlimitado = planSeleccionado?.slug === "saldo-ilimitado";
-  const planValido = Boolean(f.plan_id || planActual);
-  const precioValido = f.precio === "" || (Number.isFinite(Number(f.precio.replace(",", "."))) && Number(f.precio.replace(",", ".")) >= 0);
-  const incluidasValidas = f.incluidas === "" || (Number.isInteger(Number(f.incluidas)) && Number(f.incluidas) >= 0);
+  const planDeSaldo = planes.find((p) => p.slug === PLAN_DE_SALDO && p.activo);
+  // El plan con el que queda la cuenta al guardar.
+  const plan = f.plan_id ? planes.find((p) => p.id === f.plan_id) : planActual;
+  const planValido = saldo || esPlanOficial(plan);
+  const precioEscrito = f.precio.trim() !== "";
+  const precio = aCentavos(f.precio);
+  const precioValido = !precioEscrito || precio !== null;
+  const incluidasEscritas = f.incluidas.trim();
+  const incluidasValidas = saldo || incluidasEscritas === "" ||
+    (Number.isInteger(Number(incluidasEscritas)) && Number(incluidasEscritas) >= 0);
+  // La mensualidad pactada al guardar: la escrita, la del plan nuevo o la de hoy.
+  const precioFinal = precioEscrito ? precio : f.plan_id ? plan?.precioCentavos ?? 0 : cuenta.precioAcuerdoCentavos;
+  // Un link armado con el trato anterior cobraría otra cosa.
+  const cambiaElCobro = f.modelo !== cuenta.modeloCobro || plan?.id !== planActual?.id ||
+    precioFinal !== cuenta.precioAcuerdoCentavos;
+
+  const cambiarModelo = (modelo: typeof f.modelo) =>
+    setF({
+      ...f,
+      modelo,
+      // Al pasar a saldo se asigna su plan. Una cuenta que ya está en saldo
+      // conserva el suyo: cambiarlo mueve su cobro, y eso se elige a propósito.
+      plan_id: modelo === "saldo" && cuenta.modeloCobro !== "saldo" ? planDeSaldo?.id ?? "" : "",
+      precio: "",
+      incluidas: "",
+    });
 
   const guardar = () => {
     if (!precioValido || !incluidasValidas || !planValido) return;
@@ -834,128 +879,157 @@ function FormularioCuenta({
       estado: f.estado,
       modelo_cobro: f.modelo,
       ...(f.plan_id ? { plan_id: f.plan_id } : {}),
-      ...(f.precio !== ""
-        ? { precio_centavos_override: Math.round(Number(f.precio.replace(",", ".")) * 100) }
+      ...(precioEscrito
+        ? { precio_centavos_override: precio }
         : f.plan_id ? { precio_centavos_override: null } : {}),
-      ...(esPlanDeSaldoIlimitado
-        ? { incluidas_override: null, excedente_centavos_override: null }
-        : f.incluidas !== ""
-        ? { incluidas_override: Number(f.incluidas) }
+      ...(!saldo && incluidasEscritas !== ""
+        ? { incluidas_override: Number(incluidasEscritas) }
         : f.plan_id ? { incluidas_override: null, excedente_centavos_override: null } : {}),
       nota: f.nota,
     });
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Campo label={t("admin.billingState")}>
-          <select
-            className={INPUT}
-            value={f.estado}
-            onChange={(e) => setF({ ...f, estado: e.target.value as typeof f.estado })}
-          >
-            {ESTADOS.map((e) => (
-              <option key={e} value={e}>
-                {t(`admin.billingState_${e}`)}
-              </option>
-            ))}
-          </select>
-        </Campo>
-        <Campo label={t("admin.billingModel")}>
-          <select
-            className={INPUT}
-            value={f.modelo}
-            onChange={(e) => {
-              const modelo = e.target.value as typeof f.modelo;
-              const seleccionado = f.plan_id ? planes.find((p) => p.id === f.plan_id) : planActual;
-              setF({
-                ...f,
-                modelo,
-                plan_id: modelo === "oficial" && (!seleccionado?.activo || seleccionado.incluidas <= 0)
-                  ? planPredeterminado?.id ?? ""
-                  : f.plan_id,
-              });
-            }}
-          >
-            <option value="oficial">{t("admin.billingModel_oficial")}</option>
-            <option value="saldo">{t("admin.billingModel_saldo")}</option>
-          </select>
-        </Campo>
-        <div className="sm:col-span-2">
-          <Campo label={t("admin.billingPlan")}>
+    <>
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Campo label={t("admin.billingState")}>
             <select
               className={INPUT}
-              value={f.plan_id}
-              onChange={(e) => setF({ ...f, plan_id: e.target.value })}
+              value={f.estado}
+              onChange={(e) => setF({ ...f, estado: e.target.value as typeof f.estado })}
             >
-              <option value="">{planActual ? `${t("admin.billingKeep")} · ${nombrePlan(planActual, t)}` : t("admin.billingChoosePlan")}</option>
-              {planes.filter((p) => f.modelo === "saldo" || (p.activo && p.incluidas > 0)).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {nombrePlan(p, t)}
+              {ESTADOS.map((e) => (
+                <option key={e} value={e}>
+                  {t(`admin.billingState_${e}`)}
                 </option>
               ))}
             </select>
           </Campo>
-          {esPlanDeSaldoIlimitado && (
-            <p className="mt-1 text-xs text-muted-foreground">{t("admin.billingUnlimitedBalanceNote")}</p>
+          <Campo label={t("admin.billingModel")}>
+            <select
+              className={INPUT}
+              value={f.modelo}
+              onChange={(e) => cambiarModelo(e.target.value as typeof f.modelo)}
+            >
+              <option value="oficial">{t("admin.billingModel_oficial")}</option>
+              <option value="saldo">{t("admin.billingModel_saldo")}</option>
+            </select>
+          </Campo>
+          {!saldo && (
+            <div className="sm:col-span-2">
+              <Campo label={t("admin.billingPlan")}>
+                <select
+                  className={INPUT}
+                  value={f.plan_id}
+                  onChange={(e) => setF({ ...f, plan_id: e.target.value })}
+                >
+                  <option value="">
+                    {esPlanOficial(planActual)
+                      ? `${t("admin.billingKeep")} · ${nombrePlan(planActual, t)}`
+                      : t("admin.billingChoosePlan")}
+                  </option>
+                  {planes.filter(esPlanOficial).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {nombrePlan(p, t)}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+            </div>
           )}
-        </div>
-        <Campo label={t("admin.billingOwnPrice")}>
-          <input
-            className={INPUT}
-            inputMode="decimal"
-            placeholder={t("admin.billingKeep")}
-            value={f.precio}
-            onChange={(e) => setF({ ...f, precio: e.target.value })}
-          />
-        </Campo>
-        {!esPlanDeSaldoIlimitado && (
-          <Campo label={t("admin.billingOwnIncluded")}>
+          {/* Sólo una cuenta que ya estaba en saldo con otro plan elige: pasarla
+              al plan de saldo cambia lo que paga. */}
+          {saldo && cuenta.modeloCobro === "saldo" && planDeSaldo && planActual?.id !== planDeSaldo.id && (
+            <div className="sm:col-span-2">
+              <Campo label={t("admin.billingPlan")}>
+                <select
+                  className={INPUT}
+                  value={f.plan_id}
+                  onChange={(e) => setF({ ...f, plan_id: e.target.value })}
+                >
+                  <option value="">
+                    {planActual ? `${t("admin.billingKeep")} · ${nombrePlan(planActual, t)}` : t("admin.billingKeep")}
+                  </option>
+                  <option value={planDeSaldo.id}>{nombrePlan(planDeSaldo, t)}</option>
+                </select>
+              </Campo>
+            </div>
+          )}
+          <Campo label={t(saldo ? "admin.billingMonthlyFee" : "admin.billingOwnPrice")}>
             <input
               className={INPUT}
-              inputMode="numeric"
-              placeholder={t("admin.billingKeep")}
-              value={f.incluidas}
-              onChange={(e) => setF({ ...f, incluidas: e.target.value })}
+              inputMode="decimal"
+              placeholder={saldo || esPlanOficial(plan)
+                ? usdExacto(f.plan_id ? plan?.precioCentavos ?? 0 : cuenta.precioAcuerdoCentavos)
+                : undefined}
+              value={f.precio}
+              onChange={(e) => setF({ ...f, precio: e.target.value })}
             />
           </Campo>
+          {!saldo && (
+            <Campo label={t("admin.billingOwnIncluded")}>
+              <input
+                className={INPUT}
+                inputMode="numeric"
+                placeholder={esPlanOficial(plan)
+                  ? String(f.plan_id ? plan.incluidas : cuenta.incluidas)
+                  : undefined}
+                value={f.incluidas}
+                onChange={(e) => setF({ ...f, incluidas: e.target.value })}
+              />
+            </Campo>
+          )}
+          <div className="sm:col-span-2">
+            <Campo label={t("admin.billingNote")}>
+              <input
+                className={INPUT}
+                value={f.nota}
+                onChange={(e) => setF({ ...f, nota: e.target.value })}
+              />
+            </Campo>
+          </div>
+        </div>
+        {cuenta.linkPagoDisponible && !cambiaElCobro ? (
+          <LinkDePago workspaceId={cuenta.workspaceId} />
+        ) : (
+          cuenta.admiteLinkPago && planValido && plan && precioFinal !== null && precioFinal > 0 && (
+            <p className="text-xs text-muted-foreground">{t("admin.billingSaveBeforeLink")}</p>
+          )
         )}
-        <div className="sm:col-span-2">
-          <Campo label={t("admin.billingNote")}>
-            <input
-              className={INPUT}
-              value={f.nota}
-              onChange={(e) => setF({ ...f, nota: e.target.value })}
-            />
-          </Campo>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <button
+            type="button"
+            disabled={guardando}
+            onClick={onCerrar}
+            className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            {t("admin.billingCancel")}
+          </button>
+          <button
+            type="button"
+            disabled={guardando || !precioValido || !incluidasValidas || !planValido}
+            onClick={guardar}
+            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {t("admin.billingSave")}
+          </button>
         </div>
       </div>
-      {cuenta.linkPagoDisponible
-        ? <LinkDePago workspaceId={cuenta.workspaceId} />
-        : !cuenta.tieneSuscripcion && (
-          <p className="text-xs text-muted-foreground">{t("admin.billingSaveBeforeLink")}</p>
-        )}
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      <div className="flex justify-end gap-2 border-t border-border pt-4">
-        <button
-          type="button"
-          disabled={guardando}
-          onClick={onCerrar}
-          className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
-        >
-          {t("admin.billingCancel")}
-        </button>
-        <button
-          type="button"
-          disabled={guardando || !precioValido || !incluidasValidas || !planValido}
-          onClick={guardar}
-          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
-        >
-          {t("admin.billingSave")}
-        </button>
-      </div>
-    </div>
+      {saldo ? (
+        <BloqueBilletera
+          cuenta={cuenta}
+          guardando={guardando}
+          onMover={onMover}
+          onBloqueo={onBloqueo}
+        />
+      ) : (
+        <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+          {t("admin.billingModelOfficialNote")}
+        </p>
+      )}
+    </>
   );
 }
 
@@ -980,15 +1054,21 @@ function FormularioAlta({
   onCerrar: () => void;
 }) {
   const t = useT();
+  const planesOficiales = planes.filter(esPlanOficial);
+  const planDeSaldo = planes.find((p) => p.slug === PLAN_DE_SALDO);
   const [f, setF] = useState({
     email: "",
     nombre: "",
     estado: "cortesia" as "cortesia" | "prueba" | "activa",
     modelo: "oficial" as "oficial" | "saldo",
-    plan_id: planes[0]?.id ?? "",
+    plan_id: planesOficiales[0]?.id ?? "",
     precio: "",
     nota: "",
   });
+  const saldo = f.modelo === "saldo";
+  const plan = planes.find((p) => p.id === f.plan_id);
+  const precio = aCentavos(f.precio);
+  const precioEscrito = f.precio.trim() !== "";
 
   return (
     <div className="space-y-3">
@@ -1025,30 +1105,30 @@ function FormularioAlta({
             value={f.modelo}
             onChange={(e) => {
               const modelo = e.target.value as typeof f.modelo;
-              setF({ ...f, modelo,
-                plan_id: modelo === "oficial" && planes.find((p) => p.id === f.plan_id)?.incluidas === 0
-                  ? planes.find((p) => p.incluidas > 0)?.id ?? ""
-                  : f.plan_id });
+              setF({
+                ...f,
+                modelo,
+                plan_id: (modelo === "saldo" ? planDeSaldo : planesOficiales[0])?.id ?? "",
+                precio: "",
+              });
             }}
           >
             <option value="oficial">{t("admin.billingModel_oficial")}</option>
             <option value="saldo">{t("admin.billingModel_saldo")}</option>
           </select>
         </Campo>
-        <Campo label={t("admin.billingPlans")}>
-          <select className={INPUT} value={f.plan_id} onChange={(e) => setF({ ...f, plan_id: e.target.value })}>
-            {planes.filter((p) => f.modelo === "saldo" || p.incluidas > 0)
-              .map((p) => <option key={p.id} value={p.id}>{nombrePlan(p, t)}</option>)}
-          </select>
-        </Campo>
-        {planes.find((p) => p.id === f.plan_id)?.slug === "saldo-ilimitado" && (
-          <p className="col-span-2 text-xs text-muted-foreground">{t("admin.billingUnlimitedBalanceNote")}</p>
+        {!saldo && (
+          <Campo label={t("admin.billingPlan")}>
+            <select className={INPUT} value={f.plan_id} onChange={(e) => setF({ ...f, plan_id: e.target.value })}>
+              {planesOficiales.map((p) => <option key={p.id} value={p.id}>{nombrePlan(p, t)}</option>)}
+            </select>
+          </Campo>
         )}
-        <Campo label={t("admin.billingOwnPrice")}>
+        <Campo label={t(saldo ? "admin.billingMonthlyFee" : "admin.billingOwnPrice")}>
           <input
             className={INPUT}
             inputMode="decimal"
-            placeholder={t("admin.billingKeep")}
+            placeholder={plan ? usdExacto(plan.precioCentavos) : undefined}
             value={f.precio}
             onChange={(e) => setF({ ...f, precio: e.target.value })}
           />
@@ -1065,7 +1145,7 @@ function FormularioAlta({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          disabled={guardando || !f.email.trim()}
+          disabled={guardando || !f.email.trim() || (precioEscrito && precio === null)}
           onClick={() =>
             onCrear({
               email: f.email,
@@ -1074,9 +1154,7 @@ function FormularioAlta({
               modelo_cobro: f.modelo,
               plan_id: f.plan_id || undefined,
               nota: f.nota,
-              ...(f.precio !== ""
-                ? { precio_centavos: Math.round(Number(f.precio) * 100) }
-                : {}),
+              ...(precioEscrito && precio !== null ? { precio_centavos: precio } : {}),
             })
           }
           className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"

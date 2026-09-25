@@ -914,12 +914,8 @@ export const admin = {
   billingCancel: { es: 'Cancelar', en: 'Cancel' },
   billingKeep: { es: 'Sin cambios', en: 'Unchanged' },
   billingChoosePlan: { es: 'Selecciona un plan', en: 'Choose a plan' },
-  billingSaveBeforeLink: { es: 'Guarda el plan para generar el link de pago.', en: 'Save the plan to generate a payment link.' },
+  billingSaveBeforeLink: { es: 'Guarda para generar el link de pago.', en: 'Save to generate a payment link.' },
   billingSearchAccounts: { es: 'Buscar tienda o correo', en: 'Search store or email' },
-  billingUnlimitedBalanceNote: {
-    es: 'Contactos ilimitados. El consumo se descuenta del saldo; no está incluido en la mensualidad.',
-    en: 'Unlimited contacts. Usage is deducted from the balance; it is not included in the monthly fee.',
-  },
   billingUnlimitedRequiresBalance: {
     es: 'Este plan requiere el modelo de cobro por saldo.',
     en: 'This plan requires balance-based billing.',
@@ -949,6 +945,7 @@ export const admin = {
   billingOverage: { es: 'Excedente c/u', en: 'Overage ea.' },
   billingStripePrice: { es: 'Price de Stripe', en: 'Stripe price' },
   billingOwnPrice: { es: 'Precio propio', en: 'Custom price' },
+  billingMonthlyFee: { es: 'Mensualidad', en: 'Monthly fee' },
   billingOwnIncluded: { es: 'Incluidas propias', en: 'Custom included' },
   billingNote: { es: 'Por qué', en: 'Why' },
   billingNew: { es: 'Dar de alta', en: 'Add account' },

@@ -25,11 +25,17 @@ export interface CuentaDelNegocio {
   correo: string | null
   estado: EstadoSuscripcion | 'sin_configurar'
   tieneSuscripcion: boolean
+  /** Cobra con link de pago: no tiene una suscripción de Stripe o Shopify en curso. */
+  admiteLinkPago: boolean
   linkPagoDisponible: boolean
   plan: string | null
   planSlug: string | null
   /** Lo que paga por mes, en centavos. La cortesía es 0. */
   mrrCentavos: number
+  /** La mensualidad pactada, aunque hoy esté en cortesía. */
+  precioAcuerdoCentavos: number
+  /** Contactos incluidos por mes, con el trato de esta cuenta. */
+  incluidas: number
   tratoPropio: boolean
   nota: string | null
   conversaciones: number
@@ -201,20 +207,24 @@ export async function leerNegocio(
       const u = uso.get(workspaceId) ?? { conversaciones: 0, costoUsd: 0 }
       const b = billeteras.get(workspaceId) ?? { saldo: 0, bloquea: false, aCosto: false }
       const l = libro.get(workspaceId) ?? { cargado: 0, gastado: 0, costo: 0 }
+      const admiteLinkPago = !s || (s.billingProvider === 'stripe' &&
+        (!s.stripeSubscriptionId || s.estado === 'cancelada'))
       return {
         workspaceId,
         nombre: identidad.nombre,
         correo: identidad.correo,
         estado: s?.estado ?? 'sin_configurar',
         tieneSuscripcion: Boolean(s),
-        linkPagoDisponible: Boolean(s?.plan && s.precioAcuerdoCentavos > 0 &&
-          s.billingProvider === 'stripe' && (!s.stripeSubscriptionId || s.estado === 'cancelada')),
+        admiteLinkPago,
+        linkPagoDisponible: Boolean(admiteLinkPago && s?.plan && s.precioAcuerdoCentavos > 0),
         plan: s?.plan?.nombre ?? null,
         planSlug: s?.plan?.slug ?? null,
         // Sólo lo ACTIVO es recurrente. Una prueba todavía no paga y una
         // cancelada dejó de pagar: contarlas infla el número que se usa para
         // tomar decisiones.
         mrrCentavos: s?.estado === 'activa' ? s.precioCentavos : 0,
+        precioAcuerdoCentavos: s?.precioAcuerdoCentavos ?? 0,
+        incluidas: s?.incluidas ?? 0,
         tratoPropio: s?.tratoPropio ?? false,
         nota: s?.nota ?? null,
         conversaciones: u.conversaciones,

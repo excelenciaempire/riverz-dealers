@@ -2,9 +2,25 @@ import { describe, expect, it, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { leerNegocio } from './negocio'
 
-function base(fallarWorkspaces = false) {
+const planDeSaldo = {
+  id: 'p-saldo', slug: 'saldo-ilimitado', nombre: 'Contactos ilimitados con saldo', activo: true,
+  precio_centavos: 39900, moneda: 'usd', incluidas: 0, excedente_centavos: 0,
+  stripe_price_id: null, stripe_price_excedente_id: null, orden: 90,
+}
+
+function suscripcion(workspace_id: string, fila: Record<string, unknown>) {
+  return {
+    workspace_id, plan_id: planDeSaldo.id, estado: 'cortesia', prueba_hasta: null,
+    periodo_desde: null, periodo_hasta: null, vencida_desde: null,
+    precio_centavos_override: null, incluidas_override: null, excedente_centavos_override: null,
+    nota: null, stripe_customer_id: null, stripe_subscription_id: null, cancelar_al_final: false,
+    modelo_cobro: 'saldo', billing_plans: planDeSaldo, ...fila,
+  }
+}
+
+function base(fallarWorkspaces = false, suscripciones: unknown[] = []) {
   const rows: Record<string, unknown[]> = {
-    workspace_subscriptions: [],
+    workspace_subscriptions: suscripciones,
     workspaces: [
       { id: 'w1', name: 'Tienda Nueva', owner_id: 'u1' },
       { id: 'w2', name: 'Otra Tienda', owner_id: 'u2' },
@@ -37,6 +53,24 @@ describe('cuentas de Negocio', () => {
     expect(negocio.cuentas[0]).toMatchObject({
       nombre: 'Tienda Nueva', correo: 'cliente@example.com',
       estado: 'sin_configurar', tieneSuscripcion: false, linkPagoDisponible: false,
+      admiteLinkPago: true, precioAcuerdoCentavos: 0,
+    })
+  })
+
+  it('expone la mensualidad pactada y si todavía se cobra con link', async () => {
+    const { db } = base(false, [
+      suscripcion('w1', {}),
+      suscripcion('w2', { estado: 'activa', stripe_customer_id: 'cus_1', stripe_subscription_id: 'sub_1' }),
+    ])
+    const negocio = await leerNegocio(db, periodo)
+    const cuenta = (id: string) => negocio.cuentas.find((c) => c.workspaceId === id)
+    expect(cuenta('w1')).toMatchObject({
+      estado: 'cortesia', modeloCobro: 'saldo', mrrCentavos: 0, precioAcuerdoCentavos: 39900,
+      incluidas: 0, admiteLinkPago: true, linkPagoDisponible: true,
+    })
+    expect(cuenta('w2')).toMatchObject({
+      estado: 'activa', mrrCentavos: 39900, precioAcuerdoCentavos: 39900,
+      admiteLinkPago: false, linkPagoDisponible: false,
     })
   })
 
