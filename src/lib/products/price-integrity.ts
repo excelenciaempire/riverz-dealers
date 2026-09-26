@@ -4,6 +4,8 @@ export interface PriceProduct {
   price_min?: number | null
   price_max?: number | null
   allowed_offers?: unknown
+  /** Lo mismo publicado en otro canal (`unificarFilas`), con su precio. */
+  listings?: Array<{ price?: number | string | null }> | null
 }
 
 const PRICE_INTENT =
@@ -57,11 +59,32 @@ export function authorizedPrices(products: PriceProduct[]): number[] {
   for (const product of products) {
     addMoney(values, product.price_min)
     addMoney(values, product.price_max)
+    // El precio de la publicación en el marketplace se le muestra al agente
+    // para que cotice el del canal por el que le escriben. Si no se autoriza
+    // también, la respuesta correcta desde Mercado Libre no sale.
+    for (const listing of product.listings ?? []) addMoney(values, listing?.price)
     if (!Array.isArray(product.allowed_offers)) continue
     for (const offer of product.allowed_offers) {
       if (offer && typeof offer === 'object') {
         addMoney(values, (offer as Record<string, unknown>).total)
       }
+    }
+  }
+  return [...values]
+}
+
+/**
+ * Los importes que el comercio escribió en sus reglas: el envío a domicilio,
+ * un complemento, el total por transferencia. Son suyos, no del modelo, así
+ * que citarlos no es inventar un precio. Sólo cuentan los que llevan moneda.
+ */
+export function montosDeReglas(
+  reglas: Array<{ cuando?: string | null; hacer?: string | null }>,
+): number[] {
+  const values = new Set<number>()
+  for (const r of reglas) {
+    for (const monto of quotedAmounts(`${r.cuando ?? ''}\n${r.hacer ?? ''}`, false)) {
+      values.add(monto)
     }
   }
   return [...values]

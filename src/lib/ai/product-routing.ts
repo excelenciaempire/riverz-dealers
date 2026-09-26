@@ -33,8 +33,9 @@ export interface ProductMatch {
   product_id: string;
   score: number;
   confidence: MatchConfidence;
-  /** Vía de detección — útil para logs de routing. */
-  via: "title_exact" | "title_partial" | "handle" | "tags_strong" | "page_url";
+  /** Vía de detección — útil para logs de routing. `asignado` = el agente
+   *  atiende un solo producto, así que se habla de ése aunque no lo nombren. */
+  via: "title_exact" | "title_partial" | "handle" | "tags_strong" | "page_url" | "asignado";
 }
 
 /** Mínimo de caracteres "significativos" (no stop-word) para aceptar un match. */

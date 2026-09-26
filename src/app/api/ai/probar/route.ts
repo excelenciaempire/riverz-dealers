@@ -265,13 +265,22 @@ export async function POST(request: Request) {
   if (overBudget) return overBudget;
 
   try {
-    const result = await simularRespuesta(admin, agent as AiAgent, {
+    const { bloqueo, ...result } = await simularRespuesta(admin, agent as AiAgent, {
       message,
       historial,
       simulatedPhone,
       simulatedChannel: channel,
       automationContext,
     });
+    // En vivo esa respuesta no sale y la conversación pasa a una persona.
+    if (bloqueo) {
+      return NextResponse.json({
+        agente: quien,
+        motivo,
+        ...barrera(bloqueo.tipo, bloqueo.detalle),
+        herramientas: result.herramientas,
+      });
+    }
     return NextResponse.json({ agente: quien, motivo, ...result });
   } catch (err) {
     if (err instanceof SinClaveError) {

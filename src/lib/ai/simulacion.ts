@@ -12,10 +12,14 @@ import {
   buildSystemPrompt,
   construirHerramientas,
   detectInboundProduct,
+  guardasDeSalida,
   loadProductCatalog,
+  productoUnicoAsignado,
   productosPermitidos,
   splitReplyForMode,
 } from '@/lib/ai/runner';
+import { asksForCurrentOffer, asksForPrice } from '@/lib/products/price-integrity';
+import { refreshLivePricing } from '@/lib/shopify/live-pricing';
 import { resolverRegistro } from '@/lib/ai/registro-rioplatense';
 import { runWithTools, type ShopifyToolContext } from '@/lib/ai/tools';
 import type { AiAgent } from '@/lib/ai/types';
@@ -55,6 +59,12 @@ export interface RespuestaSimulada {
   chunks: string[];
   herramientas: unknown;
   usage: { input_tokens: number; output_tokens: number; iterations: number };
+  /**
+   * Lo que en vivo no sale: un importe que no es un precio autorizado, o algo
+   * que el comercio prohibió y la reescritura no pudo sacar. En producción el
+   * cliente no recibe nada y la conversación pasa a una persona.
+   */
+  bloqueo?: { tipo: 'precio_no_autorizado' | 'respuesta_prohibida'; detalle: string };
 }
 
 export class SinClaveError extends Error {
@@ -101,22 +111,31 @@ export async function simularRespuesta(
   // El mismo enganche de producto que producción: es lo que fija el producto
   // y trae su material de entrenamiento al prompt.
   const automationContext = input.automationContext ?? null;
-  const productMatch = await detectInboundProduct(
-    admin,
-    a.workspace_id,
-    [input.message, automationContext?.first_item, automationContext?.order_items]
-      .filter(Boolean)
-      .join('\n')
-  );
-  const [products, businessCurrency, permitidos, reglas, topeDescuento, perfilOperativo] =
+  const productMatch =
+    (await detectInboundProduct(
+      admin,
+      a.workspace_id,
+      [input.message, automationContext?.first_item, automationContext?.order_items]
+        .filter(Boolean)
+        .join('\n')
+    )) ?? (await productoUnicoAsignado(admin, a, a.workspace_id));
+  // Igual que producción: para COTIZAR se verifica la página pública en este
+  // mismo turno, y sin esa verificación ningún importe sale.
+  const priceQuestion = asksForPrice(input.message);
+  let priceVerified = !priceQuestion;
+  if (asksForCurrentOffer(input.message) && productMatch) {
+    priceVerified = (await refreshLivePricing(admin, productMatch.product_id)).ok;
+  }
+  const [products, businessCurrency, permitidos, reglasCrudas, topeDescuento, perfilOperativo] =
     await Promise.all([
       loadProductCatalog(admin, a, a.workspace_id, productMatch),
       resolveWorkspaceCurrency(admin, a.workspace_id),
       productosPermitidos(admin, a, a.workspace_id),
-      cargarReglas(admin, a.workspace_id, a.id).then(reglasATexto),
+      cargarReglas(admin, a.workspace_id, a.id),
       topeDeDescuento(admin, a.workspace_id).catch(() => 0),
       cargarPerfilOperativo(admin, a.workspace_id),
     ]);
+  const reglas = reglasATexto(reglasCrudas);
 
   // Un contacto de mentira, con la forma de uno real. No se guarda en ningún
   // lado: existe para que el prompt tenga a quién nombrar.
@@ -251,25 +270,59 @@ export async function simularRespuesta(
     },
   });
 
+  const usage = {
+    input_tokens: result.promptTokens,
+    output_tokens: result.completionTokens,
+    iterations: result.iterations,
+  };
   // Probar cuesta lo mismo que contestar: es el agente entero corriendo.
   // Un comentario sale en UN mensaje y con la misma limpieza que producción.
-  const limpio = (comentario ? salidaParaCliente(result.text) : result.text) ?? '';
-  const text =
-    comentario && limpio.length > maxComentario
-      ? recortarSalida(limpio, maxComentario)
-      : limpio;
+  if (comentario) {
+    const limpio = salidaParaCliente(result.text) ?? '';
+    const text = limpio.length > maxComentario ? recortarSalida(limpio, maxComentario) : limpio;
+    return { reply: text, chunks: text ? [text] : [], herramientas: result.herramientas, usage };
+  }
+
+  // Las mismas guardas que en vivo, en el mismo orden. Sin esto la prueba
+  // mostraba respuestas que producción frena —un precio que no es de la
+  // tienda, algo que el comercio prohibió— y el comercio aprobaba lo que su
+  // cliente nunca iba a recibir.
+  let text: string;
+  try {
+    const salida = await guardasDeSalida(admin, a, result.text, {
+      products,
+      productMatch,
+      reglasCrudas,
+      inboundText: input.message,
+      priceIntegrity: { priceQuestion, priceVerified },
+      transferDiscount: shopify?.config?.transfer_discount_amount,
+      handoffContext: automationContext?.retention_handoff ? null : automationContext,
+    });
+    text = salida.texto;
+  } catch (err) {
+    const motivo = err instanceof Error ? err.message : String(err);
+    const tipo = motivo.startsWith('price_integrity:')
+      ? 'precio_no_autorizado'
+      : motivo.startsWith('respuesta_prohibida:')
+        ? 'respuesta_prohibida'
+        : null;
+    if (!tipo) throw err;
+    return {
+      reply: '',
+      chunks: [],
+      herramientas: result.herramientas,
+      usage,
+      bloqueo: { tipo, detalle: motivo.slice(motivo.indexOf(':') + 1).trim() },
+    };
+  }
   return {
     reply: text,
-    chunks: comentario ? (text ? [text] : []) : splitReplyForMode(text, a.response_mode),
+    chunks: splitReplyForMode(text, a.response_mode),
     // Qué herramientas usó. Es la mitad de lo que un comercio quiere ver al
     // probar: no sólo qué contestó, sino si fue a buscar el dato o se lo
     // inventó.
     herramientas: result.herramientas,
-    usage: {
-      input_tokens: result.promptTokens,
-      output_tokens: result.completionTokens,
-      iterations: result.iterations,
-    },
+    usage,
   };
 }
 

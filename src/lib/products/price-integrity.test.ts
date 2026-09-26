@@ -4,6 +4,7 @@ import {
   asksForPrice,
   asksForCurrentOffer,
   authorizedPrices,
+  montosDeReglas,
   replyForUnidentifiedPrice,
   unauthorizedQuotedPrices,
   withoutHistoricalPriceLines,
@@ -40,6 +41,29 @@ describe('integridad de precios', () => {
 
   it('arma la lista autorizada desde el precio y las ofertas', () => {
     expect(authorizedPrices([product])).toEqual(expect.arrayContaining([39990, 69990, 109990]))
+  })
+
+  it('autoriza el precio de cada canal donde se publica lo mismo', () => {
+    const conCanales = {
+      ...product,
+      listings: [
+        { price: 39990 },
+        { price: '81990' },
+        { price: null },
+      ],
+    }
+    expect(unauthorizedQuotedPrices('En Mercado Libre sale $81.990.', [conCanales])).toEqual([])
+    expect(unauthorizedQuotedPrices('En Mercado Libre sale $81.990.', [product])).toEqual([81990])
+  })
+
+  it('toma como propios los importes que el comercio escribió en sus reglas', () => {
+    const montos = montosDeReglas([
+      { cuando: 'Preguntan por el envío', hacer: 'A sucursal es gratis y a domicilio cuesta $1.990.' },
+      { cuando: null, hacer: 'Por transferencia, 4 meses con envío a domicilio: $63.980 en total. Son 3 cuotas.' },
+    ])
+    expect(montos).toEqual(expect.arrayContaining([1990, 63980]))
+    expect(montos).not.toContain(3)
+    expect(unauthorizedQuotedPrices('A domicilio suma $1.990.', [...authorizedPrices([product]), ...montos])).toEqual([])
   })
 
   it('deja pasar únicamente importes vigentes', () => {

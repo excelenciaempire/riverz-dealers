@@ -57,6 +57,7 @@ import {
   asksForPrice,
   asksForCurrentOffer,
   authorizedPrices,
+  montosDeReglas,
   replyForUnidentifiedPrice,
   unauthorizedQuotedPrices,
   withoutHistoricalPriceLines,
@@ -97,7 +98,7 @@ import { detectarEscalada, type Escalada } from './escalada';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
 import { appendBusinessScopeGuardrails } from './guardrails';
-import { cargarReglas, reglasATexto } from './guidance';
+import { cargarReglas, reglasATexto, type Regla } from './guidance';
 import { completeTextMedido } from './medido';
 import { reglasDeSalidaPara, verificarRespuesta } from './verificacion';
 import {
@@ -303,7 +304,7 @@ export async function runAiAgent(
             () => null
           )
         : null;
-    const productMatch = await detectInboundProduct(
+    let productMatch = await detectInboundProduct(
       db,
       args.workspaceId,
       [
@@ -810,6 +811,9 @@ export async function runAiAgent(
         return;
       }
     }
+
+    // Si nadie lo nombró pero el agente atiende un solo producto, es ése.
+    productMatch ??= await productoUnicoAsignado(db, agent, args.workspaceId);
 
     // El catálogo sincronizado sirve para describir; para COTIZAR se verifica
     // la página pública en este mismo turno. Esto también cubre Kaching, cuyos
@@ -2305,6 +2309,44 @@ export async function productosPermitidos(
   );
 }
 
+/**
+ * El producto del que se habla cuando nadie lo nombra, si hay uno solo.
+ *
+ * Un asistente que atiende UN producto —con sus publicaciones en otros
+ * canales— sabe de qué le preguntan aunque el cliente escriba sólo "¿precio?".
+ * Sin esto la pregunta más común de un anuncio quedaba sin producto, la guarda
+ * de precios frenaba la cotización y salía "tenemos varios modelos", que en
+ * una tienda de un solo producto es falso.
+ *
+ * Sólo con productos asignados: con el catálogo entero no hay forma segura de
+ * saber cuál es "el" producto.
+ */
+export async function productoUnicoAsignado(
+  db: SupabaseClient,
+  agent: AiAgent,
+  workspaceId: string | null
+): Promise<ProductMatch | null> {
+  if (!workspaceId || agent.product_scope !== 'specific') return null;
+  try {
+    const permitidos = await productosPermitidos(db, agent, workspaceId);
+    if (!permitidos || permitidos.size === 0) return null;
+    const { data } = await db
+      .from('shopify_products')
+      .select('id, master_id')
+      .eq('workspace_id', workspaceId)
+      .in('id', Array.from(permitidos));
+    const filas = (data ?? []) as { id: string; master_id: string | null }[];
+    const principales = new Set(
+      filas.map((f) => (f.master_id && permitidos.has(f.master_id) ? f.master_id : f.id))
+    );
+    if (principales.size !== 1) return null;
+    const [id] = principales;
+    return { product_id: id, score: 1, confidence: 'high', via: 'asignado' };
+  } catch {
+    return null;
+  }
+}
+
 export async function loadProductCatalog(
   db: SupabaseClient,
   agent: AiAgent,
@@ -2920,6 +2962,154 @@ export function bloquesDeEntrega(
   return system;
 }
 
+/**
+ * Lo que pasa entre que el modelo escribe y el mensaje sale: se limpia, cada
+ * importe tiene que ser un precio autorizado, la respuesta no puede afirmar lo
+ * que el comercio prohibió, y se recorta al largo del agente.
+ *
+ * Vive afuera de `generateReply` para que "Probar" corra EXACTAMENTE esto. Una
+ * prueba que se salta las guardas muestra respuestas que en vivo no salen, y
+ * el comercio aprueba algo que no es lo que va a recibir su cliente.
+ *
+ * `sinProducto` = preguntaron "¿precio?" sin decir de qué y el modelo cotizó:
+ * sale la pregunta de precisión en su lugar. Tira `price_integrity:` o
+ * `respuesta_prohibida:` cuando la respuesta no puede salir.
+ */
+export async function guardasDeSalida(
+  db: SupabaseClient,
+  agent: AiAgent,
+  crudo: string,
+  g: {
+    products: ProductRow[];
+    productMatch: ProductMatch | null;
+    reglasCrudas: Regla[];
+    inboundText: string;
+    priceIntegrity: { priceQuestion: boolean; priceVerified: boolean };
+    transferDiscount?: number | null;
+    handoffContext: Record<string, unknown> | null;
+  }
+): Promise<{ texto: string; sinProducto: boolean }> {
+  // Se limpia ANTES de cortar: sacar los asteriscos después del corte deja el
+  // mensaje más corto que el tope por nada, y sacarlos antes puede evitar el
+  // corte entero.
+  const limpio = humanizarTexto(crudo);
+
+  const trustedPrices =
+    g.priceIntegrity.priceQuestion && !g.priceIntegrity.priceVerified
+      ? []
+      : authorizedPrices(g.products);
+  if (typeof g.transferDiscount === 'number' && g.transferDiscount > 0) {
+    trustedPrices.push(g.transferDiscount);
+  }
+  // EL IMPORTE DEL PEDIDO QUE YA EXISTE TAMBIÉN ES UN PRECIO AUTORIZADO.
+  //
+  // En una recuperación con pedido, la instrucción le pide al modelo que
+  // presente las opciones de pago "con el importe y el beneficio conocidos".
+  // Lo hacía bien: "aplicando el 5%, el valor a pagar sería $94.905". Y esta
+  // guarda lo tiraba, porque 94.905 no es un precio del catálogo: cuatro veces
+  // el 2026-09-15 la respuesta correcta se convirtió en "en un momento te
+  // responde una persona", y la persona contestó doce horas después con el
+  // mismo número. El total del pedido, y ese total con el beneficio anunciado,
+  // salen del contexto de la automatización, no del modelo.
+  trustedPrices.push(...preciosDelPedidoEnRecuperacion(g.handoffContext));
+  // Y lo que el comercio escribió en sus reglas: el envío a domicilio, un
+  // complemento, el total por transferencia. Sin esto, "a domicilio suma
+  // $1.990" no salía y la conversación quedaba esperando a una persona.
+  trustedPrices.push(...montosDeReglas(g.reglasCrudas));
+  const invalidPrices = unauthorizedQuotedPrices(limpio, trustedPrices, {
+    priceQuestion: g.priceIntegrity.priceQuestion,
+  });
+  if (invalidPrices.length > 0) {
+    // La consulta sólo dijo “¿precio?” y no pudimos asociarla a un producto.
+    // No se escala por una cifra que el modelo eligió listar: se recupera con
+    // una pregunta concreta y el catálogo, sin citar ningún importe.
+    if (g.priceIntegrity.priceQuestion && !g.productMatch) {
+      return {
+        texto: replyForUnidentifiedPrice(
+          agent.language,
+          g.products.map((product) => product.url)
+        ),
+        sinProducto: true,
+      };
+    }
+    throw new Error(`price_integrity: ${invalidPrices.join(',')}`);
+  }
+
+  // LA RESPUESTA SE REVISA CONTRA LO QUE EL COMERCIO PROHIBIÓ.
+  //
+  // Mismo criterio que el precio: lo que el comercio dijo que no se afirma
+  // (`never_say`) y las promociones que existen (`allowed_offers`) son
+  // límites, no sugerencias. Jev lee la respuesta ya escrita y contesta, regla
+  // por regla, si la rompe (`verificacion.ts`; validado el 2026-09-19 sobre
+  // 203 respuestas reales: frenó 2, las dos rompían una regla). Si rompe una,
+  // se pide UNA reescritura sin eso; si la reescritura sigue mal, no sale y
+  // pasa a una persona, como con un precio no autorizado. Sin Jev no se
+  // verifica y la respuesta sale como siempre.
+  const reglasDeSalida = reglasDeSalidaPara(
+    g.products,
+    g.productMatch?.product_id ?? null,
+    g.reglasCrudas
+  );
+  const verificar = (respuesta: string) =>
+    verificarRespuesta({
+      db,
+      workspaceId: agent.workspace_id,
+      respuesta,
+      ultimoMensaje: g.inboundText,
+      reglas: reglasDeSalida,
+      detalle: { agente: agent.id },
+    });
+  let verificada = limpio;
+  const primero = await verificar(limpio);
+  if (primero && !primero.ok) {
+    console.warn(
+      `[ai] respuesta del agente ${agent.id} rompía una regla (${primero.maximo.toFixed(2)}): ${primero.motivos.join(' | ').slice(0, 200)}`
+    );
+    // Una reescritura sin herramientas: no puede volver a crear un pedido ni
+    // un link. Sólo saca lo que rompe la regla y deja el resto igual.
+    const reescrita = humanizarTexto(
+      (await completeTextMedido(db, {
+        workspaceId: agent.workspace_id,
+        agentKeyEncrypted: agent.api_key_encrypted,
+        concepto: 'ia_respuesta',
+        detalle: { para: 'reescritura', agente: agent.id },
+        tier: 'triage',
+        system: [
+          'Reescribes un mensaje que un asistente de ventas ya redactó para una clienta. El mensaje rompe una regla del comercio y hay que quitar SOLO eso.',
+          'Reglas que rompe:',
+          ...primero.motivos.map((m) => `- ${m}`),
+          '',
+          'Conserva el idioma, el tono, el registro (tú o vos), la longitud aproximada y todo lo demás que dice. No agregues precios, ofertas, datos ni promesas nuevas. Si hace falta, di con naturalidad que eso no lo puedes asegurar.',
+          'Devuelve SOLO el mensaje reescrito, sin comillas ni explicación.',
+        ].join('\n'),
+        user: limpio,
+        maxTokens: Math.max(300, Math.ceil(limpio.length / 2)),
+        effort: 'low',
+      })) ?? ''
+    ).trim();
+    if (!reescrita) throw new Error(`respuesta_prohibida: ${primero.motivos.join(' | ')}`);
+    // La reescritura pasa por la misma guarda de precios que la original: se
+    // le pidió no agregar ninguno, y si igual lo hizo, no sale.
+    if (unauthorizedQuotedPrices(reescrita, trustedPrices, { priceQuestion: g.priceIntegrity.priceQuestion }).length > 0) {
+      throw new Error(`respuesta_prohibida: ${primero.motivos.join(' | ')} (la reescritura trajo un precio no autorizado)`);
+    }
+    const segundo = await verificar(reescrita);
+    // Si Jev se cayó entre la primera y la segunda, la reescritura vale: se le
+    // pidió sacar lo prohibido y no hay con qué desmentirla.
+    if (segundo && !segundo.ok) {
+      throw new Error(`respuesta_prohibida: ${segundo.motivos.join(' | ')}`);
+    }
+    verificada = reescrita;
+  }
+  return {
+    texto:
+      verificada.length > agent.max_response_chars
+        ? verificada.slice(0, agent.max_response_chars).trimEnd() + '…'
+        : verificada,
+    sinProducto: false,
+  };
+}
+
 async function generateReply(
   agent: AiAgent,
   contact: Contact,
@@ -3287,126 +3477,29 @@ async function generateReply(
     keySource = respaldo.source;
   }
 
-  // Se limpia ANTES de cortar: sacar los asteriscos después del corte deja el
-  // mensaje más corto que el tope por nada, y sacarlos antes puede evitar el
-  // corte entero.
-  const limpio = humanizarTexto(result.text);
-
-  async function respuestaVerificada(texto: string): Promise<string> {
-    const reglasDeSalida = reglasDeSalidaPara(
-      products,
-      productMatch?.product_id ?? null,
-      reglasCrudas
-    );
-    const verificar = (respuesta: string) =>
-      verificarRespuesta({
-        db,
-        workspaceId: agent.workspace_id,
-        respuesta,
-        ultimoMensaje: origen.inboundText,
-        reglas: reglasDeSalida,
-        detalle: { agente: agent.id },
-      });
-    const primero = await verificar(texto);
-    if (!primero || primero.ok) return texto;
-    console.warn(
-      `[ai] respuesta del agente ${agent.id} rompía una regla (${primero.maximo.toFixed(2)}): ${primero.motivos.join(' | ').slice(0, 200)}`
-    );
-    // Una reescritura sin herramientas: no puede volver a crear un pedido ni
-    // un link. Sólo saca lo que rompe la regla y deja el resto igual.
-    const reescrita = humanizarTexto(
-      (await completeTextMedido(db, {
-        workspaceId: agent.workspace_id,
-        agentKeyEncrypted: agent.api_key_encrypted,
-        concepto: 'ia_respuesta',
-        detalle: { para: 'reescritura', agente: agent.id },
-        tier: 'triage',
-        system: [
-          'Reescribes un mensaje que un asistente de ventas ya redactó para una clienta. El mensaje rompe una regla del comercio y hay que quitar SOLO eso.',
-          'Reglas que rompe:',
-          ...primero.motivos.map((m) => `- ${m}`),
-          '',
-          'Conserva el idioma, el tono, el registro (tú o vos), la longitud aproximada y todo lo demás que dice. No agregues precios, ofertas, datos ni promesas nuevas. Si hace falta, di con naturalidad que eso no lo puedes asegurar.',
-          'Devuelve SOLO el mensaje reescrito, sin comillas ni explicación.',
-        ].join('\n'),
-        user: texto,
-        maxTokens: Math.max(300, Math.ceil(texto.length / 2)),
-        effort: 'low',
-      })) ?? ''
-    ).trim();
-    if (!reescrita) throw new Error(`respuesta_prohibida: ${primero.motivos.join(' | ')}`);
-    // La reescritura pasa por la misma guarda de precios que la original: se
-    // le pidió no agregar ninguno, y si igual lo hizo, no sale.
-    if (unauthorizedQuotedPrices(reescrita, trustedPrices, { priceQuestion: priceIntegrity.priceQuestion }).length > 0) {
-      throw new Error(`respuesta_prohibida: ${primero.motivos.join(' | ')} (la reescritura trajo un precio no autorizado)`);
-    }
-    const segundo = await verificar(reescrita);
-    // Si Jev se cayó entre la primera y la segunda, la reescritura vale: se le
-    // pidió sacar lo prohibido y no hay con qué desmentirla.
-    if (!segundo || segundo.ok) return reescrita;
-    throw new Error(`respuesta_prohibida: ${segundo.motivos.join(' | ')}`);
-  }
-
-  const trustedPrices =
-    priceIntegrity.priceQuestion && !priceIntegrity.priceVerified
-      ? []
-      : authorizedPrices(products);
-  const transferDiscount = shopify?.config?.transfer_discount_amount;
-  if (typeof transferDiscount === 'number' && transferDiscount > 0) {
-    trustedPrices.push(transferDiscount);
-  }
-  // EL IMPORTE DEL PEDIDO QUE YA EXISTE TAMBIÉN ES UN PRECIO AUTORIZADO.
-  //
-  // En una recuperación con pedido, la instrucción le pide al modelo que
-  // presente las opciones de pago "con el importe y el beneficio conocidos".
-  // Lo hacía bien: "aplicando el 5%, el valor a pagar sería $94.905". Y esta
-  // guarda lo tiraba, porque 94.905 no es un precio del catálogo: cuatro veces
-  // el 2026-09-15 la respuesta correcta se convirtió en "en un momento te
-  // responde una persona", y la persona contestó doce horas después con el
-  // mismo número. El total del pedido, y ese total con el beneficio anunciado,
-  // salen del contexto de la automatización, no del modelo.
-  trustedPrices.push(...preciosDelPedidoEnRecuperacion(handoffContext));
-  const invalidPrices = unauthorizedQuotedPrices(limpio, trustedPrices, {
-    priceQuestion: priceIntegrity.priceQuestion,
+  const salida = await guardasDeSalida(db, agent, result.text, {
+    products,
+    productMatch,
+    reglasCrudas,
+    inboundText: origen.inboundText,
+    priceIntegrity,
+    transferDiscount: shopify?.config?.transfer_discount_amount,
+    handoffContext,
   });
-  if (invalidPrices.length > 0) {
-    // La consulta sólo dijo “¿precio?” y no pudimos asociarla a un producto.
-    // No se escala por una cifra que el modelo eligió listar: se recupera con
-    // una pregunta concreta y el catálogo, sin citar ningún importe.
-    if (priceIntegrity.priceQuestion && !productMatch) {
-      return {
-        text: replyForUnidentifiedPrice(
-          agent.language,
-          products.map((product) => product.url)
-        ),
-        promptTokens: result.promptTokens,
-        completionTokens: result.completionTokens,
-        cacheReadTokens: result.cacheReadTokens,
-        cacheWriteTokens: result.cacheWriteTokens,
-        truncated: result.truncated,
-        keySource,
-        herramientas: result.herramientas,
-        model: opciones.model,
-      };
-    }
-    throw new Error(`price_integrity: ${invalidPrices.join(',')}`);
+  if (salida.sinProducto) {
+    return {
+      text: salida.texto,
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+      cacheReadTokens: result.cacheReadTokens,
+      cacheWriteTokens: result.cacheWriteTokens,
+      truncated: result.truncated,
+      keySource,
+      herramientas: result.herramientas,
+      model: opciones.model,
+    };
   }
-
-  // LA RESPUESTA SE REVISA CONTRA LO QUE EL COMERCIO PROHIBIÓ.
-  //
-  // Mismo criterio que el precio: lo que el comercio dijo que no se afirma
-  // (`never_say`) y las promociones que existen (`allowed_offers`) son
-  // límites, no sugerencias. Jev lee la respuesta ya escrita y contesta, regla
-  // por regla, si la rompe (`verificacion.ts`; validado el 2026-09-19 sobre
-  // 203 respuestas reales: frenó 2, las dos rompían una regla). Si rompe una,
-  // se pide UNA reescritura sin eso; si la reescritura sigue mal, no sale y
-  // pasa a una persona, como con un precio no autorizado. Sin Jev no se
-  // verifica y la respuesta sale como siempre.
-  const verificada = await respuestaVerificada(limpio);
-  const trimmed =
-    verificada.length > agent.max_response_chars
-      ? verificada.slice(0, agent.max_response_chars).trimEnd() + '…'
-      : verificada;
+  const trimmed = salida.texto;
 
   return {
     text: trimmed,
@@ -4019,7 +4112,7 @@ export function buildSystemPrompt(
         enlace
       : formatProductLine(p);
     lines.push(
-      isMatch
+      isMatch && productMatch!.via !== 'asignado'
         ? `Producto que el cliente está mencionando (detección ${productMatch!.confidence}, vía ${productMatch!.via}):`
         : 'Producto que vendes y debes conocer a fondo:'
     );

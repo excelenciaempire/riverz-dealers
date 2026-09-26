@@ -669,6 +669,8 @@ function barreraTexto(t: ReturnType<typeof useT>, b: { tipo: string; detalle: st
   if (b.tipo === 'escalation_keyword') return t('assistant.probarBarreraPersona', { detalle: b.detalle ?? '' });
   if (b.tipo === 'problema_detectado') return t('assistant.probarBarreraProblema', { detalle: b.detalle ?? '' });
   if (b.tipo === 'tope_respuestas') return t('assistant.probarBarreraTope', { n: b.detalle ?? '' });
+  if (b.tipo === 'precio_no_autorizado') return t('assistant.probarBarreraPrecio', { detalle: b.detalle ?? '' });
+  if (b.tipo === 'respuesta_prohibida') return t('assistant.probarBarreraProhibida', { detalle: b.detalle ?? '' });
   return b.tipo;
 }
 

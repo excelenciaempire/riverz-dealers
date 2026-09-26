@@ -611,6 +611,14 @@ export const assistant = {
     es: "El asistente ya contestó {n} veces en este hilo: se calla y deja el caso a una persona.",
     en: "The assistant already replied {n} times in this thread: it steps back for a person.",
   },
+  probarBarreraPrecio: {
+    es: "La respuesta citaba un importe que no es un precio autorizado ({detalle}): no sale y el caso pasa a una persona.",
+    en: "The reply quoted an amount that is not an authorized price ({detalle}): it is not sent and the case goes to a person.",
+  },
+  probarBarreraProhibida: {
+    es: "La respuesta afirmaba algo que el comercio prohibió ({detalle}): no sale y el caso pasa a una persona.",
+    en: "The reply claimed something the store forbids ({detalle}): it is not sent and the case goes to a person.",
+  },
   probarEnLinea: { es: "en línea", en: "online" },
   probarSiNoRespondes: {
     es: "Si no respondes, en {n} {unit} sigue…",

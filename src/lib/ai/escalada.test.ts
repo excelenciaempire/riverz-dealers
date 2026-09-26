@@ -53,6 +53,15 @@ describe('señalDura', () => {
     ).toBe('pide_persona');
   });
 
+  it('no escala cuando lo que no llegó es el código o el mail del seguimiento', () => {
+    expect(señalDura('no me llegó el código de seguimiento')).toBeNull();
+    expect(señalDura('todavía no me ha llegado el número de seguimiento')).toBeNull();
+    expect(señalDura('No me llegó ningún mails')).toBeNull();
+    expect(señalDura('no me llegó al mail la guía')).toBeNull();
+    expect(señalDura('no me llegó el pedido y tampoco el código')?.clase).toBe('no_llego');
+    expect(señalDura('No me llegó nada aún')?.clase).toBe('no_llego');
+  });
+
   it('lo grave gana sobre lo leve', () => {
     // "no me llegó" y "denuncia" en el mismo mensaje: se anuncia como legal,
     // que es lo que cambia cómo hay que atenderlo.
