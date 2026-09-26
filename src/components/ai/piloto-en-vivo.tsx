@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CANALES_DE_PRUEBA } from '@/components/ai/chat-de-prueba';
 import type { Piloto } from '@/lib/piloto';
 import { cn } from '@/lib/utils';
@@ -47,6 +48,8 @@ export function PilotoEnVivo() {
   const [comentarios, setComentarios] = useState('');
   const [automatizaciones, setAutomatizaciones] = useState('');
   const [numeros, setNumeros] = useState('');
+  // Confirmación en la página: el confirm() nativo no aparece en todos los navegadores.
+  const [confirmar, setConfirmar] = useState<'iniciar' | 'produccion' | null>(null);
 
   const aplicar = (p: Piloto | null) => {
     setPiloto(p);
@@ -101,7 +104,7 @@ export function PilotoEnVivo() {
 
   /** Un solo paso para arrancar: guarda lo que está en pantalla y lo inicia. */
   async function guardarEIniciar() {
-    if (!confirm(t('assistant.pilotoIniciarConfirm'))) return;
+    setConfirmar(null);
     setGuardando(true);
     try {
       const res = await fetchWithCsrf('/api/ai/piloto', {
@@ -118,7 +121,7 @@ export function PilotoEnVivo() {
   }
 
   async function accion(a: 'iniciar' | 'produccion' | 'descartar') {
-    if (a === 'produccion' && !confirm(t('assistant.pilotoProduccionConfirm'))) return;
+    setConfirmar(null);
     setGuardando(true);
     try {
       const res = await fetchWithCsrf('/api/ai/piloto', {
@@ -144,10 +147,36 @@ export function PilotoEnVivo() {
   }
 
   const vivo = piloto && (piloto.estado === 'activo' || piloto.estado === 'agotado');
+  const faltan = estado
+    ? [
+        !estado.motor_encendido ? t('assistant.pilotoMotorApagado') : null,
+        !estado.ia_habilitada ? t('assistant.pilotoIaPausada') : null,
+        !estado.asistentes.some((a) => a.activo) ? t('assistant.pilotoSinAsistentes') : null,
+        estado.automatizaciones_activas === 0 ? t('assistant.pilotoSinAutomatizaciones') : null,
+      ].filter((x): x is string => Boolean(x))
+    : [];
   const editable = !piloto || piloto.estado === 'borrador' || piloto.estado === 'terminado';
 
   return (
     <div className="space-y-5">
+      <Dialog open={confirmar !== null} onOpenChange={(v) => (!v ? setConfirmar(null) : undefined)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{confirmar === 'produccion' ? t('assistant.pilotoProduccion') : t('assistant.pilotoIniciar')}</DialogTitle>
+            <DialogDescription>
+              {confirmar === 'produccion' ? t('assistant.pilotoProduccionConfirm') : t('assistant.pilotoIniciarConfirm')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmar(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={() => void (confirmar === 'produccion' ? accion('produccion') : guardarEIniciar())}>
+              {confirmar === 'produccion' ? t('assistant.pilotoProduccion') : t('assistant.pilotoIniciar')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Un borrador es el formulario de abajo: la tarjeta es para ver cómo va. */}
       {piloto && piloto.estado !== 'borrador' ? (
         <div
@@ -184,7 +213,7 @@ export function PilotoEnVivo() {
           </div>
           {vivo ? (
             <div className="flex justify-end">
-              <Button size="sm" variant="outline" onClick={() => void accion('produccion')} disabled={guardando}>
+              <Button size="sm" variant="outline" onClick={() => setConfirmar('produccion')} disabled={guardando}>
                 <Check className="size-3.5" />
                 {t('assistant.pilotoProduccion')}
               </Button>
@@ -193,23 +222,16 @@ export function PilotoEnVivo() {
         </div>
       ) : null}
 
-      {estado ? (
-        <div className="border-border space-y-1.5 rounded-xl border p-4">
-          <p className="text-foreground text-sm font-medium">{t('assistant.pilotoRequisitos')}</p>
-          <Requisito ok={estado.motor_encendido} texto={t('assistant.pilotoMotor')} />
-          <Requisito
-            ok={estado.ia_habilitada}
-            texto={estado.ia_habilitada ? t('assistant.pilotoIaHabilitada') : t('assistant.pilotoIaPausada')}
-          />
-          <Requisito
-            ok={estado.asistentes.some((a) => a.activo)}
-            texto={t('assistant.pilotoAsistentes', {
-              activos: estado.asistentes.filter((a) => a.activo).map((a) => a.nombre).join(', ') || '—',
-            })}
-          />
-          <Requisito ok={estado.automatizaciones_activas > 0} texto={t('assistant.pilotoAutomatizacionesActivas', { n: estado.automatizaciones_activas })} />
-          {!vivo ? <p className="text-muted-foreground pt-1 text-xs">{t('assistant.pilotoOrden')}</p> : null}
-        </div>
+      {/* Sólo lo que falta para que el piloto conteste: lo que ya está bien no se lista. */}
+      {faltan.length > 0 ? (
+        <ul className="space-y-1 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3">
+          {faltan.map((f) => (
+            <li key={f} className="flex items-center gap-2 text-xs">
+              <X className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              {f}
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       {editable || vivo ? (
@@ -223,6 +245,16 @@ export function PilotoEnVivo() {
           <div className="space-y-1.5">
             <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">{t('assistant.pilotoCanales')}</p>
             <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setCanales([])}
+                className={cn(
+                  'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                  canales.length === 0 ? 'border-primary bg-primary/10 text-foreground' : 'border-border text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {t('assistant.pilotoTodos')}
+              </button>
               {CANALES_DEL_PILOTO.map((c) => {
                 const marcado = canales.includes(c.id);
                 return (
@@ -240,7 +272,6 @@ export function PilotoEnVivo() {
                 );
               })}
             </div>
-            <p className="text-muted-foreground text-[11px]">{t('assistant.pilotoCanalesHint')}</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <Limite etiqueta={t('assistant.pilotoMensajes')} valor={mensajes} onCambio={setMensajes} />
@@ -254,9 +285,8 @@ export function PilotoEnVivo() {
               value={numeros}
               rows={3}
               onChange={(e) => setNumeros(e.target.value)}
-              placeholder={'+54 9 11 5555 5555'}
+              placeholder={t('assistant.pilotoNumerosPlaceholder')}
             />
-            <p className="text-muted-foreground text-[11px]">{t('assistant.pilotoNumerosHint')}</p>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             {piloto?.estado === 'borrador' ? (
@@ -270,7 +300,7 @@ export function PilotoEnVivo() {
               {vivo ? t('assistant.pilotoGuardarCambios') : t('assistant.pilotoGuardar')}
             </Button>
             {!vivo ? (
-              <Button type="button" disabled={guardando} onClick={() => void guardarEIniciar()}>
+              <Button type="button" disabled={guardando} onClick={() => setConfirmar('iniciar')}>
                 <Play className="size-4" />
                 {t('assistant.pilotoIniciar')}
               </Button>
@@ -313,18 +343,5 @@ function Limite({ etiqueta, valor, onCambio }: { etiqueta: string; valor: string
         className="text-base sm:text-sm"
       />
     </label>
-  );
-}
-
-function Requisito({ ok, texto }: { ok: boolean; texto: string }) {
-  return (
-    <p className="flex items-center gap-2 text-xs">
-      {ok ? (
-        <Check className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-      ) : (
-        <X className="text-muted-foreground size-3.5" />
-      )}
-      <span className={ok ? 'text-foreground' : 'text-muted-foreground'}>{texto}</span>
-    </p>
   );
 }
