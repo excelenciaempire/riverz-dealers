@@ -11,8 +11,10 @@ import {
   markOptedIn,
 } from '@/lib/whatsapp/opt-out'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
-import { platformWhatsApp } from '@/lib/admin/platform-whatsapp'
-import { parseReply, resolveByCode } from '@/lib/approvals/resolve'
+import {
+  atenderRespuestaDeAprobacion,
+  esNumeroDeLaPlataforma,
+} from '@/lib/approvals/respuesta-por-whatsapp'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { attributeExperimentResponse } from '@/lib/automations/template-ab-attribution'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
@@ -512,59 +514,6 @@ async function getWhatsAppConfig(phoneNumberId: string) {
  * automations / AI here (those are for fresh inbound only). Idempotent on the
  * (conversation_id, message_id) unique index (migration 036).
  */
-/**
- * ¿Este número es el de Riverz y no el de un comercio?
- *
- * El número de la plataforma vive en la misma aplicación de Meta que los de
- * los comercios, así que sus mensajes entrantes caen en este mismo webhook.
- * La diferencia es qué significan: acá no escribe un cliente, contesta un
- * comerciante un aviso nuestro.
- */
-async function esNumeroDeLaPlataforma(phoneNumberId: string): Promise<boolean> {
-  if (process.env.PLATFORM_WHATSAPP_PHONE_ID === phoneNumberId) return true
-  const { data } = await supabaseAdmin()
-    .from('platform_whatsapp_settings')
-    .select('phone_number_id')
-    .maybeSingle()
-  return (data as { phone_number_id?: string } | null)?.phone_number_id === phoneNumberId
-}
-
-/**
- * "SI a1b2c3" / "NO a1b2c3" — la decisión del comerciante.
- *
- * Se contesta siempre, salga bien o mal: alguien que aprueba algo por
- * WhatsApp y no recibe nada de vuelta no sabe si funcionó, y termina
- * entrando al panel a verificar — que es justo lo que este canal ahorra.
- */
-async function atenderRespuestaDeAprobacion(value: {
-  metadata: { phone_number_id: string }
-  messages?: WhatsAppMessage[]
-}): Promise<void> {
-  const db = supabaseAdmin()
-  const plataforma = await platformWhatsApp()
-  for (const msg of value.messages ?? []) {
-    const texto = msg.text?.body ?? msg.button?.text ?? ''
-    const parsed = parseReply(texto)
-    if (!parsed) continue
-    const res = await resolveByCode(db, {
-      code: parsed.code,
-      decision: parsed.decision,
-      phone: msg.from,
-    })
-    if (!plataforma) continue
-    try {
-      await sendTextMessage({
-        phoneNumberId: plataforma.phoneNumberId,
-        accessToken: plataforma.token,
-        to: msg.from,
-        text: res.message,
-      })
-    } catch {
-      /* el aviso de vuelta es cortesía: la decisión ya quedó tomada */
-    }
-  }
-}
-
 async function handleMessageEchoes(
   echoes: CoexistenceMessage[],
   phoneNumberId: string,

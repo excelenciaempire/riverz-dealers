@@ -59,7 +59,11 @@ export function WhatsAppEmbeddedSignup({
   const t = useT();
   // Latched from the WA_EMBEDDED_SIGNUP message event — carries the
   // waba_id + phone_number_id Meta assigns during onboarding.
-  const sessionInfo = useRef<{ waba_id?: string; phone_number_id?: string }>({});
+  const sessionInfo = useRef<{
+    waba_id?: string;
+    phone_number_id?: string;
+    flujo?: "coexistencia" | "nuevo";
+  }>({});
 
   // Load the Facebook JS SDK once.
   useEffect(() => {
@@ -109,6 +113,9 @@ export function WhatsAppEmbeddedSignup({
           sessionInfo.current = {
             waba_id: data.data?.waba_id,
             phone_number_id: data.data?.phone_number_id,
+            // El servidor lo usa cuando Meta no dice si el número está en la
+            // app: define si hay que registrarlo en Cloud API o no.
+            flujo: data.event === "FINISH" ? "nuevo" : "coexistencia",
           };
         }
       } catch {
@@ -121,7 +128,7 @@ export function WhatsAppEmbeddedSignup({
 
   const finish = useCallback(
     async (code: string) => {
-      const { waba_id, phone_number_id } = sessionInfo.current;
+      const { waba_id, phone_number_id, flujo } = sessionInfo.current;
       if (!waba_id || !phone_number_id) {
         toast.error(t("settings.whatsappAccountNotReceived"));
         return;
@@ -135,7 +142,7 @@ export function WhatsAppEmbeddedSignup({
         const r = await fetchWithCsrf(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code, waba_id, phone_number_id, workspace_id: workspaceId }),
+          body: JSON.stringify({ code, waba_id, phone_number_id, workspace_id: workspaceId, flujo }),
         });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) {

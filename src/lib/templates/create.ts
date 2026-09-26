@@ -16,6 +16,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { leerConfigWhatsApp } from '@/lib/whatsapp/config-del-comercio'
 import {
   createMessageTemplate,
   MetaApiError,
@@ -123,12 +124,11 @@ export async function resolverWabaYToken(
   userId: string | null,
 ): Promise<{ wabaId: string | null; accessToken: string | null }> {
   if (userId) {
-    const { data: config } = await db
-      .from('whatsapp_config')
-      .select('waba_id, access_token')
-      .eq('user_id', userId)
-      .maybeSingle()
-    const fila = config as { waba_id?: string; access_token?: string } | null
+    const fila = await leerConfigWhatsApp<{ waba_id?: string; access_token?: string }>(db, {
+      workspaceId,
+      userId,
+      campos: 'waba_id, access_token',
+    })
     if (fila?.waba_id && fila.access_token) {
       return { wabaId: String(fila.waba_id), accessToken: decrypt(fila.access_token) }
     }

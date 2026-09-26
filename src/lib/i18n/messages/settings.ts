@@ -306,6 +306,13 @@ export const settings = {
     es: 'Renueva el permiso de este activo. Solo se conectará esta marca.',
     en: 'Renew permission for this asset. Only this brand will be connected.',
   },
+  whatsappSinRegistrar: {
+    es: 'El número no quedó registrado y no puede enviar. Ingresa su PIN de verificación en dos pasos.',
+    en: "The number isn't registered and can't send. Enter its two-step verification PIN.",
+  },
+  whatsappPin: { es: 'PIN de 6 dígitos', en: '6-digit PIN' },
+  whatsappRegistrar: { es: 'Registrar', en: 'Register' },
+  whatsappRegistrado: { es: 'Número registrado', en: 'Number registered' },
   whatsappEchoesMissing: {
     es: 'Las respuestas que envías desde la app de WhatsApp Business no están llegando a Riverz. Vuelve a conectar el número.',
     en: 'Replies you send from the WhatsApp Business app aren’t reaching Riverz. Reconnect the number.',

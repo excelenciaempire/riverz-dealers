@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { leerConfigWhatsApp } from '@/lib/whatsapp/config-del-comercio'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { withAppsecretProof } from '@/lib/channels/meta-graph'
 import { getLocale } from '@/lib/i18n/server'
@@ -148,11 +149,11 @@ export async function POST(req: Request) {
     let wabaId: string | null = null
     let accessToken: string | null = null
 
-    const { data: config } = await supabase
-      .from('whatsapp_config')
-      .select('waba_id, access_token')
-      .eq('user_id', user.id)
-      .maybeSingle()
+    const config = await leerConfigWhatsApp<{ waba_id?: string; access_token?: string }>(supabase, {
+      workspaceId,
+      userId: user.id,
+      campos: 'waba_id, access_token',
+    })
     if (config?.waba_id && config.access_token) {
       wabaId = String(config.waba_id)
       accessToken = decrypt(config.access_token)

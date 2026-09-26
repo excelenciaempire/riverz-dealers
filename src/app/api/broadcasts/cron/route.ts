@@ -3,6 +3,7 @@ import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { leerConfigWhatsApp } from '@/lib/whatsapp/config-del-comercio'
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('cron.broadcasts')
@@ -135,6 +136,20 @@ async function cronHandler(request: Request) {
 
 type AdminClient = ReturnType<typeof supabaseAdmin>
 
+/** El número del comercio sigue en la app WhatsApp Business: cupo de 20/seg. */
+async function esNumeroEnCoexistencia(admin: AdminClient, workspaceId: string | null): Promise<boolean> {
+  if (!workspaceId) return false
+  const { data } = await admin
+    .from('channel_connections')
+    .select('config')
+    .eq('workspace_id', workspaceId)
+    .eq('channel', 'whatsapp')
+    .eq('status', 'connected')
+    .limit(1)
+    .maybeSingle()
+  return Boolean((data?.config as { coexistence?: boolean } | null)?.coexistence)
+}
+
 async function sendOneBroadcast(
   admin: AdminClient,
   broadcast: Record<string, unknown>,
@@ -149,13 +164,16 @@ async function sendOneBroadcast(
   const variableMapping = (broadcast.variable_mapping as Record<string, string> | null) ?? null
 
   // WhatsApp credentials for the campaign owner.
-  const { data: config } = await admin
-    .from('whatsapp_config')
-    .select('*')
-    .eq('user_id', userId)
-    .single()
+  const config = await leerConfigWhatsApp<Record<string, unknown>>(admin, {
+    workspaceId: (broadcast.workspace_id as string | null) ?? null,
+    userId,
+  })
   if (!config && !voiceNote) throw new Error('WhatsApp not configured for owner')
   const accessToken = !voiceNote && config ? decrypt(config.access_token as string) : ''
+  const coexistencia = await esNumeroEnCoexistencia(
+    admin,
+    (broadcast.workspace_id as string | null) ?? null,
+  )
   const phoneNumberId = config?.phone_number_id as string
 
   // Categoría de la plantilla, para el gate de marketing a EE.UU. (Meta no
@@ -311,7 +329,7 @@ async function sendOneBroadcast(
             .eq('channel', 'whatsapp').eq('connection_id', connectionId)
             .order('last_message_at', { ascending: false }).limit(1).maybeSingle()
           if (!conversation) throw new Error('voiceNotes.window')
-          await acquire(workspaceScope)
+          await acquire(workspaceScope, { coexistencia })
           const result = await sendVoiceNote({ workspaceId: workspaceScope, conversationId: conversation.id,
             config: voiceNote, reason: 'campana', origin: 'broadcast', originName: String(broadcast.name ?? ''),
           })
@@ -369,7 +387,7 @@ async function sendOneBroadcast(
         variableMapping,
       )
 
-      await acquire(workspaceId ?? userId)
+      await acquire(workspaceId ?? userId, { coexistencia })
       let sentId: string | null = null
       let lastError: string | null = null
       for (const variant of phoneVariants(sanitized)) {

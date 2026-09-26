@@ -7,6 +7,7 @@ import { verifyChannelWebhook } from "@/lib/channels/verify-webhook";
 import { getLogger } from "@/lib/log/logger";
 import { captureWebhookFailure } from "@/lib/webhooks/capture";
 import { journalWhatsappDelivery } from "@/lib/channels/whatsapp/journal";
+import { atenderNumeroDeLaPlataforma } from "@/lib/approvals/respuesta-por-whatsapp";
 import { recordHistoryProgress } from "@/lib/channels/whatsapp/history-progress";
 import { handlePaymentNotification, isPaymentTopic } from "@/lib/mercadopago/notify";
 import { mirrorsMercadoLibreNotification } from "@/lib/channels/mercadolibre/apps";
@@ -252,6 +253,12 @@ async function processChannelsWebhookAsync(
       payload,
       signature: req.headers.get("x-hub-signature-256"),
     });
+    // "SI a1b2c3" al número de Riverz: no es de ningún comercio.
+    await atenderNumeroDeLaPlataforma(payload).catch((err) =>
+      log.warn("platform approval reply failed", {
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
   }
   for (const c of adapterChannels) {
     // El `?connection_id=` afirma UNA conexión, y esa conexión es de UN canal.
@@ -460,9 +467,10 @@ async function routesByPayload(
       continue;
     }
     for (const conn of matches) {
+      const propio = channel === "whatsapp" ? cambiosDelNumero(conn, entry) : entry;
       const existing = buckets.get(conn.id);
-      if (existing) existing.entries.push(entry);
-      else buckets.set(conn.id, { connection: conn, payload: null, entries: [entry] });
+      if (existing) existing.entries.push(propio);
+      else buckets.set(conn.id, { connection: conn, payload: null, entries: [propio] });
     }
   }
 
@@ -522,12 +530,38 @@ function connectionMatchesEntry(
     changes?: Array<{ value?: { metadata?: { phone_number_id?: unknown } } }>;
   };
   if (channel === "whatsapp") {
+    // Un WABA puede tener varios números, cada uno conectado en un comercio
+    // distinto. Si el cambio trae número, manda el número: por el id del WABA
+    // (entry.id) los mensajes de un número le llegarían al comercio del otro.
+    // Solo los cambios sin número (estado de plantillas, cuenta) van por WABA.
+    let conNumero = false;
     for (const ch of e.changes ?? []) {
       const pid = ch?.value?.metadata?.phone_number_id;
-      if (pid != null && ids.has(String(pid))) return true;
+      if (pid == null) continue;
+      conNumero = true;
+      if (String(pid) === String(cfg.phone_number_id ?? connection.external_account_id ?? "")) return true;
+    }
+    if (conNumero && (e.changes ?? []).every((ch) => ch?.value?.metadata?.phone_number_id != null)) {
+      return false;
     }
   }
   return e.id != null && ids.has(String(e.id));
+}
+
+/** El entry de WhatsApp recortado a los cambios de ESTE número (más los que
+ *  no traen número, que son del WABA entero). */
+function cambiosDelNumero(connection: ChannelConnection, entry: unknown): unknown {
+  const cfg = (connection.config ?? {}) as Record<string, unknown>;
+  const propio = String(cfg.phone_number_id ?? connection.external_account_id ?? "");
+  const e = entry as { changes?: Array<{ value?: { metadata?: { phone_number_id?: unknown } } }> };
+  if (!Array.isArray(e.changes)) return entry;
+  return {
+    ...(entry as object),
+    changes: e.changes.filter((ch) => {
+      const pid = ch?.value?.metadata?.phone_number_id;
+      return pid == null || String(pid) === propio;
+    }),
+  };
 }
 
 /**

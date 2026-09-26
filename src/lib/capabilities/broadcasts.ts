@@ -31,6 +31,7 @@ import { resolveSegment } from '@/lib/segments/resolve'
 import type { SegmentMatchMode, SegmentRule } from '@/lib/segments/types'
 import { idColumn } from '@/lib/short-id'
 import { isValidE164, sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils'
+import { leerConfigWhatsApp } from '@/lib/whatsapp/config-del-comercio'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import { cambio, cifras, corto, fecha, lista, numero, tabla, tieneCampos, tt } from './vistas'
@@ -429,7 +430,7 @@ async function lanzar(ctx: CapabilityContext, args: Record<string, unknown>) {
       `La plantilla "${campana.template_name}" está en "${plantilla.status ?? 'sin estado'}": Meta no la va a entregar. Esperá la aprobación antes de lanzar.`,
     )
   }
-  if (!(await hayWhatsApp(ctx, campana.user_id))) {
+  if (!(await hayWhatsApp(ctx, ctx.workspaceId, campana.user_id))) {
     throw new Error(
       'Esta cuenta no tiene WhatsApp conectado: la campaña fallaría entera. Conectá WhatsApp y volvé a intentar.',
     )
@@ -459,14 +460,13 @@ async function lanzar(ctx: CapabilityContext, args: Record<string, unknown>) {
   }
 }
 
-/** El cron busca las credenciales por user_id; sin esa fila no manda nada. */
-async function hayWhatsApp(ctx: CapabilityContext, userId: string): Promise<boolean> {
-  const { data } = await ctx.db
-    .from('whatsapp_config')
-    .select('id')
-    .eq('user_id', userId)
-    .limit(1)
-    .maybeSingle()
+/** El cron busca el número del comercio de la campaña; sin esa fila no manda nada. */
+async function hayWhatsApp(
+  ctx: CapabilityContext,
+  workspaceId: string | null,
+  userId: string,
+): Promise<boolean> {
+  const data = await leerConfigWhatsApp(ctx.db, { workspaceId, userId, campos: 'id' })
   return Boolean(data)
 }
 

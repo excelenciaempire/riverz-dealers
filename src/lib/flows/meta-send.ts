@@ -6,6 +6,7 @@ import {
   type InteractiveListSection,
 } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { leerConfigWhatsApp } from '@/lib/whatsapp/config-del-comercio'
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes'
 import {
   sanitizePhoneForMeta,
@@ -75,12 +76,11 @@ export async function engineSendText(
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('user_id', args.userId)
-    .single()
-  if (configErr || !config) {
+  const config = await leerConfigWhatsApp<{ phone_number_id: string; access_token: string }>(db, {
+    workspaceId: contact.workspace_id,
+    userId: args.userId,
+  })
+  if (!config) {
     throw new Error('WhatsApp not configured for this account')
   }
 
@@ -214,7 +214,7 @@ async function sendInteractiveViaMeta(
   // through their own WhatsApp config to a stranger's number.
   const { data: contact, error: contactErr } = await db
     .from('contacts')
-    .select('id, phone')
+    .select('id, phone, workspace_id')
     .eq('id', input.contactId)
     .eq('user_id', input.userId)
     .maybeSingle()
@@ -227,12 +227,11 @@ async function sendInteractiveViaMeta(
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('user_id', input.userId)
-    .single()
-  if (configErr || !config) {
+  const config = await leerConfigWhatsApp<{ phone_number_id: string; access_token: string }>(db, {
+    workspaceId: contact.workspace_id,
+    userId: input.userId,
+  })
+  if (!config) {
     throw new Error('WhatsApp not configured for this account')
   }
 
@@ -370,12 +369,11 @@ async function engineSendMediaInner(
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('user_id', args.userId)
-    .single()
-  if (configErr || !config) {
+  const config = await leerConfigWhatsApp<{ phone_number_id: string; access_token: string }>(db, {
+    workspaceId: contact.workspace_id,
+    userId: args.userId,
+  })
+  if (!config) {
     throw new Error('WhatsApp not configured for this account')
   }
 
@@ -488,7 +486,7 @@ export async function engineSendCtaUrl(
 
   const { data: contact } = await db
     .from('contacts')
-    .select('id, phone')
+    .select('id, phone, workspace_id')
     .eq('id', args.contactId)
     .eq('user_id', args.userId)
     .maybeSingle()
@@ -497,11 +495,10 @@ export async function engineSendCtaUrl(
   const sanitized = sanitizePhoneForMeta(contact.phone)
   if (!isValidE164(sanitized)) throw new Error(`contact phone invalid: ${contact.phone}`)
 
-  const { data: config } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('user_id', args.userId)
-    .single()
+  const config = await leerConfigWhatsApp<{ phone_number_id: string; access_token: string }>(db, {
+    workspaceId: contact.workspace_id,
+    userId: args.userId,
+  })
   if (!config) throw new Error('WhatsApp not configured for this account')
 
   const accessToken = decrypt(config.access_token)

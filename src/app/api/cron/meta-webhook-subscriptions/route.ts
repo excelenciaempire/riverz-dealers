@@ -414,7 +414,26 @@ async function cronHandler(request: Request) {
   const coexistencia: Array<Record<string, unknown>> = [];
   for (const c of (waConns ?? []) as ChannelConnection[]) {
     const d = await diagnosticoCoexistencia(c);
-    if (d) coexistencia.push(d);
+    if (!d) continue;
+    coexistencia.push(d);
+    // El comercio sacó el número de la app del celular: ya no es coexistencia.
+    // Si se queda marcado, la alarma de ecos avisa de algo que no puede pasar.
+    const numero = d.numero as { status?: number; body?: string } | undefined;
+    let enLaApp: unknown;
+    try {
+      enLaApp = numero?.status === 200 ? (JSON.parse(numero.body ?? "{}") as { is_on_biz_app?: unknown }).is_on_biz_app : undefined;
+    } catch {
+      enLaApp = undefined;
+    }
+    if (enLaApp === false) {
+      const resto = { ...((c.config ?? {}) as Record<string, unknown>) };
+      delete resto.health_sync_error;
+      delete resto.echoes_missing_since;
+      await admin
+        .from("channel_connections")
+        .update({ config: { ...resto, coexistence: false } })
+        .eq("id", c.id);
+    }
   }
 
   // Flip the Render cron red (207) ONLY on a CONFIRMED gap, so a transient

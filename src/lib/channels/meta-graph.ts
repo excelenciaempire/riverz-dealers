@@ -676,8 +676,17 @@ export async function isWabaSubscribed(
       )
     );
     if (!r.ok) return null;
-    const j = (await r.json()) as { data?: unknown[] };
-    return Array.isArray(j.data) && j.data.length > 0;
+    const j = (await r.json()) as {
+      data?: Array<{ id?: string; whatsapp_business_api_data?: { id?: string } }>;
+    };
+    if (!Array.isArray(j.data)) return false;
+    // Otra app suscrita (un proveedor anterior del comercio) no es la nuestra:
+    // contarla como "suscrito" escondía un WABA al que no nos llega nada.
+    const appId = process.env.META_APP_ID;
+    if (!appId) return j.data.length > 0;
+    return j.data.some(
+      (a) => String(a.whatsapp_business_api_data?.id ?? a.id ?? '') === appId
+    );
   } catch {
     return null;
   }

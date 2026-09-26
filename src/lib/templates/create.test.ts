@@ -94,7 +94,7 @@ function fakeDb(): SupabaseClient {
             ? estado.plantillas
             : table === 'whatsapp_config'
               ? estado.config
-                ? [{ user_id: USER, ...estado.config }]
+                ? [{ user_id: USER, workspace_id: WS, status: 'connected', ...estado.config }]
                 : []
               : table === 'workspaces'
                 ? [{ id: WS, owner_id: USER }]

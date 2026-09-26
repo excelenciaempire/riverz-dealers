@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
+import { leerConfigWhatsApp } from '@/lib/whatsapp/config-del-comercio'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import {
   sanitizePhoneForMeta,
@@ -128,13 +129,12 @@ export async function POST(request: Request) {
     }
 
     // Fetch and decrypt WhatsApp config
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('*')
-      .eq('user_id', user.id)
-      .single()
+    const config = await leerConfigWhatsApp<{ id: string; phone_number_id: string; access_token: string }>(
+      supabaseAdmin(),
+      { workspaceId: conversation.workspace_id, userId: user.id },
+    )
 
-    if (configError || !config) {
+    if (!config) {
       return NextResponse.json(
         { error: translate(locale, 'errWhatsapp.whatsappNotConfiguredSetup') },
         { status: 400 }
@@ -149,7 +149,7 @@ export async function POST(request: Request) {
     // concurrent sends both produce valid GCM ciphertexts of the same
     // plaintext, last write wins.
     if (isLegacyFormat(config.access_token)) {
-      void supabase
+      void supabaseAdmin()
         .from('whatsapp_config')
         .update({ access_token: encrypt(accessToken) })
         .eq('id', config.id)

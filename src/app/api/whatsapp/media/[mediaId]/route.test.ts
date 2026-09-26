@@ -11,7 +11,10 @@ vi.mock('@/lib/channels/admin-client', () => ({ supabaseAdmin: () => ({ from: (t
     select: () => chain, eq: () => chain, is: () => chain, limit: () => chain,
     in: (key: string, values: string[]) => { mocks.scope(table, key, values); return chain; },
     maybeSingle: async () => table === 'messages' ? mocks.media() : { data: { access_token: 'encrypted-fixture' } },
-    then: (resolve: (value: unknown) => unknown) => Promise.resolve(mocks.memberships()).then(resolve),
+    then: (resolve: (value: unknown) => unknown) =>
+      Promise.resolve(
+        table === 'whatsapp_config' ? { data: [{ access_token: 'encrypted-fixture' }], error: null } : mocks.memberships(),
+      ).then(resolve),
   };
   return chain;
 } }) }));

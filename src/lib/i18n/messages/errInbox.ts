@@ -227,6 +227,22 @@ export const errInbox = {
     es: 'Se requieren code, waba_id, phone_number_id y workspace_id',
     en: 'code, waba_id, phone_number_id and workspace_id are required',
   },
+  whatsappPinInvalido: {
+    es: 'El PIN tiene 6 dígitos.',
+    en: 'The PIN has 6 digits.',
+  },
+  whatsappPinDistinto: {
+    es: 'Ese no es el PIN de verificación en dos pasos del número.',
+    en: "That isn't the number's two-step verification PIN.",
+  },
+  whatsappPinFallo: {
+    es: 'Meta no registró el número. Intenta de nuevo en unos minutos.',
+    en: "Meta didn't register the number. Try again in a few minutes.",
+  },
+  whatsappTokenQueVence: {
+    es: 'Ese token vence. Usa un token de usuario del sistema que no vence.',
+    en: 'That token expires. Use a system user token that never expires.',
+  },
   whatsappAlreadyConnected: {
     es: 'Ya tienes un WhatsApp conectado ({label}). Desconéctalo antes de conectar otro número.',
     en: 'You already have a WhatsApp connected ({label}). Disconnect it before connecting another number.',

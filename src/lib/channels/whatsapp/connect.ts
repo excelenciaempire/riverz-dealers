@@ -49,6 +49,9 @@ export interface UpsertWhatsAppArgs {
    *  diagnostics; coexistence numbers report the business-app platform. */
   platformType?: string;
   onboarding: "embedded_signup" | "embedded_signup_coexistence" | "manual";
+  /** PIN de dos pasos con el que se registra el número propio. Se guarda
+   *  cifrado para poder volver a registrarlo sin pedírselo al comercio. */
+  registerPin?: string;
 }
 
 export interface UpsertWhatsAppResult {
@@ -68,7 +71,7 @@ export async function upsertSingleWhatsAppConnection(
 ): Promise<UpsertWhatsAppResult> {
   const { data: rows, error: selErr } = await admin
     .from("channel_connections")
-    .select("id, status, external_account_id, label, config")
+    .select("id, status, external_account_id, label, config, secrets")
     .eq("workspace_id", args.workspaceId)
     .eq("channel", "whatsapp");
   if (selErr) throw new Error(`lookup failed: ${selErr.message}`);
@@ -120,7 +123,11 @@ export async function upsertSingleWhatsAppConnection(
     // coexistencia (history-sync.ts).
     connected_at: new Date().toISOString(),
   };
-  const secrets = { access_token: encrypt(args.token) };
+  const pinAnterior = (existing.find((r) => r.external_account_id === args.phoneNumberId)
+    ?.secrets as Record<string, unknown> | null)?.register_pin;
+  const secrets: Record<string, unknown> = { access_token: encrypt(args.token) };
+  if (args.registerPin) secrets.register_pin = encrypt(args.registerPin);
+  else if (typeof pinAnterior === "string") secrets.register_pin = pinAnterior;
 
   // Reuse the row for this exact number (any status) so reconnecting —
   // or reactivating a previously disconnected number — updates in place
@@ -203,13 +210,21 @@ export async function syncLegacyWhatsAppConfig(
       workspace_id: args.workspaceId,
     };
     if (verifyTokenPlain) row.verify_token = encryptLegacy(verifyTokenPlain);
+    // Una fila por comercio (migración 284). Antes era una por dueño, y un
+    // dueño con dos comercios pisaba el número del primero con el del segundo.
+    // El número solo puede vivir en un comercio: si estaba en otro, se va de ahí.
+    await admin
+      .from("whatsapp_config")
+      .delete()
+      .eq("phone_number_id", args.phoneNumberId)
+      .neq("workspace_id", args.workspaceId);
     const { data: existing } = await admin
       .from("whatsapp_config")
       .select("id")
-      .eq("user_id", ownerId)
+      .eq("workspace_id", args.workspaceId)
       .maybeSingle();
     if (existing) {
-      await admin.from("whatsapp_config").update(row).eq("user_id", ownerId);
+      await admin.from("whatsapp_config").update({ user_id: ownerId, ...row }).eq("id", existing.id);
     } else {
       await admin.from("whatsapp_config").insert({ user_id: ownerId, ...row });
     }

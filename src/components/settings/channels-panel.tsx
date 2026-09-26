@@ -21,6 +21,7 @@ import type { Channel, ChannelConnection } from '@/types';
 import { channelLabel } from '@/lib/channels/display';
 import { ChannelLogo } from '@/components/inbox/channel-logo';
 import { WhatsAppEmbeddedSignup } from '@/components/settings/whatsapp-embedded-signup';
+import { WhatsAppRegistrarNumero } from '@/components/settings/whatsapp-registrar-numero';
 import { MetaBusinessLogin } from '@/components/settings/meta-business-login';
 import {
   isMetaAccessWarning,
@@ -599,6 +600,14 @@ export function ChannelsPanel() {
                             {errText}
                           </p>
                         )}
+                        {isAdmin &&
+                          primary.channel === 'whatsapp' &&
+                          lastError?.startsWith('register:') && (
+                            <WhatsAppRegistrarNumero
+                              connectionId={primary.id}
+                              onRegistrado={() => void fetchConnections()}
+                            />
+                          )}
                         {/* Estado de entrega de WhatsApp: puede-enviar / cupo /
                             calidad + nota honesta de verificación. Lo que Meta
                             expone y antes se leía una vez y se tiraba. */}

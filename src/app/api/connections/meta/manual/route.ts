@@ -5,8 +5,15 @@ import { csrfGuard } from '@/lib/csrf';
 import { encrypt } from '@/lib/channels/encryption';
 import {
   subscribePageToWebhooks,
+  subscribeWabaToWebhooks,
   withAppsecretProof,
 } from '@/lib/channels/meta-graph';
+import {
+  esCoexistencia,
+  necesitaRegistro,
+  pinNuevo,
+  registrarNumero,
+} from '@/lib/channels/whatsapp/registro';
 import { refreshMessagingLimitTier } from '@/lib/whatsapp/tier-cap';
 import {
   fetchWhatsAppAccountHealth,
@@ -139,6 +146,12 @@ export async function POST(req: Request): Promise<Response> {
           }),
         },
         { status: 409 }
+      );
+    }
+    if (err instanceof WhatsAppTokenQueVenceError) {
+      return NextResponse.json(
+        { error: translate(locale, 'errInbox.whatsappTokenQueVence') },
+        { status: 400 }
       );
     }
     if (err instanceof MetaManualAssetMismatchError) {
@@ -281,6 +294,27 @@ async function connectPageChannel(
   });
 }
 
+/** El token pegado vence (token de usuario de 1 o 60 días). WhatsApp no
+ *  entra en el cron que renueva tokens: al vencer, el número deja de enviar
+ *  y de recibir sin aviso. Solo se acepta un token de usuario del sistema. */
+class WhatsAppTokenQueVenceError extends Error {}
+
+async function tokenVence(token: string): Promise<boolean> {
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret) return false;
+  try {
+    const r = await fetch(
+      `${GRAPH}/debug_token?input_token=${encodeURIComponent(token)}&access_token=${encodeURIComponent(`${appId}|${appSecret}`)}`
+    );
+    if (!r.ok) return false;
+    const j = (await r.json()) as { data?: { expires_at?: number } };
+    return typeof j.data?.expires_at === 'number' && j.data.expires_at > 0;
+  } catch {
+    return false;
+  }
+}
+
 interface WhatsAppInsertArgs {
   workspaceId: string;
   userId: string;
@@ -321,6 +355,30 @@ async function connectWhatsApp(
     platform_type?: string;
     quality_rating?: string;
   };
+  if (await tokenVence(args.token)) throw new WhatsAppTokenQueVenceError();
+
+  // Mismas reglas que el alta por Embedded Signup: la coexistencia no se
+  // registra nunca; un número propio que no está en Cloud API sí, o no envía.
+  const coexistence = esCoexistencia(phone);
+  let registerError: string | null = null;
+  const pin = necesitaRegistro(coexistence, phone.platform_type) ? pinNuevo() : null;
+  if (pin) {
+    const reg = await registrarNumero({
+      phoneNumberId: args.phone_number_id,
+      token: args.token,
+      pin,
+    });
+    if (!reg.ok) {
+      registerError = reg.error;
+      console.error(`[whatsapp/manual] register failed: ${registerError}`);
+    }
+  }
+
+  // Sin la app suscrita al WABA no llega ningún webhook (ni mensajes, ni
+  // ecos de coexistencia). El cron lo repara, pero así funciona desde ya.
+  if (!(await subscribeWabaToWebhooks(args.waba_id, args.token))) {
+    console.warn('[whatsapp/manual] subscribe_apps failed; the cron retries');
+  }
 
   // One WhatsApp per workspace; reconnecting the same number updates in
   // place. A different number while one is active throws
@@ -333,8 +391,10 @@ async function connectWhatsApp(
     wabaId: args.waba_id,
     displayPhoneNumber: phone.display_phone_number,
     verifiedName: phone.verified_name,
-    coexistence: Boolean(phone.is_on_biz_app),
+    coexistence,
+    platformType: phone.platform_type,
     onboarding: 'manual',
+    registerPin: pin && !registerError ? pin : undefined,
   });
 
   // Cache the WABA messaging-tier so bulk paths can gate sends without
@@ -370,16 +430,18 @@ async function connectWhatsApp(
       health,
       phone.quality_rating
     );
-    if (!health.canSend) {
+    if (!health.canSend || registerError) {
       await admin
         .from('channel_connections')
         .update({
-          last_error: `no puede enviar (review=${health.reviewStatus ?? '?'}): ${health.blockers
-            .map(
-              (b) => `${b.entity}${b.code ? ` ${b.code}` : ''} ${b.description}`
-            )
-            .join(' | ')
-            .slice(0, 400)}`,
+          last_error: registerError
+            ? `register: ${registerError.slice(0, 400)}`
+            : `no puede enviar (review=${health.reviewStatus ?? '?'}): ${health.blockers
+                .map(
+                  (b) => `${b.entity}${b.code ? ` ${b.code}` : ''} ${b.description}`
+                )
+                .join(' | ')
+                .slice(0, 400)}`,
         })
         .eq('id', connectionId);
     }

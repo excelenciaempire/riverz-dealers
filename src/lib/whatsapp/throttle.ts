@@ -6,7 +6,12 @@
  *
  * Default 80 msg/seg (el tier inicial Meta Business). Se puede subir
  * por env: META_TIER_MSGS_PER_SEC.
+ *
+ * Un número en coexistencia (sigue en la app WhatsApp Business) tiene el
+ * cupo fijo de Meta en 20 msg/seg: pasarlo hace rebotar la difusión.
  */
+
+export const TOPE_COEXISTENCIA = 20
 
 interface Bucket {
   tokens: number
@@ -32,8 +37,11 @@ function refill(bucket: Bucket, capacity: number, now: number): void {
  * Espera hasta tener crédito para mandar un mensaje del workspace dado.
  * Resuelve cuando consumió un token. No tira nunca.
  */
-export async function acquire(workspaceId: string): Promise<void> {
-  const capacity = rate()
+export async function acquire(
+  workspaceId: string,
+  opts: { coexistencia?: boolean } = {},
+): Promise<void> {
+  const capacity = opts.coexistencia ? Math.min(rate(), TOPE_COEXISTENCIA) : rate()
   let bucket = buckets.get(workspaceId)
   if (!bucket) {
     bucket = { tokens: capacity, lastRefillMs: Date.now() }

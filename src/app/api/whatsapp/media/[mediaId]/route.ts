@@ -66,12 +66,14 @@ export async function GET(
     // viewable only by the agent who connected the number. Access to the
     // conversation was checked above, independently of the provider token.
     const candidates: string[] = []
-    const { data: ownConfig } = await admin
+    const { data: ownConfigs } = await admin
       .from('whatsapp_config')
       .select('access_token')
       .eq('user_id', user.id)
-      .maybeSingle()
-    if (ownConfig?.access_token) candidates.push(ownConfig.access_token as string)
+    for (const c of ownConfigs ?? []) {
+      const tok = (c as { access_token?: string }).access_token
+      if (tok) candidates.push(tok)
+    }
 
     if (candidates.length === 0) {
       if (wsIds.length > 0) {

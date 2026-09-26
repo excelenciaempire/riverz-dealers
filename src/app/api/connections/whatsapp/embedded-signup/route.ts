@@ -14,6 +14,13 @@ import {
   fetchWhatsAppAccountHealth,
   persistWhatsAppHealthSnapshot,
 } from "@/lib/whatsapp/account-health";
+import {
+  esCoexistencia,
+  necesitaRegistro,
+  pinNuevo,
+  registrarNumero,
+  type FlujoDeAlta,
+} from "@/lib/channels/whatsapp/registro";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 
@@ -21,12 +28,6 @@ import { translate } from "@/lib/i18n/translate";
 // va en v25). El canje del code debe hacerse en la misma versión o superior a
 // la que lo emitió; canjearlo en una versión menor falla.
 const GRAPH = "https://graph.facebook.com/v25.0";
-
-/** PIN de dos pasos para /register (solo en el alta de número nuevo).
- *  Ojo: es fijo por ahora, igual que antes. Si el comerciante ya tenía
- *  verificación en dos pasos con OTRO PIN, Meta rechaza el registro — y por eso
- *  ahora ese fallo se reporta en vez de tragarse. */
-const REGISTER_PIN = "000000";
 
 /**
  * POST /api/connections/whatsapp/embedded-signup
@@ -44,7 +45,8 @@ const REGISTER_PIN = "000000";
  * flow. For coexistence numbers the phone stays usable on the WhatsApp
  * Business app — Meta mirrors messages to our webhook.
  *
- * Body: { code, waba_id, phone_number_id, workspace_id }
+ * Body: { code, waba_id, phone_number_id, workspace_id, flujo? }
+ *   flujo: 'coexistencia' | 'nuevo', según el evento con que cerró el popup.
  */
 export async function POST(req: Request): Promise<Response> {
   const block = await csrfGuard(req);
@@ -61,7 +63,13 @@ export async function POST(req: Request): Promise<Response> {
     );
 
   const body = (await req.json().catch(() => null)) as
-    | { code?: string; waba_id?: string; phone_number_id?: string; workspace_id?: string }
+    | {
+        code?: string;
+        waba_id?: string;
+        phone_number_id?: string;
+        workspace_id?: string;
+        flujo?: FlujoDeAlta;
+      }
     | null;
   if (!body?.code || !body.waba_id || !body.phone_number_id || !body.workspace_id) {
     return NextResponse.json(
@@ -146,19 +154,15 @@ export async function POST(req: Request): Promise<Response> {
     const probeFailed = phone === null;
     phone = phone ?? {};
 
-    // Coexistencia = el número está en la app del comercio. `is_on_biz_app`
-    // es la señal primaria; `platform_type` de coexistencia (no CLOUD_API) es
-    // respaldo. Si el probe falló del todo, asumimos coexistencia para NO
-    // registrar a ciegas — el flujo del front siempre entra por
-    // whatsapp_business_app_onboarding, donde coexistencia es lo esperado.
-    const explicitlyNewNumber =
-      !probeFailed &&
-      phone.is_on_biz_app === false &&
-      (phone.platform_type ?? "").toUpperCase() !== "SMB_APP";
-    const coexistence = !explicitlyNewNumber;
+    // Coexistencia = el número está en la app del comercio. Manda Meta
+    // (`is_on_biz_app`); si no lo dice, el evento con que cerró el popup; y si
+    // tampoco, coexistencia (no registrar a ciegas).
+    const flujo =
+      body.flujo === "nuevo" || body.flujo === "coexistencia" ? body.flujo : null;
+    const coexistence = esCoexistencia(probeFailed ? null : phone, flujo);
     if (probeFailed) {
       console.warn(
-        `[whatsapp/embedded-signup] phone probe failed for ${body.phone_number_id}; assuming coexistence, skipping /register`,
+        `[whatsapp/embedded-signup] phone probe failed for ${body.phone_number_id}; flujo=${flujo ?? "?"} coexistence=${coexistence}`,
       );
     }
 
@@ -205,26 +209,18 @@ export async function POST(req: Request): Promise<Response> {
     //    indistinguible de un éxito y la conexión se guardaba igual como
     //    "connected". Así se fabricaban cuentas que decían estar conectadas y
     //    no podían enviar ni un mensaje.
+    //    Un número que ya está en Cloud API no se vuelve a registrar: si tiene
+    //    PIN de dos pasos, un PIN distinto lo rechazaría. Si Meta pide el PIN
+    //    que puso el comercio, la tarjeta de Integraciones se lo pide.
     let registerError: string | null = null;
-    if (!coexistence) {
-      try {
-        const regRes = await fetch(
-          withAppsecretProof(`${GRAPH}/${body.phone_number_id}/register`, token),
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
-            body: JSON.stringify({ messaging_product: "whatsapp", pin: REGISTER_PIN }),
-          },
-        );
-        if (!regRes.ok) {
-          registerError = await regRes.text().catch(() => `HTTP ${regRes.status}`);
-          console.error(
-            `[whatsapp/embedded-signup] register failed (${regRes.status}): ${registerError}`,
-          );
-        }
-      } catch (err) {
-        registerError = err instanceof Error ? err.message : String(err);
-        console.error("[whatsapp/embedded-signup] register threw:", registerError);
+    const pin = necesitaRegistro(coexistence, probeFailed ? null : phone.platform_type)
+      ? pinNuevo()
+      : null;
+    if (pin) {
+      const reg = await registrarNumero({ phoneNumberId: body.phone_number_id, token, pin });
+      if (!reg.ok) {
+        registerError = reg.error;
+        console.error(`[whatsapp/embedded-signup] register failed: ${registerError}`);
       }
     }
 
@@ -241,6 +237,7 @@ export async function POST(req: Request): Promise<Response> {
       coexistence,
       platformType: phone.platform_type,
       onboarding: coexistence ? "embedded_signup_coexistence" : "embedded_signup",
+      registerPin: pin && !registerError ? pin : undefined,
     });
 
     // Cache the WABA messaging-tier so bulk paths can gate sends without
@@ -272,7 +269,7 @@ export async function POST(req: Request): Promise<Response> {
       await admin
         .from("message_templates")
         .delete()
-        .eq("user_id", user.id)
+        .eq("workspace_id", body.workspace_id)
         .neq("status", "Draft")
         .or(`waba_id.is.null,waba_id.neq.${body.waba_id}`);
     } catch (err) {
