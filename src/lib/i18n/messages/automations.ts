@@ -89,6 +89,12 @@ export const automations = {
   },
   tableroCargando: { es: "Armando el tablero…", en: "Building the board…" },
   tableroError: { es: "No se pudo armar el tablero.", en: "Couldn't build the board." },
+  tableroEnviar: { es: "Enviar {n} a Meta", en: "Send {n} to Meta" },
+  tableroEnviarConfirm: {
+    es: "¿Enviar {n} plantillas a aprobación de Meta? Una vez enviadas, su nombre queda tomado y el texto ya no se edita desde aquí.",
+    en: "Send {n} templates for Meta approval? Once sent, their names are taken and the copy can no longer be edited here.",
+  },
+  tableroEnviadas: { es: "{n} plantillas en revisión de Meta", en: "{n} templates under Meta review" },
   tableroErrorGuardar: { es: "No se pudo guardar el texto.", en: "Couldn't save the copy." },
   retry: { es: "Reintentar", en: "Retry" },
 

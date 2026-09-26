@@ -12,6 +12,11 @@ import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { problemaDelTexto } from '@/lib/automations/tablero';
+import {
+  COLUMNAS_DE_BORRADOR,
+  enviarBorradorAMeta,
+  type BorradorGuardado,
+} from '@/lib/templates/enviar-borrador';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { createClient } from '@/lib/supabase/server';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
@@ -30,6 +35,7 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
  * GET   /api/automations/tablero → { comercio, columnas, plantillas }
  * PATCH /api/automations/tablero   { plantilla_id, body_text } → { plantilla }
  *   Edita el texto de una plantilla que todavía no se mandó a Meta.
+ * POST  /api/automations/tablero → manda los borradores a aprobación de Meta.
  */
 
 interface Columna {
@@ -55,7 +61,7 @@ async function cuenta() {
   if (!workspaceId) {
     return { error: NextResponse.json({ error: translate(locale, 'errAi.forbidden') }, { status: 403 }) };
   }
-  return { admin, workspaceId, locale };
+  return { admin, workspaceId, locale, userId: user.id };
 }
 
 export async function GET() {
@@ -160,6 +166,59 @@ export async function GET() {
 
 /** Lo que Meta todavía no revisó se puede reescribir; lo demás, no desde acá. */
 const EDITABLES = new Set(['draft', 'rejected']);
+
+/**
+ * POST /api/automations/tablero → { enviadas, fallidas }
+ *
+ * Manda a aprobación de Meta los borradores (y los rechazados) que usan las
+ * automatizaciones del comercio: lo revisado en el tablero sale de una vez.
+ */
+export async function POST(request: Request) {
+  const block = await csrfGuard(request);
+  if (block) return block;
+  const c = await cuenta();
+  if ('error' in c) return c.error;
+  const { admin, workspaceId, locale, userId } = c;
+
+  const { data: autos } = await admin
+    .from('automations')
+    .select('id')
+    .eq('workspace_id', workspaceId)
+    .is('deleted_at', null);
+  const ids = ((autos ?? []) as Array<{ id: string }>).map((a) => a.id);
+  const { data: pasos } = ids.length
+    ? await admin.from('automation_steps').select('step_config').in('automation_id', ids).eq('step_type', 'send_template')
+    : { data: [] };
+  const nombres = [
+    ...new Set(
+      ((pasos ?? []) as Array<{ step_config: { template_name?: unknown } | null }>)
+        .map((p) => p.step_config?.template_name)
+        .filter((n): n is string => typeof n === 'string' && n.length > 0)
+    ),
+  ];
+  if (nombres.length === 0) return NextResponse.json({ enviadas: [], fallidas: [] });
+  const { data: filas, error } = await admin
+    .from('message_templates')
+    .select(COLUMNAS_DE_BORRADOR)
+    .eq('workspace_id', workspaceId)
+    .in('name', nombres);
+  if (error) return serverError(error);
+
+  const enviadas: string[] = [];
+  const fallidas: Array<{ nombre: string; motivo: string }> = [];
+  for (const fila of (filas ?? []) as Array<BorradorGuardado & { status: string | null }>) {
+    if (!EDITABLES.has(String(fila.status ?? '').toLowerCase())) continue;
+    const r = await enviarBorradorAMeta(admin, { workspaceId, userId, fila });
+    if (r.ok) enviadas.push(r.name);
+    else {
+      fallidas.push({
+        nombre: fila.name,
+        motivo: r.mensaje ?? translate(locale, `errWhatsapp.${r.claveI18n ?? 'metaRejectedTemplate'}`, r.params),
+      });
+    }
+  }
+  return NextResponse.json({ enviadas, fallidas });
+}
 
 export async function PATCH(request: Request) {
   const block = await csrfGuard(request);

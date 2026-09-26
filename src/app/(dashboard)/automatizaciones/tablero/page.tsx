@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowLeft, ExternalLink, Loader2, Pencil, Reply } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, Pencil, Reply, Send } from 'lucide-react';
 import Link from '@/components/i18n/locale-link';
 import { useLocale, useT } from '@/hooks/use-locale';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -64,6 +64,7 @@ const NOMBRE_DE_VARIABLE: Record<string, { es: string; en: string }> = {
 
 export default function TableroDeMensajesPage() {
   const t = useT();
+  const fetchWithCsrf = useFetchWithCsrf();
   const [datos, setDatos] = useState<{
     comercio: string | null;
     producto: string;
@@ -86,7 +87,38 @@ export default function TableroDeMensajesPage() {
 
   useEffect(() => {
     void cargar();
+    // Volver a la pestaña después de tocar una plantilla o una automatización
+    // en otra parte muestra lo que hay ahora, no lo de hace un rato.
+    const alVolver = () => void cargar();
+    window.addEventListener('focus', alVolver);
+    return () => window.removeEventListener('focus', alVolver);
   }, [cargar]);
+
+  const borradores = Object.values(datos?.plantillas ?? {}).filter((p) =>
+    ['draft', 'rejected'].includes(String(p.status ?? '').toLowerCase())
+  ).length;
+  const [enviando, setEnviando] = useState(false);
+
+  async function enviarAMeta() {
+    if (!confirm(t('automations.tableroEnviarConfirm', { n: borradores }))) return;
+    setEnviando(true);
+    try {
+      const res = await fetchWithCsrf('/api/automations/tablero', { method: 'POST' });
+      const json = (await res.json().catch(() => null)) as {
+        enviadas?: string[];
+        fallidas?: Array<{ nombre: string; motivo: string }>;
+        error?: string;
+      } | null;
+      if (!res.ok || !json) throw new Error(json?.error ?? '');
+      if (json.enviadas?.length) toast.success(t('automations.tableroEnviadas', { n: json.enviadas.length }));
+      for (const f of json.fallidas ?? []) toast.error(`${f.nombre}: ${f.motivo}`);
+      await cargar();
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : t('automations.tableroError'));
+    } finally {
+      setEnviando(false);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -99,6 +131,13 @@ export default function TableroDeMensajesPage() {
           <h1 className="text-foreground text-2xl font-semibold tracking-tight">{t('automations.tablero')}</h1>
           <p className="text-muted-foreground text-sm">{t('automations.tableroHint')}</p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {borradores > 0 ? (
+            <Button onClick={() => void enviarAMeta()} disabled={enviando}>
+              {enviando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+              {t('automations.tableroEnviar', { n: borradores })}
+            </Button>
+          ) : null}
         <div className="bg-muted inline-flex w-fit shrink-0 rounded-lg p-0.5">
           {[false, true].map((v) => (
             <button
@@ -113,6 +152,7 @@ export default function TableroDeMensajesPage() {
               {v ? t('automations.tableroVariables') : t('automations.tableroEjemplo')}
             </button>
           ))}
+        </div>
         </div>
       </header>
 
