@@ -210,6 +210,8 @@ function DetalleDePrueba({
   const [agentes, setAgentes] = useState<Array<{ id: string; name: string }>>([]);
   const [proponiendo, setProponiendo] = useState(false);
   const [borrando, setBorrando] = useState(false);
+  /** El comentario general mientras se escribe: cuenta como feedback aunque no se haya guardado. */
+  const [borradorGeneral, setBorradorGeneral] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -236,6 +238,11 @@ function DetalleDePrueba({
   async function proponer() {
     setProponiendo(true);
     try {
+      // Lo escrito y sin guardar va primero: la propuesta lee el feedback guardado.
+      if (borradorGeneral !== null && borradorGeneral.trim() !== general.trim()) {
+        const ok = await marcar(null, { voto: null, nota: borradorGeneral });
+        if (!ok) throw new Error('');
+      }
       const res = await fetchWithCsrf(`/api/ai/probar/sesiones/${id}/mejorar`, { method: 'POST' });
       const json = (await res.json().catch(() => null)) as { propuestas?: Propuestas; error?: string } | null;
       if (!res.ok || !json?.propuestas) throw new Error(json?.error ?? '');
@@ -273,11 +280,11 @@ function DetalleDePrueba({
     if (f.item !== null) porItem.set(f.item, { voto: f.voto, nota: f.nota });
   }
   const general = (sesion.feedback ?? []).find((f) => f.item === null)?.nota ?? '';
-  const hayFeedback = (sesion.feedback ?? []).length > 0;
+  const hayFeedback = (sesion.feedback ?? []).length > 0 || Boolean(borradorGeneral?.trim());
 
   /** Marcar la prueba guardada: cada respuesta y la prueba entera. */
-  async function marcar(item: number | null, marca: MarcaDeFeedback) {
-    if (!sesion) return;
+  async function marcar(item: number | null, marca: MarcaDeFeedback): Promise<boolean> {
+    if (!sesion) return false;
     const at = new Date().toISOString();
     const resto = (sesion.feedback ?? []).filter((f) => f.item !== item);
     const feedback = marca.voto || marca.nota.trim() ? [...resto, { item, voto: marca.voto, nota: marca.nota.trim(), at }] : resto;
@@ -287,8 +294,12 @@ function DetalleDePrueba({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ feedback }),
     }).catch(() => null);
-    if (!res?.ok) toast.error(t('assistant.probarFallo'));
-    else onCambio();
+    if (!res?.ok) {
+      toast.error(t('assistant.probarFallo'));
+      return false;
+    }
+    onCambio();
+    return true;
   }
   const nombreDe = (agenteId: string | null) =>
     agenteId ? (agentes.find((a) => a.id === agenteId)?.name ?? '—') : t('assistant.pruebasTodosLosAsistentes');
@@ -317,9 +328,13 @@ function DetalleDePrueba({
       <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start">
         <div className="space-y-2">
           <ComentarioGeneral
-            key={`${id}-${general}`}
-            inicial={general}
-            onGuardar={(nota) => void marcar(null, { voto: null, nota })}
+            valor={borradorGeneral ?? general}
+            onCambio={setBorradorGeneral}
+            onGuardar={() => {
+              if (borradorGeneral !== null && borradorGeneral.trim() !== general.trim()) {
+                void marcar(null, { voto: null, nota: borradorGeneral });
+              }
+            }}
           />
           <MarcoDeTelefono
             titulo={nombreComercio || t('templates.yourBusiness')}
@@ -368,18 +383,23 @@ function DetalleDePrueba({
 }
 
 /** Lo que opina quien revisa sobre la prueba entera: tono, largo, datos, pasos. */
-function ComentarioGeneral({ inicial, onGuardar }: { inicial: string; onGuardar: (nota: string) => void }) {
+function ComentarioGeneral({
+  valor,
+  onCambio,
+  onGuardar,
+}: {
+  valor: string;
+  onCambio: (nota: string) => void;
+  onGuardar: () => void;
+}) {
   const t = useT();
-  const [nota, setNota] = useState(inicial);
   return (
     <Textarea
-      value={nota}
+      value={valor}
       rows={2}
       maxLength={1000}
-      onChange={(e) => setNota(e.target.value)}
-      onBlur={() => {
-        if (nota.trim() !== inicial.trim()) onGuardar(nota);
-      }}
+      onChange={(e) => onCambio(e.target.value)}
+      onBlur={onGuardar}
       placeholder={t('assistant.pruebasComentarioPlaceholder')}
       className="min-h-0 bg-[#fff5c4]/60 text-sm"
     />

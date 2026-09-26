@@ -247,7 +247,8 @@ export function Linea({
           ))}
         </div>
       ) : null}
-      {it.nota ? <p className="mt-0.5 max-w-[85%] rounded bg-white/60 px-1.5 text-[10px] text-[#54656f] sm:max-w-[82%]">{it.nota}</p> : null}
+      {/* Las pruebas viejas guardaban en la nota quién contestó o la plantilla: no se muestran. */}
+      {it.nota && it.opinable ? <p className="mt-0.5 max-w-[85%] rounded bg-white/60 px-1.5 text-[10px] text-[#54656f] sm:max-w-[82%]">{it.nota}</p> : null}
       {/* Las pruebas guardadas antes de `opinable` marcaban la respuesta con la nota. */}
       {(it.opinable || it.nota) && (onFeedback || feedback) ? (
         <Opinion marca={feedback ?? null} onCambio={onFeedback} />
