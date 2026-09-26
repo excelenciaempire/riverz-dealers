@@ -30,7 +30,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const [{ data, error }, { data: agentes }] = await Promise.all([
     admin
       .from('ai_test_sessions')
-      .select('id, origen, escenario, canal, detalle, items, feedback, propuestas, mensajes, created_at, updated_at')
+      .select('id, origen, escenario, canal, detalle, items, feedback, propuestas, mensajes, enviada_at, created_at, updated_at')
       .eq('workspace_id', workspaceId)
       .eq('id', id)
       .maybeSingle(),

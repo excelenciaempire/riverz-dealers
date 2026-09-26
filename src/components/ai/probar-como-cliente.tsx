@@ -5,13 +5,11 @@ import { toast } from 'sonner';
 import {
   ExternalLink,
   FastForward,
-  Link2,
   Loader2,
   MessageSquareText,
   NotebookPen,
   RotateCcw,
   Send,
-  Sparkles,
 } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -98,14 +96,11 @@ interface Pendiente {
 export function ProbarComoCliente({
   nombreComercio: nombreInicial,
   token,
-  onRevisar,
 }: {
   nombreComercio?: string | null;
   /** El link compartido: se prueba sin sesión, sin elegir teléfono y sin
    *  poder generar otro link. */
   token?: string;
-  /** Abre la prueba guardada para convertir el feedback en mejoras. */
-  onRevisar?: (sesionId: string) => void;
 }) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
@@ -147,6 +142,8 @@ export function ProbarComoCliente({
   const [comentario, setComentario] = useState('');
   const [verComentario, setVerComentario] = useState(false);
   const [revisando, setRevisando] = useState(false);
+  /** Lo último que se mandó al equipo: con feedback nuevo se puede volver a mandar. */
+  const [enviadaCon, setEnviadaCon] = useState<string | null>(null);
   const guardado = useRef('');
   const hiloRef = useRef<HTMLDivElement | null>(null);
   const telefonoRef = useRef<HTMLDivElement | null>(null);
@@ -173,16 +170,28 @@ export function ProbarComoCliente({
       .catch(() => {});
   }, [token]);
 
-  async function compartir() {
+  /**
+   * Abre la prueba por link (el que se comparte con el dueño de la marca) y lo
+   * deja copiado. La pestaña se abre antes de pedir el link: abierta después
+   * de esperar, el navegador la toma por una ventana emergente y la bloquea.
+   */
+  async function abrirConLink() {
+    const pestana = window.open('', '_blank');
     setGenerandoLink(true);
     try {
-      const res = await fetchWithCsrf('/api/ai/probar/compartir', { method: 'POST' });
-      const json = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
-      if (!res.ok || !json?.url) throw new Error(json?.error ?? '');
-      setLink(json.url);
-      await navigator.clipboard?.writeText(json.url).catch(() => {});
+      const url = link ?? (await (async () => {
+        const res = await fetchWithCsrf('/api/ai/probar/compartir', { method: 'POST' });
+        const json = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
+        if (!res.ok || !json?.url) throw new Error(json?.error ?? '');
+        return json.url;
+      })());
+      setLink(url);
+      if (pestana) pestana.location.href = url;
+      else window.open(url, '_blank', 'noopener');
+      await navigator.clipboard?.writeText(url).catch(() => {});
       toast.success(t('assistant.probarLinkCopiado'));
     } catch (err) {
+      pestana?.close();
       toast.error(err instanceof Error && err.message ? err.message : t('assistant.probarFallo'));
     } finally {
       setGenerandoLink(false);
@@ -303,12 +312,19 @@ export function ProbarComoCliente({
     setDerivada(false);
   }
 
-  async function revisar() {
-    if (!sesionId || !onRevisar) return;
+  /** Se la manda al equipo de Riverz, que propone y aprueba las mejoras. */
+  async function enviarAlEquipo() {
+    if (!sesionId) return;
     setRevisando(true);
-    await guardarYa();
+    const cuerpo = JSON.stringify({ ...paquete(sesionId, items, marcas, comentario), enviar: true });
+    const ok = await mandarSesion(cuerpo);
     setRevisando(false);
-    onRevisar(sesionId);
+    if (ok) {
+      setEnviadaCon(cuerpo);
+      toast.success(t('assistant.pruebasEnviada'));
+    } else {
+      toast.error(t('assistant.probarFallo'));
+    }
   }
 
   const hayFeedback =
@@ -549,6 +565,14 @@ export function ProbarComoCliente({
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-6">
       {/* ── Qué pasa ── */}
       <div className="min-w-0 space-y-4">
+        {!token ? (
+          <div className="-mb-2 flex justify-end">
+            <Button size="sm" variant="ghost" onClick={() => void abrirConLink()} disabled={generandoLink}>
+              {generandoLink ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
+              {t('assistant.probarAbrirConLink')}
+            </Button>
+          </div>
+        ) : null}
         <div className="grid grid-cols-2 gap-3">
           <Campo label={t('assistant.probarEscenario')}>
             <Select value={escenario} onValueChange={(v) => { if (v) { setEscenario(v as EscenarioDePrueba); reiniciar(); } }}>
@@ -616,35 +640,6 @@ export function ProbarComoCliente({
             </Campo>
           ) : null}
         </div>
-
-        {!token ? (
-          <div className="border-border space-y-3 rounded-xl border p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-foreground text-sm font-medium">{t('assistant.probarCompartir')}</p>
-                <p className="text-muted-foreground text-xs">{t('assistant.probarCompartirHint')}</p>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => void compartir()} disabled={generandoLink} className="shrink-0 self-start sm:self-auto">
-                {generandoLink ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
-                {t('assistant.probarCopiarLink')}
-              </Button>
-            </div>
-            {link ? (
-              <div className="flex items-center gap-2">
-                <Input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="min-w-0 text-xs" />
-                <a
-                  href={link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-foreground hover:bg-muted inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium"
-                >
-                  <ExternalLink className="size-3.5" />
-                  {t('assistant.probarAbrirLink')}
-                </a>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
       </div>
 
       {/* ── El chat, como el teléfono del cliente ── */}
@@ -762,10 +757,15 @@ export function ProbarComoCliente({
             />
           ))}
         </MarcoDeTelefono>
-        {onRevisar && sesionId && hayFeedback ? (
-          <Button variant="outline" className="w-full sm:mx-auto sm:flex sm:max-w-[380px]" onClick={() => void revisar()} disabled={revisando}>
-            {revisando ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-            {t('assistant.pruebasProponer')}
+        {sesionId && hayFeedback ? (
+          <Button
+            variant="outline"
+            className="w-full sm:mx-auto sm:flex sm:max-w-[380px]"
+            onClick={() => void enviarAlEquipo()}
+            disabled={revisando || enviadaCon === JSON.stringify({ ...paquete(sesionId, items, marcas, comentario), enviar: true })}
+          >
+            {revisando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            {t('assistant.pruebasEnviarEquipo')}
           </Button>
         ) : null}
       </div>

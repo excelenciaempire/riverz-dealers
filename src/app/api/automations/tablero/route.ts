@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { pedirCambio } from '@/lib/templates/cambios';
 import { borrarPlantilla } from '@/lib/templates/borrar';
 import { serverError } from '@/lib/api/errors';
 import {
@@ -34,8 +35,9 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
  * cambia con las unidades) pero se muestra en una sola columna.
  *
  * GET   /api/automations/tablero → { comercio, columnas, plantillas }
- * PATCH /api/automations/tablero   { plantilla_id, body_text } → { plantilla }
- *   Edita el texto de una plantilla que todavía no se mandó a Meta.
+ * PATCH /api/automations/tablero   { plantilla_id, body_text } → { plantilla } | { cambio }
+ *   Un borrador se edita directo; una que ya está en Meta queda como cambio
+ *   pedido para que el equipo de Riverz lo apruebe.
  * POST  /api/automations/tablero → manda los borradores a aprobación de Meta.
  * DELETE /api/automations/tablero → borra de Riverz y de Meta las que ya no usa nada.
  */
@@ -198,6 +200,18 @@ export async function GET() {
         // automatizaciones, no sólo las que aparecen con este pedido de ejemplo.
         borradores: todas.filter((p) => EDITABLES.has(String(p.status ?? '').toLowerCase())).length,
         sin_uso: (await plantillasSinUso(admin, workspaceId)).length,
+        // Los cambios que esperan al equipo, por nombre de plantilla.
+        cambios: Object.fromEntries(
+          (
+            ((
+              await admin
+                .from('cambios_de_plantilla')
+                .select('plantilla_nombre, despues')
+                .eq('workspace_id', workspaceId)
+                .eq('estado', 'pendiente')
+            ).data ?? []) as Array<{ plantilla_nombre: string; despues: string }>
+          ).map((c) => [c.plantilla_nombre, c.despues])
+        ),
       },
       { headers: { 'Cache-Control': 'no-store' } }
     );
@@ -336,7 +350,7 @@ export async function PATCH(request: Request) {
   if (block) return block;
   const c = await cuenta();
   if ('error' in c) return c.error;
-  const { admin, workspaceId, locale } = c;
+  const { admin, workspaceId, locale, userId } = c;
   const body = (await request.json().catch(() => null)) as { plantilla_id?: unknown; body_text?: unknown } | null;
   const id = typeof body?.plantilla_id === 'string' ? body.plantilla_id : '';
   const texto = typeof body?.body_text === 'string' ? body.body_text.replace(/\r\n/g, '\n').trim() : '';
@@ -344,19 +358,26 @@ export async function PATCH(request: Request) {
 
   const { data: actual, error } = await admin
     .from('message_templates')
-    .select('id, status, body_text')
+    .select('id, name, status, body_text')
     .eq('workspace_id', workspaceId)
     .eq('id', id)
     .maybeSingle();
   if (error) return serverError(error);
   if (!actual) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  const fila = actual as { status: string | null; body_text: string | null };
-  if (!EDITABLES.has(String(fila.status ?? '').toLowerCase())) {
-    return NextResponse.json({ error: translate(locale, 'automations.tableroNoEditable') }, { status: 409 });
-  }
+  const fila = actual as { id: string; name: string; status: string | null; body_text: string | null };
   const problema = problemaDelTexto(texto, fila.body_text ?? '');
   if (problema) {
     return NextResponse.json({ error: translate(locale, `automations.${problema}`) }, { status: 400 });
+  }
+  // Ya está en Meta: no se toca. Queda como cambio pedido, que el equipo de
+  // Riverz aprueba en el panel de plataforma (`lib/templates/cambios`).
+  if (!EDITABLES.has(String(fila.status ?? '').toLowerCase())) {
+    try {
+      const cambio = await pedirCambio(admin, { workspaceId, userId, plantilla: fila, despues: texto });
+      return NextResponse.json({ cambio });
+    } catch (err) {
+      return serverError(err);
+    }
   }
   const { data, error: errGuardar } = await admin
     .from('message_templates')

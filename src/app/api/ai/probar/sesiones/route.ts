@@ -20,7 +20,9 @@ import { limitByKey, rateLimitResponse } from '@/lib/rate-limit';
  *
  * POST /api/ai/probar/sesiones  — la pantalla guarda la prueba mientras
  *   transcurre, también desde el link compartido (con `token`).
- *   body: { token?, id, escenario, canal, detalle?, items, feedback? }
+ *   body: { token?, id, escenario, canal, detalle?, items, feedback?, enviar? }
+ *   `enviar`: quien probó se la manda al equipo de Riverz, que propone y
+ *   aprueba las mejoras desde el panel de plataforma.
  * GET  /api/ai/probar/sesiones  — la lista, sólo con sesión.
  */
 
@@ -39,6 +41,7 @@ export async function POST(request: Request) {
     detalle?: unknown;
     items?: unknown;
     feedback?: unknown;
+    enviar?: unknown;
   } | null;
   const { workspaceId, compartida, conSesion, userId } = await cuentaDeLaPrueba(admin, body?.token);
   if (!workspaceId) {
@@ -71,6 +74,7 @@ export async function POST(request: Request) {
     feedback,
     mensajes: contarMensajes(items),
     updated_at: new Date().toISOString(),
+    ...(body?.enviar === true ? { enviada_at: new Date().toISOString() } : {}),
   };
 
   const { data: existente } = await admin
@@ -109,7 +113,7 @@ export async function GET() {
   }
   const { data, error } = await admin
     .from('ai_test_sessions')
-    .select('id, origen, escenario, canal, detalle, feedback, propuestas, mensajes, created_at, updated_at')
+    .select('id, origen, escenario, canal, detalle, feedback, propuestas, mensajes, enviada_at, created_at, updated_at')
     .eq('workspace_id', workspaceId)
     .order('updated_at', { ascending: false })
     .limit(200);
@@ -124,6 +128,7 @@ export async function GET() {
       feedback: unknown;
       propuestas: { reglas?: unknown[]; plataforma?: unknown[] } | null;
       mensajes: number;
+      enviada_at: string | null;
       created_at: string;
       updated_at: string;
     };
@@ -137,6 +142,7 @@ export async function GET() {
       mensajes: fila.mensajes,
       feedback: resumenDeFeedback(fila.feedback),
       con_propuestas: Boolean(fila.propuestas?.reglas?.length || fila.propuestas?.plataforma?.length),
+      enviada_at: fila.enviada_at,
       created_at: fila.created_at,
       updated_at: fila.updated_at,
     };

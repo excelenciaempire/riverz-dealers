@@ -613,6 +613,14 @@ export const assistant = {
   },
   pruebasListo: { es: "Listo", en: "Done" },
   pruebasMejoras: { es: "Mejoras", en: "Improvements" },
+  probarAbrirConLink: { es: "Abrir con link", en: "Open with link" },
+  pruebasEnviarEquipo: { es: "Enviar al equipo de Riverz", en: "Send to the Riverz team" },
+  pruebasEnviada: { es: "Enviada al equipo de Riverz", en: "Sent to the Riverz team" },
+  pruebasEnRevision: { es: "En revisión", en: "Under review" },
+  pruebasSinMejoras: {
+    es: "Todavía no hay mejoras. El equipo de Riverz las revisa y las aplica.",
+    en: "No improvements yet. The Riverz team reviews and applies them.",
+  },
   pruebasProponer: { es: "Proponer mejoras", en: "Suggest improvements" },
   pruebasProponerOtraVez: { es: "Proponer de nuevo", en: "Suggest again" },
   pruebasSinFeedback: {

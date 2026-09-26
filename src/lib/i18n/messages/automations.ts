@@ -85,6 +85,8 @@ export const automations = {
   tableroCargando: { es: "Armando el tablero…", en: "Building the board…" },
   tableroError: { es: "No se pudo armar el tablero.", en: "Couldn't build the board." },
   tableroEnviar: { es: "Enviar {n} a Meta", en: "Send {n} to Meta" },
+  tableroCambioEnviado: { es: "Cambio enviado al equipo de Riverz para aprobar", en: "Change sent to the Riverz team for approval" },
+  tableroCambioEnRevision: { es: "Cambio en revisión por el equipo de Riverz", en: "Change under review by the Riverz team" },
   tableroSinUso: { es: "Eliminar {n} sin usar", en: "Delete {n} unused" },
   tableroSinUsoConfirm: {
     es: "Se borran de Riverz y de Meta las {n} plantillas que ninguna automatización ni campaña usa. No se puede deshacer.",

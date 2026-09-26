@@ -75,6 +75,8 @@ export default function TableroDeMensajesPage() {
     plantillas: Record<string, Plantilla>;
     borradores?: number;
     sin_uso?: number;
+    /** Cambios pedidos que esperan al equipo de Riverz, por plantilla. */
+    cambios?: Record<string, string>;
   } | null>(null);
   const [conVariables, setConVariables] = useState(false);
 
@@ -238,11 +240,9 @@ export default function TableroDeMensajesPage() {
               key={col.id}
               col={col}
               plantillas={datos.plantillas}
+              cambios={datos.cambios ?? {}}
               conVariables={conVariables}
-              onGuardada={(p) => {
-                setDatos((prev) => (prev ? { ...prev, plantillas: { ...prev.plantillas, [p.name]: p } } : prev));
-                void cargar();
-              }}
+              onGuardada={() => void cargar()}
             />
           ))}
         </div>
@@ -255,13 +255,15 @@ export default function TableroDeMensajesPage() {
 function ColumnaDelTablero({
   col,
   plantillas,
+  cambios,
   conVariables,
   onGuardada,
 }: {
   col: Columna;
   plantillas: Record<string, Plantilla>;
+  cambios: Record<string, string>;
   conVariables: boolean;
-  onGuardada: (p: Plantilla) => void;
+  onGuardada: () => void;
 }) {
   const t = useT();
   const [elegida, setElegida] = useState(0);
@@ -270,7 +272,17 @@ function ColumnaDelTablero({
   return (
     <section className="border-border bg-muted/30 w-full shrink-0 space-y-3 rounded-2xl border p-3 md:w-[330px]">
       <div className="space-y-1.5">
-        <h2 className="text-foreground text-sm font-semibold">{t(TITULO[col.id.split('-')[0]] ?? col.escenario)}</h2>
+        {autos.length === 1 ? (
+          <Link
+            href={`/automatizaciones/${autos[0].id}/editar`}
+            className="text-foreground inline-flex items-center gap-1 text-sm font-semibold hover:underline"
+          >
+            {t(TITULO[col.id.split('-')[0]] ?? col.escenario)}
+            <ExternalLink className="size-3 shrink-0 opacity-60" />
+          </Link>
+        ) : (
+          <h2 className="text-foreground text-sm font-semibold">{t(TITULO[col.id.split('-')[0]] ?? col.escenario)}</h2>
+        )}
         {col.ofertas ? (
           <div className="flex flex-wrap gap-1">
             {col.ofertas.map((o, i) => (
@@ -298,7 +310,9 @@ function ColumnaDelTablero({
           <Automatizacion
             key={`${col.id}-${a.id}`}
             a={a}
+            conTitulo={autos.length > 1}
             plantillas={plantillas}
+            cambios={cambios}
             conVariables={conVariables}
             onGuardada={onGuardada}
           />
@@ -310,22 +324,29 @@ function ColumnaDelTablero({
 
 function Automatizacion({
   a,
+  conTitulo,
   plantillas,
+  cambios,
   conVariables,
   onGuardada,
 }: {
   a: AutomacionSimulada;
+  /** Sólo si la columna tiene varias: con una, el título de arriba ya la abre. */
+  conTitulo: boolean;
   plantillas: Record<string, Plantilla>;
+  cambios: Record<string, string>;
   conVariables: boolean;
-  onGuardada: (p: Plantilla) => void;
+  onGuardada: () => void;
 }) {
   const t = useT();
   return (
-    <div className="bg-card border-border space-y-2 rounded-xl border p-3">
-      <Link href={`/automatizaciones/${a.id}/editar`} className="text-foreground inline-flex min-w-0 items-center gap-1 text-sm font-medium hover:underline">
-        <span className="truncate">{a.nombre}</span>
-        <ExternalLink className="size-3 shrink-0 opacity-60" />
-      </Link>
+    <div className="space-y-2">
+      {conTitulo ? (
+        <Link href={`/automatizaciones/${a.id}/editar`} className="text-foreground inline-flex min-w-0 items-center gap-1 text-sm font-medium hover:underline">
+          <span className="truncate">{a.nombre}</span>
+          <ExternalLink className="size-3 shrink-0 opacity-60" />
+        </Link>
+      ) : null}
       <div
         className="space-y-1.5 rounded-lg px-2 py-2"
         style={{
@@ -335,7 +356,7 @@ function Automatizacion({
         }}
       >
         {a.pasos.map((p, i) => (
-          <Paso key={i} p={p} plantillas={plantillas} conVariables={conVariables} onGuardada={onGuardada} />
+          <Paso key={i} p={p} plantillas={plantillas} cambios={cambios} conVariables={conVariables} onGuardada={onGuardada} />
         ))}
         {a.agente ? <Chip texto={t('automations.tableroPasaA', { agente: a.agente.nombre })} icono="persona" /> : null}
       </div>
@@ -346,13 +367,15 @@ function Automatizacion({
 function Paso({
   p,
   plantillas,
+  cambios,
   conVariables,
   onGuardada,
 }: {
   p: PasoSimulado;
   plantillas: Record<string, Plantilla>;
+  cambios: Record<string, string>;
   conVariables: boolean;
-  onGuardada: (p: Plantilla) => void;
+  onGuardada: () => void;
 }) {
   const t = useT();
   if (p.tipo === 'espera') {
@@ -365,19 +388,30 @@ function Paso({
   if (p.tipo === 'llamada') return <Chip texto={t('automations.tableroLlamada', { agente: p.agente ?? '—' })} icono="llamada" />;
   if (p.tipo === 'mensaje') return <Burbuja texto={p.texto} />;
   if (p.tipo !== 'plantilla') return null;
-  return <PasoPlantilla p={p} plantilla={plantillas[p.nombre] ?? null} conVariables={conVariables} onGuardada={onGuardada} />;
+  return (
+    <PasoPlantilla
+      p={p}
+      plantilla={plantillas[p.nombre] ?? null}
+      cambio={cambios[p.nombre] ?? null}
+      conVariables={conVariables}
+      onGuardada={onGuardada}
+    />
+  );
 }
 
 function PasoPlantilla({
   p,
   plantilla,
+  cambio,
   conVariables,
   onGuardada,
 }: {
   p: Extract<PasoSimulado, { tipo: 'plantilla' }>;
   plantilla: Plantilla | null;
+  /** El texto pedido que espera la aprobación del equipo de Riverz. */
+  cambio: string | null;
   conVariables: boolean;
-  onGuardada: (p: Plantilla) => void;
+  onGuardada: () => void;
 }) {
   const t = useT();
   const { locale } = useLocale();
@@ -385,7 +419,9 @@ function PasoPlantilla({
   const [editando, setEditando] = useState(false);
   const [borrador, setBorrador] = useState('');
   const [guardando, setGuardando] = useState(false);
-  const editable = Boolean(plantilla && ['draft', 'rejected'].includes(String(plantilla.status ?? '').toLowerCase()));
+  // Todas se pueden cambiar: un borrador se edita directo; una que ya está en
+  // Meta queda como cambio pedido que aprueba el equipo de Riverz.
+  const editable = Boolean(plantilla);
   const crudo = plantilla?.body_text ?? '';
 
   async function guardar() {
@@ -398,10 +434,10 @@ function PasoPlantilla({
         body: JSON.stringify({ plantilla_id: plantilla.id, body_text: borrador }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.plantilla) throw new Error(json?.error ?? '');
-      toast.success(t('automations.tableroGuardado'));
+      if (!res.ok || !(json?.plantilla || json?.cambio)) throw new Error(json?.error ?? '');
+      toast.success(json.cambio ? t('automations.tableroCambioEnviado') : t('automations.tableroGuardado'));
       setEditando(false);
-      onGuardada(json.plantilla as Plantilla);
+      onGuardada();
     } catch (err) {
       toast.error(err instanceof Error && err.message ? err.message : t('automations.tableroErrorGuardar'));
     } finally {
@@ -450,12 +486,17 @@ function PasoPlantilla({
           ))}
         </div>
       ) : null}
+      {!editando && cambio ? (
+        <p className="mt-1 w-[92%] rounded-md bg-amber-100 px-2 py-1 text-[11px] text-amber-900">
+          {t('automations.tableroCambioEnRevision')}
+        </p>
+      ) : null}
       {!editando && editable ? (
         <div className="mt-0.5 flex w-[92%] justify-end">
             <button
               type="button"
               onClick={() => {
-                setBorrador(crudo);
+                setBorrador(cambio ?? crudo);
                 setEditando(true);
               }}
               className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-[#008069] shadow-sm hover:bg-white/80"
