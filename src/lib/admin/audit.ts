@@ -79,6 +79,12 @@ export type AdminAction =
   // de sus clientes, con los datos de contacto tapados.
   | 'view.mejoras'
   | 'update.mejora_plataforma'
+  | 'update.mejora.proponer-prueba'
+  | 'update.mejora.aplicar-prueba'
+  | 'update.mejora.proponer-real'
+  | 'update.mejora.aplicar-lote'
+  | 'update.mejora.aprobar-cambio'
+  | 'update.mejora.descartar-cambio'
   // Leer una conversacion de un comercio. Es la lectura mas sensible del panel
   // —son mensajes de compradores reales— y solo se puede con una ventana que
   // abrio el propio comercio. Queda escrito quien miro que, y cuando.

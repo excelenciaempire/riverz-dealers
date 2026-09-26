@@ -60,11 +60,12 @@ export async function GET(request: Request) {
         };
       }
 
-      const [{ data: pruebas }, { data: feedback }, { data: plataforma }, { data: ws }] = await Promise.all([
+      const [{ data: pruebas }, { data: feedback }, { data: plataforma }, { data: ws }, { data: cambios }, { data: lotes }, { data: agentes }] = await Promise.all([
         db
           .from('ai_test_sessions')
-          .select('id, origen, escenario, canal, detalle, items, feedback, propuestas, mensajes, created_at, updated_at')
+          .select('id, origen, escenario, canal, detalle, items, feedback, propuestas, mensajes, enviada_at, created_at, updated_at')
           .eq('workspace_id', workspaceId)
+          .order('enviada_at', { ascending: false, nullsFirst: false })
           .order('updated_at', { ascending: false })
           .limit(100),
         db
@@ -80,6 +81,19 @@ export async function GET(request: Request) {
           .order('created_at', { ascending: false })
           .limit(100),
         db.from('workspaces').select('name').eq('id', workspaceId).maybeSingle(),
+        db
+          .from('cambios_de_plantilla')
+          .select('id, plantilla_nombre, antes, despues, estado, nueva_plantilla, motivo, created_at')
+          .eq('workspace_id', workspaceId)
+          .order('created_at', { ascending: false })
+          .limit(100),
+        db
+          .from('ai_mejoras_lotes')
+          .select('id, propuestas, created_at')
+          .eq('workspace_id', workspaceId)
+          .order('created_at', { ascending: false })
+          .limit(5),
+        db.from('ai_agents').select('id, name').eq('workspace_id', workspaceId).is('deleted_at', null),
       ]);
       return {
         comercio: (ws as { name?: string | null } | null)?.name ?? null,
@@ -92,6 +106,9 @@ export async function GET(request: Request) {
           ),
         })),
         plataforma: plataforma ?? [],
+        cambios: cambios ?? [],
+        lotes: lotes ?? [],
+        agentes: agentes ?? [],
       };
     }
   );

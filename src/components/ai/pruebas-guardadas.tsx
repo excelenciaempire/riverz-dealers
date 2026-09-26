@@ -10,7 +10,6 @@ import {
   MessageSquareText,
   Sparkles,
   NotebookPen,
-  Trash2,
 } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -32,9 +31,9 @@ import { cn } from '@/lib/utils';
 
 /**
  * Todas las pruebas de "Probar como cliente", como chats: las del equipo y
- * las del dueño de la marca por el link. Cada una se revisa tal cual se vio,
- * con lo que se marcó en cada respuesta, y ese feedback se convierte en
- * reglas que se revisan y se aplican con un clic.
+ * las del dueño de la marca por el link, con lo que se comentó y las mejoras
+ * que aprobó el equipo de Riverz. Sólo para mirar: el feedback se manda desde
+ * el chat de prueba y las mejoras se aprueban en el panel de plataforma.
  */
 
 interface Resumen {
@@ -60,6 +59,7 @@ interface Detalle {
   items: ItemChat[];
   feedback: FeedbackGuardado[];
   propuestas: Propuestas | null;
+  enviada_at: string | null;
   created_at: string;
 }
 
@@ -67,15 +67,10 @@ export function PruebasGuardadas({
   elegida,
   onElegir,
   nombreComercio,
-  proponerEn,
-  onPropuesto,
 }: {
   elegida: string | null;
   onElegir: (id: string | null) => void;
   nombreComercio: string | null;
-  /** Llega desde "Proponer mejoras" del chat: propone apenas carga, sin otro clic. */
-  proponerEn?: string | null;
-  onPropuesto?: () => void;
 }) {
   const t = useT();
   const [lista, setLista] = useState<Resumen[] | null>(null);
@@ -121,14 +116,7 @@ export function PruebasGuardadas({
             key={elegida}
             id={elegida}
             nombreComercio={nombreComercio}
-            proponerAlAbrir={proponerEn === elegida}
-            onPropuesto={onPropuesto}
             onVolver={() => onElegir(null)}
-            onCambio={() => void cargar()}
-            onBorrada={() => {
-              onElegir(null);
-              setLista((prev) => (prev ?? []).filter((s) => s.id !== elegida));
-            }}
           />
         ) : (
           <div className="text-muted-foreground flex h-full min-h-[200px] items-center justify-center rounded-xl border border-dashed p-6 text-center text-sm">
@@ -190,46 +178,31 @@ function FilaDePrueba({ s, activa, onClick }: { s: Resumen; activa: boolean; onC
   );
 }
 
+/**
+ * Una prueba, para mirarla: el chat tal cual se vio, lo que se comentó y las
+ * mejoras que el equipo de Riverz propuso y aplicó. Todos los que tienen
+ * acceso a la cuenta la ven; nadie la edita desde acá.
+ */
 function DetalleDePrueba({
   id,
   nombreComercio,
-  proponerAlAbrir,
-  onPropuesto,
   onVolver,
-  onCambio,
-  onBorrada,
 }: {
   id: string;
   nombreComercio: string | null;
-  proponerAlAbrir?: boolean;
-  onPropuesto?: () => void;
   onVolver: () => void;
-  onCambio: () => void;
-  onBorrada: () => void;
 }) {
   const t = useT();
   const format = useFormat();
-  const fetchWithCsrf = useFetchWithCsrf();
   const [sesion, setSesion] = useState<Detalle | null>(null);
-  const [agentes, setAgentes] = useState<Array<{ id: string; name: string }>>([]);
-  const [proponiendo, setProponiendo] = useState(false);
-  const [borrando, setBorrando] = useState(false);
-  /** El comentario general mientras se escribe: cuenta como feedback aunque no se haya guardado. */
-  const [borradorGeneral, setBorradorGeneral] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelado = false;
     fetch(`/api/ai/probar/sesiones/${id}`, { cache: 'no-store' })
       .then(async (r) => {
-        const json = (await r.json().catch(() => null)) as {
-          sesion?: Detalle;
-          agentes?: Array<{ id: string; name: string }>;
-          error?: string;
-        } | null;
+        const json = (await r.json().catch(() => null)) as { sesion?: Detalle; error?: string } | null;
         if (!r.ok || !json?.sesion) throw new Error(json?.error ?? '');
-        if (cancelado) return;
-        setSesion(json.sesion);
-        setAgentes(json.agentes ?? []);
+        if (!cancelado) setSesion(json.sesion);
       })
       .catch((err) => {
         if (!cancelado) toast.error(err instanceof Error && err.message ? err.message : t('assistant.probarFallo'));
@@ -238,47 +211,6 @@ function DetalleDePrueba({
       cancelado = true;
     };
   }, [id, t]);
-
-  async function proponer() {
-    setProponiendo(true);
-    try {
-      // Lo escrito y sin guardar va primero: la propuesta lee el feedback guardado.
-      if (borradorGeneral !== null && borradorGeneral.trim() !== general.trim()) {
-        const ok = await marcar(null, { voto: null, nota: borradorGeneral });
-        if (!ok) throw new Error('');
-      }
-      const res = await fetchWithCsrf(`/api/ai/probar/sesiones/${id}/mejorar`, { method: 'POST' });
-      const json = (await res.json().catch(() => null)) as { propuestas?: Propuestas; error?: string } | null;
-      if (!res.ok || !json?.propuestas) throw new Error(json?.error ?? '');
-      setSesion((prev) => (prev ? { ...prev, propuestas: json.propuestas ?? null } : prev));
-      if (!json.propuestas.reglas.length && !json.propuestas.plataforma.length) {
-        toast.success(t('assistant.pruebasSinCambios'));
-      }
-      onCambio();
-    } catch (err) {
-      toast.error(err instanceof Error && err.message ? err.message : t('assistant.probarFallo'));
-    } finally {
-      setProponiendo(false);
-    }
-  }
-
-  // Una sola vez, apenas está la prueba: el clic ya se hizo en el chat.
-  const cargada = sesion !== null;
-  useEffect(() => {
-    if (!proponerAlAbrir || !cargada) return;
-    onPropuesto?.();
-    void proponer();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proponerAlAbrir, cargada]);
-
-  async function borrar() {
-    if (!confirm(t('assistant.pruebasBorrarConfirm'))) return;
-    setBorrando(true);
-    const res = await fetchWithCsrf(`/api/ai/probar/sesiones/${id}`, { method: 'DELETE' }).catch(() => null);
-    setBorrando(false);
-    if (res?.ok) onBorrada();
-    else toast.error(t('assistant.probarFallo'));
-  }
 
   if (!sesion) {
     return (
@@ -293,29 +225,7 @@ function DetalleDePrueba({
     if (f.item !== null) porItem.set(f.item, { voto: f.voto, nota: f.nota });
   }
   const general = (sesion.feedback ?? []).find((f) => f.item === null)?.nota ?? '';
-  const hayFeedback = (sesion.feedback ?? []).length > 0 || Boolean(borradorGeneral?.trim());
-
-  /** Marcar la prueba guardada: cada respuesta y la prueba entera. */
-  async function marcar(item: number | null, marca: MarcaDeFeedback): Promise<boolean> {
-    if (!sesion) return false;
-    const at = new Date().toISOString();
-    const resto = (sesion.feedback ?? []).filter((f) => f.item !== item);
-    const feedback = marca.voto || marca.nota.trim() ? [...resto, { item, voto: marca.voto, nota: marca.nota.trim(), at }] : resto;
-    setSesion({ ...sesion, feedback });
-    const res = await fetchWithCsrf(`/api/ai/probar/sesiones/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ feedback }),
-    }).catch(() => null);
-    if (!res?.ok) {
-      toast.error(t('assistant.probarFallo'));
-      return false;
-    }
-    onCambio();
-    return true;
-  }
-  const nombreDe = (agenteId: string | null) =>
-    agenteId ? (agentes.find((a) => a.id === agenteId)?.name ?? '—') : t('assistant.pruebasTodosLosAsistentes');
+  const reglas = sesion.propuestas?.reglas ?? [];
 
   return (
     <div className="space-y-4">
@@ -329,93 +239,45 @@ function DetalleDePrueba({
           </p>
           <p className="text-muted-foreground truncate text-xs">
             {format.dateTime(sesion.created_at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-            {sesion.detalle?.producto ? ` · ${sesion.detalle.producto}` : ''}
             {sesion.origen === 'link' ? ` · ${t('assistant.pruebasPorLink')}` : ''}
           </p>
         </div>
-        <Button variant="ghost" size="icon-sm" onClick={() => void borrar()} disabled={borrando} aria-label={t('assistant.pruebasBorrar')}>
-          {borrando ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
-        </Button>
+        {sesion.enviada_at ? <Badge variant="secondary">{t('assistant.pruebasEnviada')}</Badge> : null}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start">
         <div className="space-y-2">
-          <ComentarioGeneral
-            valor={borradorGeneral ?? general}
-            onCambio={setBorradorGeneral}
-            onGuardar={() => {
-              if (borradorGeneral !== null && borradorGeneral.trim() !== general.trim()) {
-                void marcar(null, { voto: null, nota: borradorGeneral });
-              }
-            }}
-          />
-          <MarcoDeTelefono
-            titulo={nombreComercio || t('templates.yourBusiness')}
-            alto="h-[60dvh] min-h-[360px] sm:h-[min(560px,64vh)]"
-          >
+          {general ? (
+            <p className="rounded-lg bg-[#fff5c4] px-3 py-2 text-xs whitespace-pre-wrap text-[#54656f]">{general}</p>
+          ) : null}
+          <MarcoDeTelefono titulo={nombreComercio || t('templates.yourBusiness')} alto="h-[60dvh] min-h-[360px] sm:h-[min(560px,64vh)]">
             {sesion.items.map((it, i) => (
-              <Linea
-                key={i}
-                it={it}
-                feedback={porItem.get(i) ?? null}
-                onFeedback={(m) => void marcar(i, m)}
-              />
+              <Linea key={i} it={it} feedback={porItem.get(i) ?? null} />
             ))}
           </MarcoDeTelefono>
         </div>
 
         <div className="min-w-0 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-foreground text-sm font-medium">{t('assistant.pruebasMejoras')}</p>
-            <Button size="sm" onClick={() => void proponer()} disabled={proponiendo || !hayFeedback}>
-              {proponiendo ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-              {sesion.propuestas ? t('assistant.pruebasProponerOtraVez') : t('assistant.pruebasProponer')}
-            </Button>
-          </div>
-          {!hayFeedback ? <p className="text-muted-foreground text-xs">{t('assistant.pruebasSinFeedback')}</p> : null}
-          {sesion.propuestas?.reglas.map((r, i) => (
-            <TarjetaDeRegla
-              key={`${i}-${sesion.propuestas?.generadas_at ?? ''}`}
-              urlAplicar={`/api/ai/probar/sesiones/${id}/aplicar`}
-              indice={i}
-              regla={r}
-              agente={r.accion === 'crear' ? nombreDe(r.agente_id) : null}
-              onAplicada={(p) => setSesion((prev) => (prev ? { ...prev, propuestas: p } : prev))}
-            />
-          ))}
-          {sesion.propuestas?.plataforma.map((p, i) => (
-            <div key={i} className="border-border space-y-1.5 rounded-xl border p-3">
-              <Badge variant="secondary">{t('assistant.pruebasParaPlataforma')}</Badge>
-              <p className="text-foreground text-sm">{p.problema}</p>
-            </div>
-          ))}
+          <p className="text-foreground text-sm font-medium">{t('assistant.pruebasMejoras')}</p>
+          {reglas.length === 0 ? (
+            <p className="text-muted-foreground text-xs">{sesion.enviada_at ? t('assistant.pruebasSinMejoras') : '—'}</p>
+          ) : (
+            reglas.map((r, i) => (
+              <div key={i} className="border-border space-y-1.5 rounded-xl border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-foreground text-sm font-medium">{r.titulo}</p>
+                  <Badge variant={r.aplicada ? 'default' : 'outline'}>
+                    {r.aplicada ? t('assistant.pruebasAplicada') : t('assistant.pruebasEnRevision')}
+                  </Badge>
+                </div>
+                {r.cuando ? <p className="text-muted-foreground text-xs">{r.cuando}</p> : null}
+                <p className="text-foreground text-xs whitespace-pre-wrap">{r.hacer}</p>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
-  );
-}
-
-/** Lo que opina quien revisa sobre la prueba entera: tono, largo, datos, pasos. */
-function ComentarioGeneral({
-  valor,
-  onCambio,
-  onGuardar,
-}: {
-  valor: string;
-  onCambio: (nota: string) => void;
-  onGuardar: () => void;
-}) {
-  const t = useT();
-  return (
-    <Textarea
-      value={valor}
-      rows={2}
-      maxLength={1000}
-      onChange={(e) => onCambio(e.target.value)}
-      onBlur={onGuardar}
-      placeholder={t('assistant.pruebasComentarioPlaceholder')}
-      className="min-h-0 bg-[#fff5c4]/60 text-sm"
-    />
   );
 }
 

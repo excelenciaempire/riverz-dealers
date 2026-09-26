@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Copy, Link2 } from "lucide-react";
+import { Check, Copy, Loader2, Send, Sparkles, X } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
@@ -14,29 +14,15 @@ import {
   type ItemChat,
   type MarcaDeFeedback,
 } from "@/components/ai/chat-de-prueba";
+import { TarjetaDeRegla } from "@/components/ai/pruebas-guardadas";
 import type { FeedbackGuardado, Propuestas } from "@/lib/ai/sesiones-de-prueba";
 import { cn } from "@/lib/utils";
-import {
-  useAdminData,
-  useTabParam,
-  PageHeader,
-  Loading,
-  LoadError,
-  Panel,
-  Tabs,
-  StatusPill,
-  Muted,
-} from "../_components/admin-ui";
+import { useAdminData, useTabParam, PageHeader, Loading, LoadError, Tabs, StatusPill, Muted } from "../_components/admin-ui";
 import { RefreshButton } from "../_components/filters";
 
 /**
- * Pruebas y feedback, por comercio.
- *
- * Tres cosas para entender cómo le va al asistente de un comercio y qué hay
- * que tocar: las pruebas de "Probar como cliente" (también las del dueño por
- * el link), el feedback —de pruebas y de conversaciones reales— con la
- * conversación tal cual se vio, y la cola de lo que no se arregla con una regla
- * del comercio: eso es trabajo de la plataforma.
+ * Pruebas y feedback, por comercio. El comercio comenta y envía; acá el equipo
+ * propone las mejoras, las aplica y aprueba los cambios de plantilla.
  */
 
 interface Comercio {
@@ -53,11 +39,10 @@ interface Prueba {
   origen: "panel" | "link";
   escenario: string | null;
   canal: string | null;
-  detalle: { producto?: string | null } | null;
   items: ItemChat[];
   feedback: FeedbackGuardado[];
   propuestas: Propuestas | null;
-  mensajes: number;
+  enviada_at: string | null;
   created_at: string;
 }
 
@@ -67,7 +52,23 @@ interface FeedbackReal {
   voto: "bien" | "mal" | null;
   nota: string;
   captura: ItemChat[];
-  estado: string;
+  created_at: string;
+}
+
+interface Lote {
+  id: string;
+  propuestas: Propuestas | null;
+  created_at: string;
+}
+
+interface Cambio {
+  id: string;
+  plantilla_nombre: string;
+  antes: string;
+  despues: string;
+  estado: "pendiente" | "aprobado" | "descartado" | "fallido";
+  nueva_plantilla: string | null;
+  motivo: string | null;
   created_at: string;
 }
 
@@ -80,69 +81,68 @@ interface PedidoPlataforma {
   created_at: string;
 }
 
-type Pestana = "pruebas" | "feedback-pruebas" | "feedback-real" | "plataforma";
-const PESTANAS: readonly Pestana[] = ["pruebas", "feedback-pruebas", "feedback-real", "plataforma"];
+interface Datos {
+  comercio: string | null;
+  pruebas: Prueba[];
+  feedback: FeedbackReal[];
+  plataforma: PedidoPlataforma[];
+  cambios: Cambio[];
+  lotes: Lote[];
+  agentes: Array<{ id: string; name: string }>;
+}
+
+type Pestana = "pruebas" | "reales" | "plantillas" | "plataforma";
+const PESTANAS: readonly Pestana[] = ["pruebas", "reales", "plantillas", "plataforma"];
 
 export default function AdminMejorasPage() {
   const t = useT();
   const [elegido, setElegido] = useState<string | null>(null);
   const [pestana, setPestana] = useTabParam<Pestana>("tab", PESTANAS, "pruebas");
   const lista = useAdminData<{ comercios: Comercio[] }>("/api/admin/mejoras");
+  const comercios = lista.data?.comercios ?? [];
+  const actual = elegido ?? comercios[0]?.id ?? null;
 
   if (lista.loading && !lista.data) return <Loading forma="table" />;
   if (lista.error || !lista.data) return <LoadError onRetry={lista.reload} />;
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title={t("admin.sectionMejoras")}
-        description={t("admin.sectionMejorasDesc")}
-        live={lista.live}
-        actions={<RefreshButton onClick={lista.reload} />}
-      />
-      <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <Panel title={t("admin.mejorasComercio")}>
-          <ul className="max-h-[70vh] divide-y divide-border overflow-y-auto">
-            {lista.data.comercios.length === 0 ? (
-              <li className="px-4 py-3">
-                <Muted>{t("admin.mejorasVacio")}</Muted>
+      <PageHeader title={t("admin.sectionMejoras")} live={lista.live} actions={<RefreshButton onClick={lista.reload} />} />
+      {comercios.length === 0 ? (
+        <Muted>{t("admin.mejorasVacio")}</Muted>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+          <ul className="border-border divide-border h-fit divide-y overflow-hidden rounded-xl border">
+            {comercios.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  onClick={() => setElegido(c.id)}
+                  className={cn(
+                    "hover:bg-muted/50 w-full px-4 py-2.5 text-left text-sm transition-colors",
+                    actual === c.id ? "bg-muted text-foreground font-medium" : "text-muted-foreground",
+                  )}
+                >
+                  {c.nombre}
+                </button>
               </li>
-            ) : (
-              lista.data.comercios.map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    onClick={() => setElegido(c.id)}
-                    className={cn(
-                      "w-full px-4 py-2.5 text-left transition-colors hover:bg-muted/50",
-                      elegido === c.id && "bg-muted",
-                    )}
-                  >
-                    <p className="truncate text-sm font-medium text-foreground">{c.nombre}</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {c.pruebas} {t("admin.mejorasPruebas").toLowerCase()} · {t("admin.mejorasFeedbackCuenta", { n: c.feedbackPruebas + c.feedbackReal })}
-                      {c.plataforma ? ` · ${c.plataforma} ${t("admin.mejorasPlataforma").toLowerCase()}` : ""}
-                    </p>
-                  </button>
-                </li>
-              ))
-            )}
+            ))}
           </ul>
-        </Panel>
-        <div className="min-w-0 space-y-4">
-          <Tabs
-            value={pestana}
-            onChange={setPestana}
-            options={[
-              { value: "pruebas", label: t("admin.mejorasPruebas") },
-              { value: "feedback-pruebas", label: t("admin.mejorasFeedbackPruebas") },
-              { value: "feedback-real", label: t("admin.mejorasFeedbackReal") },
-              { value: "plataforma", label: t("admin.mejorasPlataforma") },
-            ]}
-          />
-          {elegido ? <DelComercio id={elegido} pestana={pestana} /> : <Muted>{t("admin.mejorasElegir")}</Muted>}
+          <div className="min-w-0 space-y-4">
+            <Tabs
+              value={pestana}
+              onChange={setPestana}
+              options={[
+                { value: "pruebas", label: t("admin.mejorasPruebas") },
+                { value: "reales", label: t("admin.mejorasTabReales") },
+                { value: "plantillas", label: t("admin.mejorasTabPlantillas") },
+                { value: "plataforma", label: t("admin.mejorasTabPlataforma") },
+              ]}
+            />
+            {actual ? <DelComercio key={actual} id={actual} pestana={pestana} /> : null}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -151,60 +151,98 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
   const t = useT();
   const format = useFormat();
   const fetchWithCsrf = useFetchWithCsrf();
-  const { data, loading, error, reload } = useAdminData<{
-    comercio: string | null;
-    pruebas: Prueba[];
-    feedback: FeedbackReal[];
-    plataforma: PedidoPlataforma[];
-  }>(`/api/admin/mejoras?workspace=${encodeURIComponent(id)}`);
+  const { data, loading, error, reload } = useAdminData<Datos>(`/api/admin/mejoras?workspace=${encodeURIComponent(id)}`);
+  const [trabajando, setTrabajando] = useState<string | null>(null);
+  // Lo que se va proponiendo y aplicando, sin esperar al refresco.
+  const [propuestasDe, setPropuestasDe] = useState<Record<string, Propuestas>>({});
+
 
   if (loading && !data) return <Loading />;
   if (error || !data) return <LoadError onRetry={reload} />;
   const titulo = data.comercio ?? "—";
-  const fecha = (iso: string) =>
-    format.dateTime(iso, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const fecha = (iso: string) => format.dateTime(iso, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const nombreDe = (agenteId: string | null) =>
+    agenteId ? (data.agentes.find((a) => a.id === agenteId)?.name ?? "—") : t("assistant.pruebasTodosLosAsistentes");
 
-  if (pestana === "pruebas" || pestana === "feedback-pruebas") {
-    const pruebas =
-      pestana === "pruebas" ? data.pruebas : data.pruebas.filter((p) => (p.feedback ?? []).length > 0);
-    if (pruebas.length === 0) return <Muted>{t("admin.mejorasVacio")}</Muted>;
+  async function accion(que: string, objetivo: string): Promise<Record<string, unknown> | null> {
+    setTrabajando(`${que}:${objetivo}`);
+    try {
+      const res = await fetchWithCsrf(`/api/admin/mejoras/accion?que=${que}&id=${encodeURIComponent(objetivo)}`, { method: "POST" });
+      const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+      if (!res.ok) throw new Error(String(json?.error ?? ""));
+      return json;
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : t("admin.mejorasError"));
+      return null;
+    } finally {
+      setTrabajando(null);
+    }
+  }
+
+  const Propuestas = ({ clave, url, propuestas }: { clave: string; url: string; propuestas: Propuestas | null }) => {
+    const p = propuestasDe[clave] ?? propuestas;
+    if (!p || (!p.reglas.length && !p.plataforma.length)) return null;
     return (
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {pruebas.map((p) => {
+      <div className="space-y-2">
+        {p.reglas.map((r, i) => (
+          <TarjetaDeRegla
+            key={`${clave}-${i}-${p.generadas_at ?? ""}`}
+            urlAplicar={url}
+            indice={i}
+            regla={r}
+            agente={r.accion === "crear" ? nombreDe(r.agente_id) : null}
+            onAplicada={(nuevas) => setPropuestasDe((prev) => ({ ...prev, [clave]: nuevas }))}
+          />
+        ))}
+        {p.plataforma.map((x, i) => (
+          <p key={i} className="border-border rounded-lg border px-3 py-2 text-xs">
+            {x.problema}
+          </p>
+        ))}
+      </div>
+    );
+  };
+
+  if (pestana === "pruebas") {
+    if (data.pruebas.length === 0) return <Muted>{t("admin.mejorasVacio")}</Muted>;
+    return (
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {data.pruebas.map((p) => {
           const marcas = new Map<number, MarcaDeFeedback>();
           for (const f of p.feedback ?? []) if (f.item !== null) marcas.set(f.item, { voto: f.voto, nota: f.nota });
-          const generales = (p.feedback ?? []).filter((f) => f.item === null && f.nota);
+          const general = (p.feedback ?? []).find((f) => f.item === null && f.nota)?.nota;
+          const conFeedback = (p.feedback ?? []).length > 0;
+          const clave = `prueba:${p.id}`;
           return (
             <article key={p.id} className="space-y-2">
-              <div className="text-xs">
-                <p className="truncate font-medium text-foreground">
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-foreground truncate font-medium">
                   {etiquetaDeEscenario(t, p.escenario)} · {etiquetaDeCanal(t, p.canal)}
-                </p>
-                <p className="flex items-center gap-1 text-muted-foreground">
-                  {fecha(p.created_at)}
-                  {p.origen === "link" ? (
-                    <>
-                      {" · "}
-                      <Link2 className="size-3" /> {t("admin.mejorasPorLink")}
-                    </>
-                  ) : null}
-                </p>
+                  <span className="text-muted-foreground font-normal"> · {fecha(p.created_at)}</span>
+                </span>
+                {p.enviada_at ? <StatusPill tone="ok" label={t("admin.mejorasEnviada")} /> : null}
               </div>
-              {generales.map((f, i) => (
-                <p key={i} className="rounded-lg bg-[#fff5c4] px-3 py-2 text-xs whitespace-pre-wrap text-[#54656f]">
-                  {f.nota}
-                </p>
-              ))}
-              <MarcoDeTelefono titulo={titulo} alto="h-[380px]">
+              {general ? <p className="rounded-lg bg-[#fff5c4] px-3 py-2 text-xs whitespace-pre-wrap text-[#54656f]">{general}</p> : null}
+              <MarcoDeTelefono titulo={titulo} alto="h-[360px]">
                 {(p.items ?? []).map((it, i) => (
                   <Linea key={i} it={it} feedback={marcas.get(i) ?? null} />
                 ))}
               </MarcoDeTelefono>
-              {p.propuestas?.reglas.length ? (
-                <p className="text-[11px] text-muted-foreground">
-                  {t("admin.mejorasReglasAplicadas", { n: p.propuestas.reglas.filter((r) => r.aplicada).length, total: p.propuestas.reglas.length })}
-                </p>
+              {conFeedback ? (
+                <button
+                  type="button"
+                  disabled={trabajando !== null}
+                  onClick={async () => {
+                    const r = await accion("proponer-prueba", p.id);
+                    if (r?.propuestas) setPropuestasDe((prev) => ({ ...prev, [clave]: r.propuestas as Propuestas }));
+                  }}
+                  className="bg-primary text-primary-foreground inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-60"
+                >
+                  {trabajando === `proponer-prueba:${p.id}` ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                  {t("admin.mejorasProponer")}
+                </button>
               ) : null}
+              <Propuestas clave={clave} url={`/api/admin/mejoras/accion?que=aplicar-prueba&id=${p.id}`} propuestas={p.propuestas} />
             </article>
           );
         })}
@@ -212,34 +250,111 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
     );
   }
 
-  if (pestana === "feedback-real") {
-    if (data.feedback.length === 0) return <Muted>{t("admin.mejorasVacio")}</Muted>;
+  if (pestana === "reales") {
+    const lote = data.lotes[0] ?? null;
     return (
-      <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">{t("admin.mejorasDatosTapados")}</p>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {data.feedback.map((f) => (
-            <article key={f.id} className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                {etiquetaDeCanal(t, f.canal)} · {fecha(f.created_at)}
-              </p>
-              <MarcoDeTelefono titulo={titulo} alto="h-[340px]">
-                {(f.captura ?? []).map((it, i) => (
-                  <Linea
-                    key={i}
-                    it={it}
-                    feedback={i === (f.captura ?? []).length - 1 ? { voto: f.voto, nota: f.nota } : null}
-                  />
-                ))}
-              </MarcoDeTelefono>
-            </article>
-          ))}
-        </div>
+      <div className="space-y-4">
+        {data.feedback.length > 0 ? (
+          <button
+            type="button"
+            disabled={trabajando !== null}
+            onClick={async () => {
+              const r = await accion("proponer-real", id);
+              if (r?.sin_feedback) toast.success(t("admin.mejorasSinFeedbackNuevo"));
+              else if (r?.lote) {
+                const l = r.lote as { id: string; propuestas: Propuestas };
+                setPropuestasDe((prev) => ({ ...prev, "lote:ultimo": l.propuestas }));
+                reload();
+              }
+            }}
+            className="bg-primary text-primary-foreground inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-60"
+          >
+            {trabajando === `proponer-real:${id}` ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+            {t("admin.mejorasProponer")}
+          </button>
+        ) : null}
+        {lote ? <Propuestas clave="lote:ultimo" url={`/api/admin/mejoras/accion?que=aplicar-lote&id=${lote.id}`} propuestas={lote.propuestas} /> : null}
+        {data.feedback.length === 0 ? (
+          <Muted>{t("admin.mejorasVacio")}</Muted>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {data.feedback.map((f) => (
+              <article key={f.id} className="space-y-2">
+                <p className="text-muted-foreground text-xs">
+                  {etiquetaDeCanal(t, f.canal)} · {fecha(f.created_at)}
+                </p>
+                <MarcoDeTelefono titulo={titulo} alto="h-[340px]">
+                  {(f.captura ?? []).map((it, i) => (
+                    <Linea key={i} it={it} feedback={i === (f.captura ?? []).length - 1 ? { voto: f.voto, nota: f.nota } : null} />
+                  ))}
+                </MarcoDeTelefono>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
 
-  async function cambiar(pedido: PedidoPlataforma, estado: PedidoPlataforma["estado"]) {
+  if (pestana === "plantillas") {
+    if (data.cambios.length === 0) return <Muted>{t("admin.mejorasVacio")}</Muted>;
+    return (
+      <div className="space-y-4">
+        {data.cambios.map((c) => (
+          <article key={c.id} className="border-border space-y-3 rounded-xl border p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-foreground text-sm font-medium">
+                {c.plantilla_nombre}
+                <span className="text-muted-foreground font-normal"> · {fecha(c.created_at)}</span>
+              </span>
+              <StatusPill
+                tone={c.estado === "pendiente" ? "warn" : c.estado === "aprobado" ? "ok" : c.estado === "fallido" ? "error" : "muted"}
+                label={t(`admin.mejorasCambio_${c.estado}`)}
+              />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Burbuja titulo={t("admin.mejorasAntes")} texto={c.antes} />
+              <Burbuja titulo={t("admin.mejorasDespues")} texto={c.despues} resaltada />
+            </div>
+            {c.estado === "aprobado" && c.nueva_plantilla ? (
+              <p className="text-muted-foreground text-xs">{t("admin.mejorasNuevaPlantilla", { nombre: c.nueva_plantilla })}</p>
+            ) : null}
+            {c.estado === "fallido" && c.motivo ? <p className="text-destructive text-xs">{c.motivo}</p> : null}
+            {c.estado === "pendiente" ? (
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={trabajando !== null}
+                  onClick={async () => {
+                    if (await accion("descartar-cambio", c.id)) reload();
+                  }}
+                  className="text-muted-foreground hover:bg-muted inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs"
+                >
+                  <X className="size-3.5" />
+                  {t("admin.mejorasDescartar")}
+                </button>
+                <button
+                  type="button"
+                  disabled={trabajando !== null}
+                  onClick={async () => {
+                    const r = await accion("aprobar-cambio", c.id);
+                    if (r?.nueva) toast.success(t("admin.mejorasNuevaPlantilla", { nombre: String(r.nueva) }));
+                    reload();
+                  }}
+                  className="bg-primary text-primary-foreground inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium disabled:opacity-60"
+                >
+                  {trabajando === `aprobar-cambio:${c.id}` ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+                  {t("admin.mejorasAprobarCambio")}
+                </button>
+              </div>
+            ) : null}
+          </article>
+        ))}
+      </div>
+    );
+  }
+
+  async function cambiarPedido(pedido: PedidoPlataforma, estado: PedidoPlataforma["estado"]) {
     const res = await fetchWithCsrf("/api/admin/mejoras", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -253,63 +368,73 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
   return (
     <div className="space-y-3">
       {data.plataforma.map((p) => (
-        <Panel
-          key={p.id}
-          title={p.problema || "—"}
-          actions={
+        <article key={p.id} className="border-border space-y-2 rounded-xl border p-4">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-foreground text-sm">{p.problema || "—"}</p>
             <StatusPill
               tone={p.estado === "pendiente" ? "warn" : p.estado === "resuelta" ? "ok" : "muted"}
               label={t(`admin.mejorasEstado_${p.estado}`)}
             />
-          }
-        >
-          <div className="space-y-3 p-4">
-            <p className="text-[11px] text-muted-foreground">
-              {p.origen === "prueba" ? t("admin.mejorasPruebas") : t("admin.mejorasFeedbackReal")} · {fecha(p.created_at)}
-            </p>
-            <pre className="whitespace-pre-wrap rounded-lg bg-muted px-3 py-2 text-xs text-foreground">{p.prompt}</pre>
-            <div className="flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  void navigator.clipboard?.writeText(p.prompt).catch(() => {});
-                  toast.success(t("admin.mejorasCopiado"));
-                }}
-                className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"
-              >
-                <Copy className="size-3.5" />
-                {t("admin.mejorasCopiar")}
-              </button>
-              {p.estado === "pendiente" || p.estado === "en_curso" ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void cambiar(p, "descartada")}
-                    className="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted"
-                  >
-                    {t("admin.mejorasDescartar")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void cambiar(p, "resuelta")}
-                    className="rounded-md bg-primary px-2.5 py-1 text-xs text-primary-foreground"
-                  >
-                    {t("admin.mejorasResuelta")}
-                  </button>
-                </>
-              ) : (
+          </div>
+          <pre className="bg-muted text-foreground rounded-lg px-3 py-2 text-xs whitespace-pre-wrap">{p.prompt}</pre>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                void navigator.clipboard?.writeText(p.prompt).catch(() => {});
+                toast.success(t("admin.mejorasCopiado"));
+              }}
+              className="border-border hover:bg-muted inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs"
+            >
+              <Copy className="size-3.5" />
+              {t("admin.mejorasCopiar")}
+            </button>
+            {p.estado === "pendiente" || p.estado === "en_curso" ? (
+              <>
                 <button
                   type="button"
-                  onClick={() => void cambiar(p, "pendiente")}
-                  className="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted"
+                  onClick={() => void cambiarPedido(p, "descartada")}
+                  className="text-muted-foreground hover:bg-muted rounded-md px-2.5 py-1 text-xs"
                 >
-                  {t("admin.mejorasReabrir")}
+                  {t("admin.mejorasDescartar")}
                 </button>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => void cambiarPedido(p, "resuelta")}
+                  className="bg-primary text-primary-foreground inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs"
+                >
+                  <Check className="size-3.5" />
+                  {t("admin.mejorasResuelta")}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void cambiarPedido(p, "pendiente")}
+                className="text-muted-foreground hover:bg-muted rounded-md px-2.5 py-1 text-xs"
+              >
+                {t("admin.mejorasReabrir")}
+              </button>
+            )}
           </div>
-        </Panel>
+        </article>
       ))}
+    </div>
+  );
+}
+
+function Burbuja({ titulo, texto, resaltada }: { titulo: string; texto: string; resaltada?: boolean }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">{titulo}</p>
+      <div
+        className={cn(
+          "rounded-lg px-3 py-2 text-[13px] leading-snug whitespace-pre-wrap text-[#111b21]",
+          resaltada ? "bg-[#dcf8c6]" : "bg-white",
+        )}
+      >
+        {texto}
+      </div>
     </div>
   );
 }
