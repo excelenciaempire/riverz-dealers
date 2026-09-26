@@ -9,7 +9,7 @@
    - Las solicitudes se gestionan **solo por correo**, a **marcos.amado@dropi.co**, e incluyen: motivo, **lista exacta de endpoints requeridos** e **ID de la cuenta de Dropi**.
    - Sandbox, credenciales de desarrollo y rate limits los evalúa el área técnica de Marcos Amado tras recibir el correo.
    - El enlace que compartieron (linktr.ee/Dropi_Colombia) es de **Dropi Academy** — cursos y registro, sin documentación de API.
-3. **Pendiente:** enviar el correo de abajo. Falta un solo dato: el **ID de cuenta de Dropi**. Si aún no hay cuenta, se crea en app.dropi.co/auth/register y el ID sale del perfil de la cuenta.
+3. **Pendiente:** enviar el correo de abajo. Ya tiene el ID de cuenta de Dropi: **455408** (riverzoficial@gmail.com), leído del perfil de la sesión guardada el 2026-09-26.
 
 ---
 
@@ -60,7 +60,7 @@ Prioridad 2, para completar la operación:
 
 ID de la cuenta de Dropi
 
-[COMPLETAR ANTES DE ENVIAR]
+455408 (riverzoficial@gmail.com, Dropshipper, Colombia)
 
 Consultas técnicas
 
