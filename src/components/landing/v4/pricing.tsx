@@ -50,10 +50,10 @@ function VolumeLabel({
   );
 }
 
-/** Tocar el título alterna entre los planes por contactos y el plan con saldo. */
+/** Abre en el plan con saldo; doble clic en el título alterna con los planes por contactos. */
 export function Pricing({ tiers, balanceMonthly }: PublicPricing) {
   const t = useT();
-  const [balancePlan, setBalancePlan] = useState(false);
+  const [contactPlans, setContactPlans] = useState(false);
 
   return (
     <section
@@ -65,8 +65,8 @@ export function Pricing({ tiers, balanceMonthly }: PublicPricing) {
           <h2 className="sn-display mx-auto max-w-[14ch] text-center">
             <button
               type="button"
-              onClick={() => setBalancePlan((on) => !on)}
-              aria-pressed={balancePlan}
+              onDoubleClick={() => setContactPlans((on) => !on)}
+              aria-pressed={contactPlans}
               className="sn-pricing-switch"
             >
               {t('landingV4.pricingTitle')}
@@ -78,7 +78,7 @@ export function Pricing({ tiers, balanceMonthly }: PublicPricing) {
           <PricingCard
             tiers={tiers}
             balanceMonthly={balanceMonthly}
-            balancePlan={balancePlan}
+            balancePlan={!contactPlans}
           />
         </Rise>
       </div>

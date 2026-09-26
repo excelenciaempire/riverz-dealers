@@ -24,7 +24,7 @@ describe.each(['es', 'en'] as const)('pricing in %s', (locale) => {
       maximumFractionDigits: 2,
     });
 
-  it('opens on the contact plans, with the title as the switch', () => {
+  it('opens on the balance plan, with the title as the switch', () => {
     current.locale = locale;
     const html = renderToStaticMarkup(
       <Pricing tiers={PRICING_TIERS} balanceMonthly={399} />,
@@ -35,6 +35,20 @@ describe.each(['es', 'en'] as const)('pricing in %s', (locale) => {
         `<h2[^>]*><button[^>]*aria-pressed="false"[^>]*>${t('pricingTitle')}</button></h2>`,
       ),
     );
+    expect(html).not.toContain('type="range"');
+    expect(html).toContain(t('pricingBalancePlus'));
+  });
+
+  it('shows the contact plans with a per-contact price', () => {
+    current.locale = locale;
+    const html = renderToStaticMarkup(
+      <PricingCard
+        tiers={PRICING_TIERS}
+        balanceMonthly={399}
+        balancePlan={false}
+      />,
+    );
+
     expect(html).toContain('type="range"');
     expect(html).toContain(money(259));
     expect(html).toContain(money(399));
