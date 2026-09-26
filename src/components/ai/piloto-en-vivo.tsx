@@ -150,7 +150,11 @@ export function PilotoEnVivo() {
   const faltan = estado
     ? [
         !estado.motor_encendido ? t('assistant.pilotoMotorApagado') : null,
-        !estado.ia_habilitada ? t('assistant.pilotoIaPausada') : null,
+        !estado.ia_habilitada
+          ? estado.ia_motivo === 'sin_pagar'
+            ? t('assistant.pilotoSinPagarSinTecho')
+            : t('assistant.pilotoIaPausada')
+          : null,
         !estado.asistentes.some((a) => a.activo) ? t('assistant.pilotoSinAsistentes') : null,
         estado.automatizaciones_activas === 0 ? t('assistant.pilotoSinAutomatizaciones') : null,
       ].filter((x): x is string => Boolean(x))

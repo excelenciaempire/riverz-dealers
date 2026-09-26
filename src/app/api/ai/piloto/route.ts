@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { serverError } from '@/lib/api/errors';
 import { csrfGuard } from '@/lib/csrf';
-import { COLUMNAS_PILOTO, leerLimite, leerNumeros, type Piloto } from '@/lib/piloto';
+import { COLUMNAS_PILOTO, leerLimite, leerNumeros, pilotoConTecho, type Piloto } from '@/lib/piloto';
 import { puertaDeIa } from '@/lib/wallet/puerta';
 import { cuentaDeSesion } from '@/lib/workspaces/cuenta-de-sesion';
 
@@ -63,7 +63,8 @@ export async function GET() {
         motor_encendido: !cuenta?.motor_apagado_at && !cuenta?.suspended_at,
         // Con la operación encendida la IA igual puede estar callada: sin
         // pagar, sin saldo, con la suscripción vencida.
-        ia_habilitada: puerta.puede,
+        // Sin pagar, el piloto con techo corre igual (`wallet/puerta`).
+        ia_habilitada: puerta.puede || (puerta.motivo === 'sin_pagar' && pilotoConTecho(piloto as Piloto | null)),
         ia_motivo: puerta.puede ? null : (puerta.motivo ?? null),
         asistentes: ((agentes ?? []) as Array<{ name: string; is_active: boolean }>).map((a) => ({
           nombre: a.name,

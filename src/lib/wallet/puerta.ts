@@ -18,6 +18,7 @@
 import { acceso, leerSuscripcion, usaSaldo } from '@/lib/billing/plan';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { pilotoConTecho, pilotoVivo } from '@/lib/piloto';
 import { enPruebaSinPagar } from './prueba';
 import { leerBilletera, puedeGastar, type Billetera } from './saldo';
 
@@ -46,10 +47,13 @@ export async function puertaDeIa(
     ]);
 
     if (sus?.estado === 'cortesia') {
-      // Probar antes de pagar sí se puede (`wallet/prueba`); contestar en vivo no.
+      // Probar antes de pagar sí se puede (`wallet/prueba`), y el piloto en vivo
+      // también: con techo (números o límites) lo cubre Riverz, como la prueba.
+      // Contestar en vivo sin piloto, no.
+      const puede = enPruebaSinPagar() || pilotoConTecho(await pilotoVivo(db, workspaceId));
       return {
-        puede: enPruebaSinPagar(),
-        motivo: enPruebaSinPagar() ? null : 'sin_pagar',
+        puede,
+        motivo: puede ? null : 'sin_pagar',
         saldoCentavos: billetera.saldoCentavos,
       };
     }

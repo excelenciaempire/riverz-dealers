@@ -62,6 +62,23 @@ export async function pilotoVivo(db: SupabaseClient, workspaceId: string): Promi
   }
 }
 
+/**
+ * Un piloto con techo: sólo ciertos números o algún límite. Es el que puede
+ * correr en una cuenta que todavía no pagó (`wallet/puerta`): sin techo sería
+ * producción gratis.
+ */
+export function pilotoConTecho(
+  p: Pick<Piloto, 'solo_numeros' | 'limite_mensajes' | 'limite_comentarios' | 'limite_automatizaciones'> | null
+): boolean {
+  if (!p) return false;
+  return (
+    p.solo_numeros.length > 0 ||
+    p.limite_mensajes !== null ||
+    p.limite_comentarios !== null ||
+    p.limite_automatizaciones !== null
+  );
+}
+
 /** ¿Este teléfono está entre los habilitados? Compara en cualquier formato. */
 export function numeroHabilitado(piloto: Pick<Piloto, 'solo_numeros'>, telefono: string | null | undefined): boolean {
   if (piloto.solo_numeros.length === 0) return true;

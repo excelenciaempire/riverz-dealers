@@ -581,6 +581,10 @@ export const assistant = {
   pilotoMotor: { es: "La operación está encendida", en: "Operation is on" },
   pilotoCanales: { es: "Canales", en: "Channels" },
   pilotoTodos: { es: "Todos", en: "All" },
+  pilotoSinPagarSinTecho: {
+    es: "Sin pagar, el piloto necesita números o un límite",
+    en: "Without payment, the pilot needs numbers or a limit",
+  },
   pilotoNumerosPlaceholder: { es: "Todos. Uno por línea: +54 9 11 5555 5555", en: "Everyone. One per line: +54 9 11 5555 5555" },
   pilotoMotorApagado: { es: "La operación está apagada", en: "Operation is off" },
   pilotoSinAsistentes: { es: "No hay asistentes activos", en: "No active assistants" },
