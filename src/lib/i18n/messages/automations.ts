@@ -58,6 +58,7 @@ export const automations = {
   tableroCarrito: { es: "Carrito abandonado", en: "Abandoned cart" },
   tableroRechazado: { es: "Pago rechazado", en: "Payment declined" },
   tableroDespachado: { es: "Despachado", en: "Shipped" },
+  tableroRecompra: { es: "Después de la compra", en: "After the purchase" },
   tableroEntregado: { es: "Entregado", en: "Delivered" },
   tableroCancelado: { es: "Cancelado", en: "Cancelled" },
   tableroVacio: { es: "Nada se envía en esta situación.", en: "Nothing is sent in this situation." },

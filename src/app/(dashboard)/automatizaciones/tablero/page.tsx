@@ -47,6 +47,7 @@ const TITULO: Record<string, string> = {
   carrito: 'automations.tableroCarrito',
   rechazado: 'automations.tableroRechazado',
   despachado: 'automations.tableroDespachado',
+  recompra: 'automations.tableroRecompra',
   entregado: 'automations.tableroEntregado',
   cancelado: 'automations.tableroCancelado',
 };

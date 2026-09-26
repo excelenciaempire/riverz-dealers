@@ -158,12 +158,35 @@ export async function GET() {
     // total, el producto y, en la recompra, cuándo se le escribe. Va en una
     // sola columna y la oferta se elige adentro.
     const pagadas = simuladas.filter((c) => c.id.startsWith('pagado-'));
+    // Lo que arranca días después de la compra (el seguimiento y la recompra)
+    // va en su propia columna, después del despacho: el tablero se lee en el
+    // orden en que le pasan las cosas al cliente.
+    const agrupar = (id: string, filtro: (a: AutomacionSimulada) => boolean): Columna[] => {
+      if (!pagadas.length) return [];
+      const variantes = pagadas.map((c) => ({ oferta: c.oferta ?? '', automatizaciones: c.automatizaciones.filter(filtro) }));
+      return [
+        {
+          ...pagadas[0],
+          id,
+          oferta: null,
+          automatizaciones: variantes[0].automatizaciones,
+          ofertas: variantes.length > 1 ? variantes : undefined,
+        },
+      ];
+    };
+    const porId = (id: string) => simuladas.filter((c) => c.id === id);
     const columnas: Columna[] = [
-      ...(pagadas.length
-        ? [{ ...pagadas[0], id: 'pagado', oferta: null, ofertas: pagadas.length > 1 ? pagadas.map((c) => ({ oferta: c.oferta ?? '', automatizaciones: c.automatizaciones })) : undefined }]
-        : []),
-      ...simuladas.filter((c) => !c.id.startsWith('pagado-')),
-    ];
+      ...porId('carrito'),
+      ...porId('rechazado'),
+      ...porId('pendiente'),
+      ...agrupar('pagado', (a) => !empiezaDiasDespues(a)),
+      ...porId('contraentrega'),
+      ...porId('despachado'),
+      ...agrupar('recompra', empiezaDiasDespues),
+      ...porId('entregado'),
+      ...porId('cancelado'),
+      // Una situación en la que no sale nada no aporta a la reunión.
+    ].filter((c) => c.automatizaciones.length > 0 || (c.ofertas ?? []).some((o) => o.automatizaciones.length > 0));
     const todas = await plantillasDeLasAutomatizaciones(admin, workspaceId);
     return NextResponse.json(
       {
@@ -230,6 +253,15 @@ export async function DELETE(request: Request) {
 
 /** Lo que Meta todavía no revisó se puede reescribir; lo demás, no desde acá. */
 const EDITABLES = new Set(['draft', 'rejected']);
+
+/** ¿Su primer mensaje sale días después del disparo? (seguimiento, recompra) */
+function empiezaDiasDespues(a: AutomacionSimulada): boolean {
+  for (const p of a.pasos) {
+    if (p.tipo === 'espera') return p.unit === 'days' || p.unit === 'weeks' || p.unit === 'months';
+    if (p.tipo === 'plantilla' || p.tipo === 'mensaje' || p.tipo === 'llamada') return false;
+  }
+  return false;
+}
 
 /** ¿Le llega algo al cliente por este camino? */
 function envia(a: AutomacionSimulada): boolean {
