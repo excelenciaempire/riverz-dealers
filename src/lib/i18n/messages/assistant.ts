@@ -505,7 +505,6 @@ export const assistant = {
   probarPagoTarjeta: { es: "Tarjeta", en: "Card" },
   probarPagoPendiente: { es: "Pendiente de pago", en: "Payment pending" },
   probarPrimeroEspera: { es: "El primer mensaje sale en {n} {unit}", en: "The first message goes out in {n} {unit}" },
-  probarOferta: { es: "Oferta", en: "Offer" },
   probarEnviar: { es: "Enviar", en: "Send" },
   probarCompartir: { es: "Link de prueba", en: "Test link" },
   probarCompartirHint: {

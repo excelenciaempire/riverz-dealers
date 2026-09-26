@@ -625,16 +625,6 @@ export function ProbarComoCliente({
               </Select>
             </Campo>
           ) : null}
-          {esEvento && producto && producto.ofertas.length > 0 ? (
-            <Campo label={t('assistant.probarOferta')} className="col-span-2 sm:col-span-1">
-              <Select value={unidades} onValueChange={(v) => { setUnidades(v ?? ''); rehacer({ unidades: v ?? '' }); }}>
-                <SelectTrigger className="w-full"><SelectValue labels={etiquetasOferta} placeholder="—" /></SelectTrigger>
-                <SelectContent>
-                  {producto.ofertas.map((o) => <SelectItem key={o.units} value={String(o.units)}>{o.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Campo>
-          ) : null}
           {escenario === 'shopify_order_created' ? (
             <Campo label={t('assistant.probarPago')} className="col-span-2 sm:col-span-1">
               <Select value={pago} onValueChange={(v) => { if (v) { setPago(v as Pago); rehacer({ pago: v as Pago }); } }}>
