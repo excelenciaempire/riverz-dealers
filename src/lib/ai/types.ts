@@ -8,16 +8,21 @@ import type { AgentTools } from './toolbox';
  * El runner SIEMPRE espera al menos esto para agrupar ráfagas del cliente
  * (tres mensajes seguidos = una sola respuesta), así que valores menores
  * no hacen nada. La UI usa la misma constante para no ofrecer un "0" que
- * en realidad espera 8 segundos.
+ * en realidad espera más.
+ *
+ * Era 8. Con 5 la respuesta sale en 10 segundos la mayoría de las veces (la
+ * generación suma unos 5), que es lo que el comercio pidió: entre 5 y 15. La
+ * ráfaga de quien escribe lento la sigue cubriendo `esperaParaEsteTurno`,
+ * que alarga la espera según el ritmo de esa persona.
  */
-export const MIN_DEBOUNCE_SECONDS = 8;
+export const MIN_DEBOUNCE_SECONDS = 5;
 
 /**
  * Lo mismo, para el chat web.
  *
- * Los 8 segundos están calibrados para WhatsApp, donde nadie mira la pantalla
+ * La espera de WhatsApp está calibrada para WhatsApp, donde nadie mira la pantalla
  * esperando: la persona escribe, bloquea el teléfono y vuelve. En un chat
- * abierto en la web es al revés — se queda mirando el cursor, y ocho segundos
+ * abierto en la web es al revés — se queda mirando el cursor, y esos segundos
  * de nada parecen un widget roto. Dos alcanzan para agrupar la ráfaga de quien
  * manda tres frases seguidas, que es lo único que el debounce está evitando.
  *

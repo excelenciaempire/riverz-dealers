@@ -439,8 +439,8 @@ export const assistant = {
     en: "Choose at least one product to create the assistant.",
   },
   debounceRange: {
-    es: "La espera debe estar entre 0 y 60 segundos",
-    en: "The wait must be between 0 and 60 seconds",
+    es: "La espera debe estar entre 5 y 60 segundos",
+    en: "The wait must be between 5 and 60 seconds",
   },
   escalateNegative: {
     es: "El escalamiento no puede ser negativo",
