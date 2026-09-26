@@ -324,34 +324,24 @@ export function ProbarComoCliente({
     for (let i = 0; i < pasos.length; i++) {
       const p = pasos[i];
       if (p.tipo === 'plantilla' || p.tipo === 'mensaje') {
+        // El chat muestra lo que vive el cliente: el mensaje y sus botones.
+        // El nombre de la plantilla y su estado en Meta son del equipo y se
+        // ven en Plantillas y en el tablero, no acá.
         out.push({
           k: 'biz',
           texto: p.texto,
           botones: p.tipo === 'plantilla' ? p.botones : [],
-          nota: p.tipo === 'plantilla' ? p.nombre : undefined,
-          alerta:
-            p.tipo === 'plantilla' && p.vacias.length > 0
-              ? t('assistant.probarVariableVacia', { detalle: p.vacias.join(', ') })
-              : p.tipo === 'plantilla' && p.estado && p.estado.toLowerCase() !== 'approved'
-                ? t('assistant.probarPlantillaNoAprobada', { estado: p.estado })
-                : p.tipo === 'plantilla' && !p.estado
-                  ? t('assistant.probarPlantillaNoExiste')
-                  : undefined,
+          opinable: true,
           hora: ahora(),
         });
       } else if (p.tipo === 'espera') {
         return { items: out, pendiente: { auto, espera: { amount: p.amount, unit: p.unit }, resto: pasos.slice(i + 1) } };
       } else if (p.tipo === 'llamada') {
         out.push({ k: 'sys', icono: 'llamada', texto: t('assistant.probarLlamada', { agente: p.agente ?? '—' }) });
-      } else if (p.tipo === 'condicion') {
-        out.push({
-          k: 'sys',
-          texto: `${t('assistant.probarCondicion', {
-            desc: p.descripcion,
-            camino: p.camino === 'yes' ? t('assistant.probarCaminoSi') : t('assistant.probarCaminoNo'),
-          })}${p.asumido ? ` ${t('assistant.probarAsumido')}` : ''}`,
-        });
       }
+      // Las condiciones no se muestran: son la lógica por dentro, escrita como
+      // código («financial_status eq pending»). El chat ya muestra el camino
+      // que resulta de ellas, que es lo que vive el cliente.
     }
     return { items: out, pendiente: null };
   }
@@ -386,47 +376,28 @@ export function ProbarComoCliente({
       if (!res.ok) throw new Error(json.error ?? '');
       const autos = (json.automatizaciones ?? []) as AutomacionSimulada[];
       setAgenteAsignado(json.agente_asignado ?? null);
-      const avisos: Item[] = [];
-      if (json.whatsapp_conectado === false) avisos.push({ k: 'sys', icono: 'persona', texto: t('assistant.probarSinWhatsapp') });
-      if (json.plataforma === null) avisos.push({ k: 'sys', texto: t('assistant.probarSinTienda') });
       // En vivo `automation_context` sólo queda cuando la automatización
       // entrega la conversación a un asistente.
       const conEntrega = autos.find((a) => a.agente && !a.omitida);
       setContexto(conEntrega?.contexto ?? null);
-      if (autos.length === 0) {
-        setItems([...avisos, { k: 'sys', texto: t('assistant.probarSinAutomatizaciones') }]);
+      // El chat es lo que vive el cliente y nada más: sin el nombre de cada
+      // automatización, si está apagada, sus condiciones o por qué una no
+      // corre. Eso es del equipo y está en el tablero y en Automatizaciones;
+      // acá se leía como ruido y tapaba la conversación.
+      const envia = (a: AutomacionSimulada) =>
+        !a.omitida && a.pasos.some((p) => p.tipo === 'plantilla' || p.tipo === 'mensaje' || p.tipo === 'llamada');
+      if (!autos.some(envia)) {
+        setItems([{ k: 'sys', texto: t('assistant.probarSinAutomatizaciones') }]);
         return;
       }
-      const nuevos: Item[] = [...avisos];
+      const nuevos: Item[] = [];
       const pend: Pendiente[] = [];
       for (const auto of autos) {
-        if (auto.omitida) {
-          nuevos.push({ k: 'sys', texto: t('assistant.probarOmitida', { nombre: auto.nombre, motivo: motivoOmision(t, auto.omitida, json.plataforma ?? '') }) });
-          continue;
-        }
-        const cabecera = [
-          auto.nombre,
-          auto.ventana ? t('assistant.probarVentana', { ventana: auto.ventana }) : null,
-          auto.se_detiene_si_responde ? t('assistant.probarSeDetiene') : null,
-        ]
-          .filter(Boolean)
-          .join(' · ');
-        nuevos.push({ k: 'sys', texto: cabecera });
-        if (auto.apagada) nuevos.push({ k: 'sys', texto: t('assistant.probarAutomatizacionApagada') });
-        if (auto.armada && auto.armada.length > 0) {
-          nuevos.push({
-            k: 'sys',
-            texto: t('assistant.probarArmada', {
-              detalle: auto.armada.map((clave) => (clave.includes('.') ? t(clave) : clave)).join('; '),
-            }),
-          });
-        }
+        if (!envia(auto)) continue;
         const r = reproducir(auto, auto.pasos);
         nuevos.push(...r.items);
-        if (r.pendiente) {
-          pend.push(r.pendiente);
-          nuevos.push(...chipEspera(r.pendiente));
-        }
+        // La espera se ve como el botón «Pasaron N» debajo del chat.
+        if (r.pendiente) pend.push(r.pendiente);
       }
       setItems(nuevos);
       setPendientes(pend);
@@ -438,28 +409,15 @@ export function ProbarComoCliente({
     }
   }
 
-  function chipEspera(p: Pendiente): Item[] {
-    return [
-      {
-        k: 'sys',
-        icono: 'espera',
-        texto: t('assistant.probarSiNoRespondes', { n: p.espera.amount, unit: unidad(p.espera.unit, p.espera.amount) }),
-      },
-    ];
-  }
-
   /** "Pasaron N horas": sigue la automatización hasta la próxima espera. */
   function avanzar(p: Pendiente) {
     setPendientes((prev) => prev.filter((x) => x !== p));
     const r = reproducir(p.auto, p.resto);
     const nuevos: Item[] = [
-      { k: 'sys', icono: 'espera', texto: t('assistant.probarPasaron', { n: p.espera.amount, unit: unidad(p.espera.unit, p.espera.amount) }) },
+      { k: 'sys', icono: 'espera', texto: t('assistant.probarPasaron', { n: p.espera.amount, unit: unidad(t, p.espera.unit, p.espera.amount) }) },
       ...r.items,
     ];
-    if (r.pendiente) {
-      setPendientes((prev) => [...prev, r.pendiente as Pendiente]);
-      nuevos.push(...chipEspera(r.pendiente));
-    }
+    if (r.pendiente) setPendientes((prev) => [...prev, r.pendiente as Pendiente]);
     setItems((prev) => [...prev, ...nuevos]);
     recordar(nuevos);
   }
@@ -474,12 +432,7 @@ export function ProbarComoCliente({
     if (frenados.length > 0) {
       setPendientes((prev) => prev.filter((p) => !p.auto.se_detiene_si_responde));
     }
-    setItems((prev) => [
-      ...prev,
-      { k: 'me', texto, hora: ahora() },
-      ...(frenados.length > 0 ? [{ k: 'sys', texto: t('assistant.probarSeDetuvo') } as Item] : []),
-      { k: 'typing' },
-    ]);
+    setItems((prev) => [...prev, { k: 'me', texto, hora: ahora() }, { k: 'typing' }]);
     setMensaje('');
     setEnviando(true);
     try {
@@ -517,12 +470,11 @@ export function ProbarComoCliente({
             texto: t(c.oculto === 'spam' ? 'assistant.probarComentarioOcultoSpam' : 'assistant.probarComentarioOcultoCritica'),
           });
         } else {
-          const quien = agente ? ` · ${t('assistant.probarQuienContesta', { agente: agente.nombre })}` : '';
           if (c.publico) {
-            nuevos.push({ k: 'biz', texto: c.publico, botones: [], hora: ahora(), nota: `${t('assistant.probarComentarioPublico')}${quien}` });
+            nuevos.push({ k: 'biz', texto: c.publico, botones: [], hora: ahora(), nota: t('assistant.probarComentarioPublico'), opinable: true });
           }
           if (c.privado) {
-            nuevos.push({ k: 'biz', texto: c.privado, botones: [], hora: ahora(), nota: t('assistant.probarComentarioPrivado') });
+            nuevos.push({ k: 'biz', texto: c.privado, botones: [], hora: ahora(), nota: t('assistant.probarComentarioPrivado'), opinable: true });
           }
           if (c.escala) {
             const motivo =
@@ -558,18 +510,14 @@ export function ProbarComoCliente({
       }
       const chunks: string[] =
         Array.isArray(json.chunks) && json.chunks.length > 0 ? json.chunks : json.reply ? [json.reply] : [];
-      const herramientas = Array.isArray(json.herramientas)
-        ? (json.herramientas as unknown[]).map((h) => (typeof h === 'string' ? h : String((h as { name?: string })?.name ?? h)))
-        : [];
-      const quien = agente
-        ? `${t('assistant.probarQuienContesta', { agente: agente.nombre })} · ${motivoTexto(t, String(json.motivo ?? ''))}${herramientas.length ? ` · ${herramientas.join(', ')}` : ''}${agente.apagado ? ` · ${t('assistant.probarAgenteApagado')}` : ''}`
-        : json.motivo === 'asignado_inactivo'
-          ? t('assistant.probarAsignadoInactivo')
-          : t('assistant.probarSinAgente');
+      // Sin quién contestó, por qué ni qué herramientas usó: el cliente no lo
+      // ve. Sólo se avisa cuando nadie contestaría.
+      const sinRespuesta =
+        json.motivo === 'asignado_inactivo' ? t('assistant.probarAsignadoInactivo') : t('assistant.probarSinAgente');
       setItems((prev) => [
         ...prev.filter((i) => i.k !== 'typing'),
-        ...chunks.map((c, i): Item => ({ k: 'biz', texto: c, botones: [], hora: ahora(), nota: i === chunks.length - 1 ? quien : undefined })),
-        ...(chunks.length === 0 ? [{ k: 'sys', texto: quien } as Item] : []),
+        ...chunks.map((c, i): Item => ({ k: 'biz', texto: c, botones: [], hora: ahora(), opinable: i === chunks.length - 1 })),
+        ...(chunks.length === 0 ? [{ k: 'sys', texto: sinRespuesta } as Item] : []),
       ]);
       setHistorial((prev) => [...prev, { role: 'user', content: texto }, ...(chunks.length ? [{ role: 'assistant' as const, content: chunks.join('\n') }] : [])]);
       if (agente) setAgenteActual(agente);
@@ -594,7 +542,7 @@ export function ProbarComoCliente({
               </SelectContent>
             </Select>
           </Campo>
-          <Campo label={t('assistant.probarCanal')} hint={esEvento ? t('assistant.probarSoloWhatsapp') : undefined}>
+          <Campo label={t('assistant.probarCanal')}>
             <Select value={esEvento ? 'whatsapp' : canal} disabled={esEvento} onValueChange={(v) => { if (v) { setCanal(v as Channel); reiniciar(); } }}>
               <SelectTrigger className="w-full"><SelectValue labels={etiquetasCanal} /></SelectTrigger>
               <SelectContent>
@@ -687,7 +635,7 @@ export function ProbarComoCliente({
       <div ref={telefonoRef} className="scroll-mt-4 space-y-2">
         <MarcoDeTelefono
           titulo={nombreComercio || t('templates.yourBusiness')}
-          subtitulo={agenteActual ? agenteActual.nombre : t('assistant.probarEnLinea')}
+          subtitulo={t('assistant.probarEnLinea')}
           hiloRef={hiloRef}
           acciones={
             iniciado ? (
@@ -740,7 +688,7 @@ export function ProbarComoCliente({
                       className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[#008069] shadow-sm hover:bg-white/80 disabled:opacity-50"
                     >
                       <FastForward className="size-3.5" />
-                      {t('assistant.probarPasaron', { n: p.espera.amount, unit: unidad(p.espera.unit, p.espera.amount) })}
+                      {t('assistant.probarPasaron', { n: p.espera.amount, unit: unidad(t, p.espera.unit, p.espera.amount) })}
                     </button>
                   ))}
                 </div>
@@ -778,9 +726,6 @@ export function ProbarComoCliente({
               <div className="grid size-12 place-items-center rounded-full bg-white/80 text-[#54656f] shadow-sm">
                 <MessageSquareText className="size-5" />
               </div>
-              <p className="max-w-[240px] rounded-lg bg-white/80 px-3 py-2 text-[13px] text-[#54656f] shadow-sm">
-                {t('assistant.probarVacio')}
-              </p>
               <Button onClick={empezar} disabled={cargando} className="rounded-full bg-[#00a884] text-white hover:bg-[#029b78]">
                 {cargando ? <Loader2 className="size-4 animate-spin" /> : null}
                 {t('assistant.probarEmpezar')}
@@ -868,28 +813,6 @@ function barreraTexto(t: ReturnType<typeof useT>, b: { tipo: string; detalle: st
   return b.tipo;
 }
 
-/** Los motivos de la barrera de DeUNA, en palabras. */
-function motivoOmision(t: ReturnType<typeof useT>, motivo: string, plataforma: string): string {
-  if (motivo.startsWith('platform:')) {
-    return t('assistant.probarOmisionPlataforma', { tiendas: motivo.slice('platform:'.length), plataforma });
-  }
-  const claves: Record<string, string> = {
-    order_already_confirmed_or_paid: 'assistant.probarOmisionPagado',
-    order_already_in_fulfillment: 'assistant.probarOmisionDespachado',
-    order_cancelled_or_refunded: 'assistant.probarOmisionCancelado',
-    tracking_not_verified: 'assistant.probarOmisionSinGuia',
-    delivery_not_verified: 'assistant.probarOmisionSinEntrega',
-    cancellation_not_verified: 'assistant.probarOmisionSinCancelacion',
-  };
-  return claves[motivo] ? t(claves[motivo]) : motivo;
-}
-
-function motivoTexto(t: ReturnType<typeof useT>, motivo: string): string {
-  if (motivo === 'automatizacion') return t('assistant.probarMotivoAutomatizacion');
-  if (motivo === 'pegado') return t('assistant.probarMotivoPegado');
-  return t('assistant.probarMotivoEnrutamiento');
-}
-
 function ahora(): string {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -905,11 +828,13 @@ function nuevoId(): string {
   return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
 }
 
-function unidad(unit: string, n: number): string {
-  const una = n === 1;
-  if (unit === 'seconds') return una ? 'segundo' : 'segundos';
-  if (unit === 'minutes') return una ? 'minuto' : 'minutos';
-  if (unit === 'hours') return una ? 'hora' : 'horas';
-  if (unit === 'days') return una ? 'día' : 'días';
-  return unit;
+function unidad(t: ReturnType<typeof useT>, unit: string, n: number): string {
+  const claves: Record<string, [string, string]> = {
+    seconds: ['assistant.probarSegundo', 'assistant.probarSegundos'],
+    minutes: ['assistant.probarMinuto', 'assistant.probarMinutos'],
+    hours: ['assistant.probarHora', 'assistant.probarHoras'],
+    days: ['assistant.probarDia', 'assistant.probarDias'],
+  };
+  const par = claves[unit];
+  return par ? t(par[n === 1 ? 0 : 1]) : unit;
 }

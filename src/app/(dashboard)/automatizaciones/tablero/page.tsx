@@ -6,7 +6,6 @@ import { ArrowLeft, ExternalLink, Loader2, Pencil, Reply, Send } from 'lucide-re
 import Link from '@/components/i18n/locale-link';
 import { useLocale, useT } from '@/hooks/use-locale';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ai/chat-de-prueba';
 import type { AutomacionSimulada, PasoSimulado } from '@/lib/automations/simulacion';
@@ -70,6 +69,7 @@ export default function TableroDeMensajesPage() {
     producto: string;
     columnas: Columna[];
     plantillas: Record<string, Plantilla>;
+    borradores?: number;
   } | null>(null);
   const [conVariables, setConVariables] = useState(false);
 
@@ -94,9 +94,7 @@ export default function TableroDeMensajesPage() {
     return () => window.removeEventListener('focus', alVolver);
   }, [cargar]);
 
-  const borradores = Object.values(datos?.plantillas ?? {}).filter((p) =>
-    ['draft', 'rejected'].includes(String(p.status ?? '').toLowerCase())
-  ).length;
+  const borradores = datos?.borradores ?? 0;
   const [enviando, setEnviando] = useState(false);
 
   async function enviarAMeta() {
@@ -208,26 +206,12 @@ function Automatizacion({
   onGuardada: (p: Plantilla) => void;
 }) {
   const t = useT();
-  const estado = a.omitida ? null : a.apagada ? 'tableroBorrador' : a.armada ? 'tableroArmada' : 'tableroActiva';
   return (
     <div className="bg-card border-border space-y-2 rounded-xl border p-3">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Link href={`/automatizaciones/${a.id}/editar`} className="text-foreground inline-flex min-w-0 items-center gap-1 text-sm font-medium hover:underline">
-          <span className="truncate">{a.nombre}</span>
-          <ExternalLink className="size-3 shrink-0 opacity-60" />
-        </Link>
-        {estado ? (
-          <Badge variant={estado === 'tableroActiva' ? 'default' : 'outline'}>{t(`automations.${estado}`)}</Badge>
-        ) : null}
-      </div>
-      {a.omitida ? (
-        <p className="text-muted-foreground text-xs">{t('automations.tableroOmitida', { motivo: motivoDeOmision(t, a.omitida) })}</p>
-      ) : null}
-      {a.se_detiene_si_responde || a.ventana ? (
-        <p className="text-muted-foreground text-[11px]">
-          {[a.ventana, a.se_detiene_si_responde ? t('automations.tableroSeDetiene') : null].filter(Boolean).join(' · ')}
-        </p>
-      ) : null}
+      <Link href={`/automatizaciones/${a.id}/editar`} className="text-foreground inline-flex min-w-0 items-center gap-1 text-sm font-medium hover:underline">
+        <span className="truncate">{a.nombre}</span>
+        <ExternalLink className="size-3 shrink-0 opacity-60" />
+      </Link>
       <div
         className="space-y-1.5 rounded-lg px-2 py-2"
         style={{
@@ -258,9 +242,12 @@ function Paso({
 }) {
   const t = useT();
   if (p.tipo === 'espera') {
-    return <Chip texto={t('automations.tableroEspera', { n: p.amount, unit: unidad(p.unit, p.amount) })} icono="espera" />;
+    return <Chip texto={t('automations.tableroEspera', { n: p.amount, unit: unidad(t, p.unit, p.amount) })} icono="espera" />;
   }
-  if (p.tipo === 'condicion') return <Chip texto={t('automations.tableroSi', { desc: p.descripcion })} />;
+  // Las condiciones son la lógica por dentro: el cliente no las ve, y en la
+  // reunión se leían como código. El camino que muestra el tablero ya es el
+  // que resulta de ellas.
+  if (p.tipo === 'condicion') return null;
   if (p.tipo === 'llamada') return <Chip texto={t('automations.tableroLlamada', { agente: p.agente ?? '—' })} icono="llamada" />;
   if (p.tipo === 'mensaje') return <Burbuja texto={p.texto} />;
   if (p.tipo !== 'plantilla') return null;
@@ -349,13 +336,8 @@ function PasoPlantilla({
           ))}
         </div>
       ) : null}
-      {!editando ? (
-        <div className="mt-0.5 flex w-[92%] items-center justify-between gap-2">
-          <span className="truncate rounded bg-white/60 px-1.5 text-[10px] text-[#54656f]">
-            {p.nombre}
-            {plantilla?.status ? ` · ${plantilla.status}` : ''}
-          </span>
-          {editable ? (
+      {!editando && editable ? (
+        <div className="mt-0.5 flex w-[92%] justify-end">
             <button
               type="button"
               onClick={() => {
@@ -367,7 +349,6 @@ function PasoPlantilla({
               <Pencil className="size-3" />
               {t('automations.tableroEditar')}
             </button>
-          ) : null}
         </div>
       ) : null}
     </div>
@@ -396,27 +377,13 @@ function conNombres(locale: string, texto: string, campos: Record<string, string
   });
 }
 
-/** Los mismos motivos que muestra "Probar como cliente". */
-function motivoDeOmision(t: ReturnType<typeof useT>, motivo: string): string {
-  if (motivo.startsWith('platform:')) {
-    return t('assistant.probarOmisionPlataforma', { tiendas: motivo.slice('platform:'.length), plataforma: 'shopify' });
-  }
-  const claves: Record<string, string> = {
-    order_already_confirmed_or_paid: 'assistant.probarOmisionPagado',
-    order_already_in_fulfillment: 'assistant.probarOmisionDespachado',
-    order_cancelled_or_refunded: 'assistant.probarOmisionCancelado',
-    tracking_not_verified: 'assistant.probarOmisionSinGuia',
-    delivery_not_verified: 'assistant.probarOmisionSinEntrega',
-    cancellation_not_verified: 'assistant.probarOmisionSinCancelacion',
+function unidad(t: ReturnType<typeof useT>, unit: string, n: number): string {
+  const claves: Record<string, [string, string]> = {
+    seconds: ['assistant.probarSegundo', 'assistant.probarSegundos'],
+    minutes: ['assistant.probarMinuto', 'assistant.probarMinutos'],
+    hours: ['assistant.probarHora', 'assistant.probarHoras'],
+    days: ['assistant.probarDia', 'assistant.probarDias'],
   };
-  return claves[motivo] ? t(claves[motivo]) : motivo;
-}
-
-function unidad(unit: string, n: number): string {
-  const una = n === 1;
-  if (unit === 'seconds') return una ? 'segundo' : 'segundos';
-  if (unit === 'minutes') return una ? 'minuto' : 'minutos';
-  if (unit === 'hours') return una ? 'hora' : 'horas';
-  if (unit === 'days') return una ? 'día' : 'días';
-  return unit;
+  const par = claves[unit];
+  return par ? t(par[n === 1 ? 0 : 1]) : unit;
 }

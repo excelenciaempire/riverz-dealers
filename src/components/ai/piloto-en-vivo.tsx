@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils';
 
 interface EstadoDeLaCuenta {
   motor_encendido: boolean;
+  ia_habilitada: boolean;
+  ia_motivo: string | null;
   asistentes: Array<{ nombre: string; activo: boolean }>;
   automatizaciones_activas: number;
   canales: string[];
@@ -69,19 +71,22 @@ export function PilotoEnVivo() {
     void cargar();
   }, [cargar]);
 
+  const configuracion = () =>
+    JSON.stringify({
+      canales,
+      limite_mensajes: mensajes,
+      limite_comentarios: comentarios,
+      limite_automatizaciones: automatizaciones,
+      solo_numeros: numeros,
+    });
+
   async function guardar() {
     setGuardando(true);
     try {
       const res = await fetchWithCsrf('/api/ai/piloto', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          canales,
-          limite_mensajes: mensajes,
-          limite_comentarios: comentarios,
-          limite_automatizaciones: automatizaciones,
-          solo_numeros: numeros,
-        }),
+        body: configuracion(),
       });
       const json = (await res.json().catch(() => null)) as { piloto?: Piloto; error?: string } | null;
       if (!res.ok || !json?.piloto) throw new Error(json?.error ?? '');
@@ -94,9 +99,26 @@ export function PilotoEnVivo() {
     }
   }
 
+  /** Un solo paso para arrancar: guarda lo que está en pantalla y lo inicia. */
+  async function guardarEIniciar() {
+    if (!confirm(t('assistant.pilotoIniciarConfirm'))) return;
+    setGuardando(true);
+    try {
+      const res = await fetchWithCsrf('/api/ai/piloto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: configuracion(),
+      });
+      if (!res.ok) throw new Error('');
+      await accion('iniciar');
+    } catch {
+      toast.error(t('assistant.probarFallo'));
+      setGuardando(false);
+    }
+  }
+
   async function accion(a: 'iniciar' | 'produccion' | 'descartar') {
     if (a === 'produccion' && !confirm(t('assistant.pilotoProduccionConfirm'))) return;
-    if (a === 'iniciar' && !confirm(t('assistant.pilotoIniciarConfirm'))) return;
     setGuardando(true);
     try {
       const res = await fetchWithCsrf('/api/ai/piloto', {
@@ -126,7 +148,8 @@ export function PilotoEnVivo() {
 
   return (
     <div className="space-y-5">
-      {piloto ? (
+      {/* Un borrador es el formulario de abajo: la tarjeta es para ver cómo va. */}
+      {piloto && piloto.estado !== 'borrador' ? (
         <div
           className={cn(
             'space-y-3 rounded-xl border p-4',
@@ -159,31 +182,14 @@ export function PilotoEnVivo() {
               limite={piloto.limite_automatizaciones}
             />
           </div>
-          {piloto.solo_numeros.length ? (
-            <p className="text-muted-foreground text-xs">
-              {t('assistant.pilotoSoloNumeros', { numeros: piloto.solo_numeros.map((n) => `+${n}`).join(', ') })}
-            </p>
-          ) : null}
-          <div className="flex flex-wrap justify-end gap-2">
-            {piloto.estado === 'borrador' ? (
-              <>
-                <Button size="sm" variant="ghost" onClick={() => void accion('descartar')} disabled={guardando}>
-                  <X className="size-3.5" />
-                  {t('assistant.pilotoDescartar')}
-                </Button>
-                <Button size="sm" onClick={() => void accion('iniciar')} disabled={guardando}>
-                  <Play className="size-3.5" />
-                  {t('assistant.pilotoIniciar')}
-                </Button>
-              </>
-            ) : null}
-            {vivo ? (
+          {vivo ? (
+            <div className="flex justify-end">
               <Button size="sm" variant="outline" onClick={() => void accion('produccion')} disabled={guardando}>
                 <Check className="size-3.5" />
                 {t('assistant.pilotoProduccion')}
               </Button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -192,16 +198,21 @@ export function PilotoEnVivo() {
           <p className="text-foreground text-sm font-medium">{t('assistant.pilotoRequisitos')}</p>
           <Requisito ok={estado.motor_encendido} texto={t('assistant.pilotoMotor')} />
           <Requisito
+            ok={estado.ia_habilitada}
+            texto={estado.ia_habilitada ? t('assistant.pilotoIaHabilitada') : t('assistant.pilotoIaPausada')}
+          />
+          <Requisito
             ok={estado.asistentes.some((a) => a.activo)}
             texto={t('assistant.pilotoAsistentes', {
               activos: estado.asistentes.filter((a) => a.activo).map((a) => a.nombre).join(', ') || '—',
             })}
           />
           <Requisito ok={estado.automatizaciones_activas > 0} texto={t('assistant.pilotoAutomatizacionesActivas', { n: estado.automatizaciones_activas })} />
+          {!vivo ? <p className="text-muted-foreground pt-1 text-xs">{t('assistant.pilotoOrden')}</p> : null}
         </div>
       ) : null}
 
-      {editable || piloto?.estado === 'activo' || piloto?.estado === 'agotado' ? (
+      {editable || vivo ? (
         <form
           className="space-y-4"
           onSubmit={(e) => {
@@ -247,11 +258,23 @@ export function PilotoEnVivo() {
             />
             <p className="text-muted-foreground text-[11px]">{t('assistant.pilotoNumerosHint')}</p>
           </div>
-          <div className="flex justify-end">
+          <div className="flex flex-wrap justify-end gap-2">
+            {piloto?.estado === 'borrador' ? (
+              <Button type="button" variant="ghost" onClick={() => void accion('descartar')} disabled={guardando}>
+                <X className="size-4" />
+                {t('assistant.pilotoDescartar')}
+              </Button>
+            ) : null}
             <Button type="submit" variant="outline" disabled={guardando}>
               {guardando ? <Loader2 className="size-4 animate-spin" /> : null}
-              {t('assistant.pilotoGuardar')}
+              {vivo ? t('assistant.pilotoGuardarCambios') : t('assistant.pilotoGuardar')}
             </Button>
+            {!vivo ? (
+              <Button type="button" disabled={guardando} onClick={() => void guardarEIniciar()}>
+                <Play className="size-4" />
+                {t('assistant.pilotoIniciar')}
+              </Button>
+            ) : null}
           </div>
         </form>
       ) : null}

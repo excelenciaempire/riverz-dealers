@@ -76,7 +76,7 @@ export async function GET() {
       .select('title, price_min, allowed_offers')
       .eq('workspace_id', workspaceId)
       .is('master_id', null)
-      .order('created_at', { ascending: true })
+      .order('title', { ascending: true })
       .limit(1)
       .maybeSingle(),
     admin.from('ai_agents').select('medios_pago').eq('workspace_id', workspaceId).is('deleted_at', null),
@@ -134,28 +134,22 @@ export async function GET() {
     const columnas: Columna[] = await Promise.all(
       pedidos.map(async ({ pedido, ...col }) => {
         const r = await simularDisparo(admin, workspaceId, col.escenario, pedido);
-        return { ...col, automatizaciones: r.automatizaciones };
+        // En cada situación, sólo lo que le llega al cliente: una automatización
+        // que en ese camino no manda nada (el pago pendiente ante una compra ya
+        // pagada) no aporta a la reunión y se lee como si fuera a salir.
+        return { ...col, automatizaciones: r.automatizaciones.filter(envia) };
       })
     );
-    const nombres = new Set<string>();
-    for (const col of columnas) {
-      for (const a of col.automatizaciones) {
-        for (const p of a.pasos) if (p.tipo === 'plantilla') nombres.add(p.nombre);
-      }
-    }
-    const { data: plantillas } = nombres.size
-      ? await admin
-          .from('message_templates')
-          .select('id, name, status, category, body_text, variable_fields')
-          .eq('workspace_id', workspaceId)
-          .in('name', [...nombres])
-      : { data: [] };
+    const todas = await plantillasDeLasAutomatizaciones(admin, workspaceId);
     return NextResponse.json(
       {
         comercio: (ws as { name?: string | null } | null)?.name ?? null,
         producto: titulo,
         columnas,
-        plantillas: Object.fromEntries(((plantillas ?? []) as Array<{ name: string }>).map((p) => [p.name, p])),
+        plantillas: Object.fromEntries(todas.map((p) => [p.name, p])),
+        // Las mismas que manda "Enviar a Meta": todas las que usan las
+        // automatizaciones, no sólo las que aparecen con este pedido de ejemplo.
+        borradores: todas.filter((p) => EDITABLES.has(String(p.status ?? '').toLowerCase())).length,
       },
       { headers: { 'Cache-Control': 'no-store' } }
     );
@@ -166,6 +160,44 @@ export async function GET() {
 
 /** Lo que Meta todavía no revisó se puede reescribir; lo demás, no desde acá. */
 const EDITABLES = new Set(['draft', 'rejected']);
+
+/** ¿Le llega algo al cliente por este camino? */
+function envia(a: AutomacionSimulada): boolean {
+  return !a.omitida && a.pasos.some((p) => p.tipo === 'plantilla' || p.tipo === 'mensaje' || p.tipo === 'llamada');
+}
+
+/** Todas las plantillas que usan las automatizaciones del comercio. */
+async function plantillasDeLasAutomatizaciones(
+  admin: ReturnType<typeof supabaseAdmin>,
+  workspaceId: string
+): Promise<Array<BorradorGuardado & { status: string | null }>> {
+  const { data: autos } = await admin
+    .from('automations')
+    .select('id')
+    .eq('workspace_id', workspaceId)
+    .is('deleted_at', null);
+  const ids = ((autos ?? []) as Array<{ id: string }>).map((a) => a.id);
+  if (ids.length === 0) return [];
+  const { data: pasos } = await admin
+    .from('automation_steps')
+    .select('step_config')
+    .in('automation_id', ids)
+    .eq('step_type', 'send_template');
+  const nombres = [
+    ...new Set(
+      ((pasos ?? []) as Array<{ step_config: { template_name?: unknown } | null }>)
+        .map((p) => p.step_config?.template_name)
+        .filter((n): n is string => typeof n === 'string' && n.length > 0)
+    ),
+  ];
+  if (nombres.length === 0) return [];
+  const { data } = await admin
+    .from('message_templates')
+    .select(COLUMNAS_DE_BORRADOR)
+    .eq('workspace_id', workspaceId)
+    .in('name', nombres);
+  return (data ?? []) as Array<BorradorGuardado & { status: string | null }>;
+}
 
 /**
  * POST /api/automations/tablero → { enviadas, fallidas }
@@ -180,33 +212,10 @@ export async function POST(request: Request) {
   if ('error' in c) return c.error;
   const { admin, workspaceId, locale, userId } = c;
 
-  const { data: autos } = await admin
-    .from('automations')
-    .select('id')
-    .eq('workspace_id', workspaceId)
-    .is('deleted_at', null);
-  const ids = ((autos ?? []) as Array<{ id: string }>).map((a) => a.id);
-  const { data: pasos } = ids.length
-    ? await admin.from('automation_steps').select('step_config').in('automation_id', ids).eq('step_type', 'send_template')
-    : { data: [] };
-  const nombres = [
-    ...new Set(
-      ((pasos ?? []) as Array<{ step_config: { template_name?: unknown } | null }>)
-        .map((p) => p.step_config?.template_name)
-        .filter((n): n is string => typeof n === 'string' && n.length > 0)
-    ),
-  ];
-  if (nombres.length === 0) return NextResponse.json({ enviadas: [], fallidas: [] });
-  const { data: filas, error } = await admin
-    .from('message_templates')
-    .select(COLUMNAS_DE_BORRADOR)
-    .eq('workspace_id', workspaceId)
-    .in('name', nombres);
-  if (error) return serverError(error);
-
+  const filas = await plantillasDeLasAutomatizaciones(admin, workspaceId);
   const enviadas: string[] = [];
   const fallidas: Array<{ nombre: string; motivo: string }> = [];
-  for (const fila of (filas ?? []) as Array<BorradorGuardado & { status: string | null }>) {
+  for (const fila of filas) {
     if (!EDITABLES.has(String(fila.status ?? '').toLowerCase())) continue;
     const r = await enviarBorradorAMeta(admin, { workspaceId, userId, fila });
     if (r.ok) enviadas.push(r.name);

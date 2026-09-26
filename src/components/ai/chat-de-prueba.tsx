@@ -59,7 +59,16 @@ export const CANALES_DE_PRUEBA: Array<{ id: Channel; label: string }> = [
 
 /** Lo que se ve en el hilo. `biz` es lo que manda el comercio (automatización o asistente). */
 export type ItemChat =
-  | { k: 'biz'; texto: string; botones?: Array<{ text: string; type: string }>; nota?: string; alerta?: string; hora?: string }
+  | {
+      k: 'biz';
+      texto: string;
+      botones?: Array<{ text: string; type: string }>;
+      /** Sólo para comentarios: si la respuesta es pública o por privado. */
+      nota?: string;
+      /** Se puede marcar bien o mal: la respuesta entera, no cada burbuja. */
+      opinable?: boolean;
+      hora?: string;
+    }
   | { k: 'me'; texto: string; hora?: string }
   | { k: 'sys'; texto: string; icono?: 'espera' | 'llamada' | 'persona' }
   | { k: 'typing' };
@@ -120,7 +129,7 @@ export function MarcoDeTelefono({
         </div>
         <div
           ref={hiloRef}
-          className="flex-1 space-y-1.5 overflow-y-auto overscroll-contain px-3 py-3"
+          className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3"
           style={{
             backgroundColor: '#e5ddd5',
             backgroundImage: 'radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
@@ -239,9 +248,8 @@ export function Linea({
         </div>
       ) : null}
       {it.nota ? <p className="mt-0.5 max-w-[85%] rounded bg-white/60 px-1.5 text-[10px] text-[#54656f] sm:max-w-[82%]">{it.nota}</p> : null}
-      {it.alerta ? <p className="mt-0.5 max-w-[85%] rounded bg-white/70 px-1.5 text-[10px] text-[#d93025] sm:max-w-[82%]">{it.alerta}</p> : null}
-      {/* Se opina sobre la respuesta entera: la última burbuja, la que dice quién contestó. */}
-      {it.nota && (onFeedback || feedback) ? (
+      {/* Las pruebas guardadas antes de `opinable` marcaban la respuesta con la nota. */}
+      {(it.opinable || it.nota) && (onFeedback || feedback) ? (
         <Opinion marca={feedback ?? null} onCambio={onFeedback} />
       ) : null}
     </div>

@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import {
   ArrowLeft,
   Check,
-  Copy,
   Link2,
   Loader2,
   MessageSquareText,
@@ -273,8 +272,24 @@ function DetalleDePrueba({
   for (const f of sesion.feedback ?? []) {
     if (f.item !== null) porItem.set(f.item, { voto: f.voto, nota: f.nota });
   }
-  const generales = (sesion.feedback ?? []).filter((f) => f.item === null && f.nota);
+  const general = (sesion.feedback ?? []).find((f) => f.item === null)?.nota ?? '';
   const hayFeedback = (sesion.feedback ?? []).length > 0;
+
+  /** Marcar la prueba guardada: cada respuesta y la prueba entera. */
+  async function marcar(item: number | null, marca: MarcaDeFeedback) {
+    if (!sesion) return;
+    const at = new Date().toISOString();
+    const resto = (sesion.feedback ?? []).filter((f) => f.item !== item);
+    const feedback = marca.voto || marca.nota.trim() ? [...resto, { item, voto: marca.voto, nota: marca.nota.trim(), at }] : resto;
+    setSesion({ ...sesion, feedback });
+    const res = await fetchWithCsrf(`/api/ai/probar/sesiones/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback }),
+    }).catch(() => null);
+    if (!res?.ok) toast.error(t('assistant.probarFallo'));
+    else onCambio();
+  }
   const nombreDe = (agenteId: string | null) =>
     agenteId ? (agentes.find((a) => a.id === agenteId)?.name ?? '—') : t('assistant.pruebasTodosLosAsistentes');
 
@@ -301,17 +316,22 @@ function DetalleDePrueba({
 
       <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start">
         <div className="space-y-2">
-          {generales.map((f, i) => (
-            <p key={i} className="rounded-lg bg-[#fff5c4] px-3 py-2 text-xs whitespace-pre-wrap text-[#54656f]">
-              {f.nota}
-            </p>
-          ))}
+          <ComentarioGeneral
+            key={`${id}-${general}`}
+            inicial={general}
+            onGuardar={(nota) => void marcar(null, { voto: null, nota })}
+          />
           <MarcoDeTelefono
             titulo={nombreComercio || t('templates.yourBusiness')}
             alto="h-[60dvh] min-h-[360px] sm:h-[min(560px,64vh)]"
           >
             {sesion.items.map((it, i) => (
-              <Linea key={i} it={it} feedback={porItem.get(i) ?? null} />
+              <Linea
+                key={i}
+                it={it}
+                feedback={porItem.get(i) ?? null}
+                onFeedback={(m) => void marcar(i, m)}
+              />
             ))}
           </MarcoDeTelefono>
         </div>
@@ -324,11 +344,7 @@ function DetalleDePrueba({
               {sesion.propuestas ? t('assistant.pruebasProponerOtraVez') : t('assistant.pruebasProponer')}
             </Button>
           </div>
-          {!hayFeedback ? (
-            <p className="text-muted-foreground text-xs">{t('assistant.pruebasSinFeedback')}</p>
-          ) : proponiendo ? (
-            <p className="text-muted-foreground text-xs">{t('assistant.pruebasAnalizando')}</p>
-          ) : null}
+          {!hayFeedback ? <p className="text-muted-foreground text-xs">{t('assistant.pruebasSinFeedback')}</p> : null}
           {sesion.propuestas?.reglas.map((r, i) => (
             <TarjetaDeRegla
               key={`${i}-${sesion.propuestas?.generadas_at ?? ''}`}
@@ -340,31 +356,33 @@ function DetalleDePrueba({
             />
           ))}
           {sesion.propuestas?.plataforma.map((p, i) => (
-            <div key={i} className="border-border space-y-2 rounded-xl border p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <Badge variant="secondary">{t('assistant.pruebasParaPlataforma')}</Badge>
-                  <p className="text-foreground mt-1.5 text-sm">{p.problema}</p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0"
-                  onClick={() => {
-                    void navigator.clipboard?.writeText(p.prompt).catch(() => {});
-                    toast.success(t('assistant.pruebasPromptCopiado'));
-                  }}
-                >
-                  <Copy className="size-3.5" />
-                  {t('assistant.pruebasCopiarPrompt')}
-                </Button>
-              </div>
-              <p className="bg-muted text-muted-foreground rounded-lg px-3 py-2 text-xs whitespace-pre-wrap">{p.prompt}</p>
+            <div key={i} className="border-border space-y-1.5 rounded-xl border p-3">
+              <Badge variant="secondary">{t('assistant.pruebasParaPlataforma')}</Badge>
+              <p className="text-foreground text-sm">{p.problema}</p>
             </div>
           ))}
         </div>
       </div>
     </div>
+  );
+}
+
+/** Lo que opina quien revisa sobre la prueba entera: tono, largo, datos, pasos. */
+function ComentarioGeneral({ inicial, onGuardar }: { inicial: string; onGuardar: (nota: string) => void }) {
+  const t = useT();
+  const [nota, setNota] = useState(inicial);
+  return (
+    <Textarea
+      value={nota}
+      rows={2}
+      maxLength={1000}
+      onChange={(e) => setNota(e.target.value)}
+      onBlur={() => {
+        if (nota.trim() !== inicial.trim()) onGuardar(nota);
+      }}
+      placeholder={t('assistant.pruebasComentarioPlaceholder')}
+      className="min-h-0 bg-[#fff5c4]/60 text-sm"
+    />
   );
 }
 

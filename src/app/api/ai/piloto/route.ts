@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { serverError } from '@/lib/api/errors';
 import { csrfGuard } from '@/lib/csrf';
 import { COLUMNAS_PILOTO, leerLimite, leerNumeros, type Piloto } from '@/lib/piloto';
+import { puertaDeIa } from '@/lib/wallet/puerta';
 import { cuentaDeSesion } from '@/lib/workspaces/cuenta-de-sesion';
 
 /**
@@ -54,11 +55,16 @@ export async function GET() {
     admin.from('channel_connections').select('channel').eq('workspace_id', workspaceId).eq('status', 'connected'),
   ]);
   const cuenta = ws as { motor_apagado_at?: string | null; suspended_at?: string | null } | null;
+  const puerta = await puertaDeIa(admin, workspaceId);
   return NextResponse.json(
     {
       piloto: (piloto as Piloto | null) ?? null,
       estado: {
         motor_encendido: !cuenta?.motor_apagado_at && !cuenta?.suspended_at,
+        // Con la operación encendida la IA igual puede estar callada: sin
+        // pagar, sin saldo, con la suscripción vencida.
+        ia_habilitada: puerta.puede,
+        ia_motivo: puerta.puede ? null : (puerta.motivo ?? null),
         asistentes: ((agentes ?? []) as Array<{ name: string; is_active: boolean }>).map((a) => ({
           nombre: a.name,
           activo: a.is_active,

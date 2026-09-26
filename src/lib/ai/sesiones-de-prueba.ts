@@ -12,7 +12,7 @@
  */
 
 export type ItemGuardado =
-  | { k: 'biz'; texto: string; nota?: string; alerta?: string; hora?: string; botones?: Array<{ text: string; type: string }> }
+  | { k: 'biz'; texto: string; nota?: string; opinable?: boolean; hora?: string; botones?: Array<{ text: string; type: string }> }
   | { k: 'me'; texto: string; hora?: string }
   | { k: 'sys'; texto: string; icono?: 'espera' | 'llamada' | 'persona' };
 
@@ -78,7 +78,7 @@ export function limpiarItems(v: unknown): ItemGuardado[] {
         k: 'biz',
         texto: texto(i.texto, MAX_TEXTO),
         ...(i.nota ? { nota: texto(i.nota, 400) } : {}),
-        ...(i.alerta ? { alerta: texto(i.alerta, 400) } : {}),
+        ...(i.opinable === true ? { opinable: true } : {}),
         hora: texto(i.hora, 8),
         ...(botones.length ? { botones } : {}),
       });
