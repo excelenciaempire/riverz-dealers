@@ -7,6 +7,7 @@ import Link from '@/components/i18n/locale-link';
 import { useLocale, useT } from '@/hooks/use-locale';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Chip } from '@/components/ai/chat-de-prueba';
 import type { AutomacionSimulada, PasoSimulado } from '@/lib/automations/simulacion';
 import { cn } from '@/lib/utils';
@@ -96,9 +97,12 @@ export default function TableroDeMensajesPage() {
 
   const borradores = datos?.borradores ?? 0;
   const [enviando, setEnviando] = useState(false);
+  // Confirmación en la página: el confirm() nativo no aparece en todos los
+  // navegadores embebidos y el botón parecía no hacer nada.
+  const [confirmando, setConfirmando] = useState(false);
 
   async function enviarAMeta() {
-    if (!confirm(t('automations.tableroEnviarConfirm', { n: borradores }))) return;
+    setConfirmando(false);
     setEnviando(true);
     try {
       const res = await fetchWithCsrf('/api/automations/tablero', { method: 'POST' });
@@ -120,6 +124,23 @@ export default function TableroDeMensajesPage() {
 
   return (
     <div className="space-y-5">
+      <Dialog open={confirmando} onOpenChange={setConfirmando}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('automations.tableroEnviar', { n: borradores })}</DialogTitle>
+            <DialogDescription>{t('automations.tableroEnviarConfirm', { n: borradores })}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmando(false)}>
+              {t('automations.tableroCancelar')}
+            </Button>
+            <Button onClick={() => void enviarAMeta()}>
+              <Send className="size-4" />
+              {t('automations.tableroEnviar', { n: borradores })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0 space-y-1">
           <Link href="/automatizaciones" className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs">
@@ -131,7 +152,7 @@ export default function TableroDeMensajesPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {borradores > 0 ? (
-            <Button onClick={() => void enviarAMeta()} disabled={enviando}>
+            <Button onClick={() => setConfirmando(true)} disabled={enviando}>
               {enviando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
               {t('automations.tableroEnviar', { n: borradores })}
             </Button>
