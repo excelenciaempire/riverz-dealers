@@ -80,7 +80,7 @@ interface ResultadoComentario {
   espera_aprobacion: boolean;
 }
 
-type Pago = 'cod' | 'pendiente' | 'transferencia' | 'mercadopago' | 'tarjeta';
+type Pago = 'cod' | 'pendiente' | 'mercadopago' | 'tarjeta';
 
 type Agente = { id: string; nombre: string; role?: string; apagado?: boolean } | null;
 
@@ -111,9 +111,8 @@ export function ProbarComoCliente({
   const [productoId, setProductoId] = useState('');
   /** La oferta elegida (unidades), si el producto tiene ofertas. */
   const [unidades, setUnidades] = useState('');
-  /** Sin contra entrega no se ofrece simular un pedido contra entrega; sin transferencia, tampoco. */
+  /** Sin contra entrega no se ofrece simular un pedido contra entrega. */
   const [aceptaContraentrega, setAceptaContraentrega] = useState(false);
-  const [aceptaTransferencia, setAceptaTransferencia] = useState(false);
   const [nombreComercio, setNombreComercio] = useState<string | null>(nombreInicial ?? null);
   const [telefonoEjemplo, setTelefonoEjemplo] = useState('');
   const [link, setLink] = useState<string | null>(null);
@@ -162,7 +161,6 @@ export function ProbarComoCliente({
           setUnidades((prev) => prev || (lista[0].ofertas[0] ? String(lista[0].ofertas[0].units) : ''));
         }
         setAceptaContraentrega(j.acepta_contraentrega === true);
-        setAceptaTransferencia(Array.isArray(j.medios_pago) && j.medios_pago.includes('transferencia'));
         if (j.acepta_contraentrega === true) setPago('cod');
         if (typeof j.comercio === 'string' && j.comercio) setNombreComercio(j.comercio);
         if (typeof j.telefono_ejemplo === 'string') setTelefonoEjemplo(j.telefono_ejemplo);
@@ -228,7 +226,6 @@ export function ProbarComoCliente({
     ...(aceptaContraentrega ? { cod: t('assistant.probarPagoCod') } : {}),
     mercadopago: 'Mercado Pago',
     tarjeta: t('assistant.probarPagoTarjeta'),
-    ...(aceptaTransferencia ? { transferencia: t('assistant.probarPagoTransferencia') } : {}),
     pendiente: t('assistant.probarPagoPendiente'),
   };
 
@@ -364,7 +361,12 @@ export function ProbarComoCliente({
     return { items: out, pendiente: null };
   }
 
-  async function empezar() {
+  /** Con la prueba en curso, cambiar producto, oferta o pago la vuelve a correr. */
+  function rehacer(cambio: Partial<{ productoId: string; unidades: string; pago: Pago }>) {
+    if (iniciado && esEvento) void empezar(cambio);
+  }
+
+  async function empezar(cambio: Partial<{ productoId: string; unidades: string; pago: Pago }> = {}) {
     reiniciar();
     setIniciado(true);
     setSesionId(nuevoId());
@@ -383,9 +385,9 @@ export function ProbarComoCliente({
           token,
           escenario,
           channel: canal,
-          product_id: productoId || undefined,
-          unidades: Number(unidades) || undefined,
-          pago,
+          product_id: (cambio.productoId ?? productoId) || undefined,
+          unidades: Number(cambio.unidades ?? unidades) || undefined,
+          pago: cambio.pago ?? pago,
           guia,
           simulated_phone: telefono || undefined,
         }),
@@ -416,6 +418,18 @@ export function ProbarComoCliente({
         nuevos.push(...r.items);
         // La espera se ve como el botón «Pasaron N» debajo del chat.
         if (r.pendiente) pend.push(r.pendiente);
+      }
+      // Si todo arranca con una espera, el chat vacío parecía roto: se dice
+      // cuándo sale el primer mensaje.
+      if (nuevos.length === 0 && pend[0]) {
+        nuevos.push({
+          k: 'sys',
+          icono: 'espera',
+          texto: t('assistant.probarPrimeroEspera', {
+            n: pend[0].espera.amount,
+            unit: unidad(t, pend[0].espera.unit, pend[0].espera.amount),
+          }),
+        });
       }
       setItems(nuevos);
       setPendientes(pend);
@@ -598,8 +612,10 @@ export function ProbarComoCliente({
                 value={productoId}
                 onValueChange={(v) => {
                   const p = productos.find((x) => x.id === v);
+                  const u = p?.ofertas[0] ? String(p.ofertas[0].units) : '';
                   setProductoId(v ?? '');
-                  setUnidades(p?.ofertas[0] ? String(p.ofertas[0].units) : '');
+                  setUnidades(u);
+                  rehacer({ productoId: v ?? '', unidades: u });
                 }}
               >
                 <SelectTrigger className="w-full"><SelectValue labels={etiquetasProducto} placeholder="—" /></SelectTrigger>
@@ -611,7 +627,7 @@ export function ProbarComoCliente({
           ) : null}
           {esEvento && producto && producto.ofertas.length > 0 ? (
             <Campo label={t('assistant.probarOferta')} className="col-span-2 sm:col-span-1">
-              <Select value={unidades} onValueChange={(v) => setUnidades(v ?? '')}>
+              <Select value={unidades} onValueChange={(v) => { setUnidades(v ?? ''); rehacer({ unidades: v ?? '' }); }}>
                 <SelectTrigger className="w-full"><SelectValue labels={etiquetasOferta} placeholder="—" /></SelectTrigger>
                 <SelectContent>
                   {producto.ofertas.map((o) => <SelectItem key={o.units} value={String(o.units)}>{o.label}</SelectItem>)}
@@ -621,7 +637,7 @@ export function ProbarComoCliente({
           ) : null}
           {escenario === 'shopify_order_created' ? (
             <Campo label={t('assistant.probarPago')} className="col-span-2 sm:col-span-1">
-              <Select value={pago} onValueChange={(v) => { if (v) setPago(v as Pago); }}>
+              <Select value={pago} onValueChange={(v) => { if (v) { setPago(v as Pago); rehacer({ pago: v as Pago }); } }}>
                 <SelectTrigger className="w-full"><SelectValue labels={etiquetasPago} /></SelectTrigger>
                 <SelectContent>
                   {(Object.keys(etiquetasPago) as Pago[]).map((p) => <SelectItem key={p} value={p}>{etiquetasPago[p]}</SelectItem>)}
@@ -737,7 +753,7 @@ export function ProbarComoCliente({
               <div className="grid size-12 place-items-center rounded-full bg-white/80 text-[#54656f] shadow-sm">
                 <MessageSquareText className="size-5" />
               </div>
-              <Button onClick={empezar} disabled={cargando} className="rounded-full bg-[#00a884] text-white hover:bg-[#029b78]">
+              <Button onClick={() => void empezar()} disabled={cargando} className="rounded-full bg-[#00a884] text-white hover:bg-[#029b78]">
                 {cargando ? <Loader2 className="size-4 animate-spin" /> : null}
                 {t('assistant.probarEmpezar')}
               </Button>
