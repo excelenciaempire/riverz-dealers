@@ -47,11 +47,31 @@ export function recortarSalida(texto: string, tope: number): string {
     cabe.lastIndexOf('. '),
     cabe.lastIndexOf('! '),
     cabe.lastIndexOf('? '),
+    cabe.lastIndexOf('.\n'),
+    cabe.lastIndexOf('!\n'),
+    cabe.lastIndexOf('?\n'),
   );
   if (frase > tope * 0.5) return cabe.slice(0, frase + 1).trim();
+  const renglon = cabe.lastIndexOf('\n');
+  if (renglon > tope * 0.5) return cabe.slice(0, renglon).trim();
   const espacio = cabe.lastIndexOf(' ');
   const corte = espacio > tope * 0.5 ? espacio : tope - 1;
   return `${cabe.slice(0, corte).trimEnd()}…`;
+}
+
+/**
+ * El largo de un mensaje de chat, sin cortarlo a la mitad.
+ *
+ * `max_response_chars` es el largo que se le PIDE al modelo, no un tope para
+ * cortar. Cortarlo a secas mandó "desde la semana 8 empiezan a…" a clientes
+ * (2026-09-26): el modelo se pasó unas palabras y la idea quedó por la mitad,
+ * que es peor que un mensaje un poco más largo. Un chat no tiene el límite de
+ * un comentario, así que el mensaje pasa entero hasta el doble de lo pedido;
+ * sólo uno desbocado se recorta, y en la última frase completa.
+ */
+export function largoDeChat(texto: string, pedido: number | null | undefined): string {
+  const tope = Math.max(400, (pedido || 500) * 2);
+  return recortarSalida(texto, tope);
 }
 
 /**

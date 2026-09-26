@@ -15,6 +15,7 @@ import { estiloHumano, humanizarTexto } from './estilo-humano';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { cargarReglas, reglasATexto } from './guidance';
 import { resolveAnthropicKey } from './platform-key';
+import { largoDeChat } from './salida';
 import {
   RIOPLATENSE_TEXTO,
   resolverRegistro,
@@ -387,9 +388,7 @@ export async function runFollowUp(
     // Marcado antes de recortar y de guardar: lo que se envía y lo que queda
     // en el hilo tienen que ser el mismo texto.
     const finalText = await prepararTextoParaCanal(db, {
-      texto: humanizarTexto(text)
-        .slice(0, agent.max_response_chars || 500)
-        .trim(),
+      texto: largoDeChat(humanizarTexto(text), agent.max_response_chars),
       canal: conversation.channel,
       workspaceId: agent.workspace_id,
       contactId: contact.id,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { recortarSalida, salidaParaCliente } from './salida'
+import { largoDeChat, recortarSalida, salidaParaCliente } from './salida'
 
 /**
  * El 2026-08-28 se publicó debajo de una foto de Instagram "El serum vale
@@ -48,6 +48,23 @@ describe('recortarSalida', () => {
     expect(recortarSalida('Sí, sirve para el cuello. También para el escote.', 30)).toBe(
       'Sí, sirve para el cuello.',
     )
+  })
+})
+
+describe('largoDeChat', () => {
+  // Lo que llegó a un cliente el 2026-09-26: cortado en 450 caracteres a secas.
+  const largo =
+    'Es un tratamiento que pide constancia: la primera semana se prepara el cuero cabelludo, desde la semana 8 empiezan a aparecer los primeros pelitos y hacia el mes 4 se ve el cambio. '.repeat(3)
+
+  it('no corta un mensaje que se pasó un poco de lo pedido', () => {
+    expect(largo.trim().length).toBeGreaterThan(450)
+    expect(largoDeChat(largo, 450)).toBe(largo.trim())
+  })
+
+  it('a uno desbocado lo recorta en una frase completa, sin puntos suspensivos', () => {
+    const salida = largoDeChat(largo.repeat(3), 450)
+    expect(salida.length).toBeLessThanOrEqual(900)
+    expect(salida.endsWith('cambio.')).toBe(true)
   })
 })
 

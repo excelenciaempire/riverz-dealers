@@ -137,7 +137,7 @@ import {
 import { esperaParaEsteTurno } from './ritmo-de-escritura';
 import type { AgentRole } from './roles';
 import { pickByRole, ROLE_BEHAVIOR, roleForInbound } from './roles';
-import { prometeAveriguar } from './salida';
+import { largoDeChat, prometeAveriguar } from './salida';
 import { respuestaDeRespaldoParaSaludo } from './saludo-fallback';
 import {
   summarizeContactIfNeeded,
@@ -3112,10 +3112,7 @@ export async function guardasDeSalida(
     verificada = reescrita;
   }
   return {
-    texto:
-      verificada.length > agent.max_response_chars
-        ? verificada.slice(0, agent.max_response_chars).trimEnd() + '…'
-        : verificada,
+    texto: largoDeChat(verificada, agent.max_response_chars),
     sinProducto: false,
   };
 }

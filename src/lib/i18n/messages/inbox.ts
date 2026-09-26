@@ -305,6 +305,10 @@ export const inbox = {
     es: "{channel} no entrega este mensaje · ábrelo en la app",
     en: "{channel} doesn't deliver this message · open it in the app",
   },
+  historyMediaMissing: {
+    es: "Archivo de antes de conectar {channel}: no vino en el historial · ábrelo en la app",
+    en: "File from before {channel} was connected: not included in the history · open it in the app",
+  },
   writeOnWhatsapp: {
     es: "Escribir a {phone} por WhatsApp",
     en: "Message {phone} on WhatsApp",

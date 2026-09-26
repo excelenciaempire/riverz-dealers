@@ -142,6 +142,14 @@ export function isUnsupportedSnippet(text?: string | null): boolean {
   return /^\[unsupported(\]$| media\]$| message type)/i.test(text.trim());
 }
 
+/** Un archivo del historial importado de la app de WhatsApp Business: Meta
+ *  manda el mensaje con un marcador y el archivo aparte, sólo para los de las
+ *  dos semanas previas a conectar. El que no llegó nunca va a llegar; no es un
+ *  mensaje en vivo perdido, y la burbuja lo dice así. */
+export function isHistoryMediaPlaceholder(text?: string | null): boolean {
+  return (text ?? "").trim().startsWith("[unsupported message type: media_placeholder]");
+}
+
 /** Caso concreto de lo anterior: Meta avisó `is_unsupported` — la persona SÍ
  *  mandó algo (nota de voz, GIF, contenido de una cuenta privada) pero la
  *  plataforma no lo entrega ni por webhook ni por Graph. La burbuja lo dice

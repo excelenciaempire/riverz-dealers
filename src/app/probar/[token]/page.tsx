@@ -39,8 +39,8 @@ export default function ProbarCompartidoPage({ params }: { params: Promise<{ tok
 
   return (
     <CsrfProvider>
-      <main className="bg-background min-h-screen px-4 py-6 sm:py-10">
-        <div className="mx-auto max-w-5xl space-y-6">
+      <main className="bg-background min-h-dvh px-3 py-4 sm:px-4 sm:py-10">
+        <div className="mx-auto max-w-5xl space-y-4 sm:space-y-6">
           {estado === 'cargando' ? (
             <div className="flex justify-center py-24">
               <Loader2 className="text-muted-foreground size-5 animate-spin" />
@@ -50,10 +50,10 @@ export default function ProbarCompartidoPage({ params }: { params: Promise<{ tok
           ) : (
             <>
               <header className="space-y-1">
-                <h1 className="text-foreground text-xl font-semibold">
+                <h1 className="text-foreground text-lg font-semibold sm:text-xl">
                   {t('assistant.probarPaginaTitulo', { comercio: comercio ?? '' })}
                 </h1>
-                <p className="text-muted-foreground text-sm">{t('assistant.probarHint')}</p>
+                <p className="text-muted-foreground text-xs sm:text-sm">{t('assistant.probarHint')}</p>
               </header>
               <ProbarComoCliente token={token} nombreComercio={comercio} />
             </>

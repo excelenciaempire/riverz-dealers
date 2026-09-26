@@ -1,6 +1,6 @@
 import { containsEscalationKeyword } from '@/lib/ai/business-hours';
 import { detectarEscalada } from '@/lib/ai/escalada';
-import { verificarTokenDePrueba } from '@/lib/ai/prueba-compartida';
+import { cuentaDeLaPrueba } from '@/lib/ai/cuenta-de-prueba';
 import { aiTestGuard } from '@/lib/ai/rate-limit';
 import { detectInboundProduct, pickAgent } from '@/lib/ai/runner';
 import {
@@ -25,10 +25,8 @@ import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { agruparPorPrincipal, type FilaAgrupable } from '@/lib/products/agrupar';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
-import { createClient } from '@/lib/supabase/server';
 import { probandoSinPagar } from '@/lib/wallet/prueba';
 import { isOptInKeyword, isOptOutKeyword } from '@/lib/whatsapp/opt-out';
-import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { NextResponse } from 'next/server';
 
 /**
@@ -70,29 +68,6 @@ import { NextResponse } from 'next/server';
 export function POST(request: Request) {
   // Se prueba igual antes de pagar el link: ver `wallet/prueba`.
   return probandoSinPagar(() => probar(request));
-}
-
-/**
- * De qué cuenta es la prueba: la del link compartido, si viene uno, o la de
- * quien tiene la sesión abierta.
- */
-async function cuentaDeLaPrueba(
-  admin: ReturnType<typeof supabaseAdmin>,
-  token: unknown
-): Promise<{ workspaceId: string | null; compartida: boolean; conSesion: boolean }> {
-  if (token != null && token !== '') {
-    return { workspaceId: verificarTokenDePrueba(token), compartida: true, conSesion: false };
-  }
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { workspaceId: null, compartida: false, conSesion: false };
-  return {
-    workspaceId: await resolveWorkspaceIdForUser(admin, user.id),
-    compartida: false,
-    conSesion: true,
-  };
 }
 
 /**

@@ -3,18 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  Check,
-  CheckCheck,
   ExternalLink,
   FastForward,
   Link2,
   Loader2,
   MessageSquareText,
-  Phone,
-  Reply,
+  NotebookPen,
   RotateCcw,
   Send,
-  UserRound,
+  Sparkles,
 } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -27,7 +24,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import {
+  BotonDeTelefono,
+  CANALES_DE_PRUEBA,
+  Chip,
+  ESCENARIOS_DE_PRUEBA,
+  Linea,
+  MarcoDeTelefono,
+  type EscenarioDePrueba,
+  type ItemChat,
+  type MarcaDeFeedback,
+} from '@/components/ai/chat-de-prueba';
 import type { AutomacionSimulada, PasoSimulado } from '@/lib/automations/simulacion';
 import type { Channel } from '@/types';
 
@@ -46,38 +53,10 @@ import type { Channel } from '@/types';
  * El tiempo es simulado a propósito: una espera de 21 horas no se puede
  * probar esperando 21 horas. Responder frena los recordatorios cuando la
  * automatización dice que se detiene al recibir respuesta, igual que en vivo.
+ *
+ * Cada prueba —de Empezar a Reiniciar— se guarda como un chat, con lo que
+ * quien probaba marcó en cada respuesta (`lib/ai/sesiones-de-prueba`).
  */
-
-type Escenario =
-  | 'mensaje'
-  | 'shopify_order_created'
-  | 'shopify_abandoned_checkout'
-  | 'shopify_order_fulfilled'
-  | 'shopify_order_delivered'
-  | 'shopify_order_cancelled'
-  | 'payment_rejected';
-
-const ESCENARIOS: Array<{ id: Escenario; key: string }> = [
-  { id: 'mensaje', key: 'assistant.probarEscMensaje' },
-  { id: 'shopify_order_created', key: 'assistant.probarEscPedido' },
-  { id: 'shopify_abandoned_checkout', key: 'assistant.probarEscCarrito' },
-  { id: 'payment_rejected', key: 'assistant.probarEscPagoRechazado' },
-  { id: 'shopify_order_fulfilled', key: 'assistant.probarEscDespachado' },
-  { id: 'shopify_order_delivered', key: 'assistant.probarEscEntregado' },
-  { id: 'shopify_order_cancelled', key: 'assistant.probarEscCancelado' },
-];
-
-/** `label` es el nombre de la marca tal cual, o una clave i18n (`assistant.`). */
-const CANALES: Array<{ id: Channel; label: string }> = [
-  { id: 'whatsapp', label: 'WhatsApp' },
-  { id: 'instagram', label: 'Instagram' },
-  { id: 'messenger', label: 'Messenger' },
-  { id: 'ig_comment', label: 'assistant.channelIgComments' },
-  { id: 'fb_comment', label: 'assistant.channelFbComments' },
-  { id: 'mercadolibre', label: 'Mercado Libre' },
-  { id: 'gmail', label: 'Gmail' },
-  { id: 'webchat', label: 'assistant.channelWebchat' },
-];
 
 /** Por qué en vivo un comentario no se contestaría, en palabras. */
 const MOTIVO_COMENTARIO: Record<string, string> = {
@@ -107,12 +86,7 @@ type Pago = 'cod' | 'pendiente' | 'mercadopago' | 'tarjeta';
 
 type Agente = { id: string; nombre: string; role?: string; apagado?: boolean } | null;
 
-/** Lo que se ve en el hilo. `biz` es lo que manda el comercio (automatización o asistente). */
-type Item =
-  | { k: 'biz'; texto: string; botones: Array<{ text: string; type: string }>; nota?: string; alerta?: string; hora: string }
-  | { k: 'me'; texto: string; hora: string }
-  | { k: 'sys'; texto: string; icono?: 'espera' | 'llamada' | 'persona' }
-  | { k: 'typing' };
+type Item = ItemChat;
 
 /** Una automatización a medio recorrer: lo que falta después de una espera. */
 interface Pendiente {
@@ -124,15 +98,18 @@ interface Pendiente {
 export function ProbarComoCliente({
   nombreComercio: nombreInicial,
   token,
+  onRevisar,
 }: {
   nombreComercio?: string | null;
   /** El link compartido: se prueba sin sesión, sin elegir teléfono y sin
    *  poder generar otro link. */
   token?: string;
+  /** Abre la prueba guardada para convertir el feedback en mejoras. */
+  onRevisar?: (sesionId: string) => void;
 }) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
-  const [escenario, setEscenario] = useState<Escenario>('shopify_order_created');
+  const [escenario, setEscenario] = useState<EscenarioDePrueba>('shopify_order_created');
   const [canal, setCanal] = useState<Channel>('whatsapp');
   /** Una opción por oferta del producto (`id|unidades`), o el producto solo. */
   const [productos, setProductos] = useState<Array<{ id: string; title: string }>>([]);
@@ -158,7 +135,17 @@ export function ProbarComoCliente({
   const [historial, setHistorial] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [mensaje, setMensaje] = useState('');
   const [enviando, setEnviando] = useState(false);
-  const finRef = useRef<HTMLDivElement | null>(null);
+
+  /** La prueba en curso, como chat guardado. Nace al empezar y muere al reiniciar. */
+  const [sesionId, setSesionId] = useState<string | null>(null);
+  /** Lo que se marcó en cada respuesta, por posición en `items`. */
+  const [marcas, setMarcas] = useState<Record<number, MarcaDeFeedback>>({});
+  const [comentario, setComentario] = useState('');
+  const [verComentario, setVerComentario] = useState(false);
+  const [revisando, setRevisando] = useState(false);
+  const guardado = useRef('');
+  const hiloRef = useRef<HTMLDivElement | null>(null);
+  const telefonoRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     fetch(`/api/ai/probar${token ? `?token=${encodeURIComponent(token)}` : ''}`, { cache: 'no-store' })
@@ -194,18 +181,21 @@ export function ProbarComoCliente({
     }
   }
 
+  // Se baja el hilo, no la página: en el celular, bajar la página escondía
+  // los controles cada vez que llegaba un mensaje.
   useEffect(() => {
-    finRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    const el = hiloRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [items]);
 
   const esEvento = escenario !== 'mensaje';
   const etiquetasEscenario = useMemo(
-    () => Object.fromEntries(ESCENARIOS.map((e) => [e.id, t(e.key)])),
+    () => Object.fromEntries(ESCENARIOS_DE_PRUEBA.map((e) => [e.id, t(e.key)])),
     [t]
   );
   const etiquetaDeCanal = (label: string) => (label.startsWith('assistant.') ? t(label) : label);
   const etiquetasCanal = useMemo(
-    () => Object.fromEntries(CANALES.map((c) => [c.id, c.label.startsWith('assistant.') ? t(c.label) : c.label])),
+    () => Object.fromEntries(CANALES_DE_PRUEBA.map((c) => [c.id, c.label.startsWith('assistant.') ? t(c.label) : c.label])),
     [t]
   );
   const etiquetasProducto = useMemo(
@@ -219,7 +209,74 @@ export function ProbarComoCliente({
     pendiente: t('assistant.probarPagoPendiente'),
   };
 
+  // ── Guardar la prueba ──
+
+  function paquete(id: string, its: Item[], ms: Record<number, MarcaDeFeedback>, com: string) {
+    // "Escribiendo…" sólo va al final del hilo, así que sacarlo no corre las
+    // posiciones de las marcas.
+    const limpios = its.filter((i) => i.k !== 'typing');
+    const at = new Date().toISOString();
+    const feedback = [
+      ...Object.entries(ms)
+        .filter(([, m]) => m.voto || m.nota.trim())
+        .map(([i, m]) => ({ item: Number(i), voto: m.voto, nota: m.nota.trim(), at })),
+      ...(com.trim() ? [{ item: null, voto: null, nota: com.trim(), at }] : []),
+    ];
+    return {
+      token,
+      id,
+      escenario,
+      canal: esEvento ? 'whatsapp' : canal,
+      detalle: {
+        producto: esEvento ? (etiquetasProducto[productoId] ?? null) : null,
+        pago: escenario === 'shopify_order_created' ? pago : null,
+      },
+      items: limpios,
+      feedback,
+    };
+  }
+
+  async function mandarSesion(cuerpo: string): Promise<boolean> {
+    try {
+      const res = await fetchWithCsrf('/api/ai/probar/sesiones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: cuerpo,
+      });
+      if (res.ok) guardado.current = cuerpo;
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  // Sin apuro y sin avisar: guardar la prueba no puede interrumpirla.
+  useEffect(() => {
+    if (!sesionId || items.some((i) => i.k === 'typing')) return;
+    const p = paquete(sesionId, items, marcas, comentario);
+    if (p.items.length === 0 && p.feedback.length === 0) return;
+    const cuerpo = JSON.stringify(p);
+    if (cuerpo === guardado.current) return;
+    const espera = setTimeout(() => void mandarSesion(cuerpo), 900);
+    return () => clearTimeout(espera);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesionId, items, marcas, comentario]);
+
+  /** Lo último que falte guardar, ya. */
+  async function guardarYa(): Promise<void> {
+    if (!sesionId) return;
+    const p = paquete(sesionId, items, marcas, comentario);
+    if (p.items.length === 0 && p.feedback.length === 0) return;
+    const cuerpo = JSON.stringify(p);
+    if (cuerpo !== guardado.current) await mandarSesion(cuerpo);
+  }
+
   function reiniciar() {
+    void guardarYa();
+    setSesionId(null);
+    setMarcas({});
+    setComentario('');
+    setVerComentario(false);
     setIniciado(false);
     setItems([]);
     setPendientes([]);
@@ -228,6 +285,17 @@ export function ProbarComoCliente({
     setContexto(null);
     setHistorial([]);
   }
+
+  async function revisar() {
+    if (!sesionId || !onRevisar) return;
+    setRevisando(true);
+    await guardarYa();
+    setRevisando(false);
+    onRevisar(sesionId);
+  }
+
+  const hayFeedback =
+    comentario.trim().length > 0 || Object.values(marcas).some((m) => m.voto || m.nota.trim());
 
   /** Las plantillas que ya le llegaron al cliente son parte del hilo que el asistente ve. */
   function recordar(items: Item[]) {
@@ -276,6 +344,12 @@ export function ProbarComoCliente({
   async function empezar() {
     reiniciar();
     setIniciado(true);
+    setSesionId(nuevoId());
+    // En el celular los controles van arriba del teléfono: al empezar, el
+    // chat queda a la vista.
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      telefonoRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
     if (!esEvento) return;
     setCargando(true);
     try {
@@ -379,6 +453,7 @@ export function ProbarComoCliente({
     const texto = (textoCrudo ?? mensaje).trim();
     if (!texto || enviando) return;
     if (!iniciado) setIniciado(true);
+    if (!sesionId) setSesionId(nuevoId());
     // Responder frena los recordatorios que se detienen al recibir respuesta.
     const frenados = pendientes.filter((p) => p.auto.se_detiene_si_responde);
     if (frenados.length > 0) {
@@ -491,18 +566,16 @@ export function ProbarComoCliente({
     }
   }
 
-  const inicial = (nombreComercio ?? 'R').trim().charAt(0).toUpperCase() || 'R';
-
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-6">
       {/* ── Qué pasa ── */}
-      <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
+      <div className="min-w-0 space-y-4">
+        <div className="grid grid-cols-2 gap-3">
           <Campo label={t('assistant.probarEscenario')}>
-            <Select value={escenario} onValueChange={(v) => { if (v) { setEscenario(v as Escenario); reiniciar(); } }}>
+            <Select value={escenario} onValueChange={(v) => { if (v) { setEscenario(v as EscenarioDePrueba); reiniciar(); } }}>
               <SelectTrigger className="w-full"><SelectValue labels={etiquetasEscenario} /></SelectTrigger>
               <SelectContent>
-                {ESCENARIOS.map((e) => <SelectItem key={e.id} value={e.id}>{t(e.key)}</SelectItem>)}
+                {ESCENARIOS_DE_PRUEBA.map((e) => <SelectItem key={e.id} value={e.id}>{t(e.key)}</SelectItem>)}
               </SelectContent>
             </Select>
           </Campo>
@@ -510,12 +583,12 @@ export function ProbarComoCliente({
             <Select value={esEvento ? 'whatsapp' : canal} disabled={esEvento} onValueChange={(v) => { if (v) { setCanal(v as Channel); reiniciar(); } }}>
               <SelectTrigger className="w-full"><SelectValue labels={etiquetasCanal} /></SelectTrigger>
               <SelectContent>
-                {CANALES.map((c) => <SelectItem key={c.id} value={c.id}>{etiquetaDeCanal(c.label)}</SelectItem>)}
+                {CANALES_DE_PRUEBA.map((c) => <SelectItem key={c.id} value={c.id}>{etiquetaDeCanal(c.label)}</SelectItem>)}
               </SelectContent>
             </Select>
           </Campo>
           {esEvento ? (
-            <Campo label={t('assistant.probarProducto')}>
+            <Campo label={t('assistant.probarProducto')} className="col-span-2 sm:col-span-1">
               <Select value={productoId} disabled={productos.length === 0} onValueChange={(v) => setProductoId(v ?? '')}>
                 <SelectTrigger className="w-full"><SelectValue labels={etiquetasProducto} placeholder="—" /></SelectTrigger>
                 <SelectContent>
@@ -525,7 +598,7 @@ export function ProbarComoCliente({
             </Campo>
           ) : null}
           {escenario === 'shopify_order_created' ? (
-            <Campo label={t('assistant.probarPago')}>
+            <Campo label={t('assistant.probarPago')} className="col-span-2 sm:col-span-1">
               <Select value={pago} onValueChange={(v) => { if (v) setPago(v as Pago); }}>
                 <SelectTrigger className="w-full"><SelectValue labels={etiquetasPago} /></SelectTrigger>
                 <SelectContent>
@@ -535,32 +608,32 @@ export function ProbarComoCliente({
             </Campo>
           ) : null}
           {escenario === 'shopify_order_fulfilled' ? (
-            <Campo label={t('assistant.probarGuia')} hint={t('assistant.probarGuiaHint')}>
-              <Input value={guia} onChange={(e) => setGuia(e.target.value)} placeholder="360003112209570" />
+            <Campo label={t('assistant.probarGuia')} hint={t('assistant.probarGuiaHint')} className="col-span-2 sm:col-span-1">
+              <Input value={guia} onChange={(e) => setGuia(e.target.value)} placeholder="360003112209570" className="text-base sm:text-sm" />
             </Campo>
           ) : null}
           {!token ? (
-            <Campo label={t('assistant.probarTelefono')} hint={t('assistant.probarTelefonoHint')}>
-              <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder={telefonoEjemplo || '+57 300 000 0000'} inputMode="tel" />
+            <Campo label={t('assistant.probarTelefono')} hint={t('assistant.probarTelefonoHint')} className="col-span-2 sm:col-span-1">
+              <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder={telefonoEjemplo || '+57 300 000 0000'} inputMode="tel" className="text-base sm:text-sm" />
             </Campo>
           ) : null}
         </div>
 
         {!token ? (
-          <div className="border-border space-y-2 rounded-xl border p-4">
-            <div className="flex items-center justify-between gap-3">
+          <div className="border-border space-y-3 rounded-xl border p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="text-foreground text-sm font-medium">{t('assistant.probarCompartir')}</p>
                 <p className="text-muted-foreground text-xs">{t('assistant.probarCompartirHint')}</p>
               </div>
-              <Button size="sm" variant="outline" onClick={() => void compartir()} disabled={generandoLink}>
+              <Button size="sm" variant="outline" onClick={() => void compartir()} disabled={generandoLink} className="shrink-0 self-start sm:self-auto">
                 {generandoLink ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
                 {t('assistant.probarCopiarLink')}
               </Button>
             </div>
             {link ? (
               <div className="flex items-center gap-2">
-                <Input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="text-xs" />
+                <Input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="min-w-0 text-xs" />
                 <a
                   href={link}
                   target="_blank"
@@ -577,189 +650,151 @@ export function ProbarComoCliente({
       </div>
 
       {/* ── El chat, como el teléfono del cliente ── */}
-      <div className="mx-auto w-full max-w-[380px]">
-        <div className="overflow-hidden rounded-[2.25rem] border-[7px] border-foreground/90 bg-[#0b141a] shadow-2xl">
-          <div className="flex h-[min(640px,72vh)] min-h-[460px] flex-col">
-            <div className="flex items-center gap-2.5 bg-[#075e54] px-3 py-2.5">
-              <div className="grid size-8 shrink-0 place-items-center rounded-full bg-white/20 text-sm font-semibold text-white">
-                {inicial}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-white">{nombreComercio || t('templates.yourBusiness')}</p>
-                <p className="truncate text-[11px] text-white/75">
-                  {agenteActual ? agenteActual.nombre : t('assistant.probarEnLinea')}
-                </p>
-              </div>
-              {iniciado ? (
-                <button
-                  type="button"
-                  onClick={reiniciar}
-                  aria-label={t('assistant.probarReiniciar')}
-                  title={t('assistant.probarReiniciar')}
-                  className="grid size-8 place-items-center rounded-full text-white/85 hover:bg-white/10"
+      <div ref={telefonoRef} className="scroll-mt-4 space-y-2">
+        <MarcoDeTelefono
+          titulo={nombreComercio || t('templates.yourBusiness')}
+          subtitulo={agenteActual ? agenteActual.nombre : t('assistant.probarEnLinea')}
+          hiloRef={hiloRef}
+          acciones={
+            iniciado ? (
+              <>
+                <BotonDeTelefono
+                  etiqueta={t('assistant.pruebasComentarioGeneral')}
+                  onClick={() => setVerComentario((v) => !v)}
+                  marcado={comentario.trim().length > 0}
                 >
+                  <NotebookPen className="size-4" />
+                </BotonDeTelefono>
+                <BotonDeTelefono etiqueta={t('assistant.probarReiniciar')} onClick={reiniciar}>
                   <RotateCcw className="size-4" />
-                </button>
-              ) : null}
-            </div>
-
-            <div
-              className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3"
-              style={{
-                backgroundColor: '#e5ddd5',
-                backgroundImage: 'radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
-                backgroundSize: '14px 14px',
-              }}
-            >
-              {!iniciado ? (
-                <div className="flex h-full flex-col items-center justify-center gap-4 px-4 text-center">
-                  <div className="grid size-12 place-items-center rounded-full bg-white/80 text-[#54656f] shadow-sm">
-                    <MessageSquareText className="size-5" />
+                </BotonDeTelefono>
+              </>
+            ) : null
+          }
+          pie={
+            <>
+              {verComentario ? (
+                <div className="space-y-1.5 bg-[#fff5c4] px-3 py-2">
+                  <textarea
+                    value={comentario}
+                    rows={3}
+                    maxLength={1000}
+                    autoFocus
+                    onChange={(e) => setComentario(e.target.value)}
+                    placeholder={t('assistant.pruebasComentarioPlaceholder')}
+                    className="w-full resize-none rounded-md bg-white px-2.5 py-2 text-base text-[#111b21] outline-none placeholder:text-[#8696a0] sm:text-[13px]"
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setVerComentario(false)}
+                      className="rounded-full px-3 py-1 text-xs font-medium text-[#008069] hover:bg-white/60"
+                    >
+                      {t('assistant.pruebasListo')}
+                    </button>
                   </div>
-                  <p className="max-w-[240px] rounded-lg bg-white/80 px-3 py-2 text-[13px] text-[#54656f] shadow-sm">
-                    {t('assistant.probarVacio')}
-                  </p>
-                  <Button onClick={empezar} disabled={cargando} className="rounded-full bg-[#00a884] text-white hover:bg-[#029b78]">
-                    {cargando ? <Loader2 className="size-4 animate-spin" /> : null}
-                    {t('assistant.probarEmpezar')}
-                  </Button>
                 </div>
               ) : null}
-              {iniciado && !cargando ? <Chip texto={t('assistant.probarHoy')} /> : null}
-              {cargando ? (
-                <div className="flex justify-center py-6"><Loader2 className="size-5 animate-spin text-[#54656f]" /></div>
+              {pendientes.length > 0 ? (
+                <div className="flex flex-wrap items-center justify-center gap-2 bg-[#f0f2f5] px-3 py-2">
+                  {pendientes.map((p, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => avanzar(p)}
+                      disabled={enviando}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[#008069] shadow-sm hover:bg-white/80 disabled:opacity-50"
+                    >
+                      <FastForward className="size-3.5" />
+                      {t('assistant.probarPasaron', { n: p.espera.amount, unit: unidad(p.espera.unit, p.espera.amount) })}
+                    </button>
+                  ))}
+                </div>
               ) : null}
-              {items.map((it, i) => (
-                <Linea key={i} it={it} onBoton={(texto) => void enviar(texto)} />
-              ))}
-              <div ref={finRef} />
-            </div>
-
-            {pendientes.length > 0 ? (
-              <div className="flex flex-wrap items-center justify-center gap-2 bg-[#f0f2f5] px-3 py-2">
-                {pendientes.map((p, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => avanzar(p)}
-                    disabled={enviando}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[#008069] shadow-sm hover:bg-white/80 disabled:opacity-50"
-                  >
-                    <FastForward className="size-3.5" />
-                    {t('assistant.probarPasaron', { n: p.espera.amount, unit: unidad(p.espera.unit, p.espera.amount) })}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2 bg-[#f0f2f5] px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+                <input
+                  value={mensaje}
+                  onChange={(e) => setMensaje(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      void enviar();
+                    }
+                  }}
+                  placeholder={t('assistant.probarEscribi')}
+                  disabled={enviando || cargando}
+                  enterKeyHint="send"
+                  className="h-10 min-w-0 flex-1 rounded-full bg-white px-4 text-base text-[#111b21] outline-none placeholder:text-[#8696a0] disabled:opacity-60 sm:text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => void enviar()}
+                  disabled={enviando || cargando || !mensaje.trim()}
+                  aria-label={t('assistant.probarEnviar')}
+                  className="grid size-10 shrink-0 place-items-center rounded-full bg-[#00a884] text-white hover:bg-[#029b78] disabled:opacity-50"
+                >
+                  <Send className="size-4" />
+                </button>
               </div>
-            ) : null}
-
-            <div className="flex items-center gap-2 bg-[#f0f2f5] px-2 py-2">
-              <input
-                value={mensaje}
-                onChange={(e) => setMensaje(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    void enviar();
-                  }
-                }}
-                placeholder={t('assistant.probarEscribi')}
-                disabled={enviando || cargando}
-                className="h-10 min-w-0 flex-1 rounded-full bg-white px-4 text-sm text-[#111b21] outline-none placeholder:text-[#8696a0] disabled:opacity-60"
-              />
-              <button
-                type="button"
-                onClick={() => void enviar()}
-                disabled={enviando || cargando || !mensaje.trim()}
-                aria-label={t('assistant.probarEnviar')}
-                className="grid size-10 shrink-0 place-items-center rounded-full bg-[#00a884] text-white hover:bg-[#029b78] disabled:opacity-50"
-              >
-                <Send className="size-4" />
-              </button>
+            </>
+          }
+        >
+          {!iniciado ? (
+            <div className="flex h-full flex-col items-center justify-center gap-4 px-4 text-center">
+              <div className="grid size-12 place-items-center rounded-full bg-white/80 text-[#54656f] shadow-sm">
+                <MessageSquareText className="size-5" />
+              </div>
+              <p className="max-w-[240px] rounded-lg bg-white/80 px-3 py-2 text-[13px] text-[#54656f] shadow-sm">
+                {t('assistant.probarVacio')}
+              </p>
+              <Button onClick={empezar} disabled={cargando} className="rounded-full bg-[#00a884] text-white hover:bg-[#029b78]">
+                {cargando ? <Loader2 className="size-4 animate-spin" /> : null}
+                {t('assistant.probarEmpezar')}
+              </Button>
             </div>
-          </div>
-        </div>
+          ) : null}
+          {iniciado && !cargando ? <Chip texto={t('assistant.probarHoy')} /> : null}
+          {cargando ? (
+            <div className="flex justify-center py-6"><Loader2 className="size-5 animate-spin text-[#54656f]" /></div>
+          ) : null}
+          {items.map((it, i) => (
+            <Linea
+              key={i}
+              it={it}
+              onBoton={(texto) => void enviar(texto)}
+              feedback={marcas[i] ?? null}
+              onFeedback={(m) => setMarcas((prev) => ({ ...prev, [i]: m }))}
+            />
+          ))}
+        </MarcoDeTelefono>
+        {onRevisar && sesionId && hayFeedback ? (
+          <Button variant="outline" className="w-full sm:mx-auto sm:flex sm:max-w-[380px]" onClick={() => void revisar()} disabled={revisando}>
+            {revisando ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+            {t('assistant.pruebasProponer')}
+          </Button>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function Campo({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Campo({
+  label,
+  hint,
+  className,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <label className="block space-y-1">
+    <label className={`block min-w-0 space-y-1 ${className ?? ''}`}>
       <span className="text-muted-foreground block text-[11px] font-medium tracking-wide uppercase">{label}</span>
       {children}
       {hint ? <span className="text-muted-foreground block text-[11px]">{hint}</span> : null}
     </label>
-  );
-}
-
-/* Los hex de acá son el cromo REAL de WhatsApp, como en la vista previa de
- * plantillas: el chat se ve como el teléfono del cliente, no sigue el tema. */
-function Chip({ texto, icono }: { texto: string; icono?: 'espera' | 'llamada' | 'persona' }) {
-  return (
-    <div className="flex justify-center py-1">
-      <span className="inline-flex max-w-[92%] items-center gap-1.5 rounded-lg bg-[#fff5c4] px-2.5 py-1 text-center text-[11px] text-[#54656f] shadow-sm">
-        {icono === 'espera' ? <FastForward className="size-3 shrink-0" /> : null}
-        {icono === 'llamada' ? <Phone className="size-3 shrink-0" /> : null}
-        {icono === 'persona' ? <UserRound className="size-3 shrink-0" /> : null}
-        {texto}
-      </span>
-    </div>
-  );
-}
-
-function Linea({ it, onBoton }: { it: Item; onBoton: (texto: string) => void }) {
-  if (it.k === 'sys') return <Chip texto={it.texto} icono={it.icono} />;
-  if (it.k === 'typing') {
-    return (
-      <div className="flex justify-start">
-        <div className="rounded-lg rounded-tl-none bg-white px-3 py-2 text-sm shadow-sm">
-          <span className="animate-pulse text-[#8696a0]">•••</span>
-        </div>
-      </div>
-    );
-  }
-  if (it.k === 'me') {
-    return (
-      <div className="flex justify-end">
-        <div className="max-w-[82%] rounded-lg rounded-tr-none bg-[#dcf8c6] px-2.5 py-1.5 text-[13px] leading-snug text-[#111b21] shadow-sm">
-          <p className="whitespace-pre-wrap break-words">{it.texto}</p>
-          <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-[#667781]">
-            {it.hora} <CheckCheck className="size-3 text-[#53bdeb]" />
-          </p>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className="flex flex-col items-start">
-      <div className="max-w-[82%] rounded-lg rounded-tl-none bg-white px-2.5 py-1.5 text-[13px] leading-snug text-[#111b21] shadow-sm">
-        <p className="whitespace-pre-wrap break-words">{it.texto}</p>
-        <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-[#667781]">
-          {it.hora} <Check className="size-3" />
-        </p>
-      </div>
-      {it.botones.length > 0 ? (
-        <div className="mt-1 w-[82%] max-w-[82%] space-y-0.5">
-          {it.botones.map((b, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => (b.type === 'QUICK_REPLY' ? onBoton(b.text) : undefined)}
-              className={cn(
-                'flex w-full items-center justify-center gap-1.5 rounded-lg bg-white px-2 py-1.5 text-[13px] font-medium text-[#00a5f4] shadow-sm',
-                b.type === 'QUICK_REPLY' ? 'hover:bg-white/80' : 'cursor-default'
-              )}
-            >
-              {b.type === 'URL' ? <ExternalLink className="size-3.5" /> : b.type === 'QUICK_REPLY' ? <Reply className="size-3.5" /> : null}
-              {b.text}
-            </button>
-          ))}
-        </div>
-      ) : null}
-      {it.nota ? <p className="mt-0.5 max-w-[82%] rounded bg-white/60 px-1.5 text-[10px] text-[#54656f]">{it.nota}</p> : null}
-      {it.alerta ? <p className="mt-0.5 max-w-[82%] rounded bg-white/70 px-1.5 text-[10px] text-[#d93025]">{it.alerta}</p> : null}
-    </div>
   );
 }
 
@@ -821,6 +856,16 @@ function motivoTexto(t: ReturnType<typeof useT>, motivo: string): string {
 function ahora(): string {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** Un id para la prueba. `randomUUID` sólo existe en https: el respaldo cubre el resto. */
+function nuevoId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const h = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16));
+  h[12] = '4';
+  h[16] = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16);
+  const s = h.join('');
+  return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
 }
 
 function unidad(unit: string, n: number): string {

@@ -29,6 +29,7 @@ import { AgentEditor } from '@/components/ai/agent-editor';
 import { limpiarPersona } from '@/lib/ai/persona-limpia';
 import { AnswerGapsPanel } from '@/components/ai/answer-gaps-panel';
 import { ProbarComoCliente } from '@/components/ai/probar-como-cliente';
+import { PruebasGuardadas } from '@/components/ai/pruebas-guardadas';
 import {
   Dialog,
   DialogContent,
@@ -98,6 +99,8 @@ export default function AiAgentsPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<AgentSummary | 'new' | null>(null);
   const [probando, setProbando] = useState(false);
+  const [vistaPrueba, setVistaPrueba] = useState<'probar' | 'pruebas'>('probar');
+  const [pruebaElegida, setPruebaElegida] = useState<string | null>(null);
 
   // Entrada por enlace a un asistente concreto desde acciones contextuales.
   const params = useSearchParams();
@@ -218,7 +221,13 @@ export default function AiAgentsPage() {
           <div className="flex items-center gap-2">
             {/* Probar el sistema entero como cliente: qué plantillas salen y
                 quién contesta, sin elegir asistente. */}
-            <Button variant="outline" onClick={() => setProbando(true)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setVistaPrueba('probar');
+                setProbando(true);
+              }}
+            >
               <FlaskConical className="size-4" />
               {t('assistant.test')}
             </Button>
@@ -234,14 +243,50 @@ export default function AiAgentsPage() {
       </header>
 
       <Dialog open={probando} onOpenChange={setProbando}>
-        <DialogContent className="border-border bg-card max-h-[92vh] overflow-y-auto sm:max-w-5xl">
+        {/* En el celular ocupa la pantalla entera: se prueba desde ahí. */}
+        <DialogContent className="border-border bg-card max-h-[92vh] overflow-y-auto content-start sm:max-w-5xl lg:max-w-6xl max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:max-h-dvh max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:p-3">
           <DialogHeader>
             <DialogTitle className="text-foreground">{t('assistant.probarTitle')}</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
+            <DialogDescription className="text-muted-foreground max-sm:hidden">
               {t('assistant.probarHint')}
             </DialogDescription>
           </DialogHeader>
-          {probando ? <ProbarComoCliente nombreComercio={workspace?.name ?? null} /> : null}
+          <div className="bg-muted inline-flex w-fit rounded-lg p-0.5">
+            {(['probar', 'pruebas'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setVistaPrueba(v)}
+                className={cn(
+                  'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                  vistaPrueba === v
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {v === 'probar' ? t('assistant.pruebasProbar') : t('assistant.pruebasGuardadas')}
+              </button>
+            ))}
+          </div>
+          {probando ? (
+            // La prueba en curso sigue viva mientras se miran las guardadas.
+            <div className={vistaPrueba === 'probar' ? 'min-w-0' : 'hidden'}>
+              <ProbarComoCliente
+                nombreComercio={workspace?.name ?? null}
+                onRevisar={(id) => {
+                  setPruebaElegida(id);
+                  setVistaPrueba('pruebas');
+                }}
+              />
+            </div>
+          ) : null}
+          {probando && vistaPrueba === 'pruebas' ? (
+            <PruebasGuardadas
+              elegida={pruebaElegida}
+              onElegir={setPruebaElegida}
+              nombreComercio={workspace?.name ?? null}
+            />
+          ) : null}
         </DialogContent>
       </Dialog>
 

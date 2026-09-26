@@ -23,6 +23,7 @@ import { ESTILO_HUMANO, humanizarTexto } from './estilo-humano';
 import { cargarReglas, reglasATexto } from './guidance';
 import { claveRechazada, esCuentaByok, resolveAnthropicKey } from './platform-key';
 import { resolverRegistro } from './registro-rioplatense';
+import { largoDeChat } from './salida';
 import {
   buildSystemPrompt,
   construirHerramientas,
@@ -335,7 +336,7 @@ export async function componerBorrador(
     const text = humanizarTexto(result.text);
     if (!text) return { text: null, error: 'vacio' };
     return {
-      text: text.length > maxChars ? text.slice(0, maxChars).trimEnd() : text,
+      text: largoDeChat(text, maxChars),
       error: null,
     };
   } catch (err) {

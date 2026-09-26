@@ -35,6 +35,7 @@ import { deliveryErrorKey } from "@/lib/whatsapp/delivery-errors";
 import {
   COMMENT_DELETED_TEXT,
   channelLabel,
+  isHistoryMediaPlaceholder,
   isUnsupportedSnippet,
   isUnsupportedMediaSnippet,
   isCommentDeleted,
@@ -675,7 +676,9 @@ function MessageContent({
           <p className="whitespace-pre-wrap break-words text-sm">
             {readable
               ? linkifyNodes(localizeContentToken(message.content_text, t))
-              : t("inbox.unsupported", { channel: channelLabel(message.channel, t) })}
+              : isHistoryMediaPlaceholder(body)
+                ? t("inbox.historyMediaMissing", { channel: channelLabel(message.channel, t) })
+                : t("inbox.unsupported", { channel: channelLabel(message.channel, t) })}
           </p>
           {readable && phoneActions}
         </div>
