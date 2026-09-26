@@ -67,10 +67,15 @@ export function PruebasGuardadas({
   elegida,
   onElegir,
   nombreComercio,
+  proponerEn,
+  onPropuesto,
 }: {
   elegida: string | null;
   onElegir: (id: string | null) => void;
   nombreComercio: string | null;
+  /** Llega desde "Proponer mejoras" del chat: propone apenas carga, sin otro clic. */
+  proponerEn?: string | null;
+  onPropuesto?: () => void;
 }) {
   const t = useT();
   const [lista, setLista] = useState<Resumen[] | null>(null);
@@ -116,6 +121,8 @@ export function PruebasGuardadas({
             key={elegida}
             id={elegida}
             nombreComercio={nombreComercio}
+            proponerAlAbrir={proponerEn === elegida}
+            onPropuesto={onPropuesto}
             onVolver={() => onElegir(null)}
             onCambio={() => void cargar()}
             onBorrada={() => {
@@ -186,12 +193,16 @@ function FilaDePrueba({ s, activa, onClick }: { s: Resumen; activa: boolean; onC
 function DetalleDePrueba({
   id,
   nombreComercio,
+  proponerAlAbrir,
+  onPropuesto,
   onVolver,
   onCambio,
   onBorrada,
 }: {
   id: string;
   nombreComercio: string | null;
+  proponerAlAbrir?: boolean;
+  onPropuesto?: () => void;
   onVolver: () => void;
   onCambio: () => void;
   onBorrada: () => void;
@@ -250,6 +261,15 @@ function DetalleDePrueba({
       setProponiendo(false);
     }
   }
+
+  // Una sola vez, apenas está la prueba: el clic ya se hizo en el chat.
+  const cargada = sesion !== null;
+  useEffect(() => {
+    if (!proponerAlAbrir || !cargada) return;
+    onPropuesto?.();
+    void proponer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proponerAlAbrir, cargada]);
 
   async function borrar() {
     if (!confirm(t('assistant.pruebasBorrarConfirm'))) return;

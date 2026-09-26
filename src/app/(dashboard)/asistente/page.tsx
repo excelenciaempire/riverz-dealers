@@ -106,6 +106,8 @@ export default function AiAgentsPage() {
   const [vistaPrueba, setVistaPrueba] = useState<'probar' | 'pruebas'>('probar');
   const [panel, setPanel] = useState<'feedback' | 'piloto' | null>(null);
   const [pruebaElegida, setPruebaElegida] = useState<string | null>(null);
+  // "Proponer mejoras" desde el chat: abre la prueba guardada y propone solo.
+  const [proponerEn, setProponerEn] = useState<string | null>(null);
 
   // Entrada por enlace a un asistente concreto desde acciones contextuales.
   const params = useSearchParams();
@@ -305,6 +307,7 @@ export default function AiAgentsPage() {
                 nombreComercio={workspace?.name ?? null}
                 onRevisar={(id) => {
                   setPruebaElegida(id);
+                  setProponerEn(id);
                   setVistaPrueba('pruebas');
                 }}
               />
@@ -314,6 +317,8 @@ export default function AiAgentsPage() {
             <PruebasGuardadas
               elegida={pruebaElegida}
               onElegir={setPruebaElegida}
+              proponerEn={proponerEn}
+              onPropuesto={() => setProponerEn(null)}
               nombreComercio={workspace?.name ?? null}
             />
           ) : null}
