@@ -3,7 +3,10 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { listConnections } from '@/lib/channels/connections';
 import { pullCommentsForWorkspace } from '@/lib/channels/comment-pull';
-import { syncAdPostsForConnection } from '@/lib/channels/meta-ads-sync';
+import {
+  isAdSyncFailure,
+  syncAdPostsForConnection,
+} from '@/lib/channels/meta-ads-sync';
 import { backfillTikTokCommentsForWorkspace } from '@/lib/channels/tiktok_comment/poll';
 import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
@@ -102,9 +105,15 @@ export async function POST(request: Request) {
     (channel): channel is 'ig_comment' | 'fb_comment' =>
       channel !== 'tiktok_comment'
   );
+  // Instagram también: sus anuncios se mapean por `effective_instagram_media_id`
+  // con las cuentas publicitarias elegidas para la página.
   const adDiscovery = await Promise.all(
     connections
-      .filter((connection) => connection.channel === 'fb_comment')
+      .filter(
+        (connection) =>
+          connection.channel === 'fb_comment' ||
+          connection.channel === 'ig_comment'
+      )
       .map(async (connection) => {
         try {
           return {
@@ -161,7 +170,9 @@ export async function POST(request: Request) {
   const pullIncomplete = result.detail.some(
     (item) => item.reason === 'graph_denegado' || item.reason === 'partial'
   );
-  const adIncomplete = adDiscovery.some((item) => item.status !== 'ok');
+  // Sin cuenta publicitaria elegida no hay nada que descubrir, y no es una
+  // importación a medias: queda anotado en `ad_discovery` (`ad_account_missing`).
+  const adIncomplete = adDiscovery.some((item) => isAdSyncFailure(item));
   const tiktokIncomplete = tiktok?.detail.some((item) => item.error) ?? false;
   const complete = !pullIncomplete && !adIncomplete && !tiktokIncomplete;
   return NextResponse.json({

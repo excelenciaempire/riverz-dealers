@@ -15,9 +15,26 @@ vi.mock("./inbox-writer", () => ({
 vi.mock("./encryption", () => ({ decrypt: (v: string) => v }));
 vi.mock("./comment-echo", () => ({ buildSelfCommentEvent: async () => null }));
 vi.mock('./poll-state', () => ({ savePollState: vi.fn() }));
+vi.mock("./media-ingest", () => ({
+  ingestMetaAttachment: vi.fn(async () => ({
+    url: "/api/media/ws-1/cliente-fb/fb-foto.jpg",
+    mediaType: "image",
+    mediaMime: "image/jpeg",
+    mediaSize: 10,
+  })),
+}));
 
-import { pullCommentsForConnection } from "./comment-pull";
+import {
+  commentAttachmentMedia,
+  COMMENT_HISTORY_DONE,
+  HISTORY_WINDOW_MS,
+  historyPassPatch,
+  pullCommentsForConnection,
+  scheduledWindowMs,
+  threadInWindow,
+} from "./comment-pull";
 import { savePollState } from './poll-state';
+import { ingestMetaAttachment } from "./media-ingest";
 
 const IG_ID = "17841471409531708";
 const POST = "post-1";
@@ -291,5 +308,209 @@ describe("pullCommentsForConnection", () => {
     const result = await pullCommentsForConnection(fakeDb(), connection);
     expect(result.reason).toBe("partial");
     expect(result.errors).toContain("comments_graph_failed");
+  });
+
+  // Antes el hilo entero se descartaba si el comentario raíz era más viejo que
+  // la ventana, aunque la respuesta fuera de ayer.
+  it("una respuesta reciente bajo un comentario viejo entra con su raíz como contexto", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockGraph([
+        {
+          id: "c-raiz",
+          text: "Tienen envío?",
+          timestamp: iso(40 * 24 * 60 * 60_000),
+          from: { id: "cliente-4", username: "cliente4" },
+          replies: {
+            data: [
+              {
+                id: "r-reciente",
+                text: "Sigo esperando",
+                timestamp: iso(24 * 60 * 60_000),
+                from: { id: "cliente-4", username: "cliente4" },
+              },
+            ],
+          },
+        },
+      ]),
+    );
+    const r = await pullCommentsForConnection(fakeDb(), connection);
+    expect(r.ingestedInbound).toBe(2);
+    const raiz = ingested.find((e) => e.externalMessageId === "c-raiz");
+    const respuesta = ingested.find((e) => e.externalMessageId === "r-reciente");
+    // La raíz es historia: nunca algo a contestar.
+    expect(raiz).toMatchObject({ historical: true, suppressAutoReply: true });
+    expect(respuesta?.comment).toMatchObject({ parentCommentId: "c-raiz" });
+  });
+
+  it("un hilo entero fuera de la ventana sigue afuera", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockGraph([
+        {
+          id: "c-viejo-2",
+          text: "Precio?",
+          timestamp: iso(40 * 24 * 60 * 60_000),
+          from: { id: "cliente-5", username: "cliente5" },
+          replies: {
+            data: [
+              {
+                id: "r-vieja",
+                text: "Gracias",
+                timestamp: iso(39 * 24 * 60 * 60_000),
+                from: { id: "cliente-5", username: "cliente5" },
+              },
+            ],
+          },
+        },
+      ]),
+    );
+    const r = await pullCommentsForConnection(fakeDb(), connection);
+    expect(r.ingestedInbound).toBe(0);
+    expect(ingested).toHaveLength(0);
+  });
+
+  it("la foto de un comentario de Facebook se pide a Graph y entra re-hospedada", async () => {
+    vi.mocked(ingestMetaAttachment).mockClear();
+    const request = mockGraph([
+      {
+        id: "fb-foto",
+        message: "",
+        created_time: iso(2 * 24 * 60 * 60_000),
+        from: { id: "cliente-fb", name: "Claudia Vikario" },
+        attachment: {
+          type: "photo",
+          media: { image: { src: "https://scontent.xx.fbcdn.net/foto.jpg" } },
+        },
+      },
+    ]);
+    vi.stubGlobal("fetch", request);
+    await pullCommentsForConnection(fakeDb(), fbConnection);
+
+    const commentsCall = request.mock.calls
+      .map(([url]) => decodeURIComponent(String(url)))
+      .find((url) => url.includes(`/${POST}/comments`));
+    expect(commentsCall).toContain("attachment");
+    expect(ingestMetaAttachment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentUrl: "https://scontent.xx.fbcdn.net/foto.jpg",
+        hintedKind: "image",
+        externalMessageId: "fb-foto",
+        accessToken: "token",
+      }),
+    );
+    expect(ingested[0].attachments).toEqual([
+      { url: "/api/media/ws-1/cliente-fb/fb-foto.jpg", mime_type: "image/jpeg", size: 10 },
+    ]);
+  });
+
+  it("ante un límite de Graph frena sin error y deja la publicación en la cola", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes(`/${POST}/comments`)) {
+          return new Response(
+            JSON.stringify({ error: { code: 32, message: "(#32) Page request limit reached" } }),
+            { status: 400 },
+          );
+        }
+        const json = url.includes("/media")
+          ? { data: [{ id: POST, timestamp: iso(0) }] }
+          : { username: "pilaroficial_arg" };
+        return new Response(JSON.stringify(json));
+      }),
+    );
+    const r = await pullCommentsForConnection(fakeDb(), connection, {
+      suppressAutoReply: true,
+      resumable: true,
+    });
+    expect(r.rateLimited).toBe(true);
+    expect(r.errors).toEqual(["comments_sync_pending"]);
+    expect(savePollState).toHaveBeenCalledWith(
+      expect.anything(),
+      connection.id,
+      expect.objectContaining({ comment_sync_posts: [POST] }),
+      null,
+      { complete: false },
+    );
+  });
+
+  it("avisa, sin marcarlo como error, que no hay cuenta publicitaria elegida", async () => {
+    vi.stubGlobal("fetch", mockGraph([]));
+    const r = await pullCommentsForConnection(fakeDb(), connection);
+    expect(r.notes).toEqual(["ad_accounts_not_selected"]);
+    expect(r.errors).toEqual([]);
+  });
+});
+
+describe("commentAttachmentMedia", () => {
+  it("baja la foto, el sticker y el video o GIF del comentario", () => {
+    expect(
+      commentAttachmentMedia({ attachment: { type: "photo", media: { image: { src: "https://x/f.jpg" } } } }),
+    ).toEqual({ url: "https://x/f.jpg", kind: "image" });
+    expect(
+      commentAttachmentMedia({ attachment: { type: "sticker", media: { image: { src: "https://x/s.png" } } } }),
+    ).toEqual({ url: "https://x/s.png", kind: "image" });
+    expect(
+      commentAttachmentMedia({
+        attachment: {
+          type: "animated_image_share",
+          media: { image: { src: "https://x/p.jpg" }, source: "https://x/g.mp4" },
+        },
+      }),
+    ).toEqual({ url: "https://x/g.mp4", kind: "video" });
+  });
+
+  it("un enlace compartido no se baja: su imagen es de un sitio ajeno", () => {
+    expect(
+      commentAttachmentMedia({
+        attachment: { type: "share", url: "https://tienda.com", media: { image: { src: "https://x/prev.jpg" } } },
+      }),
+    ).toBeNull();
+    expect(commentAttachmentMedia({})).toBeNull();
+  });
+});
+
+describe("threadInWindow", () => {
+  const enVentana = (c: { id?: string; t: number }) => c.t >= 10;
+
+  it("la raíz en la ventana entra con sus respuestas en la ventana", () => {
+    const r = threadInWindow({ id: "a", t: 12 }, [{ id: "b", t: 5 }, { id: "c", t: 15 }], enVentana);
+    expect(r).toEqual({ rootIsContext: false, replies: [{ id: "c", t: 15 }] });
+  });
+
+  it("la raíz vieja entra como contexto si alguna respuesta está en la ventana", () => {
+    const r = threadInWindow({ id: "a", t: 1 }, [{ id: "b", t: 15 }], enVentana);
+    expect(r).toEqual({ rootIsContext: true, replies: [{ id: "b", t: 15 }] });
+  });
+
+  it("un hilo sin nada en la ventana no entra", () => {
+    expect(threadInWindow({ id: "a", t: 1 }, [{ id: "b", t: 2 }], enVentana)).toBeNull();
+  });
+});
+
+describe("ventana de la pasada programada", () => {
+  it("la primera pasada cubre 90 días y después vuelve a 14", () => {
+    expect(scheduledWindowMs({})).toBe(HISTORY_WINDOW_MS);
+    expect(HISTORY_WINDOW_MS).toBe(90 * 24 * 60 * 60 * 1000);
+    expect(scheduledWindowMs({ [COMMENT_HISTORY_DONE]: true })).toBe(14 * 24 * 60 * 60 * 1000);
+  });
+
+  it("sólo cierra la historia la vuelta que se descubrió con la ventana larga", () => {
+    // Vuelta nueva que termina en una corrida.
+    expect(historyPassPatch({}, true)).toEqual({
+      comment_history_complete: true,
+      comment_history_started: null,
+    });
+    // Vuelta nueva a medias.
+    expect(historyPassPatch({}, false)).toEqual({ comment_history_started: true });
+    // Cola heredada de antes: al vaciarse no cuenta como pasada histórica.
+    expect(historyPassPatch({ comment_sync_posts: ["p1"] }, true)).toEqual({});
+    // Cola armada ya con la ventana larga.
+    expect(
+      historyPassPatch({ comment_sync_posts: ["p1"], comment_history_started: true }, true),
+    ).toEqual({ comment_history_complete: true, comment_history_started: null });
+    // Historia cerrada: nada más que anotar.
+    expect(historyPassPatch({ [COMMENT_HISTORY_DONE]: true }, true)).toEqual({});
   });
 });

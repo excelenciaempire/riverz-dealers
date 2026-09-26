@@ -9,6 +9,7 @@ import { withAppsecretProof } from "@/lib/channels/meta-graph";
 import { fetchMetaGraph } from "@/lib/channels/meta-fetch";
 import { handleMetaGraphError, parseMetaErrorBody } from "@/lib/channels/meta-auth";
 import { syncThreadMessages, type MetaPlatform } from "@/lib/channels/meta-dm-history";
+import { isMetaRateLimited, isMetaRateLimitError } from "@/lib/channels/meta-rate-limit";
 import {
   isInsideMetaDmResumeWindow,
   META_DM_BACKFILL_MARK,
@@ -30,9 +31,12 @@ const GRAPH = "https://graph.facebook.com/v22.0";
  */
 const SOLAPE_MS = 15 * 60_000;
 
-/** Qué hilos mira la PRIMERA corrida de una conexión (no hay marca): los que
- *  tuvieron actividad en estos días. Cada uno entra completo. */
-const ARRANQUE_DIAS = 30;
+/** Qué hilos mira la PRIMERA pasada de una conexión (no hay marca): los que
+ *  tuvieron actividad en el último año. Cada uno entra completo, con los dos
+ *  lados y sus archivos: es la historia con la que se entrena al agente. Con
+ *  30 días un comercio nuevo arrancaba casi sin ejemplos. La pasada no tiene
+ *  que caber en una corrida: se reanuda por cursor hasta cruzar el piso. */
+const ARRANQUE_DIAS = 365;
 
 /** Páginas de la lista de conversaciones (50 hilos cada una) por corrida. */
 const MAX_PAGINAS_LISTA = 20;
@@ -70,9 +74,15 @@ interface ConversacionGraph {
  * dos horas. La alarma era real como síntoma y falsa como diagnóstico.
  *
  * REANUDABLE: si una pasada no llega a cruzar la marca (sólo pasa en el
- * arranque, con 30 días de historia), guarda en `config` dónde quedó y la
+ * arranque, con un año de historia), guarda en `config` dónde quedó y la
  * corrida siguiente sigue hacia atrás desde ahí. La marca sólo avanza cuando
  * la pasada se cierra entera, así nunca se saltea un tramo sin mirar.
+ *
+ * LÍMITES DE GRAPH: un año de hilos es mucho más tráfico que el régimen. Si
+ * Meta frena (429, `(#4)`, `(#17)`, `(#32)`…) la corrida se detiene ahí: no
+ * marca la pasada como cerrada ni la conexión en error, conserva los cursores
+ * y la siguiente retoma. Seguir con otra conexión sólo estiraría el castigo
+ * cuando el límite es de la app.
  *
  * Hilos que el comercio inició desde la app hacia alguien que nunca escribió:
  * salen de la misma lista. El participante sin contacto en Riverz se crea
@@ -106,11 +116,14 @@ async function cronHandler(request: Request) {
     hilos?: number;
     /** La pasada llegó hasta la marca: no queda nada atrás por mirar. */
     al_dia?: boolean;
+    /** Graph pidió frenar: se retoma desde el cursor en la próxima corrida. */
+    limitado?: boolean;
     error?: string;
   }> = [];
 
   const limite = Date.now() + PRESUPUESTO_MS;
   let sinTiempo = false;
+  let limitadoPorMeta = false;
 
   for (const c of connections as ChannelConnection[]) {
     if (Date.now() > limite) {
@@ -167,6 +180,7 @@ async function cronHandler(request: Request) {
     let alDia = false;
     let paginas = 0;
     let fallo: string | null = null;
+    let limitado = false;
     let listAfter = String(cfg.dm_backfill_list_after ?? '');
     let url: string | null =
       `${GRAPH}/${pageId}/conversations?platform=${platform}` +
@@ -182,12 +196,18 @@ async function cronHandler(request: Request) {
         // `paging.next` no lleva el proof — se re-adjunta en cada página.
         const r = await fetchMetaGraph(withAppsecretProof(url, token), {}, { deadlineMs: connectionDeadline });
         if (!r.ok) {
+          const body = await r.text().catch(() => "");
+          // Un límite de uso se cura solo: ni error ni pasada cerrada, y el
+          // cursor de la lista queda donde estaba.
+          if (isMetaRateLimited(r.status, body)) {
+            limitado = true;
+            break;
+          }
           // Un token revocado o sin los permisos de Página necesarios no se
           // recupera reintentando cada dos horas. Marcar sólo esa conexión la
           // saca de este barrido y muestra la acción de reconectar; el resto
           // de comercios sigue sincronizando y el cron no queda en rojo para
           // siempre por una sola cuenta.
-          const body = await r.text().catch(() => "");
           await handleMetaGraphError(admin, c, r.status, parseMetaErrorBody(body));
           fallo = `graph ${r.status}`;
           break;
@@ -278,12 +298,13 @@ async function cronHandler(request: Request) {
             // No seguir hacia atrás: `ultimoMirado` queda en ESTE hilo y el
             // checkpoint inclusivo obliga a reintentarlo. Continuar habría
             // guardado un borde más viejo y saltado para siempre este hueco.
-            fallo = `hilo ${conv.id}: ${err instanceof Error ? err.message : String(err)}`;
+            if (isMetaRateLimitError(err)) limitado = true;
+            else fallo = `hilo ${conv.id}: ${err instanceof Error ? err.message : String(err)}`;
             break;
           }
         }
 
-        if (alDia || Date.now() > connectionDeadline || fallo) break;
+        if (alDia || Date.now() > connectionDeadline || fallo || limitado) break;
         url = j.paging?.next ?? null;
         listAfter = url ? new URL(url).searchParams.get('after') ?? '' : '';
         paginas++;
@@ -296,8 +317,9 @@ async function cronHandler(request: Request) {
 
     // La marca sólo avanza con la pasada cerrada. Si quedó a medias, se guarda
     // dónde seguir; la marca vieja queda intacta para que nada se saltee.
+    const cerrada = alDia && !fallo && !limitado;
     const nuevoCfg = updateMetaDmBackfillCheckpoint(cfg, {
-      complete: alDia && !fallo,
+      complete: cerrada,
       objective: objetivo,
       resumeAt: ultimoMirado,
     });
@@ -305,28 +327,33 @@ async function cronHandler(request: Request) {
     await savePollState(admin, c.id, {
       [META_DM_BACKFILL_MARK]: nuevoCfg[META_DM_BACKFILL_MARK] ?? null,
       [META_DM_BACKFILL_PENDING]: nuevoCfg[META_DM_BACKFILL_PENDING] ?? null,
-      dm_backfill_complete: alDia && !fallo,
-      dm_backfill_list_after: alDia && !fallo ? null : listAfter,
-    }, pending ? null : fallo, { complete: alDia && !fallo });
+      dm_backfill_complete: cerrada,
+      dm_backfill_list_after: cerrada ? null : listAfter,
+    }, pending ? null : fallo, { complete: cerrada });
 
     results.push({
       connection_id: c.id,
       channel: c.channel,
       ingested,
       hilos,
-      al_dia: alDia && !fallo,
+      al_dia: cerrada,
+      ...(limitado ? { limitado: true } : {}),
       ...(fallo && !pending ? { error: fallo } : {}),
     });
+    if (limitado) {
+      limitadoPorMeta = true;
+      break;
+    }
     if (sinTiempo) break;
   }
 
-  // Quedarse sin tiempo con la pasada guardada NO es un fallo: la corrida
-  // siguiente retoma exactamente donde quedó. El 207 se reserva para lo que sí
-  // hay que mirar —una conexión que devolvió error—, porque `withCronRun` lo
-  // anota como fallo y de ahí sale el aviso al panel.
+  // Quedarse sin tiempo —o frenado por Meta— con la pasada guardada NO es un
+  // fallo: la corrida siguiente retoma exactamente donde quedó. El 207 se
+  // reserva para lo que sí hay que mirar —una conexión que devolvió error—,
+  // porque `withCronRun` lo anota como fallo y de ahí sale el aviso al panel.
   const conError = results.some((r) => r.error);
   return NextResponse.json(
-    { ok: !conError, truncado: sinTiempo, results },
+    { ok: !conError, truncado: sinTiempo, limitado: limitadoPorMeta, results },
     { status: conError ? 207 : 200 },
   );
 }

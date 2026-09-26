@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { decrypt } from '@/lib/channels/encryption';
 import { withAppsecretProof } from '@/lib/channels/meta-graph';
+import { ESTADOS_VIVOS } from '@/lib/channels/connections';
 import type { ChannelConnection } from '@/types';
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
@@ -28,10 +29,16 @@ export function isAdSyncFailure(
   return Boolean(result.error) || result.status === 'partial' || result.status === 'failed';
 }
 
-interface MarketingAd {
+export interface MarketingAd {
   id?: string;
   name?: string;
-  creative?: { effective_object_story_id?: string; object_story_id?: string };
+  creative?: {
+    effective_object_story_id?: string;
+    object_story_id?: string;
+    /** El post de Instagram que muestra el anuncio (el id que traen los
+     *  comentarios de Instagram en `media.id`). */
+    effective_instagram_media_id?: string;
+  };
   adset?: { id?: string; campaign?: { id?: string; name?: string } };
 }
 
@@ -43,6 +50,78 @@ export function isStoryForPage(
   return Boolean(postId && pageId && postId.startsWith(`${pageId}_`));
 }
 
+/**
+ * La publicación del anuncio tal como la conoce ESTE canal, o null si el
+ * anuncio no es de la página.
+ *
+ * Facebook comenta sobre la historia de la página (`{page}_{post}`); Instagram,
+ * sobre el media de IG. Antes sólo se guardaba la historia, así que en una
+ * conexión de Instagram ningún comentario de anuncio se reconocía como tal ni
+ * se volvía a leer. La pertenencia se decide siempre por la historia: el media
+ * de IG no dice de qué cuenta es, y leer comentarios de un media ajeno con este
+ * token sólo devolvería errores.
+ */
+export function adPostIdForChannel(
+  ad: MarketingAd,
+  channel: string,
+  pageId: string
+): string | null {
+  const storyId =
+    ad.creative?.effective_object_story_id ?? ad.creative?.object_story_id;
+  if (!isStoryForPage(storyId, pageId)) return null;
+  if (channel === 'ig_comment') {
+    return ad.creative?.effective_instagram_media_id?.trim() || null;
+  }
+  return storyId ?? null;
+}
+
+function normalizeAdAccountIds(value: unknown): string[] {
+  return Array.from(
+    new Set(
+      (Array.isArray(value) ? value : [])
+        .map(String)
+        .filter((id) => /^act_\d+$/.test(id))
+    )
+  );
+}
+
+/**
+ * Cuentas publicitarias a recorrer para una conexión de comentarios.
+ *
+ * El comercio las elige por PÁGINA en el selector de Facebook y quedan en las
+ * filas `messenger` / `fb_comment` de esa página. La conexión de Instagram de
+ * la misma página no las recibe, así que sin mirar a su hermana los anuncios
+ * de Instagram no se descubrían nunca. Sólo se usa lo que el comercio eligió:
+ * no se listan cuentas por nuestra cuenta.
+ */
+export async function resolveAdAccountIds(
+  db: SupabaseClient,
+  connection: ChannelConnection
+): Promise<string[]> {
+  const config = (connection.config ?? {}) as Record<string, unknown>;
+  const own = normalizeAdAccountIds(config.ad_account_ids);
+  if (own.length > 0) return own;
+  const pageId = String(config.page_id ?? '');
+  if (!pageId || !connection.workspace_id) return [];
+  try {
+    const { data } = await db
+      .from('channel_connections')
+      .select('config')
+      .eq('workspace_id', connection.workspace_id)
+      .in('channel', ['messenger', 'fb_comment'])
+      .in('status', [...ESTADOS_VIVOS])
+      .limit(50);
+    const ids = new Set<string>();
+    for (const row of (data ?? []) as Array<{ config?: Record<string, unknown> | null }>) {
+      if (String(row.config?.page_id ?? '') !== pageId) continue;
+      for (const id of normalizeAdAccountIds(row.config?.ad_account_ids)) ids.add(id);
+    }
+    return [...ids];
+  } catch {
+    return [];
+  }
+}
+
 export async function syncAdPostsForConnection(
   db: SupabaseClient,
   connection: ChannelConnection,
@@ -50,13 +129,7 @@ export async function syncAdPostsForConnection(
 ): Promise<AdSyncResult> {
   const config = (connection.config ?? {}) as Record<string, unknown>;
   const pageId = String(config.page_id ?? connection.external_account_id ?? '');
-  const adAccountIds = Array.from(
-    new Set(
-      (Array.isArray(config.ad_account_ids) ? config.ad_account_ids : [])
-        .map(String)
-        .filter((id) => /^act_\d+$/.test(id))
-    )
-  );
+  const adAccountIds = await resolveAdAccountIds(db, connection);
   const base: AdSyncResult = {
     inserted: 0,
     updated: 0,
@@ -93,7 +166,7 @@ export async function syncAdPostsForConnection(
   const errors: string[] = [];
   for (const adAccountId of adAccountIds) {
     let nextUrl: string | null = withAppsecretProof(
-      `${GRAPH}/${adAccountId}/ads?fields=id,name,creative{id,effective_object_story_id,object_story_id},adset{id,campaign{id,name}}&limit=100&access_token=${encodeURIComponent(token)}`,
+      `${GRAPH}/${adAccountId}/ads?fields=id,name,creative{id,effective_object_story_id,object_story_id,effective_instagram_media_id},adset{id,campaign{id,name}}&limit=100&access_token=${encodeURIComponent(token)}`,
       token
     );
     let failed = false;
@@ -128,12 +201,10 @@ export async function syncAdPostsForConnection(
         paging?: { next?: string };
       };
       for (const ad of json.data ?? []) {
-        const postId =
-          ad.creative?.effective_object_story_id ??
-          ad.creative?.object_story_id;
         // Una cuenta publicitaria puede pautar muchas páginas: sólo acepta
         // historias de la página dueña de esta conexión.
-        if (!isStoryForPage(postId, pageId)) continue;
+        const postId = adPostIdForChannel(ad, connection.channel, pageId);
+        if (!postId) continue;
         base.discoveredPosts++;
         const row = {
           workspace_id: connection.workspace_id,

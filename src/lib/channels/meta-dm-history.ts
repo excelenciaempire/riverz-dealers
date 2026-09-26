@@ -5,6 +5,8 @@ import { appsecretProof, withAppsecretProof } from "./meta-graph";
 import { fetchMetaGraph } from "./meta-fetch";
 import type { ChannelConnection, MessageAttachment } from "@/types";
 import { isMetaCommentContextNotice } from "./meta-comment-context";
+import { MEDIA_UNAVAILABLE_LABEL, META_UNSUPPORTED_MEDIA_LABEL } from "./meta-attachments";
+import { isMetaRateLimitedResponse, MetaRateLimitError } from "./meta-rate-limit";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
 /** Una página o mensaje de Graph no puede dejar un backfill colgado. */
@@ -127,6 +129,10 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
     if (args.deadlineMs && Date.now() >= args.deadlineMs) throw new Error('meta_thread_sync_pending');
     // `paging.next` no lleva el proof — se re-adjunta en cada página.
     let r: Response = await graphFetch(withAppsecretProof(url, args.token));
+    // Un límite de uso no es un campo rechazado: reintentar con otro juego de
+    // campos sólo estiraría el castigo. Se corta y el checkpoint ya guardado
+    // retoma el hilo en la corrida siguiente.
+    if (await isMetaRateLimitedResponse(r)) throw new MetaRateLimitError();
     // Un campo no soportado tumba la request entera: reintentamos una vez con
     // el juego mínimo para no perder el texto del hilo.
     if (!r.ok && fields === RICH_FIELDS && pages === 0) {
@@ -134,6 +140,7 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
       url = `${GRAPH}/${args.threadId}/messages?fields=${fields}&limit=50&access_token=${encodeURIComponent(args.token)}`;
       if (args.after) url += `&after=${encodeURIComponent(args.after)}`;
       r = await graphFetch(withAppsecretProof(url, args.token));
+      if (await isMetaRateLimitedResponse(r)) throw new MetaRateLimitError();
     }
     if (!r.ok) {
       const detail = await r.text().catch(() => "");
@@ -193,11 +200,14 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
 async function ingestGraphMessage(args: ThreadSyncArgs, m: GraphMessage): Promise<boolean> {
   if (!m.id) return false;
   const outbound = m.from?.id === args.selfId;
-  const parsed = await mapGraphMessage(m, args.connection.workspace_id, args.externalId);
+  const parsed = await mapGraphMessage(m, args.connection.workspace_id, args.externalId, args.token);
   if (outbound && isMetaCommentContextNotice(parsed.text)) return false;
-  // Nada que mostrar (Graph a veces devuelve el mensaje sin cuerpo ni
-  // adjunto legible): mejor no dejar una burbuja en blanco en el hilo.
-  if (!parsed.text && parsed.media.length === 0) return false;
+  // Sin cuerpo ni archivo que bajar (la URL del CDN ya caducó, o Meta retiene
+  // el contenido): antes se descartaba y el hilo quedaba con huecos. Entra con
+  // un rótulo que la bandeja muestra localizado, así la conversación conserva
+  // su orden y sus dos voces.
+  const text = parsed.text || (parsed.media.length === 0 ? emptyGraphMessagePlaceholder(m) : "");
+  if (!text && parsed.media.length === 0) return false;
   const guardado = await ingestInboundEvent(supabaseAdmin(), {
     channel: args.connection.channel,
     connection: args.connection,
@@ -209,7 +219,7 @@ async function ingestGraphMessage(args: ThreadSyncArgs, m: GraphMessage): Promis
         m.from?.name ??
         undefined),
     externalMessageId: m.id,
-    text: parsed.text,
+    text,
     attachments: parsed.media.length ? parsed.media : undefined,
     receivedAt: m.created_time ?? new Date().toISOString(),
     outbound,
@@ -230,6 +240,32 @@ async function graphFetch(url: string): Promise<Response> {
 }
 
 /**
+ * Rótulo de un mensaje de Graph que no dejó ni texto ni archivo.
+ *
+ * - Traía adjunto o algo compartido que no se pudo bajar → `[Archivo no
+ *   disponible]`: existió un archivo y ya no se puede recuperar.
+ * - No traía nada → `[unsupported media]`: Meta devuelve el mensaje vacío
+ *   cuando retiene el contenido (el ver-una-vez, y lo que marca
+ *   `is_unsupported`: notas de voz de IG, GIF, contenido de cuentas
+ *   privadas); la burbuja dice que hay que abrirlo en la app.
+ *
+ * Sin fecha o sin autor no es un mensaje que Graph haya entregado de verdad
+ * (a veces devuelve el id pelado): guardarlo inventaría una burbuja fechada
+ * hoy y atribuida al cliente, así que se sigue descartando.
+ */
+export function emptyGraphMessagePlaceholder(m: {
+  created_time?: string;
+  from?: { id?: string };
+  attachments?: { data?: unknown[] };
+  shares?: { data?: unknown[] };
+}): string {
+  if (!m.created_time || !m.from?.id) return "";
+  const traiaArchivo =
+    (m.attachments?.data?.length ?? 0) > 0 || (m.shares?.data?.length ?? 0) > 0;
+  return traiaArchivo ? MEDIA_UNAVAILABLE_LABEL : META_UNSUPPORTED_MEDIA_LABEL;
+}
+
+/**
  * Traduce un mensaje de la Conversations API al par (texto, adjuntos) que
  * guarda la bandeja. Las URL de Graph caducan, así que cada archivo se
  * re-hospeda en Storage; los enlaces/posts compartidos quedan como texto.
@@ -238,6 +274,7 @@ async function mapGraphMessage(
   m: GraphMessage,
   workspaceId: string,
   externalContactId: string,
+  accessToken: string,
 ): Promise<{ text: string; media: MessageAttachment[] }> {
   const media: MessageAttachment[] = [];
   const lines: string[] = [];
@@ -252,8 +289,11 @@ async function mapGraphMessage(
     const url =
       pick(imageData.url) || pick(videoData.url) || pick(a.file_url) || "";
     const name = pick(a.name);
+    // Un archivo que no se puede bajar igual deja constancia: sin la línea, un
+    // "mira esto" quedaba sin lo que mostraba y el agente no sabía que hubo
+    // algo más. Mismo rótulo que usa el webhook (meta-attachments).
     if (!url) {
-      if (name) lines.push(name);
+      lines.push(name || MEDIA_UNAVAILABLE_LABEL);
       continue;
     }
     const hinted = pick(imageData.url)
@@ -261,12 +301,18 @@ async function mapGraphMessage(
       : pick(videoData.url)
         ? ("video" as const)
         : undefined;
+    // Con el token y el `mid`, una URL del CDN que ya no sirve se reintenta
+    // autenticada y, si hace falta, pidiéndole a Graph una fresca: en un hilo
+    // de meses atrás es lo normal, no la excepción.
     const ingested = await ingestMetaAttachment({
       attachmentUrl: url,
       workspaceId,
       conversationId: externalContactId,
       externalMessageId: m.id ? `${m.id}-${i}` : undefined,
       hintedKind: hinted,
+      accessToken,
+      mid: m.id,
+      attachmentIndex: i,
     });
     if (ingested) {
       media.push({
@@ -275,8 +321,8 @@ async function mapGraphMessage(
         size: ingested.mediaSize,
         name: name || undefined,
       });
-    } else if (name) {
-      lines.push(name);
+    } else {
+      lines.push(name || MEDIA_UNAVAILABLE_LABEL);
     }
   }
 

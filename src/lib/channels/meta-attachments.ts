@@ -65,7 +65,7 @@ const MEDIA_TYPES = new Set([
 export const STORY_MENTION_LABEL = "[Mención en historia]";
 export const SHARED_POST_LABEL = "[Publicación compartida]";
 const LOCATION_LABEL = "[Ubicación]";
-const MEDIA_UNAVAILABLE_LABEL = "[Archivo no disponible]";
+export const MEDIA_UNAVAILABLE_LABEL = "[Archivo no disponible]";
 /** Sentinela que `isUnsupportedSnippet` ya reconoce y la UI localiza. */
 export const META_UNSUPPORTED_LABEL = "[unsupported]";
 /** Meta avisa `is_unsupported: true` cuando la plataforma NO entrega el

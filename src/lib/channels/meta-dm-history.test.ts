@@ -12,7 +12,9 @@ vi.mock('./inbox-writer', () => ({
 }));
 vi.mock('./media-ingest', () => ({ ingestMetaAttachment: vi.fn(async () => null) }));
 
-import { syncThreadMessages } from './meta-dm-history';
+import { emptyGraphMessagePlaceholder, syncThreadMessages } from './meta-dm-history';
+import { ingestMetaAttachment } from './media-ingest';
+import { MetaRateLimitError } from './meta-rate-limit';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -134,6 +136,98 @@ describe('syncThreadMessages con startedBetween', () => {
     graph([[message('m2', 0.5), message('m1', 1)]]);
 
     expect(await sync(10, 2)).toBe(0);
+    expect(ingested).toHaveLength(0);
+  });
+});
+
+describe('emptyGraphMessagePlaceholder', () => {
+  const base = { created_time: '2026-09-20T10:00:00+0000', from: { id: 'cliente' } };
+
+  it('un archivo que ya no se puede bajar queda como no disponible', () => {
+    expect(emptyGraphMessagePlaceholder({ ...base, attachments: { data: [{}] } })).toBe(
+      '[Archivo no disponible]'
+    );
+    expect(emptyGraphMessagePlaceholder({ ...base, shares: { data: [{}] } })).toBe(
+      '[Archivo no disponible]'
+    );
+  });
+
+  it('un mensaje que Meta devuelve vacío dice que el contenido está en la app', () => {
+    expect(emptyGraphMessagePlaceholder(base)).toBe('[unsupported media]');
+  });
+
+  it('sin fecha o sin autor no inventa una burbuja', () => {
+    expect(emptyGraphMessagePlaceholder({ from: { id: 'cliente' } })).toBe('');
+    expect(emptyGraphMessagePlaceholder({ created_time: base.created_time })).toBe('');
+  });
+});
+
+describe('syncThreadMessages conserva el hilo completo', () => {
+  const connection = {
+    id: 'conn-ig',
+    workspace_id: 'ws-1',
+    channel: 'instagram',
+    config: {},
+  } as unknown as ChannelConnection;
+  const sync = (onCheckpoint?: (after: string | null) => Promise<void>) =>
+    syncThreadMessages({
+      token: 'tok',
+      selfId: 'pagina',
+      connection,
+      threadId: 't1',
+      externalId: 'cliente',
+      createIfMissing: true,
+      onCheckpoint,
+    });
+
+  beforeEach(() => {
+    ingested.length = 0;
+    vi.mocked(ingestMetaAttachment).mockClear();
+  });
+
+  it('un mensaje sin texto ni archivo descargable entra con rótulo, de los dos lados', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      data: [
+        { id: 'm4', created_time: '2026-09-20T10:04:00+0000', from: { id: 'pagina' }, message: 'Te lo mando' },
+        {
+          id: 'm3',
+          created_time: '2026-09-20T10:03:00+0000',
+          from: { id: 'cliente' },
+          attachments: { data: [{ id: 'a1', image_data: { url: 'https://scontent.xx.fbcdn.net/caducada.jpg' } }] },
+        },
+        { id: 'm2', created_time: '2026-09-20T10:02:00+0000', from: { id: 'pagina' } },
+        { id: 'm1', created_time: '2026-09-20T10:01:00+0000', from: { id: 'cliente' }, message: 'Hola' },
+        { id: 'sin-datos' },
+      ],
+    }))));
+
+    expect(await sync()).toBe(4);
+    expect(ingested.map((e) => [e.externalMessageId, e.text, e.outbound])).toEqual([
+      ['m4', 'Te lo mando', true],
+      ['m3', '[Archivo no disponible]', false],
+      ['m2', '[unsupported media]', true],
+      ['m1', 'Hola', false],
+    ]);
+    // La URL caducada se reintenta con el token y el mid del mensaje.
+    expect(ingestMetaAttachment).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: 'tok', mid: 'm3', attachmentIndex: 0 })
+    );
+  });
+
+  it('ante un límite de Graph corta sin degradar campos ni cerrar el hilo', async () => {
+    const request = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: { code: 4, message: '(#4) Application request limit reached' } }),
+        { status: 400 }
+      )
+    );
+    vi.stubGlobal('fetch', request);
+    const checkpoint = vi.fn(async () => {});
+
+    await expect(sync(checkpoint)).rejects.toBeInstanceOf(MetaRateLimitError);
+    // Sin el reintento con el juego mínimo de campos: sólo alargaría el castigo.
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(checkpoint).not.toHaveBeenCalled();
     expect(ingested).toHaveLength(0);
   });
 });
