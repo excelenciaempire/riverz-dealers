@@ -62,6 +62,17 @@ describe('señalDura', () => {
     expect(señalDura('No me llegó nada aún')?.clase).toBe('no_llego');
   });
 
+  it('la duda antes de comprar no es un reclamo', () => {
+    expect(señalDura('Es contra reembolso?')).toBeNull();
+    expect(señalDura('¿Hacen contra-reembolso?')).toBeNull();
+    expect(señalDura('Esto es una estafa?')).toBeNull();
+    expect(señalDura('¿No será estafa?')).toBeNull();
+    expect(señalDura('quiero el reembolso de mi compra')?.clase).toBe('devolucion');
+    expect(señalDura('Esto es una estafa, pagué y no mandan nada')?.clase).toBe('legal');
+    expect(señalDura('¿Me estafaron?')?.clase).toBe('legal');
+    expect(señalDura('¿Es una estafa? Voy a hacer la denuncia')?.clase).toBe('legal');
+  });
+
   it('lo grave gana sobre lo leve', () => {
     // "no me llegó" y "denuncia" en el mismo mensaje: se anuncia como legal,
     // que es lo que cambia cómo hay que atenderlo.

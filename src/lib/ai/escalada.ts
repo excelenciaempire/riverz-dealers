@@ -63,6 +63,14 @@ interface Señal {
 }
 
 /**
+ * "Estafa" como acusación. Como pregunta —"¿es una estafa?"— es la duda de
+ * alguien que todavía no compró, y la contesta el agente: escalarla en
+ * silencio dejaba sin respuesta justo al que había que tranquilizar.
+ */
+const ESTAFA = /(?<![\wáéíóúñ])estafa(dor|ron|ste|n)?(?![\wáéíóúñ])/i;
+const PREGUNTA_DE_CONFIANZA = /(?<![\wáéíóúñ])(es|será|sera)\s+(una\s+)?estafa(?![\wáéíóúñ])/i;
+
+/**
  * Las señales duras, en orden de gravedad. La primera que coincide gana: un
  * mensaje que dice "no me llegó y voy a hacer la denuncia" es antes un reclamo
  * legal que un envío demorado, y así se anuncia.
@@ -78,7 +86,7 @@ const SEÑALES: Señal[] = [
       /(?<![\wáéíóúñ])defensa del consumidor(?![\wáéíóúñ])/i,
       /(?<![\wáéíóúñ])(los|te|te la)\s+demand/i,
       /(?<![\wáéíóúñ])juicio(?![\wáéíóúñ])/i,
-      /(?<![\wáéíóúñ])estafa(dor|ron|ste|n)?(?![\wáéíóúñ])/i,
+      ESTAFA,
       /(?<![\wáéíóúñ])fraude(?![\wáéíóúñ])/i,
     ],
   },
@@ -143,7 +151,8 @@ const SEÑALES: Señal[] = [
     patrones: [
       /(?<![\wáéíóúñ])quiero (la )?devoluci[óo]n(?![\wáéíóúñ])/i,
       /(?<![\wáéíóúñ])devolver(lo|la)?(?![\wáéíóúñ])/i,
-      /(?<![\wáéíóúñ])reembols/i,
+      // "Contra reembolso" es pagar al recibir: una pregunta antes de comprar.
+      /(?<!contra[\s-]?)(?<![\wáéíóúñ])reembols/i,
       /(?<![\wáéíóúñ])cancelar (el|mi) pedido(?![\wáéíóúñ])/i,
       /(?<![\wáéíóúñ])me arrepent[íi](?![\wáéíóúñ])/i,
     ],
@@ -234,8 +243,9 @@ export interface ContextoEscalada {
 export function señalDura(texto: string): Escalada | null {
   const t = (texto ?? '').normalize('NFC');
   if (t.trim().length < 4) return null;
+  const preguntaDeConfianza = t.includes('?') && PREGUNTA_DE_CONFIANZA.test(t);
   for (const s of SEÑALES) {
-    if (s.patrones.some((re) => re.test(t))) {
+    if (s.patrones.some((re) => re.test(t) && !(re === ESTAFA && preguntaDeConfianza))) {
       return { clase: s.clase, urgencia: s.urgencia, porQue: s.porQue };
     }
   }
