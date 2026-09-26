@@ -508,6 +508,20 @@ export const assistant = {
   probarPago: { es: "Pago", en: "Payment" },
   probarPagoTarjeta: { es: "Tarjeta", en: "Card" },
   probarPagoPendiente: { es: "Pendiente de pago", en: "Payment pending" },
+  probarEnviar: { es: "Enviar", en: "Send" },
+  probarCompartir: { es: "Link de prueba", en: "Test link" },
+  probarCompartirHint: {
+    es: "Quien lo abra prueba como cliente sin entrar a Riverz. Vence en 30 días.",
+    en: "Anyone who opens it tests as a customer without signing in. Expires in 30 days.",
+  },
+  probarCopiarLink: { es: "Copiar link", en: "Copy link" },
+  probarLinkCopiado: { es: "Link copiado", en: "Link copied" },
+  probarAbrirLink: { es: "Abrir", en: "Open" },
+  probarLinkInvalido: {
+    es: "Este link de prueba venció o no es válido. Pide uno nuevo.",
+    en: "This test link expired or is not valid. Ask for a new one.",
+  },
+  probarPaginaTitulo: { es: "Prueba {comercio} como cliente", en: "Test {comercio} as a customer" },
   probarAgenteApagado: {
     es: "apagado: en vivo no contestaría",
     en: "off: it would not reply live",

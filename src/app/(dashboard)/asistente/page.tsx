@@ -241,12 +241,7 @@ export default function AiAgentsPage() {
               {t('assistant.probarHint')}
             </DialogDescription>
           </DialogHeader>
-          {probando ? (
-            <ProbarComoCliente
-              nombreComercio={workspace?.name ?? null}
-              aceptaContraentrega={agents.some((a) => a.medios_pago?.includes('contraentrega'))}
-            />
-          ) : null}
+          {probando ? <ProbarComoCliente nombreComercio={workspace?.name ?? null} /> : null}
         </DialogContent>
       </Dialog>
 

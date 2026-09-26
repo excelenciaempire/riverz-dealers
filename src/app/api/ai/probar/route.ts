@@ -1,5 +1,6 @@
 import { containsEscalationKeyword } from '@/lib/ai/business-hours';
 import { detectarEscalada } from '@/lib/ai/escalada';
+import { verificarTokenDePrueba } from '@/lib/ai/prueba-compartida';
 import { aiTestGuard } from '@/lib/ai/rate-limit';
 import { detectInboundProduct, pickAgent } from '@/lib/ai/runner';
 import {
@@ -22,6 +23,7 @@ import { csrfGuard } from '@/lib/csrf';
 import { simularComentario } from '@/lib/instagram-agent/simulacion-comentario';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import { agruparPorPrincipal, type FilaAgrupable } from '@/lib/products/agrupar';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { createClient } from '@/lib/supabase/server';
 import { probandoSinPagar } from '@/lib/wallet/prueba';
@@ -70,29 +72,88 @@ export function POST(request: Request) {
   return probandoSinPagar(() => probar(request));
 }
 
-async function probar(request: Request) {
-  const block = await csrfGuard(request);
-  if (block) return block;
-  const locale = await getLocale();
+/**
+ * De qué cuenta es la prueba: la del link compartido, si viene uno, o la de
+ * quien tiene la sesión abierta.
+ */
+async function cuentaDeLaPrueba(
+  admin: ReturnType<typeof supabaseAdmin>,
+  token: unknown
+): Promise<{ workspaceId: string | null; compartida: boolean; conSesion: boolean }> {
+  if (token != null && token !== '') {
+    return { workspaceId: verificarTokenDePrueba(token), compartida: true, conSesion: false };
+  }
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json(
-      { error: translate(locale, 'errAi.unauthorized') },
-      { status: 401 }
-    );
+  if (!user) return { workspaceId: null, compartida: false, conSesion: false };
+  return {
+    workspaceId: await resolveWorkspaceIdForUser(admin, user.id),
+    compartida: false,
+    conSesion: true,
+  };
+}
 
+/**
+ * GET /api/ai/probar[?token=]
+ *   → { comercio, productos, acepta_contraentrega, telefono_ejemplo }
+ *
+ * Lo que la pantalla de prueba necesita para armarse, también desde el link
+ * compartido, donde no hay sesión para pedir el catálogo por otro lado.
+ */
+export async function GET(request: Request) {
+  const locale = await getLocale();
   const admin = supabaseAdmin();
-  const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
-  if (!workspaceId)
+  const token = new URL(request.url).searchParams.get('token');
+  const { workspaceId, conSesion, compartida } = await cuentaDeLaPrueba(admin, token);
+  if (!workspaceId) {
     return NextResponse.json(
-      { error: translate(locale, 'errAi.forbidden') },
-      { status: 403 }
+      { error: translate(locale, compartida || conSesion ? 'errAi.forbidden' : 'errAi.unauthorized') },
+      { status: compartida || conSesion ? 403 : 401 }
     );
+  }
+  const [{ data: ws }, { data: filas }, { data: agentes }, currency] = await Promise.all([
+    admin.from('workspaces').select('name').eq('id', workspaceId).maybeSingle(),
+    admin
+      .from('shopify_products')
+      .select('id, title, master_id, platform, price_min, currency, url, allowed_offers')
+      .eq('workspace_id', workspaceId)
+      .order('title', { ascending: true })
+      .limit(500),
+    admin
+      .from('ai_agents')
+      .select('medios_pago')
+      .eq('workspace_id', workspaceId)
+      .is('deleted_at', null),
+    resolveWorkspaceCurrency(admin, workspaceId),
+  ]);
+  const productos = agruparPorPrincipal((filas ?? []) as unknown as FilaAgrupable[]).map((p) => ({
+    id: String(p.id),
+    title: String(p.title ?? ''),
+    allowed_offers: (p as { allowed_offers?: unknown }).allowed_offers ?? null,
+  }));
+  return NextResponse.json(
+    {
+      comercio: (ws as { name?: string | null } | null)?.name ?? null,
+      productos,
+      acepta_contraentrega: ((agentes ?? []) as Array<{ medios_pago?: unknown }>).some(
+        (a) => Array.isArray(a.medios_pago) && a.medios_pago.includes('contraentrega')
+      ),
+      telefono_ejemplo: lugarDePrueba(currency).telefono,
+      compartida,
+    },
+    { headers: { 'Cache-Control': 'no-store' } }
+  );
+}
 
+async function probar(request: Request) {
+  const block = await csrfGuard(request);
+  if (block) return block;
+  const locale = await getLocale();
+  const admin = supabaseAdmin();
   const body = (await request.json().catch(() => null)) as {
+    token?: unknown;
     escenario?: unknown;
     channel?: unknown;
     product_id?: unknown;
@@ -106,6 +167,12 @@ async function probar(request: Request) {
     agente_actual?: unknown;
     automation_context?: unknown;
   } | null;
+  const { workspaceId, conSesion, compartida } = await cuentaDeLaPrueba(admin, body?.token);
+  if (!workspaceId)
+    return NextResponse.json(
+      { error: translate(locale, compartida || conSesion ? 'errAi.forbidden' : 'errAi.unauthorized') },
+      { status: compartida || conSesion ? 403 : 401 }
+    );
   const escenario = escenarioValido(body?.escenario);
   if (!escenario) {
     return NextResponse.json(
@@ -117,8 +184,10 @@ async function probar(request: Request) {
   // cliente por ahí, elija lo que elija la pantalla.
   const channel = escenario === 'mensaje' ? canalSimulado(body?.channel) : 'whatsapp';
   const message = typeof body?.message === 'string' ? body.message.trim() : '';
+  // Con el link compartido no se elige teléfono: un teléfono real haría que
+  // el asistente buscara pedidos de clientes de verdad.
   const simulatedPhone =
-    typeof body?.simulated_phone === 'string' ? body.simulated_phone.trim() : '';
+    !compartida && typeof body?.simulated_phone === 'string' ? body.simulated_phone.trim() : '';
 
   // ── Paso 1: qué dispara el evento ──
   if (!message) {

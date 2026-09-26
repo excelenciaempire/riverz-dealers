@@ -61,6 +61,8 @@ export const ROUTE_SLUGS_EN: Record<string, string> = {
   "eliminar-datos": "data-deletion",
   soporte: "support",
   calculadora: "calculator",
+  // El link de "Probar como cliente" que se comparte sin sesión.
+  probar: "try",
 };
 
 /**

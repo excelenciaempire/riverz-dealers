@@ -5,10 +5,13 @@ import { toast } from 'sonner';
 import {
   Check,
   CheckCheck,
+  ExternalLink,
   FastForward,
+  Link2,
   Loader2,
   MessageSquareText,
   Phone,
+  Reply,
   RotateCcw,
   Send,
   UserRound,
@@ -119,12 +122,13 @@ interface Pendiente {
 }
 
 export function ProbarComoCliente({
-  nombreComercio,
-  aceptaContraentrega = false,
+  nombreComercio: nombreInicial,
+  token,
 }: {
   nombreComercio?: string | null;
-  /** Sin contra entrega no se ofrece simular un pedido contra entrega. */
-  aceptaContraentrega?: boolean;
+  /** El link compartido: se prueba sin sesión, sin elegir teléfono y sin
+   *  poder generar otro link. */
+  token?: string;
 }) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
@@ -133,7 +137,13 @@ export function ProbarComoCliente({
   /** Una opción por oferta del producto (`id|unidades`), o el producto solo. */
   const [productos, setProductos] = useState<Array<{ id: string; title: string }>>([]);
   const [productoId, setProductoId] = useState('');
-  const [pago, setPago] = useState<Pago>(aceptaContraentrega ? 'cod' : 'mercadopago');
+  /** Sin contra entrega no se ofrece simular un pedido contra entrega. */
+  const [aceptaContraentrega, setAceptaContraentrega] = useState(false);
+  const [nombreComercio, setNombreComercio] = useState<string | null>(nombreInicial ?? null);
+  const [telefonoEjemplo, setTelefonoEjemplo] = useState('');
+  const [link, setLink] = useState<string | null>(null);
+  const [generandoLink, setGenerandoLink] = useState(false);
+  const [pago, setPago] = useState<Pago>('mercadopago');
   const [guia, setGuia] = useState('');
   const [telefono, setTelefono] = useState('');
 
@@ -151,17 +161,38 @@ export function ProbarComoCliente({
   const finRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    fetch('/api/shopify/products')
+    fetch(`/api/ai/probar${token ? `?token=${encodeURIComponent(token)}` : ''}`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
+        if (!j) return;
         const lista = opcionesDePedido(
-          (j?.products ?? []) as Array<{ id: string; title: string; allowed_offers?: unknown }>
+          (j.productos ?? []) as Array<{ id: string; title: string; allowed_offers?: unknown }>
         );
         setProductos(lista);
         if (lista[0]) setProductoId((prev) => prev || lista[0].id);
+        setAceptaContraentrega(j.acepta_contraentrega === true);
+        if (j.acepta_contraentrega === true) setPago('cod');
+        if (typeof j.comercio === 'string' && j.comercio) setNombreComercio(j.comercio);
+        if (typeof j.telefono_ejemplo === 'string') setTelefonoEjemplo(j.telefono_ejemplo);
       })
       .catch(() => {});
-  }, []);
+  }, [token]);
+
+  async function compartir() {
+    setGenerandoLink(true);
+    try {
+      const res = await fetchWithCsrf('/api/ai/probar/compartir', { method: 'POST' });
+      const json = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
+      if (!res.ok || !json?.url) throw new Error(json?.error ?? '');
+      setLink(json.url);
+      await navigator.clipboard?.writeText(json.url).catch(() => {});
+      toast.success(t('assistant.probarLinkCopiado'));
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : t('assistant.probarFallo'));
+    } finally {
+      setGenerandoLink(false);
+    }
+  }
 
   useEffect(() => {
     finRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
@@ -252,6 +283,7 @@ export function ProbarComoCliente({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          token,
           escenario,
           channel: canal,
           product_id: productoId.split('|')[0] || undefined,
@@ -365,6 +397,7 @@ export function ProbarComoCliente({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          token,
           escenario,
           channel: canal,
           simulated_phone: telefono || undefined,
@@ -461,134 +494,189 @@ export function ProbarComoCliente({
   const inicial = (nombreComercio ?? 'R').trim().charAt(0).toUpperCase() || 'R';
 
   return (
-    <div className="space-y-4">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
       {/* ── Qué pasa ── */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <Campo label={t('assistant.probarEscenario')}>
-          <Select value={escenario} onValueChange={(v) => { if (v) { setEscenario(v as Escenario); reiniciar(); } }}>
-            <SelectTrigger className="w-full"><SelectValue labels={etiquetasEscenario} /></SelectTrigger>
-            <SelectContent>
-              {ESCENARIOS.map((e) => <SelectItem key={e.id} value={e.id}>{t(e.key)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Campo>
-        <Campo label={t('assistant.probarCanal')} hint={esEvento ? t('assistant.probarSoloWhatsapp') : undefined}>
-          <Select value={esEvento ? 'whatsapp' : canal} disabled={esEvento} onValueChange={(v) => { if (v) { setCanal(v as Channel); reiniciar(); } }}>
-            <SelectTrigger className="w-full"><SelectValue labels={etiquetasCanal} /></SelectTrigger>
-            <SelectContent>
-              {CANALES.map((c) => <SelectItem key={c.id} value={c.id}>{etiquetaDeCanal(c.label)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Campo>
-        {esEvento ? (
-          <Campo label={t('assistant.probarProducto')}>
-            <Select value={productoId} disabled={productos.length === 0} onValueChange={(v) => setProductoId(v ?? '')}>
-              <SelectTrigger className="w-full"><SelectValue labels={etiquetasProducto} placeholder="—" /></SelectTrigger>
+      <div className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Campo label={t('assistant.probarEscenario')}>
+            <Select value={escenario} onValueChange={(v) => { if (v) { setEscenario(v as Escenario); reiniciar(); } }}>
+              <SelectTrigger className="w-full"><SelectValue labels={etiquetasEscenario} /></SelectTrigger>
               <SelectContent>
-                {productos.map((p) => <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>)}
+                {ESCENARIOS.map((e) => <SelectItem key={e.id} value={e.id}>{t(e.key)}</SelectItem>)}
               </SelectContent>
             </Select>
           </Campo>
-        ) : null}
-        {escenario === 'shopify_order_created' ? (
-          <Campo label={t('assistant.probarPago')}>
-            <Select value={pago} onValueChange={(v) => { if (v) setPago(v as Pago); }}>
-              <SelectTrigger className="w-full"><SelectValue labels={etiquetasPago} /></SelectTrigger>
+          <Campo label={t('assistant.probarCanal')} hint={esEvento ? t('assistant.probarSoloWhatsapp') : undefined}>
+            <Select value={esEvento ? 'whatsapp' : canal} disabled={esEvento} onValueChange={(v) => { if (v) { setCanal(v as Channel); reiniciar(); } }}>
+              <SelectTrigger className="w-full"><SelectValue labels={etiquetasCanal} /></SelectTrigger>
               <SelectContent>
-                {(Object.keys(etiquetasPago) as Pago[]).map((p) => <SelectItem key={p} value={p}>{etiquetasPago[p]}</SelectItem>)}
+                {CANALES.map((c) => <SelectItem key={c.id} value={c.id}>{etiquetaDeCanal(c.label)}</SelectItem>)}
               </SelectContent>
             </Select>
           </Campo>
-        ) : null}
-        {escenario === 'shopify_order_fulfilled' ? (
-          <Campo label={t('assistant.probarGuia')} hint={t('assistant.probarGuiaHint')}>
-            <Input value={guia} onChange={(e) => setGuia(e.target.value)} placeholder="RA123456789CO" />
-          </Campo>
-        ) : null}
-        <Campo label={t('assistant.probarTelefono')} hint={t('assistant.probarTelefonoHint')}>
-          <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="+57 300 000 0000" inputMode="tel" />
-        </Campo>
-      </div>
-
-      {/* ── El chat ── */}
-      <div className="border-border flex h-[60vh] min-h-[440px] flex-col overflow-hidden rounded-xl border bg-[#efeae2] shadow-sm dark:bg-[#0b141a]">
-        <div className="flex items-center gap-3 border-b border-black/5 bg-[#f0f2f5] px-4 py-2.5 dark:border-white/5 dark:bg-[#202c33]">
-          <div className="grid size-9 place-items-center rounded-full bg-[#00a884] text-sm font-semibold text-white">
-            {inicial}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-[#111b21] dark:text-[#e9edef]">
-              {nombreComercio || t('assistant.probarTitle')}
-            </p>
-            <p className="truncate text-xs text-[#667781] dark:text-[#8696a0]">
-              {agenteActual ? agenteActual.nombre : t('assistant.probarEnLinea')}
-            </p>
-          </div>
-          {iniciado ? (
-            <Button size="sm" variant="ghost" onClick={reiniciar} className="text-[#54656f] dark:text-[#aebac1]">
-              <RotateCcw className="size-4" />
-              {t('assistant.probarReiniciar')}
-            </Button>
+          {esEvento ? (
+            <Campo label={t('assistant.probarProducto')}>
+              <Select value={productoId} disabled={productos.length === 0} onValueChange={(v) => setProductoId(v ?? '')}>
+                <SelectTrigger className="w-full"><SelectValue labels={etiquetasProducto} placeholder="—" /></SelectTrigger>
+                <SelectContent>
+                  {productos.map((p) => <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Campo>
+          ) : null}
+          {escenario === 'shopify_order_created' ? (
+            <Campo label={t('assistant.probarPago')}>
+              <Select value={pago} onValueChange={(v) => { if (v) setPago(v as Pago); }}>
+                <SelectTrigger className="w-full"><SelectValue labels={etiquetasPago} /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(etiquetasPago) as Pago[]).map((p) => <SelectItem key={p} value={p}>{etiquetasPago[p]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Campo>
+          ) : null}
+          {escenario === 'shopify_order_fulfilled' ? (
+            <Campo label={t('assistant.probarGuia')} hint={t('assistant.probarGuiaHint')}>
+              <Input value={guia} onChange={(e) => setGuia(e.target.value)} placeholder="360003112209570" />
+            </Campo>
+          ) : null}
+          {!token ? (
+            <Campo label={t('assistant.probarTelefono')} hint={t('assistant.probarTelefonoHint')}>
+              <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder={telefonoEjemplo || '+57 300 000 0000'} inputMode="tel" />
+            </Campo>
           ) : null}
         </div>
 
-        <div className="flex-1 space-y-1.5 overflow-y-auto px-4 py-3">
-          {!iniciado ? (
-            <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-              <div className="grid size-12 place-items-center rounded-full bg-white/70 text-[#54656f] dark:bg-[#202c33] dark:text-[#aebac1]">
-                <MessageSquareText className="size-5" />
+        {!token ? (
+          <div className="border-border space-y-2 rounded-xl border p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-foreground text-sm font-medium">{t('assistant.probarCompartir')}</p>
+                <p className="text-muted-foreground text-xs">{t('assistant.probarCompartirHint')}</p>
               </div>
-              <p className="max-w-xs text-sm text-[#54656f] dark:text-[#aebac1]">{t('assistant.probarVacio')}</p>
-              <Button onClick={empezar} disabled={cargando} className="bg-[#00a884] text-white hover:bg-[#029b78]">
-                {cargando ? <Loader2 className="size-4 animate-spin" /> : null}
-                {t('assistant.probarEmpezar')}
+              <Button size="sm" variant="outline" onClick={() => void compartir()} disabled={generandoLink}>
+                {generandoLink ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
+                {t('assistant.probarCopiarLink')}
               </Button>
             </div>
-          ) : null}
-          {iniciado && !cargando ? <Chip texto={t('assistant.probarHoy')} /> : null}
-          {cargando ? (
-            <div className="flex justify-center py-6"><Loader2 className="size-5 animate-spin text-[#54656f]" /></div>
-          ) : null}
-          {items.map((it, i) => (
-            <Linea key={i} it={it} onBoton={(texto) => void enviar(texto)} />
-          ))}
-          <div ref={finRef} />
-        </div>
-
-        {pendientes.length > 0 ? (
-          <div className="flex flex-wrap items-center justify-center gap-2 border-t border-black/5 bg-[#f0f2f5]/80 px-3 py-2 dark:border-white/5 dark:bg-[#202c33]/80">
-            {pendientes.map((p, i) => (
-              <Button key={i} size="sm" variant="outline" onClick={() => avanzar(p)} disabled={enviando} className="rounded-full">
-                <FastForward className="size-3.5" />
-                {t('assistant.probarPasaron', { n: p.espera.amount, unit: unidad(p.espera.unit, p.espera.amount) })}
-              </Button>
-            ))}
+            {link ? (
+              <div className="flex items-center gap-2">
+                <Input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="text-xs" />
+                <a
+                  href={link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-foreground hover:bg-muted inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium"
+                >
+                  <ExternalLink className="size-3.5" />
+                  {t('assistant.probarAbrirLink')}
+                </a>
+              </div>
+            ) : null}
           </div>
         ) : null}
+      </div>
 
-        <div className="flex items-center gap-2 border-t border-black/5 bg-[#f0f2f5] p-2 dark:border-white/5 dark:bg-[#202c33]">
-          <Input
-            value={mensaje}
-            onChange={(e) => setMensaje(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                void enviar();
-              }
-            }}
-            placeholder={t('assistant.probarEscribi')}
-            disabled={enviando || cargando}
-            className="rounded-full border-transparent bg-white dark:bg-[#2a3942]"
-          />
-          <Button
-            size="icon"
-            className="rounded-full bg-[#00a884] text-white hover:bg-[#029b78]"
-            onClick={() => void enviar()}
-            disabled={enviando || cargando || !mensaje.trim()}
-            aria-label={t('assistant.probarEmpezar')}
-          >
-            <Send className="size-4" />
-          </Button>
+      {/* ── El chat, como el teléfono del cliente ── */}
+      <div className="mx-auto w-full max-w-[380px]">
+        <div className="overflow-hidden rounded-[2.25rem] border-[7px] border-foreground/90 bg-[#0b141a] shadow-2xl">
+          <div className="flex h-[min(640px,72vh)] min-h-[460px] flex-col">
+            <div className="flex items-center gap-2.5 bg-[#075e54] px-3 py-2.5">
+              <div className="grid size-8 shrink-0 place-items-center rounded-full bg-white/20 text-sm font-semibold text-white">
+                {inicial}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-white">{nombreComercio || t('templates.yourBusiness')}</p>
+                <p className="truncate text-[11px] text-white/75">
+                  {agenteActual ? agenteActual.nombre : t('assistant.probarEnLinea')}
+                </p>
+              </div>
+              {iniciado ? (
+                <button
+                  type="button"
+                  onClick={reiniciar}
+                  aria-label={t('assistant.probarReiniciar')}
+                  title={t('assistant.probarReiniciar')}
+                  className="grid size-8 place-items-center rounded-full text-white/85 hover:bg-white/10"
+                >
+                  <RotateCcw className="size-4" />
+                </button>
+              ) : null}
+            </div>
+
+            <div
+              className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3"
+              style={{
+                backgroundColor: '#e5ddd5',
+                backgroundImage: 'radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
+                backgroundSize: '14px 14px',
+              }}
+            >
+              {!iniciado ? (
+                <div className="flex h-full flex-col items-center justify-center gap-4 px-4 text-center">
+                  <div className="grid size-12 place-items-center rounded-full bg-white/80 text-[#54656f] shadow-sm">
+                    <MessageSquareText className="size-5" />
+                  </div>
+                  <p className="max-w-[240px] rounded-lg bg-white/80 px-3 py-2 text-[13px] text-[#54656f] shadow-sm">
+                    {t('assistant.probarVacio')}
+                  </p>
+                  <Button onClick={empezar} disabled={cargando} className="rounded-full bg-[#00a884] text-white hover:bg-[#029b78]">
+                    {cargando ? <Loader2 className="size-4 animate-spin" /> : null}
+                    {t('assistant.probarEmpezar')}
+                  </Button>
+                </div>
+              ) : null}
+              {iniciado && !cargando ? <Chip texto={t('assistant.probarHoy')} /> : null}
+              {cargando ? (
+                <div className="flex justify-center py-6"><Loader2 className="size-5 animate-spin text-[#54656f]" /></div>
+              ) : null}
+              {items.map((it, i) => (
+                <Linea key={i} it={it} onBoton={(texto) => void enviar(texto)} />
+              ))}
+              <div ref={finRef} />
+            </div>
+
+            {pendientes.length > 0 ? (
+              <div className="flex flex-wrap items-center justify-center gap-2 bg-[#f0f2f5] px-3 py-2">
+                {pendientes.map((p, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => avanzar(p)}
+                    disabled={enviando}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[#008069] shadow-sm hover:bg-white/80 disabled:opacity-50"
+                  >
+                    <FastForward className="size-3.5" />
+                    {t('assistant.probarPasaron', { n: p.espera.amount, unit: unidad(p.espera.unit, p.espera.amount) })}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="flex items-center gap-2 bg-[#f0f2f5] px-2 py-2">
+              <input
+                value={mensaje}
+                onChange={(e) => setMensaje(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    void enviar();
+                  }
+                }}
+                placeholder={t('assistant.probarEscribi')}
+                disabled={enviando || cargando}
+                className="h-10 min-w-0 flex-1 rounded-full bg-white px-4 text-sm text-[#111b21] outline-none placeholder:text-[#8696a0] disabled:opacity-60"
+              />
+              <button
+                type="button"
+                onClick={() => void enviar()}
+                disabled={enviando || cargando || !mensaje.trim()}
+                aria-label={t('assistant.probarEnviar')}
+                className="grid size-10 shrink-0 place-items-center rounded-full bg-[#00a884] text-white hover:bg-[#029b78] disabled:opacity-50"
+              >
+                <Send className="size-4" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -605,10 +693,12 @@ function Campo({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
+/* Los hex de acá son el cromo REAL de WhatsApp, como en la vista previa de
+ * plantillas: el chat se ve como el teléfono del cliente, no sigue el tema. */
 function Chip({ texto, icono }: { texto: string; icono?: 'espera' | 'llamada' | 'persona' }) {
   return (
     <div className="flex justify-center py-1">
-      <span className="inline-flex max-w-[92%] items-center gap-1.5 rounded-lg bg-white/80 px-2.5 py-1 text-center text-[11px] text-[#54656f] shadow-sm dark:bg-[#182229] dark:text-[#aebac1]">
+      <span className="inline-flex max-w-[92%] items-center gap-1.5 rounded-lg bg-[#fff5c4] px-2.5 py-1 text-center text-[11px] text-[#54656f] shadow-sm">
         {icono === 'espera' ? <FastForward className="size-3 shrink-0" /> : null}
         {icono === 'llamada' ? <Phone className="size-3 shrink-0" /> : null}
         {icono === 'persona' ? <UserRound className="size-3 shrink-0" /> : null}
@@ -623,7 +713,7 @@ function Linea({ it, onBoton }: { it: Item; onBoton: (texto: string) => void }) 
   if (it.k === 'typing') {
     return (
       <div className="flex justify-start">
-        <div className="rounded-lg rounded-tl-none bg-white px-3 py-2 text-sm shadow-sm dark:bg-[#202c33]">
+        <div className="rounded-lg rounded-tl-none bg-white px-3 py-2 text-sm shadow-sm">
           <span className="animate-pulse text-[#8696a0]">•••</span>
         </div>
       </div>
@@ -632,9 +722,9 @@ function Linea({ it, onBoton }: { it: Item; onBoton: (texto: string) => void }) 
   if (it.k === 'me') {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[78%] rounded-lg rounded-tr-none bg-[#d9fdd3] px-3 py-1.5 text-sm text-[#111b21] shadow-sm dark:bg-[#005c4b] dark:text-[#e9edef]">
-          <p className="whitespace-pre-wrap">{it.texto}</p>
-          <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-[#667781] dark:text-[#8696a0]">
+        <div className="max-w-[82%] rounded-lg rounded-tr-none bg-[#dcf8c6] px-2.5 py-1.5 text-[13px] leading-snug text-[#111b21] shadow-sm">
+          <p className="whitespace-pre-wrap break-words">{it.texto}</p>
+          <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-[#667781]">
             {it.hora} <CheckCheck className="size-3 text-[#53bdeb]" />
           </p>
         </div>
@@ -643,34 +733,32 @@ function Linea({ it, onBoton }: { it: Item; onBoton: (texto: string) => void }) 
   }
   return (
     <div className="flex flex-col items-start">
-      <div className="max-w-[78%] rounded-lg rounded-tl-none bg-white text-sm text-[#111b21] shadow-sm dark:bg-[#202c33] dark:text-[#e9edef]">
-        <div className="px-3 py-1.5">
-          <p className="whitespace-pre-wrap">{it.texto}</p>
-          <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-[#667781] dark:text-[#8696a0]">
-            {it.hora} <Check className="size-3" />
-          </p>
-        </div>
-        {it.botones.length > 0 ? (
-          <div className="border-t border-black/5 dark:border-white/10">
-            {it.botones.map((b, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => (b.type === 'QUICK_REPLY' ? onBoton(b.text) : undefined)}
-                className={cn(
-                  'block w-full py-2 text-center text-[13px] font-medium text-[#027eb5] dark:text-[#53bdeb]',
-                  i > 0 && 'border-t border-black/5 dark:border-white/10',
-                  b.type === 'QUICK_REPLY' ? 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]' : 'cursor-default'
-                )}
-              >
-                {b.text}
-              </button>
-            ))}
-          </div>
-        ) : null}
+      <div className="max-w-[82%] rounded-lg rounded-tl-none bg-white px-2.5 py-1.5 text-[13px] leading-snug text-[#111b21] shadow-sm">
+        <p className="whitespace-pre-wrap break-words">{it.texto}</p>
+        <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-[#667781]">
+          {it.hora} <Check className="size-3" />
+        </p>
       </div>
-      {it.nota ? <p className="mt-0.5 pl-1 text-[10px] text-[#667781] dark:text-[#8696a0]">{it.nota}</p> : null}
-      {it.alerta ? <p className="text-destructive mt-0.5 pl-1 text-[10px]">{it.alerta}</p> : null}
+      {it.botones.length > 0 ? (
+        <div className="mt-1 w-[82%] max-w-[82%] space-y-0.5">
+          {it.botones.map((b, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => (b.type === 'QUICK_REPLY' ? onBoton(b.text) : undefined)}
+              className={cn(
+                'flex w-full items-center justify-center gap-1.5 rounded-lg bg-white px-2 py-1.5 text-[13px] font-medium text-[#00a5f4] shadow-sm',
+                b.type === 'QUICK_REPLY' ? 'hover:bg-white/80' : 'cursor-default'
+              )}
+            >
+              {b.type === 'URL' ? <ExternalLink className="size-3.5" /> : b.type === 'QUICK_REPLY' ? <Reply className="size-3.5" /> : null}
+              {b.text}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {it.nota ? <p className="mt-0.5 max-w-[82%] rounded bg-white/60 px-1.5 text-[10px] text-[#54656f]">{it.nota}</p> : null}
+      {it.alerta ? <p className="mt-0.5 max-w-[82%] rounded bg-white/70 px-1.5 text-[10px] text-[#d93025]">{it.alerta}</p> : null}
     </div>
   );
 }
