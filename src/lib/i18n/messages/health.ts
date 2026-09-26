@@ -58,6 +58,12 @@ export const health: Namespace = {
     es: "El asistente dejó de contestar {n} vez/veces en la última hora",
     en: "The assistant stopped replying {n} time(s) in the last hour",
   },
+  // No afirma que el paquete salió: dice lo que se ve, que es la guía que
+  // falta. El comercio sabe si ya lo despachó.
+  tracking_missing: {
+    es: "{n} pedido(s) de hace más de 48 h siguen sin guía en Shopify",
+    en: "{n} order(s) older than 48 h still have no tracking in Shopify",
+  },
   detailAiSinSaldo: {
     es: "Se acabó el saldo del modelo. Al cliente le llegó «en un momento te responde una persona».",
     en: "The model ran out of credit. The customer was told a person would reply shortly.",
@@ -151,6 +157,10 @@ export const health: Namespace = {
   mailConnectionPlain: {
     es: "{n} conexión(es) dejaron de funcionar. Vuelve a conectarlas",
     en: "{n} connection(s) stopped working. Reconnect them",
+  },
+  mailTrackingMissing: {
+    es: "{n} pedido(s) siguen sin guía en Shopify: si ya salieron, el cliente no recibió su aviso de despacho",
+    en: "{n} order(s) still have no tracking in Shopify: if they already shipped, the customer got no shipping notice",
   },
   mailWhatsappBlocked: {
     es: "Tu WhatsApp no puede enviar mensajes. Meta lo bloqueó: revisa el medio de pago y los datos fiscales de la cuenta",

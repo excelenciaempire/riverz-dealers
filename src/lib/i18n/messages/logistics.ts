@@ -39,4 +39,26 @@ export const logistics = {
   voicemail: { es: 'Buzón', en: 'Voicemail' },
   canceled: { es: 'Cancelada', en: 'Cancelled' },
   dataOnly: { es: 'Revisión de datos', en: 'Data review' },
-} satisfies Namespace;
+
+  // Pedidos sin guía (/logistica/sin-guia)
+  missingTitle: { es: 'Pedidos sin guía', en: 'Orders without tracking' },
+  missingSubtitle: {
+    es: 'Pedidos de hace más de 48 h que en Shopify siguen sin guía. Carga la que tienes en tu app logística y el cliente recibe su aviso de despacho.',
+    en: 'Orders older than 48 h that still have no tracking in Shopify. Enter the one from your logistics app and the customer gets their shipping notice.',
+  },
+  missingEmpty: { es: 'Todos los pedidos tienen guía.', en: 'Every order has tracking.' },
+  missingTracking: { es: 'Número de guía', en: 'Tracking number' },
+  missingCarrier: { es: 'Transportadora', en: 'Carrier' },
+  missingSend: { es: 'Enviar guía', en: 'Send tracking' },
+  missingDismiss: { es: 'No se despacha', en: 'Not shipping' },
+  missingSent: { es: 'Guía guardada. El cliente recibe su aviso de despacho.', en: 'Tracking saved. The customer gets their shipping notice.' },
+  missingSavedNoContact: { es: 'Guía guardada. El pedido no tiene un WhatsApp al que avisar.', en: 'Tracking saved. The order has no WhatsApp number to notify.' },
+  missingAlreadyRecorded: { es: 'Esa guía ya estaba guardada.', en: 'That tracking number was already saved.' },
+  missingAlreadyTracked: { es: 'Shopify ya tiene la guía de este pedido; el aviso sale solo.', en: 'Shopify already has this order’s tracking; the notice goes out on its own.' },
+  missingCancelled: { es: 'Este pedido está cancelado.', en: 'This order is cancelled.' },
+  missingInvalid: { es: 'Revisa el número de guía y la transportadora.', en: 'Check the tracking number and carrier.' },
+  missingStoreUnavailable: { es: 'No se pudo leer el pedido en Shopify. Intenta de nuevo.', en: 'Could not read the order from Shopify. Try again.' },
+  missingNotFound: { es: 'No se encontró el pedido.', en: 'Order not found.' },
+  missingError: { es: 'No se pudo guardar. Intenta de nuevo.', en: 'Could not save. Try again.' },
+  missingLoadError: { es: 'No se pudieron cargar los pedidos.', en: 'Could not load the orders.' },
+  missingDismissed: { es: 'Pedido marcado como no despachado.', en: 'Order marked as not shipping.' },} satisfies Namespace;

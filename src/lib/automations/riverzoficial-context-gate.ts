@@ -29,6 +29,14 @@ export function riverzOrderSkipReason(kind: string, order: Record<string, unknow
   if(kind==='delivered') return delivered ? null : 'delivery_not_verified';
   return null;
 }
+async function manualTracking(db: SupabaseClient, workspaceId: string, orderId: string)
+  : Promise<{ tracking_number: string; tracking_company: string|null }|null> {
+  const {data,error}=await db.from('orders').select('tracking_number,tracking_company')
+    .eq('workspace_id',workspaceId).eq('shopify_order_id',orderId).eq('tracking_source','manual')
+    .neq('status','cancelled').limit(1).maybeSingle();
+  if(error||!data?.tracking_number)return null;
+  return data as { tracking_number: string; tracking_company: string|null };
+}
 /** Re-evaluate the actual transaction after every wait, before messages or calls.
  * Returning a reason closes this scope as skipped; unavailable evidence never sends.
  */
@@ -74,11 +82,19 @@ export async function riverzFlowSkipReason(db: SupabaseClient, input: {
     if(!response.ok)return 'order_state_unavailable';
     const {order}=await response.json();
     if(!order||String(order.id)!==orderId)return 'order_identity_mismatch';
-    const reason=riverzOrderSkipReason(kind,order);if(reason)return reason;
+    let reason=riverzOrderSkipReason(kind,order);
+    // La app logística a veces no sincroniza la guía con Shopify. La que el
+    // comercio cargó a mano en Riverz es la misma evidencia, así que vale.
+    const manual=reason==='tracking_not_verified'?await manualTracking(db,input.workspaceId,orderId):null;
+    if(manual)reason=null;
+    if(reason)return reason;
     const summary=confirmationSummary(order);
     if(summary.order_items==='—')return 'order_items_unavailable';
     Object.assign(input.vars,summary,{total_price:String(order.total_price??''),currency:order.currency??''});
-    if(kind==='shipped'){
+    if(manual){
+      input.vars.tracking_number=manual.tracking_number;
+      input.vars.tracking_company=manual.tracking_company??'';
+    } else if(kind==='shipped'){
       const fulfillment=(order.fulfillments??[]).find((f:Record<string,unknown>)=>f.status!=='cancelled'&&f.status!=='failure'&&f.status!=='error'&&(f.tracking_number||(Array.isArray(f.tracking_numbers)&&f.tracking_numbers.length)));
       input.vars.tracking_number=fulfillment?.tracking_number??fulfillment?.tracking_numbers?.[0]??'';
       input.vars.tracking_company=fulfillment?.tracking_company??'';

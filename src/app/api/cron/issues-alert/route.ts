@@ -50,6 +50,8 @@ const PARA_EL_COMERCIO: ReadonlySet<Issue['kind']> = new Set([
   'whatsapp_blocked',
   'connection_error',
   'channel_silent',
+  // La guía está en la app logística del comercio: sólo él puede cargarla.
+  'tracking_missing',
 ])
 
 async function cronHandler(request: Request) {
@@ -216,6 +218,8 @@ function describe(issue: Issue, t: TFn): string {
     }
     case 'channel_silent':
       return t('health.channel_silent')
+    case 'tracking_missing':
+      return t('health.mailTrackingMissing', { n: issue.count })
     default:
       return t('health.needsAttention')
   }

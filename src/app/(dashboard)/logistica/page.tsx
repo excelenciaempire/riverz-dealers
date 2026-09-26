@@ -23,7 +23,10 @@ export default async function LogisticsPage({ searchParams }: { searchParams: Pr
   return <main className="mx-auto max-w-5xl space-y-6 p-6">
     <header className="flex items-center justify-between gap-4">
       <div><h1 className="text-2xl font-semibold">{t('title')}</h1><p className="text-sm text-muted-foreground">{t('draft')}</p></div>
-      <Link href="/logistica" className="rounded-md border px-4 py-2 text-sm" prefetch={false}>{t('refresh')}</Link>
+      <div className="flex gap-2">
+        <Link href="/logistica/sin-guia" className="rounded-md border px-4 py-2 text-sm" prefetch={false}>{t('missingTitle')}</Link>
+        <Link href="/logistica" className="rounded-md border px-4 py-2 text-sm" prefetch={false}>{t('refresh')}</Link>
+      </div>
     </header>
     <div className="rounded-lg border p-4 text-sm space-y-1"><p>{t('source')}</p>{report.blockers.map(code => <p key={code}>{t(code)}</p>)}</div>
     {!report.orders.length && <p>{t('noOrders')}</p>}

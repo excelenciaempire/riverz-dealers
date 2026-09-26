@@ -45,6 +45,7 @@ const CAMPOS = [
   'checkout_token',
   'cart_token',
   'fulfillments',
+  'tags',
 ].join(',')
 
 export interface ResumenDeSincronizacion {

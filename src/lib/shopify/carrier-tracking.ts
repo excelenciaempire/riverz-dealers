@@ -100,6 +100,9 @@ const CARRIERS: CarrierResolver[] = [
   },
 ]
 
+/** Los nombres que ya sabemos rastrear, para sugerirlos al cargar una guía. */
+export const KNOWN_CARRIER_NAMES: readonly string[] = CARRIERS.map((c) => c.displayName)
+
 /**
  * Resolve a carrier+number pair to a public tracking URL. Returns null
  * when carrier or number is missing or unknown; the caller should

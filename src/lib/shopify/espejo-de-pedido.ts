@@ -233,7 +233,13 @@ export async function espejarPedidoDeShopify(
     const total = aNumero(order.total_price);
     if (total != null) parche.total_price = total;
     parche.line_items = lineItems;
-    if (envio.numero) parche.tracking_number = envio.numero;
+    if (typeof order.tags === 'string') parche.shop_tags = order.tags;
+    // La guía que carga el comercio a mano no se pisa con vacío: sólo se
+    // reemplaza cuando la tienda trae la suya.
+    if (envio.numero) {
+      parche.tracking_number = envio.numero;
+      parche.tracking_source = 'shopify';
+    }
     if (envio.empresa) parche.tracking_company = envio.empresa;
     if (envio.url) parche.tracking_url = envio.url;
     if (envio.estado) parche.shipping_status = envio.estado;
@@ -269,7 +275,9 @@ export async function espejarPedidoDeShopify(
     financial_status: financial,
     fulfillment_status: fulfillment,
     status: estadoDelPedido(order),
+    shop_tags: typeof order.tags === 'string' ? order.tags : null,
     tracking_number: envio.numero,
+    tracking_source: envio.numero ? 'shopify' : null,
     tracking_company: envio.empresa,
     tracking_url: envio.url,
     shipping_status: envio.estado,

@@ -138,7 +138,7 @@ export function issueDetailText(
 
   // Nombres propios: la plantilla rechazada y la campaña trabada se identifican
   // por su nombre, y traducir un nombre es romperlo.
-  if (kind === 'template_rejected' || kind === 'broadcast_stalled') return raw;
+  if (kind === 'template_rejected' || kind === 'broadcast_stalled' || kind === 'tracking_missing') return raw;
 
   /**
    * El WhatsApp de una llamada NO muestra el motivo de Meta.

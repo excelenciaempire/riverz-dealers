@@ -90,6 +90,8 @@ function nombreProblema(kind: Issue['kind']): string {
       return 'canales que dejaron de recibir'
     case 'ai_down':
       return 'asistentes que dejaron de contestar'
+    case 'tracking_missing':
+      return 'pedidos sin guía en Shopify'
   }
 }
 

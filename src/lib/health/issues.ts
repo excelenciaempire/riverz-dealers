@@ -65,7 +65,15 @@ export type IssueKind =
    * persona» y la IA deja de contestar — y eso no llegaba a ningún lado. El
    * comercio se enteraba mirando las etiquetas de la bandeja una por una.
    */
-  | 'ai_down';
+  | 'ai_down'
+  /**
+   * Pedidos que deberían tener guía y en Shopify no la tienen.
+   *
+   * La guía llega por la app logística, que la escribe en la tienda. Cuando no
+   * sincroniza, el paquete sale igual y el aviso de despacho no: el cliente se
+   * queda sin guía y nadie se entera (#1011 de DeUNA Shop, 2026-09-26).
+   */
+  | 'tracking_missing';
 
 /**
  * Quién puede arreglarlo.
@@ -156,6 +164,9 @@ function hrefFor(
     // que es donde el comercio ve si están contestando.
     case 'ai_down':
       return row.detail === 'ai_no_credit' ? '/ajustes#saldo' : '/asistentes';
+    // A la lista con el campo para cargar cada guía.
+    case 'tracking_missing':
+      return '/logistica/sin-guia';
   }
 }
 
@@ -243,6 +254,9 @@ function audienceFor(row: Pick<IssueRow, 'kind' | 'detail'>): IssueAudience {
     // hacer, y una alarma que no se puede atender deja de leerse.
     case 'ai_down':
       return row.detail === 'ai_no_credit' ? 'comercio' : 'plataforma';
+    // Sólo el comercio tiene la guía: está en su app logística.
+    case 'tracking_missing':
+      return 'comercio';
   }
 }
 
