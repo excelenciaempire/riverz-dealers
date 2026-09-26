@@ -84,6 +84,7 @@ export const DATA_POINTS: DataPoint[] = [
     ['delivery_address', 'automations.dpDeliveryAddress'],
     ['delivery_phone', 'automations.dpDeliveryPhone'],
     ['recipient_name', 'automations.dpRecipientName'],
+    ['shipping_method', 'automations.dpShippingMethod'],
   ].map(([id, labelKey]): DataPoint => ({
     id, labelKey, group: 'order', valueKind: 'text', triggers: ORDER_TRIGGERS,
     usableInConditions: false, templateVarKey: id, condition: { kind: 'var', varKey: id },
@@ -718,6 +719,7 @@ export const TEMPLATE_VAR_SAMPLES: Record<string, string> = {
   shipping_province: 'CABA',
   shipping_zip: '1043',
   shipping_country: 'Argentina',
+  shipping_method: 'Envío a domicilio Andreani',
   tracking_number: 'AR123456789',
   tracking_url: 'https://andreani.com/seguimiento',
   tracking_company: 'Andreani',

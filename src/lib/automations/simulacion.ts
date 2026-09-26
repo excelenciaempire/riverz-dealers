@@ -108,12 +108,52 @@ export interface AutomacionSimulada {
   armada: string[] | null;
 }
 
+/**
+ * La dirección, el transportista y el envío del pedido de mentira, del país
+ * de la tienda. Una tienda argentina que probaba veía su confirmación yendo a
+ * Bogotá por Servientrega, y eso distrae justo de lo que se quiere revisar.
+ */
+export function lugarDePrueba(currency: string): {
+  address1: string;
+  city: string;
+  province: string;
+  country: string;
+  carrier: string;
+  trackingUrl: (guia: string) => string;
+  shippingMethod: string;
+  telefono: string;
+} {
+  if ((currency || '').toUpperCase() === 'ARS') {
+    return {
+      address1: 'Av. Corrientes 1234',
+      city: 'CABA',
+      province: 'Buenos Aires',
+      country: 'Argentina',
+      carrier: 'Andreani',
+      trackingUrl: (guia) => `https://www.andreani.com/envio/${guia}`,
+      shippingMethod: 'Envío a domicilio Andreani',
+      telefono: '+5491100000000',
+    };
+  }
+  return {
+    address1: 'Calle 10 # 20-30',
+    city: 'Bogotá',
+    province: 'Cundinamarca',
+    country: 'Colombia',
+    carrier: 'Servientrega',
+    trackingUrl: (guia) => `https://www.servientrega.com/rastreo/${guia}`,
+    shippingMethod: 'Envío a domicilio',
+    telefono: '+573000000000',
+  };
+}
+
 /** Las variables que tendría el contexto para este pedido de mentira. */
 export function varsDePedido(
   trigger: EscenarioSimulado,
   pedido: PedidoDePrueba
 ): Record<string, string> {
   const [first, ...rest] = pedido.cliente.nombre.trim().split(/\s+/);
+  const lugar = lugarDePrueba(pedido.currency);
   const resumen = confirmationSummary({
     line_items: [
       {
@@ -123,9 +163,9 @@ export function varsDePedido(
       },
     ],
     shipping_address: {
-      address1: 'Calle 10 # 20-30',
-      city: 'Bogotá',
-      province: 'Cundinamarca',
+      address1: lugar.address1,
+      city: lugar.city,
+      province: lugar.province,
       phone: pedido.cliente.telefono,
       name: pedido.cliente.nombre,
     },
@@ -157,18 +197,19 @@ export function varsDePedido(
       trigger === 'shopify_order_fulfilled' || trigger === 'shopify_order_delivered'
         ? 'fulfilled'
         : '',
-    shipping_address: 'Calle 10 # 20-30',
-    shipping_city: 'Bogotá',
-    shipping_province: 'Cundinamarca',
-    shipping_country: 'Colombia',
+    shipping_address: lugar.address1,
+    shipping_city: lugar.city,
+    shipping_province: lugar.province,
+    shipping_country: lugar.country,
+    shipping_method: lugar.shippingMethod,
     checkout_url: 'https://tienda.ejemplo/checkout/abc123',
     abandoned_checkout_url: 'https://tienda.ejemplo/checkout/abc123',
     ...resumen,
   };
   if (trigger === 'shopify_order_fulfilled' || trigger === 'shopify_order_delivered') {
     vars.tracking_number = pedido.guia ?? '';
-    vars.tracking_company = pedido.guia ? 'Servientrega' : '';
-    vars.tracking_url = pedido.guia ? `https://www.servientrega.com/rastreo/${pedido.guia}` : '';
+    vars.tracking_company = pedido.guia ? lugar.carrier : '';
+    vars.tracking_url = pedido.guia ? lugar.trackingUrl(pedido.guia) : '';
   } else {
     vars.tracking_number = '';
     vars.tracking_company = '';

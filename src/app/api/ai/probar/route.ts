@@ -12,6 +12,7 @@ import type { AiAgent } from '@/lib/ai/types';
 import { serverError } from '@/lib/api/errors';
 import {
   ESCENARIOS,
+  lugarDePrueba,
   simularDisparo,
   type EscenarioSimulado,
 } from '@/lib/automations/simulacion';
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
       currency,
       pago:
         body?.pago === 'mercadopago' || body?.pago === 'tarjeta' ? body.pago : 'cod',
-      cliente: { nombre: 'Ana Prueba', telefono: simulatedPhone || '+573000000000' },
+      cliente: { nombre: 'Ana Prueba', telefono: simulatedPhone || lugarDePrueba(currency).telefono },
       guia: typeof body?.guia === 'string' ? body.guia.trim() : '',
     });
     const conEntrega = automatizaciones.find((a) => a.agente);

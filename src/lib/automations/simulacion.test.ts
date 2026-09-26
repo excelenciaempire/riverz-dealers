@@ -44,6 +44,14 @@ describe('varsDePedido', () => {
     expect(v.delivery_phone).toBe('+573000000000')
   })
 
+  it('una tienda argentina prueba con dirección, envío y transportista de allá', () => {
+    const v = varsDePedido('shopify_order_fulfilled', { ...pedidoCod, currency: 'ARS', guia: '3600031' })
+    expect(v.shipping_city).toBe('CABA')
+    expect(v.shipping_method).toBe('Envío a domicilio Andreani')
+    expect(v.tracking_company).toBe('Andreani')
+    expect(v.tracking_url).toBe('https://www.andreani.com/envio/3600031')
+  })
+
   it('despachado sin guía deja tracking_number vacío; con guía lo rellena', () => {
     expect(varsDePedido('shopify_order_fulfilled', pedidoCod).tracking_number).toBe('')
     expect(varsDePedido('shopify_order_fulfilled', { ...pedidoCod, guia: 'RA1' }).tracking_number).toBe('RA1')

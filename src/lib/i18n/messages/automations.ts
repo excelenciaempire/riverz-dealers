@@ -261,6 +261,7 @@ export const automations = {
   dpRetentionUnits: { es: "Unidades de ese producto", en: "Units of that product" },
   dpOrderItems: { es: 'Productos y cantidades', en: 'Products and quantities' },
   dpDeliveryAddress: { es: 'Dirección completa de entrega', en: 'Full delivery address' },
+  dpShippingMethod: { es: 'Método de envío elegido', en: 'Chosen shipping method' },
   dpDeliveryPhone: { es: 'Teléfono de entrega', en: 'Delivery phone' },
   dpRecipientName: { es: 'Nombre del destinatario', en: 'Recipient name' },
   dpRepeatCustomer: { es: "Es cliente recurrente", en: "Is a repeat customer" },

@@ -813,6 +813,19 @@ function buildVarsForOrder(
   const shipping = order.shipping_address as
     | Record<string, unknown>
     | undefined;
+  // El método de envío que eligió en la caja ("Punto Andreani HOP…", "Envío a
+  // domicilio…"). Poner la casa en la dirección y elegir un punto de retiro es
+  // el error más común después de comprar; confirmarlo en el primer mensaje lo
+  // ataja antes del despacho. Nunca vacío: una variable vacía hace que Meta
+  // rechace la plantilla entera.
+  const shippingLines = Array.isArray(order.shipping_lines)
+    ? (order.shipping_lines as Record<string, unknown>[])
+    : [];
+  const shippingMethod =
+    shippingLines
+      .map((line) => String(line.title ?? '').replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .join(', ') || '—';
 
   const base: Record<string, string> = {
     ...confirmationSummary(order),
@@ -849,6 +862,7 @@ function buildVarsForOrder(
     shipping_province: String(shipping?.province ?? ''),
     shipping_zip: String(shipping?.zip ?? ''),
     shipping_country: String(shipping?.country ?? ''),
+    shipping_method: shippingMethod,
   };
 
   if (
