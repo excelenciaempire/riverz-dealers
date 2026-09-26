@@ -185,7 +185,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const supabase = createClient();
-    await supabase.auth.signOut();
+    // scope 'local': cierra solo este navegador. El default de supabase-js es
+    // 'global' y revoca la sesión en todos los demás dispositivos.
+    await supabase.auth.signOut({ scope: "local" });
     setUser(null);
     setProfile(null);
     window.location.href = "/ingresar";

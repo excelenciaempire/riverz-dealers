@@ -14,8 +14,14 @@ export function addCommentContextToPrivateReply(input: {
   reply: string;
   comment?: string | null;
   language?: string | null;
+  /** Sólo si la red no muestra el comentario de origen. */
+  agregar?: boolean;
 }): string {
   const reply = input.reply.trim();
+  // Meta ya muestra el comentario arriba del privado ("Estás respondiendo el
+  // comentario..." con el link). Repetirlo era mandarle a la persona lo mismo
+  // dos veces. Queda la opción para una red que no lo muestre.
+  if (!input.agregar) return reply;
   const comment = normalizeWhitespace(input.comment ?? '');
   if (!reply || !comment) return reply;
 

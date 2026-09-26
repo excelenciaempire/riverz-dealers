@@ -7,6 +7,7 @@ describe('addCommentContextToPrivateReply', () => {
       addCommentContextToPrivateReply({
         comment: 'Tienen q cortarle las uñitas a los mirringos hermosos!! 😍',
         reply: '¡Exacto! Eso es justo lo que hacen nuestros rascadores.',
+      agregar: true,
       })
     ).toBe(
       'Vi tu comentario: “Tienen q cortarle las uñitas a los mirringos hermosos!! 😍”\n\n¡Exacto! Eso es justo lo que hacen nuestros rascadores.'
@@ -19,6 +20,7 @@ describe('addCommentContextToPrivateReply', () => {
         comment: 'How much is it?',
         reply: 'It is $29 and shipping is free.',
         language: 'English',
+      agregar: true,
       })
     ).toBe(
       'I saw your comment: “How much is it?”\n\nIt is $29 and shipping is free.'
@@ -32,6 +34,7 @@ describe('addCommentContextToPrivateReply', () => {
       addCommentContextToPrivateReply({
         comment: 'Hay que cortarles las uñas',
         reply,
+      agregar: true,
       })
     ).toBe(reply);
   });
@@ -41,9 +44,16 @@ describe('addCommentContextToPrivateReply', () => {
       comment: `${'a'.repeat(178)}🐱🐱🐱`,
       reply: 'Te cuento más.',
       language: 'es',
+    agregar: true,
     });
     expect(output).toContain('…”\n\nTe cuento más.');
     expect(output).not.toContain('\ud83d”');
+  });
+
+  it('por defecto no agrega nada: Meta ya muestra el comentario', () => {
+    expect(
+      addCommentContextToPrivateReply({ comment: 'Precio?', reply: 'Sale $10.' })
+    ).toBe('Sale $10.');
   });
 
   it('conserva la respuesta cuando no hay comentario', () => {

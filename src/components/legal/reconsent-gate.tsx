@@ -36,7 +36,7 @@ export function ReconsentGate() {
   const reject = async () => {
     setSubmitting(true);
     try {
-      await createClient().auth.signOut();
+      await createClient().auth.signOut({ scope: "local" });
     } finally {
       window.location.href = "/ingresar";
     }

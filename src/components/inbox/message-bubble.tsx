@@ -27,6 +27,7 @@ import {
   Mic,
   EyeOff,
   Download,
+  Sparkles,
 } from "lucide-react";
 import { formatInTimeZone } from "date-fns-tz";
 import { useTimezone } from "@/hooks/use-timezone";
@@ -1295,6 +1296,14 @@ export function MessageBubble({
             isAgent ? "justify-end" : "justify-start",
           )}
         >
+          {/* Lo que mandó Riverz solo (asistente, automatización) se distingue
+              de lo que escribió una persona del equipo. */}
+          {automatico && (
+            <span className="text-primary-foreground/70 inline-flex items-center gap-0.5 text-[10px] font-medium">
+              <Sparkles className="size-2.5" />
+              {t("inbox.enviadoPorAsistente")}
+            </span>
+          )}
           <span
             className={cn(
               "text-[10px]",

@@ -106,7 +106,8 @@ describe('simularComentario — el mismo camino que Comentarios en vivo', () => 
     const r = await comentar('¿Cuánto sale el de 4 meses?')
     expect(r.barrera).toBeNull()
     expect(r.publico).toContain('Te escribí por privado')
-    expect(r.privado).toContain('Vi tu comentario')
+    // Meta ya muestra el comentario arriba del privado: no se repite.
+    expect(r.privado).not.toContain('Vi tu comentario')
     expect(r.privado).toContain('$61.990')
     expect(s.simulada).toHaveBeenCalledWith(db, expect.objectContaining({ id: 'ag' }), expect.objectContaining({ superficie: 'comentario', simulatedChannel: 'ig_comment' }))
   })
