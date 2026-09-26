@@ -393,7 +393,7 @@ async function cargarProducto(
   workspaceId: string,
   productId: unknown,
   unidades: unknown
-): Promise<{ title: string; price: string; variant_title: string | null; quantity: number }> {
+): Promise<{ title: string; price: string; variant_title: string | null; quantity: number; oferta: string | null }> {
   let q = admin
     .from('shopify_products')
     .select('title, price_min, allowed_offers')
@@ -409,7 +409,7 @@ async function cargarProducto(
   } | null;
   const n = Number(unidades);
   const oferta = Number.isSafeInteger(n) && n > 0 && Array.isArray(row?.allowed_offers)
-    ? (row.allowed_offers as Array<{ units?: unknown; total?: unknown }>).find(
+    ? (row.allowed_offers as Array<{ units?: unknown; total?: unknown; label?: unknown }>).find(
         (o) => Number(o?.units) === n && Number.isFinite(Number(o?.total))
       )
     : undefined;
@@ -422,5 +422,6 @@ async function cargarProducto(
         : '110000',
     variant_title: null,
     quantity: oferta ? n : 1,
+    oferta: oferta && typeof oferta.label === 'string' && oferta.label.trim() ? oferta.label.trim() : null,
   };
 }

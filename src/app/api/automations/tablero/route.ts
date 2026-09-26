@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { borrarPlantilla } from '@/lib/templates/borrar';
 import { serverError } from '@/lib/api/errors';
 import {
   lugarDePrueba,
@@ -36,6 +37,7 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
  * PATCH /api/automations/tablero   { plantilla_id, body_text } → { plantilla }
  *   Edita el texto de una plantilla que todavía no se mandó a Meta.
  * POST  /api/automations/tablero → manda los borradores a aprobación de Meta.
+ * DELETE /api/automations/tablero → borra de Riverz y de Meta las que ya no usa nada.
  */
 
 interface Columna {
@@ -112,7 +114,14 @@ export async function GET() {
       pago: 'tarjeta' as const,
       oferta: o ? (typeof o.label === 'string' && o.label.trim() ? o.label.trim() : `× ${Number(o.units)}`) : null,
       pedido: {
-        producto: o ? { ...base, price: String(Number(o.total)), quantity: Number(o.units) } : base,
+        producto: o
+          ? {
+              ...base,
+              price: String(Number(o.total)),
+              quantity: Number(o.units),
+              oferta: typeof o.label === 'string' && o.label.trim() ? o.label.trim() : null,
+            }
+          : base,
         currency,
         pago: 'tarjeta' as const,
         cliente,
@@ -162,12 +171,58 @@ export async function GET() {
         // Las mismas que manda "Enviar a Meta": todas las que usan las
         // automatizaciones, no sólo las que aparecen con este pedido de ejemplo.
         borradores: todas.filter((p) => EDITABLES.has(String(p.status ?? '').toLowerCase())).length,
+        sin_uso: (await plantillasSinUso(admin, workspaceId)).length,
       },
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (err) {
     return serverError(err);
   }
+}
+
+/**
+ * Las plantillas que ya no usa nada: ninguna automatización activa o armada,
+ * ninguna campaña. Son las que quedan cuando se reescribe una con otro nombre.
+ */
+async function plantillasSinUso(
+  admin: ReturnType<typeof supabaseAdmin>,
+  workspaceId: string
+): Promise<Array<{ id: string; name: string; status: string | null; meta_template_id: string | null }>> {
+  const [{ data: todas }, enUso, { data: campanas }, { data: alerta }] = await Promise.all([
+    admin.from('message_templates').select('id, name, status, meta_template_id').eq('workspace_id', workspaceId),
+    plantillasDeLasAutomatizaciones(admin, workspaceId),
+    admin.from('broadcasts').select('template_name').eq('workspace_id', workspaceId),
+    admin.from('platform_whatsapp_settings').select('alert_template_name'),
+  ]);
+  const usadas = new Set<string>([
+    ...enUso.map((p) => p.name),
+    ...((campanas ?? []) as Array<{ template_name: string | null }>).map((c) => c.template_name ?? ''),
+    ...((alerta ?? []) as Array<{ alert_template_name: string | null }>).map((a) => a.alert_template_name ?? ''),
+  ]);
+  return ((todas ?? []) as Array<{ id: string; name: string; status: string | null; meta_template_id: string | null }>).filter(
+    (p) => !usadas.has(p.name)
+  );
+}
+
+/**
+ * DELETE /api/automations/tablero → { borradas, fallidas }
+ *
+ * Borra de Riverz y de Meta las plantillas que ya no usa nada.
+ */
+export async function DELETE(request: Request) {
+  const block = await csrfGuard(request);
+  if (block) return block;
+  const c = await cuenta();
+  if ('error' in c) return c.error;
+  const { admin, workspaceId, userId } = c;
+  const borradas: string[] = [];
+  const fallidas: Array<{ nombre: string; motivo: string }> = [];
+  for (const plantilla of await plantillasSinUso(admin, workspaceId)) {
+    const r = await borrarPlantilla(admin, { workspaceId, userId, plantilla });
+    if (r.ok) borradas.push(plantilla.name);
+    else fallidas.push({ nombre: plantilla.name, motivo: r.detalle || r.motivo });
+  }
+  return NextResponse.json({ borradas, fallidas });
 }
 
 /** Lo que Meta todavía no revisó se puede reescribir; lo demás, no desde acá. */

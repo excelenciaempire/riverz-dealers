@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { csrfGuard } from '@/lib/csrf'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
-import { resolverWabaYToken } from '@/lib/templates/create'
-import { deleteMessageTemplate } from '@/lib/whatsapp/meta-api'
+import { borrarPlantilla } from '@/lib/templates/borrar'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 
@@ -71,72 +70,18 @@ export async function DELETE(
     meta_template_id: string | null
   }
 
-  // Un borrador no existe fuera de esta cuenta: no hay a quién pedirle nada.
-  const estaEnMeta = Boolean(plantilla.meta_template_id) || plantilla.status !== 'Draft'
-
-  if (estaEnMeta) {
-    const { wabaId, accessToken } = await resolverWabaYToken(supabase, workspaceId, user.id)
-    if (!wabaId || !accessToken) {
+  const r = await borrarPlantilla(supabase, { workspaceId, userId: user.id, plantilla })
+  if (!r.ok) {
+    if (r.motivo === 'sin_whatsapp') {
       return NextResponse.json(
         { error: translate(locale, 'errWhatsapp.whatsappNotConnected') },
         { status: 400 },
       )
     }
-
-    try {
-      await deleteMessageTemplate({
-        wabaId,
-        accessToken,
-        name: plantilla.name,
-        // Con el id se borra SÓLO este idioma. Sin él, Meta se lleva todas las
-        // versiones del nombre — que es lo correcto cuando no sabemos cuál es
-        // cuál, y es lo único que se puede pedir.
-        hsmId: plantilla.meta_template_id ?? undefined,
-      })
-    } catch (err) {
-      const motivo = err instanceof Error ? err.message : ''
-      // Que Meta no la encuentre es el final que se buscaba: la fila local
-      // quedó huérfana de una plantilla que ya no está, y dejarla sería
-      // condenar a la persona a apretar la papelera para siempre.
-      if (!pareceQueYaNoEsta(motivo)) {
-        return NextResponse.json(
-          { error: motivo || translate(locale, 'errWhatsapp.templateDeleteFailed') },
-          { status: 502 },
-        )
-      }
-    }
-  }
-
-  const { error } = await supabase
-    .from('message_templates')
-    .delete()
-    .eq('id', plantilla.id)
-    .eq('workspace_id', workspaceId)
-
-  if (error) {
     return NextResponse.json(
-      { error: translate(locale, 'errWhatsapp.templateDeleteFailed') },
-      { status: 500 },
+      { error: r.detalle || translate(locale, 'errWhatsapp.templateDeleteFailed') },
+      { status: r.motivo === 'meta' ? 502 : 500 },
     )
   }
-
-  return NextResponse.json({ ok: true, enMeta: estaEnMeta })
-}
-
-/**
- * ¿Meta está diciendo que esa plantilla ya no existe?
- *
- * No hay un código propio: contesta el 100 genérico de «objeto inexistente»
- * con el texto adentro, así que se mira el texto. Un falso positivo acá sólo
- * borra una fila local que igual iba a borrarse.
- */
-function pareceQueYaNoEsta(motivo: string): boolean {
-  const m = motivo.toLowerCase()
-  return (
-    m.includes('does not exist') ||
-    m.includes('no existe') ||
-    m.includes('not found') ||
-    m.includes('unsupported get request') ||
-    m.includes('cannot be found')
-  )
+  return NextResponse.json({ ok: true, enMeta: r.enMeta })
 }

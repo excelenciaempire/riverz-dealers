@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowLeft, ExternalLink, Loader2, Pencil, Reply, Send } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, Pencil, Reply, Send, Trash2 } from 'lucide-react';
 import Link from '@/components/i18n/locale-link';
 import { useLocale, useT } from '@/hooks/use-locale';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -73,6 +73,7 @@ export default function TableroDeMensajesPage() {
     columnas: Columna[];
     plantillas: Record<string, Plantilla>;
     borradores?: number;
+    sin_uso?: number;
   } | null>(null);
   const [conVariables, setConVariables] = useState(false);
 
@@ -102,6 +103,30 @@ export default function TableroDeMensajesPage() {
   // Confirmación en la página: el confirm() nativo no aparece en todos los
   // navegadores embebidos y el botón parecía no hacer nada.
   const [confirmando, setConfirmando] = useState(false);
+  const sinUso = datos?.sin_uso ?? 0;
+  const [limpiando, setLimpiando] = useState(false);
+  const [confirmandoLimpieza, setConfirmandoLimpieza] = useState(false);
+
+  async function eliminarSinUso() {
+    setConfirmandoLimpieza(false);
+    setLimpiando(true);
+    try {
+      const res = await fetchWithCsrf('/api/automations/tablero', { method: 'DELETE' });
+      const json = (await res.json().catch(() => null)) as {
+        borradas?: string[];
+        fallidas?: Array<{ nombre: string; motivo: string }>;
+        error?: string;
+      } | null;
+      if (!res.ok || !json) throw new Error(json?.error ?? '');
+      if (json.borradas?.length) toast.success(t('automations.tableroBorradas', { n: json.borradas.length }));
+      for (const f of json.fallidas ?? []) toast.error(`${f.nombre}: ${f.motivo}`);
+      await cargar();
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : t('automations.tableroError'));
+    } finally {
+      setLimpiando(false);
+    }
+  }
 
   async function enviarAMeta() {
     setConfirmando(false);
@@ -143,6 +168,23 @@ export default function TableroDeMensajesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={confirmandoLimpieza} onOpenChange={setConfirmandoLimpieza}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('automations.tableroSinUso', { n: sinUso })}</DialogTitle>
+            <DialogDescription>{t('automations.tableroSinUsoConfirm', { n: sinUso })}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmandoLimpieza(false)}>
+              {t('automations.tableroCancelar')}
+            </Button>
+            <Button variant="destructive" onClick={() => void eliminarSinUso()}>
+              <Trash2 className="size-4" />
+              {t('automations.tableroSinUso', { n: sinUso })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0 space-y-1">
           <Link href="/automatizaciones" className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs">
@@ -153,6 +195,12 @@ export default function TableroDeMensajesPage() {
           <p className="text-muted-foreground text-sm">{t('automations.tableroHint')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {sinUso > 0 ? (
+            <Button variant="outline" onClick={() => setConfirmandoLimpieza(true)} disabled={limpiando}>
+              {limpiando ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              {t('automations.tableroSinUso', { n: sinUso })}
+            </Button>
+          ) : null}
           {borradores > 0 ? (
             <Button onClick={() => setConfirmando(true)} disabled={enviando}>
               {enviando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}

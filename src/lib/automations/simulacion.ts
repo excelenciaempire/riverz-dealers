@@ -52,6 +52,8 @@ export interface ProductoDePrueba {
   variant_title?: string | null;
   /** Unidades de la oferta elegida. Sin esto, una. */
   quantity?: number;
+  /** El nombre de la oferta ("Tratamiento 4 Meses"): lo que en vivo es `offer_chosen`. */
+  oferta?: string | null;
 }
 
 export interface PedidoDePrueba {
@@ -196,6 +198,10 @@ export function varsDePedido(
     item_count: '1',
     first_item: pedido.producto.title,
     last_product: pedido.producto.title,
+    // En vivo salen de las ofertas del producto (`resolveOfferChosen`); sin
+    // esto la prueba mostraba el ejemplo genérico ("3+1 gratis").
+    offer_chosen: pedido.producto.oferta ?? '',
+    offer_units: String(pedido.producto.quantity ?? 1),
     // Las mismas líneas que arma el webhook: de acá salen las unidades con las
     // que la recompra elige cuándo volver a escribir.
     purchase_order_lines: JSON.stringify([linea]),
@@ -562,9 +568,13 @@ function evaluar(
 }
 
 function interpolar(s: string, ctx: Record<string, string>): string {
-  return s.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
-    const [ns, prop] = String(key).split('.');
-    if (ns === 'vars' && prop) return ctx[prop] ?? '';
+  // `{{vars.a|vars.b}}`: la primera que tenga valor, igual que el motor.
+  return s.replace(/\{\{\s*([\w.|]+)\s*\}\}/g, (_, key: string) => {
+    for (const alt of key.split('|')) {
+      const [ns, prop] = alt.split('.');
+      const v = ns === 'vars' && prop ? (ctx[prop] ?? '') : '';
+      if (v.trim()) return v;
+    }
     return '';
   });
 }

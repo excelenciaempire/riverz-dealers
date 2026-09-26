@@ -1854,10 +1854,20 @@ function interpolate(s: string, args: ExecuteArgs): string {
   // nada a nadie y esconde cuál fue el paso. Vale más mandar vacío y que el
   // registro muestre el paso que falló.
   if (typeof s !== 'string') return ''
-  return s.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
-    const [ns, prop] = String(key).split('.')
-    if (ns === 'message' && prop === 'text') return String(args.context.message_text ?? '')
-    if (ns === 'vars' && prop) return String(args.context.vars?.[prop] ?? '')
+  // `{{vars.a|vars.b}}`: la primera que tenga valor. Una variable vacía hace
+  // que Meta rechace la plantilla entera, así que la que puede faltar (la
+  // oferta, si el pedido no calza con ninguna) lleva un respaldo.
+  return s.replace(/\{\{\s*([\w.|]+)\s*\}\}/g, (_, key: string) => {
+    for (const alt of key.split('|')) {
+      const [ns, prop] = alt.split('.')
+      const v =
+        ns === 'message' && prop === 'text'
+          ? String(args.context.message_text ?? '')
+          : ns === 'vars' && prop
+            ? String(args.context.vars?.[prop] ?? '')
+            : ''
+      if (v.trim()) return v
+    }
     return ''
   })
 }
