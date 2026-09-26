@@ -135,7 +135,23 @@ describe('platform incident continuity', () => {
     m.previous = 'canal:workspace:connection_error:mercadolibre';
     m.collect.mockResolvedValue(new Map([['workspace', [{ kind: 'connection_error', detail: 'ig_comment, mercadolibre', refId: 'ig_comment' }]]]));
     await GET(request());
+    expect(m.send).not.toHaveBeenCalled();
+    m.previous = m.saved[0].fingerprint;
+    await GET(request());
     expect(m.send).toHaveBeenCalledWith(expect.objectContaining({ body: '· Conexión con error: ig_comment' }));
-    expect(m.saved[0].fingerprint).toContain(m.previous);
+    expect(m.saved[1].fingerprint).toContain('canal:workspace:connection_error:mercadolibre');
+    expect(m.saved[1].fingerprint).not.toContain('~');
+  });
+
+  it('does not announce a connection error that clears by the next tick', async () => {
+    m.latest = 'ok';
+    m.previous = '';
+    m.collect.mockResolvedValue(new Map([['workspace', [{ kind: 'connection_error', detail: 'ig_comment', refId: 'ig_comment' }]]]));
+    await GET(request());
+    m.previous = m.saved[0].fingerprint;
+    m.collect.mockResolvedValue(new Map());
+    await GET(request());
+    expect(m.send).not.toHaveBeenCalled();
+    expect(m.saved[1].fingerprint).toBe('');
   });
 });

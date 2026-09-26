@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { onlyPermanentMercadoLibreFailures } from './sync-result';
+import { hasMercadoLibreFailures, onlyPermanentMercadoLibreFailures } from './sync-result';
 
 describe('ML retry classification', () => {
   it('does not rapidly retry blocked accounts', () => {
@@ -15,5 +15,24 @@ describe('ML retry classification', () => {
       { error: 'pagination_failed:channel_connections:upstream request timeout' },
     ])).toBe(false);
     expect(onlyPermanentMercadoLibreFailures([{ failures: [] }])).toBe(false);
+  });
+});
+
+describe('hasMercadoLibreFailures', () => {
+  it('ignores connections that only a reconnect can fix', () => {
+    expect(hasMercadoLibreFailures({ failures: [
+      { connectionId: 'a', error: '[mercadolibre] connection missing refresh_token' },
+      { connectionId: 'b', error: '[mercadolibre] token refresh failed (400): invalid_grant' },
+    ] })).toBe(false);
+  });
+
+  it('still reports real failures next to a reconnect one', () => {
+    expect(hasMercadoLibreFailures({ failures: [
+      { connectionId: 'a', error: '[mercadolibre] connection missing refresh_token' },
+      { connectionId: 'b', error: 'orders/search HTTP 429' },
+    ] })).toBe(true);
+    expect(hasMercadoLibreFailures({ failures: [
+      { connectionId: 'a', error: '[mercadolibre] token refresh failed (503): upstream' },
+    ] })).toBe(true);
   });
 });

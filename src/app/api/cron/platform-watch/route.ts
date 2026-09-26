@@ -52,6 +52,9 @@ const UMBRAL_MASIVO = 3
 
 type Clave = string
 
+/** Prefijo en la huella de un problema visto una vez y todavía no avisado. */
+const PENDIENTE = '~'
+
 /** Cuántos comercios distintos sufren cada clase de problema. */
 function porClase(porWorkspace: Map<string, Issue[]>): Map<Issue['kind'], number> {
   const out = new Map<Issue['kind'], number>()
@@ -125,6 +128,7 @@ async function cronHandler(request: Request) {
       log.warn('no se pudo leer la salud de comercios', { error: String(err) })
       lecturasFallidas.push('workspace_health')
       conservarPrefijo('canal:')
+      conservarPrefijo(`${PENDIENTE}canal:`)
       conservarPrefijo('masivo:')
       return new Map<string, Issue[]>()
     }),
@@ -345,7 +349,20 @@ async function cronHandler(request: Request) {
     })
   }
 
-  const fingerprint = [...new Set([...actuales.keys(), ...conservar])].sort().join('|')
+  // Una conexión en error se avisa recién si sigue en error en el tick
+  // siguiente. Un tropiezo de la Graph API deja `ig_comment` en error hasta la
+  // próxima sincronización, que lo limpia; avisarlo al instante mandaba
+  // "Conexión con error: ig_comment" varias veces por día por algo que se
+  // arreglaba solo. La primera vez queda anotada como pendiente en la huella.
+  const pendientes = new Set(
+    [...actuales.keys()].filter(
+      (k) => k.startsWith('canal:') && !previas.has(k) && !previas.has(PENDIENTE + k),
+    ),
+  )
+  const fingerprint = [...new Set([
+    ...[...actuales.keys()].map((k) => (pendientes.has(k) ? PENDIENTE + k : k)),
+    ...conservar,
+  ])].sort().join('|')
   const respond = (body: Record<string, unknown>) => NextResponse.json({
     ...body,
     ...(lecturasFallidas.length ? { error: lecturasFallidas.join(', ') } : {}),
@@ -359,7 +376,7 @@ async function cronHandler(request: Request) {
     })
   }
 
-  const nuevas = [...actuales.keys()].filter((k) => !previas.has(k))
+  const nuevas = [...actuales.keys()].filter((k) => !previas.has(k) && !pendientes.has(k))
 
   // Guardar SIEMPRE, aunque el aviso no salga: si no, un fallo de WhatsApp
   // convierte el próximo tick en el mismo mensaje otra vez, cada 15 minutos.

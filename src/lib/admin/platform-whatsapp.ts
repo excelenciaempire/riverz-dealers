@@ -159,8 +159,17 @@ export async function platformWhatsApp(): Promise<PlatformWhatsApp | null> {
  * error se registraba y se seguía, el aviso quedaba sólo en el correo sin que
  * nadie se enterara de por qué.
  */
-function paramSeguro(v: string): string {
-  return v.replace(/\s*\n\s*/g, ' · ').replace(/\t/g, ' ').replace(/ {4,}/g, '   ').trim();
+export function paramSeguro(v: string): string {
+  // Las líneas del vigilante ya empiezan con "· ": unirlas con otro "·" las
+  // mostraba como "errores: a · · Trabajo con errores: b".
+  return v
+    .split('\n')
+    .map((linea) => linea.trim().replace(/^·\s*/, ''))
+    .filter(Boolean)
+    .join(' · ')
+    .replace(/\t/g, ' ')
+    .replace(/ {4,}/g, '   ')
+    .trim();
 }
 
 /**
