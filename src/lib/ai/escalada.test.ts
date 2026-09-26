@@ -55,6 +55,8 @@ describe('señalDura', () => {
 
   it('no escala cuando lo que no llegó es el código o el mail del seguimiento', () => {
     expect(señalDura('no me llegó el código de seguimiento')).toBeNull();
+    expect(señalDura('No me llegó el cupón al mail')).toBeNull();
+    expect(señalDura('ya transferí, te paso el comprobante')?.porQue).toMatch(/validar el pago/);
     expect(señalDura('todavía no me ha llegado el número de seguimiento')).toBeNull();
     expect(señalDura('No me llegó ningún mails')).toBeNull();
     expect(señalDura('no me llegó al mail la guía')).toBeNull();

@@ -214,6 +214,13 @@ export async function simularRespuesta(
         perfilOperativo,
         input.simulatedChannel
       ) + bloquesDeEntrega(a, automationContext, input.simulatedChannel) + '\n\n' + ORDER_CONVERSATION_POLICY + '\n\n' + ORDER_OPERATION_POLICY;
+  // El pedido de la prueba es de ejemplo: en la tienda no existe, y buscarlo
+  // terminaba en "no encontré tu pedido", que en vivo nunca pasa porque ahí
+  // el pedido es real. Se contesta con lo que trae el contexto.
+  if (!comentario && automationContext?.order_name) {
+    system +=
+      '\n\n## Prueba\nEl pedido de este contexto es de ejemplo y no está en la tienda. No lo busques con herramientas: contesta con los datos del contexto como si la búsqueda los hubiera devuelto.';
+  }
   if (comentario && input.extraBrief?.trim()) {
     system += `\n\n${untrustedContext('conversation_brief', input.extraBrief.trim())}`;
   }

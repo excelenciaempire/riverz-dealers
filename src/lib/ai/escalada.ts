@@ -146,7 +146,7 @@ const SEÑALES: Señal[] = [
       // es la pregunta de todos los días, y el agente la contesta buscando el
       // pedido. Escalarla en silencio dejaba al cliente sin su guía y al
       // comercio con un aviso por cada compra del día.
-      /(?<![\wáéíóúñ])no me (lleg[óo]|ha llegado|lleg[óo] nada)(?![\wáéíóúñ])(?!\s+(?:(?:al|a mi|por|en el|en mi|el|la|los|las|un|una|ning[úu]n[oa]?|ni)\s+)?(?:c[óo]digos?|n[úu]meros?|mails?|e-?mails?|correos?|seguimientos?|links?|enlaces?|gu[ií]as?|tracking|confirmaci[óo]n|notificaci[óo]n(?:es)?|avisos?|mensajes?|qr)(?![\wáéíóúñ]))/i,
+      /(?<![\wáéíóúñ])no me (lleg[óo]|ha llegado|lleg[óo] nada)(?![\wáéíóúñ])(?!\s+(?:(?:al|a mi|por|en el|en mi|el|la|los|las|un|una|ning[úu]n[oa]?|ni)\s+)?(?:c[óo]digos?|n[úu]meros?|mails?|e-?mails?|correos?|seguimientos?|links?|enlaces?|gu[ií]as?|tracking|confirmaci[óo]n|notificaci[óo]n(?:es)?|avisos?|mensajes?|qr|cup[óo]n(?:es)?|facturas?|comprobantes?)(?![\wáéíóúñ]))/i,
       /(?<![\wáéíóúñ])nunca (me )?lleg[óo](?![\wáéíóúñ])/i,
       /(?<![\wáéíóúñ])figura como entregad[oa](?![\wáéíóúñ])/i,
       /(?<![\wáéíóúñ])dice entregad[oa](?![\wáéíóúñ])[^.!?]{0,30}(?![\wáéíóúñ])no(?![\wáéíóúñ])/i,
