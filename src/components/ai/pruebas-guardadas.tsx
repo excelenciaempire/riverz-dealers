@@ -9,8 +9,7 @@ import {
   Loader2,
   MessageSquareText,
   Sparkles,
-  ThumbsDown,
-  ThumbsUp,
+  NotebookPen,
   Trash2,
 } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
@@ -167,16 +166,10 @@ function FilaDePrueba({ s, activa, onClick }: { s: Resumen; activa: boolean; onC
           <MessageSquareText className="size-3" />
           {s.mensajes}
         </span>
-        {s.feedback.bien ? (
-          <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-            <ThumbsUp className="size-3" />
-            {s.feedback.bien}
-          </span>
-        ) : null}
-        {s.feedback.mal ? (
-          <span className="text-destructive inline-flex items-center gap-1">
-            <ThumbsDown className="size-3" />
-            {s.feedback.mal}
+        {s.feedback.notas ? (
+          <span className="inline-flex items-center gap-1">
+            <NotebookPen className="size-3" />
+            {s.feedback.notas}
           </span>
         ) : null}
         {s.con_propuestas ? (

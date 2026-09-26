@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -215,10 +215,7 @@ function FeedbackDeConversaciones({ nombreComercio }: { nombreComercio: string |
               ))}
             </MarcoDeTelefono>
             {!f.captura.length ? (
-              <p className="text-muted-foreground flex items-center gap-1 text-xs">
-                {f.voto === 'mal' ? <ThumbsDown className="size-3" /> : <ThumbsUp className="size-3" />}
-                {f.nota}
-              </p>
+              <p className="text-muted-foreground text-xs">{f.nota}</p>
             ) : null}
           </article>
         ))}

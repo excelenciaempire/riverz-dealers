@@ -305,8 +305,6 @@ export const inbox = {
     es: "{channel} no entrega este mensaje · ábrelo en la app",
     en: "{channel} doesn't deliver this message · open it in the app",
   },
-  opinionBien: { es: "Buena respuesta", en: "Good reply" },
-  opinionMal: { es: "Mala respuesta", en: "Bad reply" },
   opinionComentar: { es: "Comentar", en: "Comment" },
   opinionPlaceholder: { es: "¿Qué debería haber respondido?", en: "What should it have replied?" },
   opinionAviso: {

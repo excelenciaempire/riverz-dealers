@@ -534,8 +534,8 @@ export const assistant = {
     en: "New feedback becomes rules and is applied on its own every 15 minutes.",
   },
   feedbackVacio: {
-    es: "Todavía no hay feedback. Marca 👍 o 👎 en las respuestas automáticas de la bandeja.",
-    en: "No feedback yet. Mark 👍 or 👎 on automatic replies in the inbox.",
+    es: "Todavía no hay feedback. Comenta las respuestas automáticas desde la bandeja.",
+    en: "No feedback yet. Comment on automatic replies from the inbox.",
   },
   feedbackNuevos: { es: "{n} sin revisar", en: "{n} not reviewed" },
   feedbackEstadoNuevo: { es: "Nuevo", en: "New" },
@@ -608,8 +608,6 @@ export const assistant = {
   pruebasElegir: { es: "Elige una prueba para verla.", en: "Pick a test to view it." },
   pruebasPorLink: { es: "Por link", en: "Via link" },
   pruebasConPropuestas: { es: "Con propuestas", en: "With proposals" },
-  pruebasBien: { es: "Está bien", en: "Good reply" },
-  pruebasMal: { es: "Está mal", en: "Bad reply" },
   pruebasComentar: { es: "Comentar", en: "Comment" },
   pruebasNotaPlaceholder: { es: "¿Qué debería responder?", en: "What should it reply?" },
   pruebasComentarioGeneral: { es: "Comentario sobre la prueba", en: "Comment on this test" },
@@ -622,8 +620,8 @@ export const assistant = {
   pruebasProponer: { es: "Proponer mejoras", en: "Suggest improvements" },
   pruebasProponerOtraVez: { es: "Proponer de nuevo", en: "Suggest again" },
   pruebasSinFeedback: {
-    es: "Marca respuestas con 👍 o 👎, o deja un comentario, para proponer mejoras.",
-    en: "Mark replies with 👍 or 👎, or leave a comment, to suggest improvements.",
+    es: "Comenta una respuesta o la prueba entera para proponer mejoras.",
+    en: "Comment on a reply or the whole test to suggest improvements.",
   },
   pruebasSinCambios: {
     es: "Lo marcado ya está cubierto por las reglas actuales.",

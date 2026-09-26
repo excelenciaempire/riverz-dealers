@@ -9,8 +9,8 @@ import {
   Pencil,
   Phone,
   Reply,
-  ThumbsDown,
-  ThumbsUp,
+  
+  
   UserRound,
 } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
@@ -257,12 +257,15 @@ export function Linea({
   );
 }
 
+/**
+ * La nota sobre una respuesta: qué estuvo mal o qué debería haber dicho. Sin
+ * 👍/👎: un voto solo no dice qué cambiar, y la mejora sale de la nota.
+ */
 function Opinion({ marca, onCambio }: { marca: MarcaDeFeedback | null; onCambio?: (f: MarcaDeFeedback) => void }) {
   const t = useT();
   const [editando, setEditando] = useState(false);
   const [borrador, setBorrador] = useState(marca?.nota ?? '');
   const campo = useRef<HTMLTextAreaElement | null>(null);
-  const voto = marca?.voto ?? null;
   const nota = marca?.nota ?? '';
 
   useEffect(() => {
@@ -270,70 +273,25 @@ function Opinion({ marca, onCambio }: { marca: MarcaDeFeedback | null; onCambio?
   }, [editando]);
 
   if (!onCambio) {
-    if (!voto && !nota) return null;
+    if (!nota) return null;
     return (
-      <div className="mt-1 flex max-w-[85%] items-start gap-1.5 rounded-md bg-[#fff5c4] px-2 py-1 text-[11px] text-[#54656f] sm:max-w-[82%]">
-        {voto === 'bien' ? <ThumbsUp className="mt-px size-3 shrink-0 text-[#008069]" /> : null}
-        {voto === 'mal' ? <ThumbsDown className="mt-px size-3 shrink-0 text-[#d93025]" /> : null}
-        {nota ? <span className="whitespace-pre-wrap break-words">{nota}</span> : null}
-      </div>
+      <p className="mt-1 max-w-[85%] rounded-md bg-[#fff5c4] px-2 py-1 text-[11px] whitespace-pre-wrap break-words text-[#54656f] sm:max-w-[82%]">
+        {nota}
+      </p>
     );
   }
 
   const guardar = () => {
     setEditando(false);
-    if (borrador.trim() !== nota) onCambio({ voto, nota: borrador.trim() });
+    if (borrador.trim() !== nota) onCambio({ voto: null, nota: borrador.trim() });
+  };
+  const abrir = () => {
+    setBorrador(nota);
+    setEditando(true);
   };
 
   return (
     <div className="mt-1 w-[85%] max-w-[85%] sm:w-[82%] sm:max-w-[82%]">
-      <div className="flex items-center gap-0.5">
-        <button
-          type="button"
-          aria-label={t('assistant.pruebasBien')}
-          title={t('assistant.pruebasBien')}
-          onClick={() => onCambio({ voto: voto === 'bien' ? null : 'bien', nota })}
-          className={cn(
-            'grid size-7 place-items-center rounded-full hover:bg-white/60',
-            voto === 'bien' ? 'bg-white text-[#008069] shadow-sm' : 'text-[#54656f]/70'
-          )}
-        >
-          <ThumbsUp className="size-3.5" />
-        </button>
-        <button
-          type="button"
-          aria-label={t('assistant.pruebasMal')}
-          title={t('assistant.pruebasMal')}
-          onClick={() => {
-            const siguiente = voto === 'mal' ? null : 'mal';
-            onCambio({ voto: siguiente, nota });
-            if (siguiente === 'mal' && !nota) {
-              setBorrador('');
-              setEditando(true);
-            }
-          }}
-          className={cn(
-            'grid size-7 place-items-center rounded-full hover:bg-white/60',
-            voto === 'mal' ? 'bg-white text-[#d93025] shadow-sm' : 'text-[#54656f]/70'
-          )}
-        >
-          <ThumbsDown className="size-3.5" />
-        </button>
-        {!editando ? (
-          <button
-            type="button"
-            aria-label={t('assistant.pruebasComentar')}
-            title={t('assistant.pruebasComentar')}
-            onClick={() => {
-              setBorrador(nota);
-              setEditando(true);
-            }}
-            className="grid size-7 place-items-center rounded-full text-[#54656f]/70 hover:bg-white/60"
-          >
-            <Pencil className="size-3.5" />
-          </button>
-        ) : null}
-      </div>
       {editando ? (
         <textarea
           ref={campo}
@@ -350,20 +308,26 @@ function Opinion({ marca, onCambio }: { marca: MarcaDeFeedback | null; onCambio?
             if (e.key === 'Escape') setEditando(false);
           }}
           placeholder={t('assistant.pruebasNotaPlaceholder')}
-          className="mt-1 w-full resize-none rounded-md border-0 bg-[#fff5c4] px-2 py-1.5 text-base text-[#111b21] shadow-sm outline-none placeholder:text-[#8696a0] sm:text-[12px]"
+          className="w-full resize-none rounded-md border-0 bg-[#fff5c4] px-2 py-1.5 text-base text-[#111b21] shadow-sm outline-none placeholder:text-[#8696a0] sm:text-[12px]"
         />
       ) : nota ? (
         <button
           type="button"
-          onClick={() => {
-            setBorrador(nota);
-            setEditando(true);
-          }}
-          className="mt-1 block w-full rounded-md bg-[#fff5c4] px-2 py-1 text-left text-[12px] whitespace-pre-wrap break-words text-[#54656f] shadow-sm sm:text-[11px]"
+          onClick={abrir}
+          className="block w-full rounded-md bg-[#fff5c4] px-2 py-1 text-left text-[12px] whitespace-pre-wrap break-words text-[#54656f] shadow-sm sm:text-[11px]"
         >
           {nota}
         </button>
-      ) : null}
+      ) : (
+        <button
+          type="button"
+          onClick={abrir}
+          className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] text-[#54656f]/80 hover:bg-white/60"
+        >
+          <Pencil className="size-3" />
+          {t('assistant.pruebasComentar')}
+        </button>
+      )}
     </div>
   );
 }

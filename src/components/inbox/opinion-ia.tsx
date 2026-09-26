@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Pencil, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
-import { cn } from "@/lib/utils";
 
 /**
  * Lo que el equipo opina de una respuesta automática, debajo de la burbuja.
  *
- * 👍/👎 y una nota ("qué debería haber respondido"). Se guarda con el tramo de
+ * Una nota ("qué debería haber respondido"); sin 👍/👎, que no dicen qué cambiar. Se guarda con el tramo de
  * la conversación y se convierte en mejoras del asistente (Asistente IA →
  * Feedback). Sólo aparece en lo que mandó Riverz solo.
  */
@@ -29,7 +28,6 @@ export function OpinionIaControl({
   const [editando, setEditando] = useState(false);
   const [borrador, setBorrador] = useState("");
   const campo = useRef<HTMLTextAreaElement | null>(null);
-  const voto = opinion?.voto ?? null;
   const nota = opinion?.nota ?? "";
 
   useEffect(() => {
@@ -38,63 +36,15 @@ export function OpinionIaControl({
 
   const guardar = () => {
     setEditando(false);
-    if (borrador.trim() !== nota) onCambio({ voto, nota: borrador.trim() });
+    if (borrador.trim() !== nota) onCambio({ voto: null, nota: borrador.trim() });
+  };
+  const abrir = () => {
+    setBorrador(nota);
+    setEditando(true);
   };
 
   return (
     <div className="mt-1 flex max-w-[85%] flex-col items-end gap-1">
-      <div
-        className={cn(
-          "flex items-center gap-0.5 transition-opacity",
-          voto || nota ? "opacity-100" : "opacity-40 hover:opacity-100 focus-within:opacity-100",
-        )}
-      >
-        <button
-          type="button"
-          aria-label={t("inbox.opinionBien")}
-          title={t("inbox.opinionBien")}
-          onClick={() => onCambio({ voto: voto === "bien" ? null : "bien", nota })}
-          className={cn(
-            "grid size-6 place-items-center rounded-full hover:bg-muted",
-            voto === "bien" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground",
-          )}
-        >
-          <ThumbsUp className="size-3.5" />
-        </button>
-        <button
-          type="button"
-          aria-label={t("inbox.opinionMal")}
-          title={t("inbox.opinionMal")}
-          onClick={() => {
-            const siguiente = voto === "mal" ? null : "mal";
-            onCambio({ voto: siguiente, nota });
-            if (siguiente === "mal" && !nota) {
-              setBorrador("");
-              setEditando(true);
-            }
-          }}
-          className={cn(
-            "grid size-6 place-items-center rounded-full hover:bg-muted",
-            voto === "mal" ? "text-destructive" : "text-muted-foreground",
-          )}
-        >
-          <ThumbsDown className="size-3.5" />
-        </button>
-        {!editando ? (
-          <button
-            type="button"
-            aria-label={t("inbox.opinionComentar")}
-            title={t("inbox.opinionComentar")}
-            onClick={() => {
-              setBorrador(nota);
-              setEditando(true);
-            }}
-            className="grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-muted"
-          >
-            <Pencil className="size-3.5" />
-          </button>
-        ) : null}
-      </div>
       {editando ? (
         <div className="w-72 max-w-full space-y-1">
           <textarea
@@ -119,15 +69,21 @@ export function OpinionIaControl({
       ) : nota ? (
         <button
           type="button"
-          onClick={() => {
-            setBorrador(nota);
-            setEditando(true);
-          }}
+          onClick={abrir}
           className="max-w-72 rounded-md bg-amber-500/10 px-2 py-1 text-left text-xs whitespace-pre-wrap break-words text-foreground"
         >
           {nota}
         </button>
-      ) : null}
+      ) : (
+        <button
+          type="button"
+          onClick={abrir}
+          className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] text-muted-foreground opacity-60 hover:bg-muted hover:opacity-100 focus-visible:opacity-100"
+        >
+          <Pencil className="size-3" />
+          {t("inbox.opinionComentar")}
+        </button>
+      )}
     </div>
   );
 }
