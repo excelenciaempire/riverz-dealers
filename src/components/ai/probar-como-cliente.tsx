@@ -140,9 +140,7 @@ export function ProbarComoCliente({
   const [marcas, setMarcas] = useState<Record<number, MarcaDeFeedback>>({});
   const [comentario, setComentario] = useState('');
   const [verComentario, setVerComentario] = useState(false);
-  const [revisando, setRevisando] = useState(false);
   /** Lo último que se mandó al equipo: con feedback nuevo se puede volver a mandar. */
-  const [enviadaCon, setEnviadaCon] = useState<string | null>(null);
   const guardado = useRef('');
   const hiloRef = useRef<HTMLDivElement | null>(null);
   const telefonoRef = useRef<HTMLDivElement | null>(null);
@@ -308,24 +306,6 @@ export function ProbarComoCliente({
     setHistorial([]);
     setDerivada(false);
   }
-
-  /** Se la manda al equipo de Riverz, que propone y aprueba las mejoras. */
-  async function enviarAlEquipo() {
-    if (!sesionId) return;
-    setRevisando(true);
-    const cuerpo = JSON.stringify({ ...paquete(sesionId, items, marcas, comentario), enviar: true });
-    const ok = await mandarSesion(cuerpo);
-    setRevisando(false);
-    if (ok) {
-      setEnviadaCon(cuerpo);
-      toast.success(t('assistant.pruebasEnviada'));
-    } else {
-      toast.error(t('assistant.probarFallo'));
-    }
-  }
-
-  const hayFeedback =
-    comentario.trim().length > 0 || Object.values(marcas).some((m) => m.voto || m.nota.trim());
 
   /** Las plantillas que ya le llegaron al cliente son parte del hilo que el asistente ve. */
   function recordar(items: Item[]) {
@@ -763,17 +743,6 @@ export function ProbarComoCliente({
             />
           ))}
         </MarcoDeTelefono>
-        {sesionId && hayFeedback ? (
-          <Button
-            variant="outline"
-            className="w-full sm:mx-auto sm:flex sm:max-w-[380px]"
-            onClick={() => void enviarAlEquipo()}
-            disabled={revisando || enviadaCon === JSON.stringify({ ...paquete(sesionId, items, marcas, comentario), enviar: true })}
-          >
-            {revisando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            {t('assistant.pruebasEnviarEquipo')}
-          </Button>
-        ) : null}
       </div>
     </div>
   );

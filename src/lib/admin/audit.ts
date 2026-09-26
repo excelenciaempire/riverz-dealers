@@ -85,6 +85,8 @@ export type AdminAction =
   | 'update.mejora.aplicar-lote'
   | 'update.mejora.aprobar-cambio'
   | 'update.mejora.descartar-cambio'
+  | 'update.mejora.borrar-prueba'
+  | 'update.mejora.borrar-pruebas'
   // Leer una conversacion de un comercio. Es la lectura mas sensible del panel
   // —son mensajes de compradores reales— y solo se puede con una ventana que
   // abrio el propio comercio. Queda escrito quien miro que, y cuando.

@@ -63,9 +63,9 @@ export async function GET(request: Request) {
       const [{ data: pruebas }, { data: feedback }, { data: plataforma }, { data: ws }, { data: cambios }, { data: lotes }, { data: agentes }] = await Promise.all([
         db
           .from('ai_test_sessions')
-          .select('id, origen, escenario, canal, detalle, items, feedback, propuestas, mensajes, enviada_at, created_at, updated_at')
+          .select('id, origen, escenario, canal, detalle, items, feedback, propuestas, mensajes, created_at, updated_at')
           .eq('workspace_id', workspaceId)
-          .order('enviada_at', { ascending: false, nullsFirst: false })
+          .order('updated_at', { ascending: false })
           .order('updated_at', { ascending: false })
           .limit(100),
         db

@@ -22,6 +22,8 @@ export const dynamic = 'force-dynamic';
  *   aplicar-lote      id = lote, body como aplicar-prueba → { propuestas }
  *   aprobar-cambio    id = cambio de plantilla → { nueva } | { error }
  *   descartar-cambio  id = cambio de plantilla → { ok }
+ *   borrar-prueba     id = prueba            → { ok }
+ *   borrar-pruebas    id = comercio          → { ok }
  */
 export async function POST(request: Request) {
   const csrf = await csrfGuard(request);
@@ -39,7 +41,11 @@ export async function POST(request: Request) {
   const auditar = (meta: Record<string, unknown>) =>
     recordAdminAction(auth.actor, request, {
       action: `update.mejora.${que}` as AdminAction,
-      targetType: que.endsWith('cambio') ? 'cambios_de_plantilla' : 'mejoras',
+      targetType: que.endsWith('cambio')
+        ? 'cambios_de_plantilla'
+        : que.startsWith('borrar')
+          ? 'ai_test_sessions'
+          : 'mejoras',
       targetId: id,
       meta,
     }).catch(() => {});
@@ -80,6 +86,16 @@ export async function POST(request: Request) {
 
   if (que === 'descartar-cambio') {
     await descartarCambio(db, id);
+    await auditar({});
+    return NextResponse.json({ ok: true });
+  }
+
+  if (que === 'borrar-prueba' || que === 'borrar-pruebas') {
+    const { error } = await db
+      .from('ai_test_sessions')
+      .delete()
+      .eq(que === 'borrar-prueba' ? 'id' : 'workspace_id', id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     await auditar({});
     return NextResponse.json({ ok: true });
   }

@@ -587,7 +587,6 @@ export const admin = {
   mejorasTabReales: { es: 'Conversaciones reales', en: 'Real conversations' },
   mejorasTabPlantillas: { es: 'Plantillas', en: 'Templates' },
   mejorasTabPlataforma: { es: 'Plataforma', en: 'Platform' },
-  mejorasEnviada: { es: 'Enviada', en: 'Sent' },
   mejorasProponer: { es: 'Proponer mejoras', en: 'Suggest improvements' },
   mejorasSinFeedbackNuevo: { es: 'No hay feedback nuevo.', en: 'No new feedback.' },
   mejorasAntes: { es: 'Antes', en: 'Before' },

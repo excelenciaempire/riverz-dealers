@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Check, Copy, Loader2, Send, Sparkles, X } from "lucide-react";
+import { Check, Copy, Loader2, Send, Sparkles, Trash2, X } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
@@ -15,14 +15,16 @@ import {
   type MarcaDeFeedback,
 } from "@/components/ai/chat-de-prueba";
 import { TarjetaDeRegla } from "@/components/ai/pruebas-guardadas";
+import { ConfirmarBorrado } from "@/components/ai/confirmar-borrado";
 import type { FeedbackGuardado, Propuestas } from "@/lib/ai/sesiones-de-prueba";
 import { cn } from "@/lib/utils";
 import { useAdminData, useTabParam, PageHeader, Loading, LoadError, Tabs, StatusPill, Muted } from "../_components/admin-ui";
 import { RefreshButton } from "../_components/filters";
 
 /**
- * Pruebas y feedback, por comercio. El comercio comenta y envía; acá el equipo
- * propone las mejoras, las aplica y aprueba los cambios de plantilla.
+ * Pruebas y feedback, por comercio. El comercio prueba y comenta (se guarda
+ * solo); acá el equipo propone las mejoras, las aplica, aprueba los cambios de
+ * plantilla y borra pruebas.
  */
 
 interface Comercio {
@@ -42,7 +44,6 @@ interface Prueba {
   items: ItemChat[];
   feedback: FeedbackGuardado[];
   propuestas: Propuestas | null;
-  enviada_at: string | null;
   created_at: string;
 }
 
@@ -155,7 +156,7 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
   const [trabajando, setTrabajando] = useState<string | null>(null);
   // Lo que se va proponiendo y aplicando, sin esperar al refresco.
   const [propuestasDe, setPropuestasDe] = useState<Record<string, Propuestas>>({});
-
+  const [borrar, setBorrar] = useState<"todas" | string | null>(null);
 
   if (loading && !data) return <Loading />;
   if (error || !data) return <LoadError onRetry={reload} />;
@@ -206,6 +207,30 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
   if (pestana === "pruebas") {
     if (data.pruebas.length === 0) return <Muted>{t("admin.mejorasVacio")}</Muted>;
     return (
+      <div className="space-y-3">
+        <ConfirmarBorrado
+          abierto={borrar !== null}
+          onCerrar={() => setBorrar(null)}
+          titulo={
+            borrar === "todas"
+              ? t("assistant.pruebasBorrarTodasTitulo", { n: data.pruebas.length })
+              : t("assistant.pruebasBorrar")
+          }
+          onBorrar={async () => {
+            const r = await accion(borrar === "todas" ? "borrar-pruebas" : "borrar-prueba", borrar === "todas" ? id : String(borrar));
+            if (r) reload();
+          }}
+        />
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setBorrar("todas")}
+            className="text-destructive hover:bg-muted inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs"
+          >
+            <Trash2 className="size-3.5" />
+            {t("assistant.pruebasBorrarTodas")}
+          </button>
+        </div>
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {data.pruebas.map((p) => {
           const marcas = new Map<number, MarcaDeFeedback>();
@@ -220,7 +245,15 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
                   {etiquetaDeEscenario(t, p.escenario)} · {etiquetaDeCanal(t, p.canal)}
                   <span className="text-muted-foreground font-normal"> · {fecha(p.created_at)}</span>
                 </span>
-                {p.enviada_at ? <StatusPill tone="ok" label={t("admin.mejorasEnviada")} /> : null}
+                <button
+                  type="button"
+                  onClick={() => setBorrar(p.id)}
+                  aria-label={t("assistant.pruebasBorrar")}
+                  title={t("assistant.pruebasBorrar")}
+                  className="text-muted-foreground hover:text-destructive shrink-0 rounded p-1"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
               </div>
               {general ? <p className="rounded-lg bg-[#fff5c4] px-3 py-2 text-xs whitespace-pre-wrap text-[#54656f]">{general}</p> : null}
               <MarcoDeTelefono titulo={titulo} alto="h-[360px]">
@@ -246,6 +279,7 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
             </article>
           );
         })}
+      </div>
       </div>
     );
   }

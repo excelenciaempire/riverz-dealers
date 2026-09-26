@@ -12,7 +12,7 @@ import { translate } from '@/lib/i18n/translate';
  *
  * GET    /api/ai/probar/sesiones/[id] → { sesion, agentes }
  * PATCH  /api/ai/probar/sesiones/[id] { feedback }
- * DELETE /api/ai/probar/sesiones/[id]
+ * DELETE /api/ai/probar/sesiones/[id]   (sólo el equipo de Riverz)
  *
  * Sólo con sesión: el link compartido escribe pruebas pero no las lee.
  */
@@ -30,7 +30,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const [{ data, error }, { data: agentes }] = await Promise.all([
     admin
       .from('ai_test_sessions')
-      .select('id, origen, escenario, canal, detalle, items, feedback, propuestas, mensajes, enviada_at, created_at, updated_at')
+      .select('id, origen, escenario, canal, detalle, items, feedback, propuestas, mensajes, created_at, updated_at')
       .eq('workspace_id', workspaceId)
       .eq('id', id)
       .maybeSingle(),
@@ -89,8 +89,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { id } = await params;
   const locale = await getLocale();
   const admin = supabaseAdmin();
-  const { workspaceId, conSesion } = await cuentaDeLaPrueba(admin, null);
-  if (!workspaceId) {
+  const { workspaceId, conSesion, equipoRiverz } = await cuentaDeLaPrueba(admin, null);
+  if (!workspaceId || !equipoRiverz) {
     return NextResponse.json(
       { error: translate(locale, conSesion ? 'errAi.forbidden' : 'errAi.unauthorized') },
       { status: conSesion ? 403 : 401 }

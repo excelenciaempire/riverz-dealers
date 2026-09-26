@@ -20,10 +20,10 @@ import { limitByKey, rateLimitResponse } from '@/lib/rate-limit';
  *
  * POST /api/ai/probar/sesiones  — la pantalla guarda la prueba mientras
  *   transcurre, también desde el link compartido (con `token`).
- *   body: { token?, id, escenario, canal, detalle?, items, feedback?, enviar? }
- *   `enviar`: quien probó se la manda al equipo de Riverz, que propone y
- *   aprueba las mejoras desde el panel de plataforma.
- * GET  /api/ai/probar/sesiones  — la lista, sólo con sesión.
+ *   body: { token?, id, escenario, canal, detalle?, items, feedback? }
+ *   Todo lo que se guarda lo ve el equipo de Riverz en el panel de plataforma.
+ * GET    /api/ai/probar/sesiones  — la lista, sólo con sesión.
+ * DELETE /api/ai/probar/sesiones  — borra todas; sólo el equipo de Riverz.
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -41,7 +41,6 @@ export async function POST(request: Request) {
     detalle?: unknown;
     items?: unknown;
     feedback?: unknown;
-    enviar?: unknown;
   } | null;
   const { workspaceId, compartida, conSesion, userId } = await cuentaDeLaPrueba(admin, body?.token);
   if (!workspaceId) {
@@ -74,7 +73,6 @@ export async function POST(request: Request) {
     feedback,
     mensajes: contarMensajes(items),
     updated_at: new Date().toISOString(),
-    ...(body?.enviar === true ? { enviada_at: new Date().toISOString() } : {}),
   };
 
   const { data: existente } = await admin
@@ -104,7 +102,7 @@ export async function POST(request: Request) {
 export async function GET() {
   const locale = await getLocale();
   const admin = supabaseAdmin();
-  const { workspaceId, conSesion } = await cuentaDeLaPrueba(admin, null);
+  const { workspaceId, conSesion, equipoRiverz } = await cuentaDeLaPrueba(admin, null);
   if (!workspaceId) {
     return NextResponse.json(
       { error: translate(locale, conSesion ? 'errAi.forbidden' : 'errAi.unauthorized') },
@@ -113,7 +111,7 @@ export async function GET() {
   }
   const { data, error } = await admin
     .from('ai_test_sessions')
-    .select('id, origen, escenario, canal, detalle, feedback, propuestas, mensajes, enviada_at, created_at, updated_at')
+    .select('id, origen, escenario, canal, detalle, feedback, propuestas, mensajes, created_at, updated_at')
     .eq('workspace_id', workspaceId)
     .order('updated_at', { ascending: false })
     .limit(200);
@@ -128,7 +126,6 @@ export async function GET() {
       feedback: unknown;
       propuestas: { reglas?: unknown[]; plataforma?: unknown[] } | null;
       mensajes: number;
-      enviada_at: string | null;
       created_at: string;
       updated_at: string;
     };
@@ -142,10 +139,29 @@ export async function GET() {
       mensajes: fila.mensajes,
       feedback: resumenDeFeedback(fila.feedback),
       con_propuestas: Boolean(fila.propuestas?.reglas?.length || fila.propuestas?.plataforma?.length),
-      enviada_at: fila.enviada_at,
       created_at: fila.created_at,
       updated_at: fila.updated_at,
     };
   });
-  return NextResponse.json({ sesiones }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json(
+    { sesiones, puede_borrar: equipoRiverz },
+    { headers: { 'Cache-Control': 'no-store' } }
+  );
+}
+
+export async function DELETE(request: Request) {
+  const block = await csrfGuard(request);
+  if (block) return block;
+  const locale = await getLocale();
+  const admin = supabaseAdmin();
+  const { workspaceId, conSesion, equipoRiverz } = await cuentaDeLaPrueba(admin, null);
+  if (!workspaceId || !equipoRiverz) {
+    return NextResponse.json(
+      { error: translate(locale, conSesion ? 'errAi.forbidden' : 'errAi.unauthorized') },
+      { status: conSesion ? 403 : 401 }
+    );
+  }
+  const { error } = await admin.from('ai_test_sessions').delete().eq('workspace_id', workspaceId);
+  if (error) return serverError(error);
+  return NextResponse.json({ ok: true });
 }

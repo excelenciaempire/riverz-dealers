@@ -613,8 +613,11 @@ export const assistant = {
   pruebasListo: { es: "Listo", en: "Done" },
   pruebasMejoras: { es: "Mejoras", en: "Improvements" },
   probarAbrirConLink: { es: "Abrir con link", en: "Open with link" },
-  pruebasEnviarEquipo: { es: "Enviar al equipo de Riverz", en: "Send to the Riverz team" },
-  pruebasEnviada: { es: "Enviada al equipo de Riverz", en: "Sent to the Riverz team" },
+  pruebasBorrar: { es: "Eliminar prueba", en: "Delete test" },
+  pruebasBorrarTodas: { es: "Eliminar todas", en: "Delete all" },
+  pruebasBorrarTodasTitulo: { es: "¿Eliminar las {n} pruebas?", en: "Delete all {n} tests?" },
+  pruebasBorrarAviso: { es: "No se puede deshacer.", en: "This can't be undone." },
+  pruebasBorradas: { es: "Pruebas eliminadas", en: "Tests deleted" },
   pruebasEnRevision: { es: "En revisión", en: "Under review" },
   pruebasSinMejoras: {
     es: "Todavía no hay mejoras. El equipo de Riverz las revisa y las aplica.",
@@ -636,8 +639,6 @@ export const assistant = {
   pruebasAplicar: { es: "Aplicar", en: "Apply" },
   pruebasAplicada: { es: "Aplicada", en: "Applied" },
   pruebasParaPlataforma: { es: "Lo revisa el equipo de Riverz", en: "The Riverz team reviews it" },
-  pruebasBorrar: { es: "Borrar prueba", en: "Delete test" },
-  pruebasBorrarConfirm: { es: "¿Borrar esta prueba?", en: "Delete this test?" },
   pruebasReglaNoExiste: {
     es: "Esa regla ya no existe. Propón de nuevo.",
     en: "That rule no longer exists. Suggest again.",

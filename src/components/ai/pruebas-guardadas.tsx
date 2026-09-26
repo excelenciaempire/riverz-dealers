@@ -10,6 +10,7 @@ import {
   MessageSquareText,
   Sparkles,
   NotebookPen,
+  Trash2,
 } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -27,13 +28,15 @@ import {
   type MarcaDeFeedback,
 } from '@/components/ai/chat-de-prueba';
 import type { FeedbackGuardado, Propuestas } from '@/lib/ai/sesiones-de-prueba';
+import { ConfirmarBorrado } from '@/components/ai/confirmar-borrado';
 import { cn } from '@/lib/utils';
 
 /**
  * Todas las pruebas de "Probar como cliente", como chats: las del equipo y
  * las del dueño de la marca por el link, con lo que se comentó y las mejoras
- * que aprobó el equipo de Riverz. Sólo para mirar: el feedback se manda desde
- * el chat de prueba y las mejoras se aprueban en el panel de plataforma.
+ * que aprobó el equipo de Riverz. Sólo para mirar: el feedback se guarda solo
+ * desde el chat de prueba y las mejoras se aprueban en el panel de plataforma.
+ * Borrar, una o todas, es sólo del equipo de Riverz.
  */
 
 interface Resumen {
@@ -59,7 +62,6 @@ interface Detalle {
   items: ItemChat[];
   feedback: FeedbackGuardado[];
   propuestas: Propuestas | null;
-  enviada_at: string | null;
   created_at: string;
 }
 
@@ -73,14 +75,22 @@ export function PruebasGuardadas({
   nombreComercio: string | null;
 }) {
   const t = useT();
+  const fetchWithCsrf = useFetchWithCsrf();
   const [lista, setLista] = useState<Resumen[] | null>(null);
+  const [puedeBorrar, setPuedeBorrar] = useState(false);
+  const [borrar, setBorrar] = useState<'todas' | string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
       const res = await fetch('/api/ai/probar/sesiones', { cache: 'no-store' });
-      const json = (await res.json().catch(() => null)) as { sesiones?: Resumen[]; error?: string } | null;
+      const json = (await res.json().catch(() => null)) as {
+        sesiones?: Resumen[];
+        puede_borrar?: boolean;
+        error?: string;
+      } | null;
       if (!res.ok) throw new Error(json?.error ?? '');
       setLista(json?.sesiones ?? []);
+      setPuedeBorrar(json?.puede_borrar === true);
     } catch (err) {
       setLista([]);
       toast.error(err instanceof Error && err.message ? err.message : t('assistant.probarFallo'));
@@ -91,9 +101,41 @@ export function PruebasGuardadas({
     void cargar();
   }, [cargar]);
 
+  async function borrarAhora() {
+    const todas = borrar === 'todas';
+    const res = await fetchWithCsrf(todas ? '/api/ai/probar/sesiones' : `/api/ai/probar/sesiones/${borrar}`, {
+      method: 'DELETE',
+    }).catch(() => null);
+    if (!res?.ok) {
+      toast.error(t('assistant.probarFallo'));
+      return;
+    }
+    if (todas || borrar === elegida) onElegir(null);
+    setLista((prev) => (todas ? [] : (prev ?? []).filter((s) => s.id !== borrar)));
+    if (todas) toast.success(t('assistant.pruebasBorradas'));
+  }
+
   return (
     <div className="grid min-w-0 gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+      <ConfirmarBorrado
+        abierto={borrar !== null}
+        onCerrar={() => setBorrar(null)}
+        titulo={
+          borrar === 'todas'
+            ? t('assistant.pruebasBorrarTodasTitulo', { n: lista?.length ?? 0 })
+            : t('assistant.pruebasBorrar')
+        }
+        onBorrar={borrarAhora}
+      />
       <div className={cn('min-w-0 space-y-2', elegida ? 'max-lg:hidden' : '')}>
+        {puedeBorrar && lista && lista.length > 0 ? (
+          <div className="flex justify-end">
+            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setBorrar('todas')}>
+              <Trash2 className="size-3.5" />
+              {t('assistant.pruebasBorrarTodas')}
+            </Button>
+          </div>
+        ) : null}
         {lista === null ? (
           <div className="flex justify-center py-12">
             <Loader2 className="text-muted-foreground size-5 animate-spin" />
@@ -117,6 +159,7 @@ export function PruebasGuardadas({
             id={elegida}
             nombreComercio={nombreComercio}
             onVolver={() => onElegir(null)}
+            onBorrar={puedeBorrar ? () => setBorrar(elegida) : undefined}
           />
         ) : (
           <div className="text-muted-foreground flex h-full min-h-[200px] items-center justify-center rounded-xl border border-dashed p-6 text-center text-sm">
@@ -187,10 +230,12 @@ function DetalleDePrueba({
   id,
   nombreComercio,
   onVolver,
+  onBorrar,
 }: {
   id: string;
   nombreComercio: string | null;
   onVolver: () => void;
+  onBorrar?: () => void;
 }) {
   const t = useT();
   const format = useFormat();
@@ -242,7 +287,18 @@ function DetalleDePrueba({
             {sesion.origen === 'link' ? ` · ${t('assistant.pruebasPorLink')}` : ''}
           </p>
         </div>
-        {sesion.enviada_at ? <Badge variant="secondary">{t('assistant.pruebasEnviada')}</Badge> : null}
+        {onBorrar ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={onBorrar}
+            aria-label={t('assistant.pruebasBorrar')}
+            title={t('assistant.pruebasBorrar')}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        ) : null}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start">
@@ -260,7 +316,7 @@ function DetalleDePrueba({
         <div className="min-w-0 space-y-3">
           <p className="text-foreground text-sm font-medium">{t('assistant.pruebasMejoras')}</p>
           {reglas.length === 0 ? (
-            <p className="text-muted-foreground text-xs">{sesion.enviada_at ? t('assistant.pruebasSinMejoras') : '—'}</p>
+            <p className="text-muted-foreground text-xs">{t('assistant.pruebasSinMejoras')}</p>
           ) : (
             reglas.map((r, i) => (
               <div key={i} className="border-border space-y-1.5 rounded-xl border p-3">
