@@ -6,6 +6,7 @@ import { syncAllMercadoLibreOrders } from "@/lib/channels/mercadolibre/orders";
 import { syncAllMercadoLibreCatalogs } from "@/lib/channels/mercadolibre/catalog";
 import { pollAllMercadoLibreReviews } from "@/lib/channels/mercadolibre/reviews";
 import { pollAllMercadoLibreClaims } from "@/lib/channels/mercadolibre/claims-poll";
+import { backfillAllMercadoLibreHistory } from "@/lib/channels/mercadolibre/history";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { withCronRun, withCronTask } from "@/lib/cron/heartbeat";
 import { hasMercadoLibreFailures, onlyPermanentMercadoLibreFailures } from "@/lib/channels/mercadolibre/sync-result";
@@ -35,6 +36,8 @@ import { hasMercadoLibreFailures, onlyPermanentMercadoLibreFailures } from "@/li
  *   reclamos   — cada ~10 min. La mediación corre contra reloj: se traen el
  *                expediente Y los mensajes, incluidas las respuestas que el
  *                vendedor dio desde Mercado Libre.
+ *   historia   — SIEMPRE, al final y con tope de tiempo, hasta completar el
+ *                último año de conversaciones de cada comercio (`history.ts`).
  */
 
 const JOB_ORDERS = "mercadolibre-orders";
@@ -105,6 +108,17 @@ async function cronHandler(request: Request) {
   if (force || (await isDue(db, JOB_REVIEWS, EVERY_SLOW_MS))) {
     out.reviews = await runSubtask(JOB_REVIEWS, pollAllMercadoLibreReviews);
   }
+
+  // ── Historia ──
+  //
+  // Al final y con tiempo propio acotado: es lo único que puede esperar. Cada
+  // corrida importa una porción del último año de conversaciones de quien
+  // todavía no lo tiene completo, y cuando termina deja de costar. Sus
+  // tropiezos no cuentan como fallo del cron: se retoman solos en la corrida
+  // siguiente, y un reintento inmediato repetiría todo lo de arriba.
+  out.history = await backfillAllMercadoLibreHistory().catch((err) => ({
+    error: err instanceof Error ? err.message : String(err),
+  }));
 
   const failed = Object.values(out).filter((value) => hasMercadoLibreFailures(value) || hasError(value)).length;
   return NextResponse.json(

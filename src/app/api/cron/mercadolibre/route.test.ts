@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   catalog: vi.fn(),
   reviews: vi.fn(),
   claims: vi.fn(),
+  history: vi.fn(),
   subtasks: [] as string[],
 }));
 
@@ -59,6 +60,9 @@ vi.mock('@/lib/channels/mercadolibre/reviews', () => ({
 vi.mock('@/lib/channels/mercadolibre/claims-poll', () => ({
   pollAllMercadoLibreClaims: mocks.claims,
 }));
+vi.mock('@/lib/channels/mercadolibre/history', () => ({
+  backfillAllMercadoLibreHistory: mocks.history,
+}));
 
 import { GET } from './route';
 
@@ -74,6 +78,7 @@ describe('Mercado Libre cron', () => {
     mocks.catalog.mockResolvedValue(ok());
     mocks.reviews.mockResolvedValue(ok());
     mocks.claims.mockResolvedValue(ok());
+    mocks.history.mockResolvedValue({ sellers: 0, errors: [] });
   });
 
   it('fuerza una pasada completa, incluidos los reclamos de todas las conexiones', async () => {
@@ -115,6 +120,22 @@ describe('Mercado Libre cron', () => {
     expect(body.claims.error).toContain('Graph 500');
     expect(body.error).toContain('claims: Graph 500');
     expect(response.headers.get('x-cron-retryable')).toBeNull();
+  });
+
+  it('corre la importación histórica en cada pasada sin que sus tropiezos cuenten como fallo', async () => {
+    mocks.history.mockResolvedValue({
+      sellers: 1,
+      rateLimited: true,
+      errors: [{ connectionId: 'ml-1', error: 'orders/search HTTP 500' }],
+    });
+
+    const response = await GET(new Request('http://localhost/api/cron/mercadolibre'));
+    const body = await response.json();
+
+    expect(mocks.history).toHaveBeenCalledOnce();
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.history.rateLimited).toBe(true);
   });
 
   it('keeps account blocks visible but prevents an immediate repeat of the whole sync', async () => {

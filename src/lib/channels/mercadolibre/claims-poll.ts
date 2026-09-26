@@ -6,6 +6,7 @@ import { supabaseAdmin } from "../admin-client";
 import { ingestInboundEvent } from "../inbox-writer";
 import { getFreshMLToken, resolveMlNickname } from "./adapter";
 import { mercadoLibreWebOrigin } from "./sites";
+import { isMlRateLimit, throwIfRateLimited } from "./rate-limit";
 import { ingestRawMedia } from "../media-ingest";
 import { htmlToText } from "../html-to-text";
 import { getLogger } from "@/lib/log/logger";
@@ -24,15 +25,20 @@ const log = getLogger("channels.mercadolibre.claims");
 /** Máximo permitido por Mercado Libre en la búsqueda de reclamos. */
 const CLAIMS_PAGE = 100;
 /** Defensa ante una cuenta anómala; la API no permite offset + limit >= 10.000. */
-const MAX_CLAIMS = 9_900;
+export const MAX_CLAIMS = 9_900;
 /**
- * Hasta dónde hacia atrás se importan los mensajes de un reclamo.
- *
- * El vendedor tiene 81 reclamos cerrados desde 2023: volcarlos enteros en la
- * bandeja no es "sincronizar los reclamos", es enterrar todo lo demás — mismo
- * criterio que el sembrado de opiniones.
+ * Ventana del sondeo en vivo para enterarse de los reclamos cerrados que
+ * cambiaron. NO es un corte de la historia: antes lo era —los mensajes de un
+ * reclamo abierto hace más de 60 días no se leían nunca, aunque siguiera
+ * abierto— y los cerrados más viejos no existían en la bandeja. La historia la
+ * recorre ahora, de a poco, la importación histórica (`history.ts`).
  */
-const MAX_AGE_DAYS = 60;
+const LIVE_CLOSED_WINDOW_DAYS = 60;
+/**
+ * Lecturas de mensajes por corrida del sondeo en vivo. Lo que no entra queda
+ * sin guardar y, por lo tanto, "cambiado": la corrida siguiente lo retoma.
+ */
+const MAX_MESSAGE_READS_PER_RUN = 40;
 /** Tope por adjunto (10 MB), igual que en los mensajes post-venta. */
 const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -163,7 +169,7 @@ export async function syncClaimsForConnection(
     (conn.config as Record<string, unknown> | null)?.seller_id ?? "",
   );
   if (!sellerId) throw new Error("conexión sin seller_id");
-  const cutoff = Date.now() - MAX_AGE_DAYS * 86_400_000;
+  const cutoff = Date.now() - LIVE_CLOSED_WINDOW_DAYS * 86_400_000;
 
   // Todos los abiertos + todos los cerrados que cambiaron dentro de la ventana.
   // Se acota por vendedor y rol, como exige la API actual; buscar sólo por
@@ -201,26 +207,19 @@ export async function syncClaimsForConnection(
   if (found.size === 0) return { claims: 0, ingested: 0 };
 
   // Estado previo de cada uno, para saber cuáles cambiaron desde la última vez.
-  const ids = [...found.keys()];
-  const { data: storedRows, error: storedRowsError } = await db
-    .from("ml_claims")
-    .select("claim_id, raw")
-    .eq("workspace_id", conn.workspace_id)
-    .eq("connection_id", conn.id)
-    .in("claim_id", ids);
-  if (storedRowsError)
-    throw new Error(`ml_claims stored: ${storedRowsError.message}`);
-  const previous = new Map<string, string>();
-  for (const row of (storedRows ?? []) as Array<{
-    claim_id: string;
-    raw: Record<string, unknown> | null;
-  }>) {
-    previous.set(row.claim_id, String(row.raw?.last_updated ?? ""));
-  }
+  const previous = await storedClaims(db, conn, [...found.keys()]);
+
+  // Los abiertos primero: si el tope de lecturas corta, que corte en los
+  // cerrados, que pueden esperar a la corrida siguiente.
+  const ordered = [...found].sort(
+    ([, a], [, b]) =>
+      Number(a.status === "closed") - Number(b.status === "closed"),
+  );
 
   let claims = 0;
   let ingested = 0;
-  for (const [claimId, claim] of found) {
+  let reads = 0;
+  for (const [claimId, claim] of ordered) {
     // Sólo los reclamos que le hacen AL comercio. `claims/search` devuelve
     // también aquellos en los que el comercio es quien reclama —una compra
     // suya, una cancelación contra el correo— y esos no son atención al
@@ -229,62 +228,219 @@ export async function syncClaimsForConnection(
     if (ourRole(claim, sellerId) !== "respondent") continue;
 
     const open = claim.status !== "closed";
+    const stored = previous.get(claimId);
     const changed =
-      !previous.has(claimId) ||
-      previous.get(claimId) !== String(claim.last_updated ?? "");
+      !stored || stored.lastUpdated !== String(claim.last_updated ?? "");
 
     // Los mensajes se releen si el reclamo sigue abierto (ahí es donde puede
     // haber algo nuevo cada minuto) o si Mercado Libre lo tocó desde la última
-    // vez. Un reclamo cerrado y quieto no se vuelve a pedir.
-    const recent = (Date.parse(claim.date_created ?? "") || 0) > cutoff;
-    const messages =
-      recent && (open || changed) ? await readClaimMessages(claimId, auth) : [];
-    if (messages.length) {
-      ingested += await ingestClaimMessages(
+    // vez. Un reclamo cerrado y quieto no se vuelve a pedir. Ya no se mira la
+    // antigüedad del reclamo: uno abierto hace más de 60 días que sigue en
+    // mediación también habla.
+    const readMessages = open || changed;
+    // Pasado el tope, ni se lee ni se guarda: al no guardarse sigue figurando
+    // como cambiado y la corrida siguiente lo retoma.
+    if (readMessages && reads >= MAX_MESSAGE_READS_PER_RUN) continue;
+    if (readMessages) reads++;
+    ingested += await processClaim(db, conn, claim, {
+      auth,
+      token,
+      readMessages,
+      // Un reclamo cerrado que se ve por primera vez es historia: no hay nada
+      // que atender y no tiene por qué sumar no leídos.
+      historical: !open && !stored,
+    });
+    claims++;
+  }
+  return { claims, ingested };
+}
+
+/**
+ * Una página de la historia de reclamos cerrados, para la importación
+ * histórica. Cada reclamo va en su propio try/catch: uno roto se saltea y la
+ * página sigue. Un 429 corta ahí mismo y `consumed` dice hasta dónde se llegó,
+ * para que el cursor no pase por encima de lo que no se leyó.
+ */
+export async function backfillClaimsPage(
+  db: SupabaseClient,
+  conn: ChannelConnection,
+  token: string,
+  args: {
+    offset: number;
+    limit: number;
+    /** Sólo reclamos que cambiaron después de esta fecha. */
+    since: Date;
+    deadline: number;
+  },
+): Promise<{
+  consumed: number;
+  pageLength: number;
+  total?: number;
+  ingested: number;
+  errors: number;
+  lastError?: string;
+  rateLimited: boolean;
+}> {
+  const auth = { Authorization: `Bearer ${token}` };
+  const sellerId = String(
+    (conn.config as Record<string, unknown> | null)?.seller_id ?? "",
+  );
+  if (!sellerId) throw new Error("conexión sin seller_id");
+
+  const page = await searchClaimsPage(auth, sellerId, "closed", {
+    offset: args.offset,
+    limit: args.limit,
+    updatedAfter: args.since,
+  });
+  const previous = await storedClaims(
+    db,
+    conn,
+    page.claims.map((c) => String(c.id ?? "")).filter(Boolean),
+  );
+
+  let consumed = 0;
+  let ingested = 0;
+  let errors = 0;
+  let lastError: string | undefined;
+  let rateLimited = false;
+  for (const claim of page.claims) {
+    if (Date.now() > args.deadline) break;
+    const claimId = String(claim.id ?? "");
+    try {
+      if (claimId && ourRole(claim, sellerId) === "respondent") {
+        const stored = previous.get(claimId);
+        // Además de lo nuevo o cambiado, lo guardado sin un solo mensaje: el
+        // sondeo anterior guardaba la ficha de los reclamos de más de 60 días
+        // sin leer lo que se habló en ellos.
+        const readMessages =
+          !stored ||
+          stored.lastUpdated !== String(claim.last_updated ?? "") ||
+          !stored.hasMessages;
+        ingested += await processClaim(db, conn, claim, {
+          auth,
+          token,
+          readMessages,
+          historical: claim.status === "closed",
+        });
+      }
+    } catch (err) {
+      if (isMlRateLimit(err)) {
+        rateLimited = true;
+        break;
+      }
+      errors++;
+      lastError = err instanceof Error ? err.message : String(err);
+      log.warn("reclamo histórico salteado", {
+        connectionId: conn.id,
+        claimId,
+        error: lastError,
+      });
+    }
+    consumed++;
+  }
+  return {
+    consumed,
+    pageLength: page.claims.length,
+    total: page.total,
+    ingested,
+    errors,
+    lastError,
+    rateLimited,
+  };
+}
+
+/** Lo guardado de estos reclamos: cuándo los tocó Mercado Libre por última vez
+ *  y si alguna vez se leyó un mensaje de ellos. */
+async function storedClaims(
+  db: SupabaseClient,
+  conn: ChannelConnection,
+  ids: string[],
+): Promise<Map<string, { lastUpdated: string; hasMessages: boolean }>> {
+  const out = new Map<string, { lastUpdated: string; hasMessages: boolean }>();
+  if (!ids.length) return out;
+  const { data, error } = await db
+    .from("ml_claims")
+    .select("claim_id, raw, last_message")
+    .eq("workspace_id", conn.workspace_id)
+    .eq("connection_id", conn.id)
+    .in("claim_id", ids);
+  if (error) throw new Error(`ml_claims stored: ${error.message}`);
+  for (const row of (data ?? []) as Array<{
+    claim_id: string;
+    raw: Record<string, unknown> | null;
+    last_message: string | null;
+  }>) {
+    out.set(row.claim_id, {
+      lastUpdated: String(row.raw?.last_updated ?? ""),
+      hasMessages: Boolean(row.last_message),
+    });
+  }
+  return out;
+}
+
+/**
+ * Un reclamo: sus mensajes (si toca leerlos), la ficha en `ml_claims`, el
+ * cierre del hilo si Mercado Libre ya lo resolvió y el espejo de la devolución.
+ * Devuelve cuántos mensajes nuevos entraron.
+ */
+async function processClaim(
+  db: SupabaseClient,
+  conn: ChannelConnection,
+  claim: MlClaim,
+  opts: {
+    auth: Record<string, string>;
+    token: string;
+    readMessages: boolean;
+    historical: boolean;
+  },
+): Promise<number> {
+  const claimId = String(claim.id ?? "");
+  const messages = opts.readMessages
+    ? await readClaimMessages(claimId, opts.auth)
+    : [];
+  const ingested = messages.length
+    ? await ingestClaimMessages(
         db,
         conn,
         claim,
         messages,
-        auth,
-        token,
-      );
-    }
+        opts.auth,
+        opts.token,
+        opts.historical,
+      )
+    : 0;
 
-    const last = messages.length ? messages[messages.length - 1] : null;
-    const { error } = await db.from("ml_claims").upsert(
-      {
-        workspace_id: conn.workspace_id,
-        connection_id: conn.id,
-        claim_id: claimId,
-        resource_id:
-          claim.resource_id != null ? String(claim.resource_id) : null,
-        order_id:
-          claim.resource === "order" && claim.resource_id
-            ? String(claim.resource_id)
-            : null,
-        stage: claim.stage != null ? String(claim.stage) : null,
-        status: claim.status != null ? String(claim.status) : null,
-        type: claim.type != null ? String(claim.type) : null,
-        reason: claim.reason_id != null ? String(claim.reason_id) : null,
-        opened_at:
-          claim.date_created != null ? String(claim.date_created) : null,
-        ...(last
-          ? { last_message: claimMessageBody(last.message).text.slice(0, 500) }
-          : {}),
-        raw: claim,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "workspace_id,claim_id" },
-    );
-    if (error) throw new Error(`ml_claims upsert ${claimId}: ${error.message}`);
-    await closeResolvedClaimConversation(db, conn, claim);
-    claims++;
+  const last = messages.length ? messages[messages.length - 1] : null;
+  const { error } = await db.from("ml_claims").upsert(
+    {
+      workspace_id: conn.workspace_id,
+      connection_id: conn.id,
+      claim_id: claimId,
+      resource_id: claim.resource_id != null ? String(claim.resource_id) : null,
+      order_id:
+        claim.resource === "order" && claim.resource_id
+          ? String(claim.resource_id)
+          : null,
+      stage: claim.stage != null ? String(claim.stage) : null,
+      status: claim.status != null ? String(claim.status) : null,
+      type: claim.type != null ? String(claim.type) : null,
+      reason: claim.reason_id != null ? String(claim.reason_id) : null,
+      opened_at: claim.date_created != null ? String(claim.date_created) : null,
+      ...(last
+        ? { last_message: claimMessageBody(last.message).text.slice(0, 500) }
+        : {}),
+      raw: claim,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "workspace_id,claim_id" },
+  );
+  if (error) throw new Error(`ml_claims upsert ${claimId}: ${error.message}`);
+  await closeResolvedClaimConversation(db, conn, claim);
 
-    // Una devolución no se atiende en la bandeja: se decide en /devoluciones,
-    // junto a las que abre el agente desde el chat.
-    if (claim.type === "returns") await mirrorReturn(db, conn, claim);
-  }
-  return { claims, ingested };
+  // Una devolución no se atiende en la bandeja: se decide en /devoluciones,
+  // junto a las que abre el agente desde el chat.
+  if (claim.type === "returns") await mirrorReturn(db, conn, claim);
+  return ingested;
 }
 
 /** Qué papel juega el comercio en este reclamo: quien reclama o quien responde. */
@@ -365,32 +521,51 @@ async function searchClaims(
 ): Promise<MlClaim[]> {
   const out: MlClaim[] = [];
   for (let offset = 0; offset < MAX_CLAIMS; offset += CLAIMS_PAGE) {
-    const params = new URLSearchParams({
-      "players.user_id": sellerId,
-      "players.role": "respondent",
-      status,
-      limit: String(CLAIMS_PAGE),
-      offset: String(offset),
-      sort: "date_created:desc",
+    const page = await searchClaimsPage(auth, sellerId, status, {
+      offset,
+      limit: CLAIMS_PAGE,
+      updatedAfter,
     });
-    if (updatedAfter) {
-      params.set("range", `last_updated:after:${mlClaimDate(updatedAfter)}`);
-    }
-    const r = await fetch(`${ML}/post-purchase/v1/claims/search?${params}`, {
-      headers: auth,
-    });
-    if (!r.ok) throw new Error(`claims/search ${status} HTTP ${r.status}`);
-    const j = (await r.json()) as {
-      data?: MlClaim[];
-      results?: MlClaim[];
-      paging?: { total?: number };
-    };
-    const page = j.data ?? j.results ?? [];
-    out.push(...page);
-    if (page.length < CLAIMS_PAGE || out.length >= Number(j.paging?.total ?? 0))
+    out.push(...page.claims);
+    if (page.claims.length < CLAIMS_PAGE || out.length >= Number(page.total ?? 0))
       break;
   }
   return out;
+}
+
+/** Una página de la búsqueda de reclamos del comercio. */
+async function searchClaimsPage(
+  auth: Record<string, string>,
+  sellerId: string,
+  status: "opened" | "closed",
+  opts: { offset: number; limit: number; updatedAfter?: Date },
+): Promise<{ claims: MlClaim[]; total?: number }> {
+  const params = new URLSearchParams({
+    "players.user_id": sellerId,
+    "players.role": "respondent",
+    status,
+    limit: String(opts.limit),
+    offset: String(opts.offset),
+    sort: "date_created:desc",
+  });
+  if (opts.updatedAfter) {
+    params.set("range", `last_updated:after:${mlClaimDate(opts.updatedAfter)}`);
+  }
+  const r = await fetch(`${ML}/post-purchase/v1/claims/search?${params}`, {
+    headers: auth,
+  });
+  throwIfRateLimited(r, `claims/search ${status}`);
+  if (!r.ok) throw new Error(`claims/search ${status} HTTP ${r.status}`);
+  const j = (await r.json()) as {
+    data?: MlClaim[];
+    results?: MlClaim[];
+    paging?: { total?: number };
+  };
+  const total = Number(j.paging?.total);
+  return {
+    claims: j.data ?? j.results ?? [],
+    total: Number.isFinite(total) ? total : undefined,
+  };
 }
 
 function mlClaimDate(date: Date): string {
@@ -405,6 +580,7 @@ async function fetchClaim(
     headers: auth,
   });
   if (r.status === 404) return null;
+  throwIfRateLimited(r, `claims/${claimId}`);
   if (!r.ok) throw new Error(`claims/${claimId} HTTP ${r.status}`);
   return (await r.json()) as MlClaim;
 }
@@ -417,6 +593,7 @@ async function readClaimMessages(
   const r = await fetch(`${ML}/post-purchase/v1/claims/${claimId}/messages`, {
     headers: auth,
   });
+  throwIfRateLimited(r, `claims/${claimId}/messages`);
   if (!r.ok) throw new Error(`claims/${claimId}/messages HTTP ${r.status}`);
   const j = (await r.json()) as MlClaimMessage[] | { data?: MlClaimMessage[] };
   const list = Array.isArray(j) ? j : (j.data ?? []);
@@ -472,6 +649,9 @@ async function ingestClaimMessages(
   messages: MlClaimMessage[],
   auth: Record<string, string>,
   token: string,
+  /** Reclamo ya cerrado que se importa por primera vez: rellena el hilo sin
+   *  sumar no leídos. */
+  historical = false,
 ): Promise<number> {
   const claimId = String(claim.id ?? "");
   // El "cliente" del hilo es quien reclama. El vendedor es la otra parte, y
@@ -513,6 +693,7 @@ async function ingestClaimMessages(
       // Un reclamo NUNCA se contesta solo: se juega plata y reputación, y la
       // respuesta hay que darla en Mercado Libre igual.
       suppressAutoReply: true,
+      ...(historical ? { historical: true } : {}),
       raw: m,
     };
     if (await ingestInboundEvent(db, event)) n++;
@@ -546,6 +727,9 @@ async function ingestClaimAttachments(args: {
         `${ML}/post-purchase/v1/claims/${args.claimId}/attachments/${encodeURIComponent(name)}/download`,
         { headers: { Authorization: `Bearer ${args.token}` } },
       );
+      // Sin cuota se corta el reclamo entero: el mensaje se guarda una sola
+      // vez y entraría para siempre sin su comprobante.
+      throwIfRateLimited(r, "claims/attachments");
       if (!r.ok) continue;
       const buffer = Buffer.from(await r.arrayBuffer());
       if (!buffer.length || buffer.length > ATTACHMENT_MAX_BYTES) continue;
@@ -566,6 +750,7 @@ async function ingestClaimAttachments(args: {
         name: a.original_filename || name,
       });
     } catch (err) {
+      if (isMlRateLimit(err)) throw err;
       log.warn("adjunto de reclamo no descargado", {
         claimId: args.claimId,
         error: err instanceof Error ? err.message : String(err),

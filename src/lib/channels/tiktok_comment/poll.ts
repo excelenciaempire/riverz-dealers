@@ -9,6 +9,12 @@ import {
 } from "../comment-sync";
 import { guardarVideos } from "./videos";
 import { getFreshTikTokToken } from "./adapter";
+import {
+  nextDeepSweepState,
+  readDeepSweepState,
+  TIKTOK_DEEP_SWEEP_KEY,
+  type TikTokCursor,
+} from "./sweep-state";
 import type { ChannelConnection } from "@/types";
 import {
   DEFAULT_CONNECTION_CONCURRENCY,
@@ -28,9 +34,16 @@ const ACTIVE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
  *  para exigir corridas distintas y no dos vueltas del mismo bucle. */
 const MISSING_GRACE_MS = 60 * 60 * 1000;
 const VIDEOS_PER_PAGE = 20; // barrido profundo: máximo que acepta video/list
-const MAX_VIDEO_PAGES = 15; // techo de seguridad (~300 videos por cuenta)
+/** Páginas de videos por barrido profundo (~300 videos). Al llegar al tope el
+ *  barrido guarda el cursor y el siguiente sigue desde ahí. */
+const MAX_VIDEO_PAGES = 15;
 const COMMENTS_PER_VIDEO = 30; // TikTok cap: comment/list max_count must be <= 30
-const MAX_COMMENT_PAGES = 20; // hasta 600 comentarios por video
+/** Páginas de comentarios por video y por corrida (~600). Mismo criterio: en
+ *  el barrido profundo, el resto sigue en la corrida siguiente. */
+const MAX_COMMENT_PAGES = 20;
+/** Tandas de videos de la recuperación manual (~1.500 videos): corre dentro de
+ *  un pedido HTTP y no tiene "corrida siguiente". */
+const MANUAL_MAX_VIDEO_CHUNKS = 5;
 /**
  * HASTA CUÁNDO SE CONTESTA SOLO UN COMENTARIO.
  *
@@ -76,12 +89,7 @@ export async function pollAllTikTokConnections(
   total: number;
   ingested: number;
   videos: number;
-  connections: Array<{
-    connection_id: string;
-    ingested: number;
-    videos: number;
-    error?: string;
-  }>;
+  connections: PollConnectionResult[];
 }> {
   const db = supabaseAdmin();
   // error/expired incluidos: getFreshTikTokToken refresca y sana la fila. Mirar
@@ -90,12 +98,7 @@ export async function pollAllTikTokConnections(
   const conns = await listConnections(db, { channel: "tiktok_comment" });
   let ingested = 0;
   let videos = 0;
-  const connections: Array<{
-    connection_id: string;
-    ingested: number;
-    videos: number;
-    error?: string;
-  }> = [];
+  const connections: PollConnectionResult[] = [];
 
   await forEachWithConcurrency(
     conns,
@@ -116,7 +119,19 @@ export async function pollAllTikTokConnections(
         }
         const token = await getFreshTikTokToken(conn);
 
-        const nuevos = await listVideos(businessId, token, Boolean(opts.deep));
+        // El barrido profundo sigue desde donde lo dejó el anterior: el
+        // catálogo y los videos con miles de comentarios se recorren en varias
+        // corridas en vez de abortar al llegar al tope.
+        const sweep = opts.deep
+          ? readDeepSweepState(cfg[TIKTOK_DEEP_SWEEP_KEY])
+          : null;
+        const listed = await listVideosFrom(
+          businessId,
+          token,
+          Boolean(opts.deep),
+          sweep?.video_cursor ?? undefined,
+        );
+        const nuevos = listed.videos;
         // Cuáles de estos videos vemos por PRIMERA vez. Se pregunta antes de
         // guardarlos, que es la única forma de saberlo: después del upsert todos
         // figuran conocidos. Sus comentarios son historia —un video puede llegar
@@ -138,34 +153,76 @@ export async function pollAllTikTokConnections(
           : await conVideosActivos(db, conn, nuevos);
         videos += list.length;
         let connectionIngested = 0;
+        let attempted = 0;
+        let videoErrors = 0;
+        let firstError: string | undefined;
+        const commentCursors: Array<{
+          videoId: string;
+          next: TikTokCursor | null;
+        }> = [];
         for (const video of list) {
           const videoId = String(video.item_id ?? video.video_id ?? "");
           if (!videoId) continue;
           const caption = String(video.caption ?? "").slice(0, 80);
-          connectionIngested += await ingestVideoComments(
-            db,
-            conn,
-            businessId,
-            token,
-            videoId,
-            caption,
-            {
-              // Marcar borrados sólo en el barrido profundo: es el único que lee el
-              // video entero, y sin la lista completa "no vino" no prueba nada.
-              reconcile: Boolean(opts.deep),
-              videoNuevo: !yaConocidos.has(videoId),
-            },
-          );
+          attempted++;
+          // Un video roto no se lleva puestos a los demás: lo ya guardado de
+          // él queda, su cursor no se mueve y la corrida sigue.
+          try {
+            const r = await readVideoComments(
+              db,
+              conn,
+              businessId,
+              token,
+              videoId,
+              caption,
+              {
+                // Marcar borrados sólo en el barrido profundo: es el único que
+                // lee el video entero, y sin la lista completa "no vino" no
+                // prueba nada.
+                reconcile: Boolean(opts.deep),
+                videoNuevo: !yaConocidos.has(videoId),
+                startCursor: sweep?.comment_cursors[videoId],
+              },
+            );
+            connectionIngested += r.ingested;
+            if (sweep) commentCursors.push({ videoId, next: r.nextCursor });
+          } catch (err) {
+            videoErrors++;
+            const message = err instanceof Error ? err.message : String(err);
+            firstError ??= message;
+            console.warn(`[tiktok/poll] video ${videoId} failed:`, message);
+          }
         }
         ingested += connectionIngested;
-        await recordPollResult(conn, {
-          ingested: connectionIngested,
-          videos: list.length,
-        });
+
+        // Si fallaron TODOS, el problema es de la cuenta y no de un video: se
+        // informa como antes y el barrido no avanza.
+        if (attempted > 0 && videoErrors === attempted) {
+          throw new Error(firstError ?? "comment/list failed");
+        }
+        const sweepPatch = sweep
+          ? {
+              [TIKTOK_DEEP_SWEEP_KEY]: nextDeepSweepState(sweep, {
+                videoCursor: listed.nextCursor,
+                comments: commentCursors,
+              }),
+            }
+          : undefined;
+        await recordPollResult(
+          conn,
+          {
+            ingested: connectionIngested,
+            videos: list.length,
+            videoErrors,
+            videoError: firstError,
+          },
+          sweepPatch,
+        );
         connections.push({
           connection_id: conn.id,
           ingested: connectionIngested,
           videos: list.length,
+          ...(videoErrors ? { video_errors: videoErrors } : {}),
         });
       } catch (err) {
         console.error(`[tiktok/poll] connection ${conn.id} failed:`, err);
@@ -183,10 +240,27 @@ export async function pollAllTikTokConnections(
   return { total: conns.length, ingested, videos, connections };
 }
 
+interface PollConnectionResult {
+  connection_id: string;
+  ingested: number;
+  videos: number;
+  /** Videos que fallaron sin tumbar la corrida (los demás sí se leyeron). */
+  video_errors?: number;
+  error?: string;
+}
+
 /** Persisted telemetry separates "TikTok was quiet" from "we could not read TikTok". */
 async function recordPollResult(
   connection: ChannelConnection,
-  result: { ingested?: number; videos?: number; error?: string },
+  result: {
+    ingested?: number;
+    videos?: number;
+    videoErrors?: number;
+    videoError?: string;
+    error?: string;
+  },
+  /** Claves extra de `config` que se guardan en la misma escritura. */
+  extra?: Record<string, unknown>,
 ): Promise<void> {
   const db = supabaseAdmin();
   const now = new Date().toISOString();
@@ -202,8 +276,12 @@ async function recordPollResult(
         last_poll_ingested: result.ingested ?? 0,
         last_poll_videos: result.videos ?? 0,
         last_poll_error: null,
+        // Un video que falla no pone la conexión en error, pero queda a la
+        // vista: sin esto, "faltan comentarios de ese video" no tenía rastro.
+        last_poll_video_errors: result.videoErrors ?? 0,
+        last_poll_video_error: result.videoError?.slice(0, 500) ?? null,
       };
-  await savePollState(db, connection.id, telemetry, result.error
+  await savePollState(db, connection.id, { ...telemetry, ...extra }, result.error
       ? `TikTok poll failed: ${result.error.slice(0, 450)}`
       : null);
 }
@@ -247,25 +325,42 @@ export async function backfillTikTokCommentsForWorkspace(
           };
         }
         const token = await getFreshTikTokToken(conn);
-        const list = await listVideos(businessId, token, true);
+        // Por tandas de ~300 videos (el tope por llamada de `listVideosFrom`)
+        // hasta agotar el catálogo o el techo de la recuperación manual.
+        const list: Array<Record<string, unknown>> = [];
+        let cursor: TikTokCursor | undefined;
+        for (let chunk = 0; chunk < MANUAL_MAX_VIDEO_CHUNKS; chunk++) {
+          const listed = await listVideosFrom(businessId, token, true, cursor);
+          list.push(...listed.videos);
+          if (listed.nextCursor === null) break;
+          cursor = listed.nextCursor;
+        }
         await guardarVideos(db, conn, list).catch(() => 0);
         let connectionIngested = 0;
         for (const video of list) {
           const videoId = String(video.item_id ?? video.video_id ?? "");
           if (!videoId) continue;
-          connectionIngested += await ingestVideoComments(
-            db,
-            conn,
-            businessId,
-            token,
-            videoId,
-            String(video.caption ?? "").slice(0, 80),
-            {
-              fromMs: opts.sinceMs,
-              untilMs: opts.untilMs,
-              suppressAutoReply: true,
-            },
-          );
+          try {
+            connectionIngested += await ingestVideoComments(
+              db,
+              conn,
+              businessId,
+              token,
+              videoId,
+              String(video.caption ?? "").slice(0, 80),
+              {
+                fromMs: opts.sinceMs,
+                untilMs: opts.untilMs,
+                suppressAutoReply: true,
+              },
+            );
+          } catch (err) {
+            console.warn("[tiktok/backfill] video failed", {
+              connectionId: conn.id,
+              videoId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
         }
         return {
           connection_id: conn.id,
@@ -370,19 +465,48 @@ async function conVideosActivos(
 /**
  * Videos de la cuenta, del más nuevo al más viejo. En modo normal una sola
  * página; en modo profundo pagina con el cursor que devuelve TikTok hasta
- * agotar el catálogo (o el techo de seguridad).
+ * agotar el catálogo o el techo de páginas.
+ *
+ * Al llegar al techo NO falla: devuelve lo leído y `nextCursor` para que la
+ * corrida siguiente siga desde ahí. Antes tiraba un error y la cuenta entera
+ * quedaba sin barrer. `startCursor` retoma un barrido anterior; si TikTok lo
+ * rechaza (vencido, de otra versión), se vuelve a empezar por el más nuevo en
+ * vez de quedar trabado para siempre en un cursor inválido.
  */
-async function listVideos(
+async function listVideosFrom(
   businessId: string,
   token: string,
   deep: boolean,
-): Promise<Array<Record<string, unknown>>> {
+  startCursor?: TikTokCursor,
+): Promise<{
+  videos: Array<Record<string, unknown>>;
+  /** Desde dónde sigue el catálogo; `null` si se leyó hasta el final. */
+  nextCursor: TikTokCursor | null;
+}> {
+  try {
+    return await listVideoPages(businessId, token, deep, startCursor);
+  } catch (err) {
+    if (startCursor === undefined) throw err;
+    console.warn("[tiktok/poll] cursor de videos rechazado, se reinicia:", err);
+    return listVideoPages(businessId, token, deep, undefined);
+  }
+}
+
+async function listVideoPages(
+  businessId: string,
+  token: string,
+  deep: boolean,
+  startCursor?: TikTokCursor,
+): Promise<{
+  videos: Array<Record<string, unknown>>;
+  nextCursor: TikTokCursor | null;
+}> {
   const headers = { "Access-Token": token };
   const fields = encodeURIComponent(
     JSON.stringify(["item_id", "caption", "create_time", "share_url"]),
   );
   const out: Array<Record<string, unknown>> = [];
-  let cursor: string | number | undefined;
+  let cursor: TikTokCursor | undefined = startCursor;
 
   for (let page = 0; page < (deep ? MAX_VIDEO_PAGES : 1); page++) {
     const url =
@@ -406,13 +530,13 @@ async function listVideos(
       );
     }
     out.push(...(json.data?.videos ?? []));
-    if (!json.data?.has_more || json.data.cursor === undefined) break;
-    if (page === MAX_VIDEO_PAGES - 1) {
-      throw new Error(`video/list superó ${MAX_VIDEO_PAGES} páginas`);
+    if (!json.data?.has_more || json.data.cursor === undefined) {
+      return { videos: out, nextCursor: null };
     }
     cursor = json.data.cursor;
   }
-  return out;
+  // Modo normal: una sola página a propósito, no hay nada que retomar.
+  return { videos: out, nextCursor: deep ? (cursor ?? null) : null };
 }
 
 /**
@@ -509,13 +633,48 @@ export async function ingestVideoComments(
     suppressAutoReply?: boolean;
   } = {},
 ): Promise<number> {
+  return (
+    await readVideoComments(db, conn, businessId, token, videoId, caption, opts)
+  ).ingested;
+}
+
+/**
+ * La lectura de un video, con el cursor para seguirla.
+ *
+ * Llegar al tope de páginas ya no es un error: devuelve `nextCursor` y el
+ * barrido profundo lo guarda para seguir desde ahí en la corrida siguiente.
+ * Antes tiraba un error y, como el video quedaba "fallado", un video con más
+ * de 600 comentarios cortaba el barrido de toda la cuenta. Un error de TikTok
+ * a mitad de camino sí sigue siendo un error: lo leído queda guardado, pero la
+ * lista está incompleta y quien llama tiene que saberlo.
+ */
+async function readVideoComments(
+  db: ReturnType<typeof supabaseAdmin>,
+  conn: ChannelConnection,
+  businessId: string,
+  token: string,
+  videoId: string,
+  caption: string | undefined,
+  opts: {
+    reconcile?: boolean;
+    videoNuevo?: boolean;
+    fromMs?: number;
+    untilMs?: number;
+    suppressAutoReply?: boolean;
+    /** Página desde la que retomar un video que quedó a medias. */
+    startCursor?: TikTokCursor;
+  },
+): Promise<{ ingested: number; nextCursor: TikTokCursor | null }> {
   let ingested = 0;
-  let cursor: string | number | undefined;
+  let cursor: TikTokCursor | undefined = opts.startCursor;
+  let nextCursor: TikTokCursor | null = null;
+  let apiError: string | null = null;
   // Todo lo que TikTok dice que sigue vivo en este video. Con la lista COMPLETA
   // (sin cortes por error ni por tope de páginas) lo que falta es lo que
-  // borraron desde la app.
+  // borraron desde la app. Retomada desde un cursor no está completa: faltan
+  // las primeras páginas.
   const vistos = new Set<string>();
-  let listaCompleta = true;
+  let listaCompleta = opts.startCursor === undefined;
 
   for (let page = 0; page < MAX_COMMENT_PAGES; page++) {
     // Solo los parámetros requeridos: business_id + video_id + max_count
@@ -538,6 +697,7 @@ export async function ingestVideoComments(
     };
     if (!cr.ok || cj.code !== 0) {
       listaCompleta = false;
+      apiError = `comment/list HTTP ${cr.status}, code ${cj.code ?? "desconocido"}`;
       break;
     }
 
@@ -566,7 +726,8 @@ export async function ingestVideoComments(
       // lo que el comercio contestó DESDE TikTok: sin esto la bandeja mostraba
       // la pregunta y ninguna respuesta, aunque en TikTok estuviera contestada.
       const replies = await fetchReplies(businessId, token, videoId, c);
-      for (const r of replies) {
+      if (!replies.complete) listaCompleta = false;
+      for (const r of replies.replies) {
         const replyId = String(r.comment_id ?? "");
         if (!replyId) continue;
         vistos.add(replyId);
@@ -588,16 +749,19 @@ export async function ingestVideoComments(
     }
     if (!cj.data?.has_more || cj.data.cursor === undefined) break;
     cursor = cj.data.cursor;
-    if (page === MAX_COMMENT_PAGES - 1) listaCompleta = false;
+    if (page === MAX_COMMENT_PAGES - 1) {
+      listaCompleta = false;
+      nextCursor = cursor;
+    }
   }
 
   if (opts.reconcile && listaCompleta) {
     await marcarBorrados(db, conn, videoId, vistos);
   }
-  if (!listaCompleta) {
-    throw new Error(`comment/list incompleto para ${videoId}`);
+  if (apiError) {
+    throw new Error(`comment/list incompleto para ${videoId}: ${apiError}`);
   }
-  return ingested;
+  return { ingested, nextCursor };
 }
 
 /** ¿Este comentario lo escribió la cuenta del comercio? */
@@ -782,21 +946,26 @@ async function convergeState(
  * Las respuestas de un comentario. Vienen anidadas en `reply_list`, pero ese
  * arreglo trae sólo las primeras: si `replies` dice que hay más, se piden
  * paginadas por su endpoint propio.
+ *
+ * Si TikTok falla o se llega al tope de páginas, devuelve lo que alcanzó a
+ * leer con `complete: false` en vez de tirar un error: antes un solo hilo de
+ * respuestas roto hacía perder el resto de los comentarios del video. Con la
+ * lista incompleta no se marca nada como borrado.
  */
 async function fetchReplies(
   businessId: string,
   token: string,
   videoId: string,
   parent: Record<string, unknown>,
-): Promise<Array<Record<string, unknown>>> {
+): Promise<{ replies: Array<Record<string, unknown>>; complete: boolean }> {
   const inline = Array.isArray(parent.reply_list)
     ? (parent.reply_list as Array<Record<string, unknown>>)
     : [];
   const total = Number(parent.replies ?? inline.length) || 0;
-  if (total <= inline.length) return inline;
+  if (total <= inline.length) return { replies: inline, complete: true };
 
   const parentId = String(parent.comment_id ?? "");
-  if (!parentId) return inline;
+  if (!parentId) return { replies: inline, complete: true };
   const out = new Map<string, Record<string, unknown>>();
   for (const r of inline) out.set(String(r.comment_id ?? ""), r);
 
@@ -820,9 +989,13 @@ async function fetchReplies(
       };
     };
     if (!res.ok || json.code !== 0) {
-      throw new Error(
-        `comment/reply/list HTTP ${res.status}, code ${json.code ?? "desconocido"}`,
-      );
+      console.warn("[tiktok/poll] respuestas incompletas", {
+        videoId,
+        commentId: parentId,
+        status: res.status,
+        code: json.code ?? null,
+      });
+      break;
     }
     for (const r of json.data?.comments ?? []) {
       const id = String(r.comment_id ?? "");
@@ -834,10 +1007,8 @@ async function fetchReplies(
     }
     cursor = json.data.cursor;
   }
-  if (!complete)
-    throw new Error(`comment/reply/list superó ${MAX_COMMENT_PAGES} páginas`);
   out.delete("");
-  return [...out.values()];
+  return { replies: [...out.values()], complete };
 }
 
 /**

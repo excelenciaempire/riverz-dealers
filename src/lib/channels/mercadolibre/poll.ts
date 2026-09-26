@@ -5,6 +5,8 @@ import { listConnections } from "../connections";
 import { ingestInboundEvent } from "../inbox-writer";
 import { getFreshMLToken } from "./adapter";
 import type { InboundEvent } from "../types";
+import type { ChannelConnection } from "@/types";
+import { historyFlags } from "./history-state";
 import {
   mercadoLibreFailure,
   type MercadoLibreSyncFailure,
@@ -15,7 +17,11 @@ import {
 } from "@/lib/async/concurrency";
 
 const ML = "https://api.mercadolibre.com";
-/** Preguntas por corrida. Ordenadas de la más nueva a la más vieja. */
+/**
+ * Preguntas por corrida, de la más nueva a la más vieja. Es el frente de lo
+ * reciente: las anteriores las recorre, paginando, la importación histórica
+ * (`history.ts`).
+ */
 const PAGE = 50;
 /**
  * A partir de acá una pregunta rescatada entra como pendiente pero no despierta
@@ -24,7 +30,7 @@ const PAGE = 50;
  */
 const LIVE_WINDOW_MS = 60 * 60_000;
 
-interface MlQuestion {
+export interface MlQuestion {
   id?: number;
   text?: string;
   status?: string;
@@ -100,42 +106,10 @@ export async function pollAllMercadoLibreConnections(): Promise<{
           if (error) throw new Error(`ML account recovery persistence: ${error.message}`);
         }
         for (const q of j.questions ?? []) {
-          if (!q.id || !q.text) continue;
-          const buyerId = String(q.from?.id ?? q.buyer_id ?? "ml");
-          const askedAt = q.date_created ?? new Date().toISOString();
-          const base = {
-            channel: "mercadolibre" as const,
-            connection: conn,
-            externalContactId: buyerId,
-            externalThreadId: `q:${q.id}`,
-            subject: q.item_id ? `Pregunta · ${q.item_id}` : undefined,
-          };
-
-          // La pregunta. Ya contestada ⇒ nadie tiene que volver a contestarla.
-          const answered = Boolean(q.answer?.text);
-          const stale = !(Date.now() - Date.parse(askedAt) < LIVE_WINDOW_MS);
-          const question: InboundEvent = {
-            ...base,
-            externalMessageId: `q:${q.id}`,
-            text: q.text,
-            receivedAt: askedAt,
-            suppressAutoReply: answered || stale,
-            raw: q,
-          };
-          if (await ingestInboundEvent(db, question)) ingested++;
-
-          // La respuesta del vendedor, escrita desde donde sea. Saliente: es
-          // nuestra. Si salió de Riverz ya está guardada y el corte la descarta.
-          if (q.answer?.text) {
-            const answer: InboundEvent = {
-              ...base,
-              externalMessageId: `a:${q.id}`,
-              text: q.answer.text,
-              receivedAt: q.answer.date_created ?? askedAt,
-              outbound: true,
-              raw: q.answer,
-            };
-            if (await ingestInboundEvent(db, answer)) answers++;
+          for (const event of questionEvents(conn, q, { mode: "live", now: Date.now() })) {
+            if (!(await ingestInboundEvent(db, event))) continue;
+            if (event.outbound) answers++;
+            else ingested++;
           }
         }
       } catch (err) {
@@ -145,4 +119,54 @@ export async function pollAllMercadoLibreConnections(): Promise<{
     },
   );
   return { total: conns.length, ingested, answers, failures };
+}
+
+/**
+ * Los eventos de UNA pregunta: la del comprador y, si la hay, la respuesta del
+ * vendedor como saliente —escrita desde Riverz o desde la app de Mercado
+ * Libre—. La comparten el sondeo y la importación histórica, que sólo cambian
+ * cómo entra la pregunta:
+ *
+ *   - `live`: ya contestada o de hace más de una hora ⇒ pendiente sin
+ *     respuesta automática.
+ *   - `history`: contestada o vieja ⇒ historia (ni no leído ni agente); sin
+ *     contestar y reciente ⇒ pendiente sin respuesta automática.
+ */
+export function questionEvents(
+  conn: ChannelConnection,
+  q: MlQuestion,
+  opts: { mode: "live" | "history"; now: number; contactName?: string },
+): InboundEvent[] {
+  if (!q.id || !q.text) return [];
+  const buyerId = String(q.from?.id ?? q.buyer_id ?? "ml");
+  const askedAt = q.date_created ?? new Date(opts.now).toISOString();
+  const answered = Boolean(q.answer?.text);
+  const base = {
+    channel: "mercadolibre" as const,
+    connection: conn,
+    externalContactId: buyerId,
+    contactName: opts.contactName,
+    externalThreadId: `q:${q.id}`,
+    subject: q.item_id ? `Pregunta · ${q.item_id}` : undefined,
+  };
+  const flags =
+    opts.mode === "history"
+      ? historyFlags(askedAt, answered, opts.now)
+      : { suppressAutoReply: answered || !(opts.now - Date.parse(askedAt) < LIVE_WINDOW_MS) };
+  const events: InboundEvent[] = [
+    { ...base, externalMessageId: `q:${q.id}`, text: q.text, receivedAt: askedAt, ...flags, raw: q },
+  ];
+  // Saliente: es nuestra. Si salió de Riverz ya está guardada y el corte por id
+  // externo la descarta.
+  if (q.answer?.text) {
+    events.push({
+      ...base,
+      externalMessageId: `a:${q.id}`,
+      text: q.answer.text,
+      receivedAt: q.answer.date_created ?? askedAt,
+      outbound: true,
+      raw: q.answer,
+    });
+  }
+  return events;
 }

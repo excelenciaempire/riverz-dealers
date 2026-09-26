@@ -10,6 +10,7 @@ import { translate } from "@/lib/i18n/translate";
 import type { Locale } from "@/lib/i18n/config";
 import { isInactiveMLAccountError } from './account-health';
 import { mercadoLibreAppFor } from "./apps";
+import { isMlRateLimit, throwIfRateLimited } from "./rate-limit";
 
 /**
  * MercadoLibre — pre-sale QUESTIONS + post-sale MESSAGES in the unified inbox.
@@ -424,27 +425,47 @@ export async function buildPackEvents(args: { connection: ChannelConnection; pac
   // post-venta ingerido, ni por webhook ni por ningún lado, y no había forma de
   // distinguirlo de "este vendedor no recibe mensajes". El envío sí lo mandaba
   // (`sendText`), así que se podía contestar un hilo que nunca se veía entrar.
-  const r = await fetch(`${ML}/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale&mark_as_read=false`, {
-    headers: auth,
-  });
-  if (!r.ok) {
-    const body = (await r.text().catch(() => "")).slice(0, 200);
-    log.warn("no se pudo leer el hilo post-venta de Mercado Libre", {
-      packId,
-      status: r.status,
-      body,
-    });
-    throw new Error(`messages/packs/${packId} HTTP ${r.status}${body ? `: ${body}` : ""}`);
-  }
-  const conv = (await r.json()) as MlPack;
+  const base = `${ML}/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale&mark_as_read=false`;
+  const conv = await readPackPage(base, packId, auth);
   // Mercado Libre cierra la mensajería de la mayoría de las ventas: mide el
   // 2026-08-05, 21 de 24 hilos vuelven `blocked` y vacíos, y van a seguir así
   // salvo que el comprador escriba primero. Releerlos cada corrida era casi
   // todo el costo del sondeo.
   const quiet = (conv.messages?.length ?? 0) === 0 && conv.conversation_status?.status === "blocked";
+
+  // El hilo viene PAGINADO: sin `limit` Mercado Libre devuelve sólo la primera
+  // página, y lo que quedaba afuera no entraba nunca. Así se veían hilos con
+  // los mensajes del comprador y ninguna respuesta del vendedor aunque en
+  // Mercado Libre estuviera contestado. La primera página sale sin `limit`
+  // (el pedido de siempre, que no cuesta más en el hilo corto, que es casi
+  // todos); las siguientes repiten el tamaño que Mercado Libre informa en
+  // `paging.limit`, que es el único valor que se sabe que acepta.
+  const byId = new Map<string, NonNullable<MlPack["messages"]>[number]>();
+  const collect = (page: MlPack) => {
+    for (const m of page.messages ?? []) if (m.id) byId.set(m.id, m);
+  };
+  collect(conv);
+  const pageSize = Number(conv.paging?.limit) || conv.messages?.length || 0;
+  let offset = Number(conv.paging?.offset) || 0;
+  let received = conv.messages?.length ?? 0;
+  let total: unknown = conv.paging?.total;
+  for (let page = 1; page < MAX_PACK_PAGES; page++) {
+    const next = nextPackOffset(offset, received, total);
+    if (next === null || !pageSize) break;
+    const more = await readPackPage(`${base}&limit=${pageSize}&offset=${next}`, packId, auth);
+    collect(more);
+    offset = next;
+    received = more.messages?.length ?? 0;
+    total = more.paging?.total ?? total;
+  }
+  // Del más viejo al más nuevo: el hilo se crea con el primer mensaje real.
+  const messages = [...byId.values()].sort(
+    (a, b) => (Date.parse(a.message_date?.created ?? "") || 0) - (Date.parse(b.message_date?.created ?? "") || 0),
+  );
+
   const events: InboundEvent[] = [];
   const nickCache = new Map<string, string | undefined>();
-  for (const m of conv.messages ?? []) {
+  for (const m of messages) {
     const fromId = String(m.from?.user_id ?? "");
     const toId = String(m.to?.user_id ?? "");
     if (!m.id || !fromId) continue;
@@ -487,6 +508,38 @@ export async function buildPackEvents(args: { connection: ChannelConnection; pac
     });
   }
   return { events, quiet };
+}
+
+/** Techo de páginas por hilo: un hilo de cientos de mensajes no puede comerse
+ *  la cuota de la aplicación en una sola lectura. */
+const MAX_PACK_PAGES = 30;
+
+async function readPackPage(url: string, packId: string, auth: Record<string, string>): Promise<MlPack> {
+  const r = await fetch(url, { headers: auth });
+  throwIfRateLimited(r, `messages/packs/${packId}`);
+  if (!r.ok) {
+    const body = (await r.text().catch(() => "")).slice(0, 200);
+    log.warn("no se pudo leer el hilo post-venta de Mercado Libre", {
+      packId,
+      status: r.status,
+      body,
+    });
+    throw new Error(`messages/packs/${packId} HTTP ${r.status}${body ? `: ${body}` : ""}`);
+  }
+  return (await r.json()) as MlPack;
+}
+
+/**
+ * Desde dónde pedir la página siguiente de un hilo, o `null` si ya está
+ * completo. `offset` es el de la página recién leída y `received` cuántos
+ * mensajes trajo. Sin `total` legible se asume una sola página: es lo que se
+ * hacía antes y nunca pide de más.
+ */
+export function nextPackOffset(offset: number, received: number, total: unknown): number | null {
+  const t = Number(total);
+  if (!received || !Number.isFinite(t)) return null;
+  const next = offset + received;
+  return next < t ? next : null;
 }
 
 /** Lo que una lectura de hilo deja: los eventos y si vale la pena volver. */
@@ -722,6 +775,10 @@ const ML_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
  * en Storage. ML no publica una URL: se pide el archivo por su id con el token
  * del vendedor (`/messages/attachments/{id}?tag=post_sale&site_id=…`).
  * Best-effort — un adjunto que falla se saltea y el mensaje igual entra.
+ *
+ * Salvo un 429: ése corta la lectura entera del hilo. El mensaje se guarda una
+ * sola vez (el corte por id externo descarta la relectura), así que dejarlo
+ * entrar sin su foto por falta de cuota sería perder la foto para siempre.
  */
 async function ingestMlAttachments(args: {
   attachments?: Array<{
@@ -750,6 +807,7 @@ async function ingestMlAttachments(args: {
       const r = await fetch(url.toString(), {
         headers: { authorization: `Bearer ${args.token}` },
       });
+      throwIfRateLimited(r, "messages/attachments");
       if (!r.ok) continue;
       const buffer = Buffer.from(await r.arrayBuffer());
       if (!buffer.length || buffer.length > ML_ATTACHMENT_MAX_BYTES) continue;
@@ -769,6 +827,7 @@ async function ingestMlAttachments(args: {
         name: a.original_filename || id,
       });
     } catch (err) {
+      if (isMlRateLimit(err)) throw err;
       console.warn("[mercadolibre] adjunto no descargado:", err);
     }
   }
@@ -804,4 +863,5 @@ interface MlPack {
   }>;
   /** `blocked` cuando Mercado Libre no permite conversación en esa venta. */
   conversation_status?: { status?: string; substatus?: string | null };
+  paging?: { limit?: number; offset?: number; total?: number };
 }
