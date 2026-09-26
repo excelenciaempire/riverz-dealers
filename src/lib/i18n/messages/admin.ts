@@ -1158,10 +1158,6 @@ export const admin = {
   unlockSubmit: { es: 'Entrar', en: 'Enter' },
   unlockFailed: { es: 'No se pudo abrir', en: "Couldn't unlock" },
   unlockNetwork: { es: 'Error de red', en: 'Network error' },
-  unlockSesionCambio: {
-    es: 'La sesión ya no es de una cuenta del equipo de Riverz. Recarga la página e ingresa con esa cuenta.',
-    en: 'The session is no longer a Riverz team account. Reload the page and sign in with that account.',
-  },
   unlockNotConfigured: {
     es: 'Falta definir ADMIN_PANEL_PASSWORD en el servidor. Sin esa contraseña el panel no se abre para nadie.',
     en: "ADMIN_PANEL_PASSWORD isn't set on the server. Without it the panel opens for nobody.",

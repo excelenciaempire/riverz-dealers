@@ -18,7 +18,7 @@
  * los ajustes que afectan a todos los demás — y ni siquiera hacía falta que
  * quisiera: alcanzaba con que alguien entrara a esa sesión.
  */
-const TEAM_ADMINS = [
+export const TEAM_ADMINS = [
   'riverzoficial@gmail.com',
   'juandiegoriosmesa@gmail.com',
 ];

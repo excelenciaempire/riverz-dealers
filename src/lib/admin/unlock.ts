@@ -38,9 +38,11 @@ function sign(payload: string): string {
     .digest('base64url');
 }
 
-export function issueToken(email: string): string {
+export function issueToken(email: string, userId = ''): string {
   const exp = Date.now() + TTL_MS;
-  const payload = `${email}|${exp}`;
+  // El id de quien actúa va firmado: con sólo la contraseña (sin sesión) el
+  // panel igual sabe a nombre de quién anotar cada cambio.
+  const payload = `${email}|${exp}|${userId}`;
   return `${Buffer.from(payload).toString('base64url')}.${sign(payload)}`;
 }
 
@@ -67,6 +69,28 @@ export function verifyToken(token: string | undefined, email: string): boolean {
   const [signedEmail, exp] = payload.split('|');
   if (signedEmail !== email) return false;
   return Number(exp) > Date.now();
+}
+
+/** Quién abrió el panel con la contraseña, si el token es válido. */
+export function leerToken(token: string | undefined): { email: string; userId: string } | null {
+  if (!unlockConfigured() || !token) return null;
+  const [body] = token.split('.');
+  let payload: string;
+  try {
+    payload = Buffer.from(body ?? '', 'base64url').toString();
+  } catch {
+    return null;
+  }
+  const [email, , userId] = payload.split('|');
+  if (!email || !userId || !verifyToken(token, email)) return null;
+  return { email, userId };
+}
+
+/** El panel abierto en este navegador: con o sin sesión de la app. */
+export async function actorDelPanel(): Promise<{ email: string; userId: string } | null> {
+  if (!unlockConfigured()) return null;
+  const jar = await cookies();
+  return leerToken(jar.get(COOKIE)?.value);
 }
 
 /** ¿Esta sesión ya puso la contraseña del panel? */

@@ -1,41 +1,42 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isPlatformAdmin } from "@/lib/auth/platform-admin";
-import { isUnlocked, unlockConfigured } from "@/lib/admin/unlock";
+import { isAdminHost } from "@/lib/admin/host";
+import { actorDelPanel, unlockConfigured } from "@/lib/admin/unlock";
 import { AdminShell } from "./admin-shell";
 import { UnlockForm } from "./unlock-form";
 
-// Platform panel (riverz.co/admin). Lives OUTSIDE the (dashboard) group: it
+// Platform panel (admin.riverz.co). Lives OUTSIDE the (dashboard) group: it
 // isn't a merchant surface, so it gets its own shell instead of the tenant
-// sidebar. The gate here is the real one — every page under /admin is behind
-// it, and each /api/admin route re-checks on its own.
+// sidebar. Every /api/admin route re-checks on its own (`requireAdmin`).
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },
-};
+}
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Se entra directo con la contraseña del panel: no hace falta haber iniciado
+  // sesión antes con una cuenta del equipo.
+  const actor = await actorDelPanel();
+  if (actor) return <AdminShell email={actor.email}>{children}</AdminShell>;
 
-  if (!user) redirect("/ingresar");
-  // 404 rather than 403: a merchant who lands here never learns the panel exists.
-  if (!isPlatformAdmin(user.email)) notFound();
-
-  // Segunda llave: ser del equipo abre la puerta, la contraseña la cierra
-  // detrás. Sin ella, la sesión del navegador ES el panel — y la lista del
-  // equipo incluye cuentas que también son de un comercio.
-  if (!(await isUnlocked(user.email ?? ""))) {
-    return <UnlockForm configured={unlockConfigured()} />;
+  // En su propio host el panel pide la contraseña. En el dominio del producto
+  // (riverz.co/admin) sólo a quien ya es del equipo: un comercio que cae ahí no
+  // se entera de que existe.
+  const host = (await headers()).get("host");
+  if (!isAdminHost(host)) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user || !isPlatformAdmin(user.email)) notFound();
   }
-
-  return <AdminShell email={user.email ?? ""}>{children}</AdminShell>;
+  return <UnlockForm configured={unlockConfigured()} />;
 }
