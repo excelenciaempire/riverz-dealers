@@ -29,8 +29,8 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
  * Cada columna es un pedido de mentira pasado por el MISMO simulador de
  * "Probar como cliente" (`lib/automations/simulacion`): las plantillas ya
  * rellenas, las esperas, las condiciones y a qué asistente pasa la
- * conversación. Una compra pagada va una vez por oferta, porque la recompra
- * cambia con las unidades.
+ * conversación. La compra pagada se simula con cada oferta (la recompra
+ * cambia con las unidades) pero se muestra en una sola columna.
  *
  * GET   /api/automations/tablero → { comercio, columnas, plantillas }
  * PATCH /api/automations/tablero   { plantilla_id, body_text } → { plantilla }
@@ -45,6 +45,8 @@ interface Columna {
   /** La oferta de la compra, cuando la columna es una por oferta. */
   oferta: string | null;
   automatizaciones: AutomacionSimulada[];
+  /** Compra pagada: el mismo camino con cada oferta, para elegirla en la columna. */
+  ofertas?: Array<{ oferta: string; automatizaciones: AutomacionSimulada[] }>;
 }
 
 async function cuenta() {
@@ -131,7 +133,7 @@ export async function GET() {
   ];
 
   try {
-    const columnas: Columna[] = await Promise.all(
+    const simuladas: Columna[] = await Promise.all(
       pedidos.map(async ({ pedido, ...col }) => {
         const r = await simularDisparo(admin, workspaceId, col.escenario, pedido);
         // En cada situación, sólo lo que le llega al cliente: una automatización
@@ -140,6 +142,16 @@ export async function GET() {
         return { ...col, automatizaciones: r.automatizaciones.filter(envia) };
       })
     );
+    // La compra pagada es UNA situación: lo que cambia con la oferta es el
+    // total, el producto y, en la recompra, cuándo se le escribe. Va en una
+    // sola columna y la oferta se elige adentro.
+    const pagadas = simuladas.filter((c) => c.id.startsWith('pagado-'));
+    const columnas: Columna[] = [
+      ...(pagadas.length
+        ? [{ ...pagadas[0], id: 'pagado', oferta: null, ofertas: pagadas.length > 1 ? pagadas.map((c) => ({ oferta: c.oferta ?? '', automatizaciones: c.automatizaciones })) : undefined }]
+        : []),
+      ...simuladas.filter((c) => !c.id.startsWith('pagado-')),
+    ];
     const todas = await plantillasDeLasAutomatizaciones(admin, workspaceId);
     return NextResponse.json(
       {

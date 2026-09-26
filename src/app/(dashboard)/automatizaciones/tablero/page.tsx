@@ -26,6 +26,8 @@ interface Columna {
   pago: string | null;
   oferta: string | null;
   automatizaciones: AutomacionSimulada[];
+  /** Compra pagada: la misma situación con cada oferta, elegible en la columna. */
+  ofertas?: Array<{ oferta: string; automatizaciones: AutomacionSimulada[] }>;
 }
 
 interface Plantilla {
@@ -183,35 +185,77 @@ export default function TableroDeMensajesPage() {
       ) : (
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:overflow-x-auto md:pb-4">
           {datos.columnas.map((col) => (
-            <section
+            <ColumnaDelTablero
               key={col.id}
-              className="border-border bg-muted/30 w-full shrink-0 space-y-3 rounded-2xl border p-3 md:w-[330px]"
-            >
-              <div>
-                <h2 className="text-foreground text-sm font-semibold">{t(TITULO[col.id.split('-')[0]] ?? col.escenario)}</h2>
-                {col.oferta ? <p className="text-muted-foreground text-xs">{col.oferta}</p> : null}
-              </div>
-              {col.automatizaciones.length === 0 ? (
-                <p className="text-muted-foreground text-xs">{t('automations.tableroVacio')}</p>
-              ) : (
-                col.automatizaciones.map((a) => (
-                  <Automatizacion
-                    key={`${col.id}-${a.id}`}
-                    a={a}
-                    plantillas={datos.plantillas}
-                    conVariables={conVariables}
-                    onGuardada={(p) => {
-                      setDatos((prev) => (prev ? { ...prev, plantillas: { ...prev.plantillas, [p.name]: p } } : prev));
-                      void cargar();
-                    }}
-                  />
-                ))
-              )}
-            </section>
+              col={col}
+              plantillas={datos.plantillas}
+              conVariables={conVariables}
+              onGuardada={(p) => {
+                setDatos((prev) => (prev ? { ...prev, plantillas: { ...prev.plantillas, [p.name]: p } } : prev));
+                void cargar();
+              }}
+            />
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+/** Una situación. Con varias ofertas, se elige cuál mostrar: es el mismo camino. */
+function ColumnaDelTablero({
+  col,
+  plantillas,
+  conVariables,
+  onGuardada,
+}: {
+  col: Columna;
+  plantillas: Record<string, Plantilla>;
+  conVariables: boolean;
+  onGuardada: (p: Plantilla) => void;
+}) {
+  const t = useT();
+  const [elegida, setElegida] = useState(0);
+  const variante = col.ofertas?.[elegida];
+  const autos = variante ? variante.automatizaciones : col.automatizaciones;
+  return (
+    <section className="border-border bg-muted/30 w-full shrink-0 space-y-3 rounded-2xl border p-3 md:w-[330px]">
+      <div className="space-y-1.5">
+        <h2 className="text-foreground text-sm font-semibold">{t(TITULO[col.id.split('-')[0]] ?? col.escenario)}</h2>
+        {col.ofertas ? (
+          <div className="flex flex-wrap gap-1">
+            {col.ofertas.map((o, i) => (
+              <button
+                key={o.oferta}
+                type="button"
+                onClick={() => setElegida(i)}
+                className={cn(
+                  'rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors',
+                  i === elegida ? 'border-primary bg-primary/10 text-foreground' : 'border-border text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {o.oferta}
+              </button>
+            ))}
+          </div>
+        ) : col.oferta ? (
+          <p className="text-muted-foreground text-xs">{col.oferta}</p>
+        ) : null}
+      </div>
+      {autos.length === 0 ? (
+        <p className="text-muted-foreground text-xs">{t('automations.tableroVacio')}</p>
+      ) : (
+        autos.map((a) => (
+          <Automatizacion
+            key={`${col.id}-${a.id}`}
+            a={a}
+            plantillas={plantillas}
+            conVariables={conVariables}
+            onGuardada={onGuardada}
+          />
+        ))
+      )}
+    </section>
   );
 }
 
