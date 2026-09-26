@@ -332,7 +332,7 @@ function DetalleDePrueba({
           {sesion.propuestas?.reglas.map((r, i) => (
             <TarjetaDeRegla
               key={`${i}-${sesion.propuestas?.generadas_at ?? ''}`}
-              sesionId={id}
+              urlAplicar={`/api/ai/probar/sesiones/${id}/aplicar`}
               indice={i}
               regla={r}
               agente={r.accion === 'crear' ? nombreDe(r.agente_id) : null}
@@ -368,14 +368,14 @@ function DetalleDePrueba({
   );
 }
 
-function TarjetaDeRegla({
-  sesionId,
+export function TarjetaDeRegla({
+  urlAplicar,
   indice,
   regla,
   agente,
   onAplicada,
 }: {
-  sesionId: string;
+  urlAplicar: string;
   indice: number;
   regla: Propuestas['reglas'][number];
   agente: string | null;
@@ -391,7 +391,7 @@ function TarjetaDeRegla({
   async function aplicar() {
     setAplicando(true);
     try {
-      const res = await fetchWithCsrf(`/api/ai/probar/sesiones/${sesionId}/aplicar`, {
+      const res = await fetchWithCsrf(urlAplicar, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ indice, titulo, cuando, hacer }),
@@ -430,7 +430,7 @@ function TarjetaDeRegla({
         {regla.aplicada ? (
           <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
             <Check className="size-3.5" />
-            {t('assistant.pruebasAplicada')}
+            {regla.automatica ? t('assistant.feedbackAplicadaSola') : t('assistant.pruebasAplicada')}
           </span>
         ) : (
           <Button size="sm" onClick={() => void aplicar()} disabled={aplicando || !titulo.trim() || !hacer.trim()}>

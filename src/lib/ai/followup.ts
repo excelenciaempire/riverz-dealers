@@ -7,6 +7,7 @@ import {
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { puedeUsarIa } from '@/lib/wallet/puerta';
 import { motorApagado } from '@/lib/workspaces/motor';
+import { puertaDelPiloto } from '@/lib/piloto';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
@@ -185,6 +186,17 @@ export async function runFollowUp(
   // exactamente lo que la puerta existe para evitar.
   if (!(await puedeUsarIa(db, args.agent.workspace_id))) {
     return { sent: false, reason: 'sin_saldo' };
+  }
+  // Piloto en vivo: un seguimiento cuenta como un mensaje del asistente, y con
+  // "sólo estos números" no le llega a nadie más.
+  const piloto = await puertaDelPiloto(db, {
+    workspaceId: agent.workspace_id,
+    tipo: 'mensaje',
+    canal: conversation.channel,
+    telefono: contact.phone ?? (conversation.channel === 'whatsapp' ? contact.external_id : null),
+  });
+  if (!piloto.permitido) {
+    return { sent: false, reason: piloto.motivo };
   }
 
   try {

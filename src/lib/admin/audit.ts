@@ -74,6 +74,11 @@ export type AdminAction =
   // comercio se lo dejamos gratis" es una decision que en seis meses nadie
   // recuerda haber tomado.
   | 'view.conversations'
+  // Las pruebas y el feedback de un comercio (y la cola de lo que hay que
+  // arreglar en la plataforma). El feedback real trae tramos de conversaciones
+  // de sus clientes, con los datos de contacto tapados.
+  | 'view.mejoras'
+  | 'update.mejora_plataforma'
   // Leer una conversacion de un comercio. Es la lectura mas sensible del panel
   // —son mensajes de compradores reales— y solo se puede con una ventana que
   // abrio el propio comercio. Queda escrito quien miro que, y cuando.

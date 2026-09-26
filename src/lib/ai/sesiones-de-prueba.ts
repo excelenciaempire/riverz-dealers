@@ -34,6 +34,12 @@ export interface PropuestaDeRegla {
   hacer: string;
   porque: string;
   aplicada?: boolean;
+  /** La aplicó "Aplicar mejoras solas", sin que nadie la revisara. */
+  automatica?: boolean;
+  /** Cómo estaba la regla antes de editarla. */
+  antes?: { titulo: string; cuando: string | null; hacer: string } | null;
+  /** La regla nueva que se creó al aplicarla. */
+  regla_creada_id?: string | null;
 }
 
 export interface PropuestaDePlataforma {

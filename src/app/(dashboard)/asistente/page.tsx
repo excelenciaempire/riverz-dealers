@@ -12,6 +12,8 @@ import {
   Trash2,
   Send,
   FlaskConical,
+  MessageSquareHeart,
+  Rocket,
 } from 'lucide-react';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
@@ -30,6 +32,8 @@ import { limpiarPersona } from '@/lib/ai/persona-limpia';
 import { AnswerGapsPanel } from '@/components/ai/answer-gaps-panel';
 import { ProbarComoCliente } from '@/components/ai/probar-como-cliente';
 import { PruebasGuardadas } from '@/components/ai/pruebas-guardadas';
+import { PanelDeFeedback } from '@/components/ai/panel-de-feedback';
+import { PilotoEnVivo } from '@/components/ai/piloto-en-vivo';
 import {
   Dialog,
   DialogContent,
@@ -100,6 +104,7 @@ export default function AiAgentsPage() {
   const [editing, setEditing] = useState<AgentSummary | 'new' | null>(null);
   const [probando, setProbando] = useState(false);
   const [vistaPrueba, setVistaPrueba] = useState<'probar' | 'pruebas'>('probar');
+  const [panel, setPanel] = useState<'feedback' | 'piloto' | null>(null);
   const [pruebaElegida, setPruebaElegida] = useState<string | null>(null);
 
   // Entrada por enlace a un asistente concreto desde acciones contextuales.
@@ -211,14 +216,14 @@ export default function AiAgentsPage() {
     <div className="mx-auto w-full max-w-6xl space-y-6">
       <SupportModeSwitcher current="ai" />
 
-      <header className="flex items-center justify-between">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-foreground text-xl font-semibold">
           {t('assistant.pageTitle')}
         </h1>
         {/* El botón solo cuando ya hay asistentes: en vacío manda el CTA del
             empty state, sin duplicar la acción. */}
         {agents.length > 0 && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Probar el sistema entero como cliente: qué plantillas salen y
                 quién contesta, sin elegir asistente. */}
             <Button
@@ -231,6 +236,16 @@ export default function AiAgentsPage() {
               <FlaskConical className="size-4" />
               {t('assistant.test')}
             </Button>
+            {/* Lo que el equipo marcó en las respuestas, reales y de prueba. */}
+            <Button variant="outline" onClick={() => setPanel('feedback')}>
+              <MessageSquareHeart className="size-4" />
+              {t('assistant.feedbackTitulo')}
+            </Button>
+            {/* Todo en vivo con techo, o sólo para ciertos números. */}
+            <Button variant="outline" onClick={() => setPanel('piloto')}>
+              <Rocket className="size-4" />
+              {t('assistant.pilotoTitulo')}
+            </Button>
             <Button
               onClick={() => setEditing('new')}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
@@ -241,6 +256,21 @@ export default function AiAgentsPage() {
           </div>
         )}
       </header>
+
+      <Dialog open={panel !== null} onOpenChange={(abierto) => !abierto && setPanel(null)}>
+        <DialogContent className="border-border bg-card max-h-[92vh] overflow-y-auto content-start sm:max-w-5xl lg:max-w-6xl max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:max-h-dvh max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:p-3">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">
+              {panel === 'piloto' ? t('assistant.pilotoTitulo') : t('assistant.feedbackTitulo')}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {panel === 'piloto' ? t('assistant.pilotoHint') : t('assistant.feedbackHint')}
+            </DialogDescription>
+          </DialogHeader>
+          {panel === 'feedback' ? <PanelDeFeedback nombreComercio={workspace?.name ?? null} /> : null}
+          {panel === 'piloto' ? <PilotoEnVivo /> : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={probando} onOpenChange={setProbando}>
         {/* En el celular ocupa la pantalla entera: se prueba desde ahí. */}

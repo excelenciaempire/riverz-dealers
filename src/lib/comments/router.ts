@@ -8,6 +8,7 @@ import { loadCommentConversation, type CommentChannel } from '@/lib/comments/hil
 import { puedeAtenderContacto } from '@/lib/billing/contact-cap';
 import { aplicarDesenlace } from '@/lib/ai/desenlace';
 import { motorApagado } from '@/lib/workspaces/motor';
+import { puertaDelPiloto } from '@/lib/piloto';
 
 /**
  * UN solo portero para cada comentario que entra.
@@ -85,6 +86,20 @@ export async function routeComment(
   // salían igual.
   if (await motorApagado(db, ev.workspaceId)) {
     await registrarSkipDeComentario(db, ev, 'motor_apagado');
+    return;
+  }
+
+  // Piloto en vivo: con "sólo estos números" no sale ningún comentario (quien
+  // comenta no trae teléfono), y un piloto agotado o sin este canal tampoco.
+  // El cupo se descuenta más adelante, cuando ya se decidió contestar.
+  const piloto = await puertaDelPiloto(db, {
+    workspaceId: ev.workspaceId,
+    tipo: 'comentario',
+    canal: ev.channel,
+    reservar: false,
+  });
+  if (!piloto.permitido) {
+    await registrarSkipDeComentario(db, ev, piloto.motivo);
     return;
   }
 

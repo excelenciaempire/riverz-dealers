@@ -305,6 +305,15 @@ export const inbox = {
     es: "{channel} no entrega este mensaje · ábrelo en la app",
     en: "{channel} doesn't deliver this message · open it in the app",
   },
+  opinionBien: { es: "Buena respuesta", en: "Good reply" },
+  opinionMal: { es: "Mala respuesta", en: "Bad reply" },
+  opinionComentar: { es: "Comentar", en: "Comment" },
+  opinionPlaceholder: { es: "¿Qué debería haber respondido?", en: "What should it have replied?" },
+  opinionAviso: {
+    es: "Riverz ve este tramo de la conversación para mejorar el asistente.",
+    en: "Riverz sees this part of the conversation to improve the assistant.",
+  },
+  opinionError: { es: "No se pudo guardar la opinión.", en: "Couldn't save the feedback." },
   historyMediaMissing: {
     es: "Archivo de antes de conectar {channel}: no vino en el historial · ábrelo en la app",
     en: "File from before {channel} was connected: not included in the history · open it in the app",

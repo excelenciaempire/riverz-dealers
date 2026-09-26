@@ -39,6 +39,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MlKindBadge } from "@/components/inbox/ml-kind-badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./message-bubble";
+import type { OpinionIa } from "./opinion-ia";
 import { MessageActions } from "./message-actions";
 import { MessageComposer } from "./message-composer";
 import { PendingReplyCard } from "./pending-reply-card";
@@ -245,6 +246,37 @@ export function MessageThread({
   useEffect(() => {
     setAiEnabled(conversation?.ai_enabled !== false);
   }, [conversation?.id, conversation?.ai_enabled]);
+
+  // Lo que opina el equipo de cada respuesta automática de este hilo
+  // (`/api/ai/feedback`): se convierte en mejoras del asistente.
+  const [opinionesIa, setOpinionesIa] = useState<Record<string, OpinionIa>>({});
+  useEffect(() => {
+    const convId = conversation?.id;
+    setOpinionesIa({});
+    if (!convId) return;
+    let vivo = true;
+    fetch(`/api/ai/feedback?conversation_id=${convId}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { marcas?: Record<string, OpinionIa> } | null) => {
+        if (vivo && j?.marcas) setOpinionesIa(j.marcas);
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, [conversation?.id]);
+  const opinarSobre = useCallback(
+    async (messageId: string, opinion: OpinionIa) => {
+      setOpinionesIa((prev) => ({ ...prev, [messageId]: opinion }));
+      const res = await fetchWithCsrf("/api/ai/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message_id: messageId, ...opinion }),
+      }).catch(() => null);
+      if (!res?.ok) toast.error(t("inbox.opinionError"));
+    },
+    [fetchWithCsrf, t],
+  );
 
   // ¿Hay un agente IA que cubra el canal de ESTA conversación? Si no, el
   // toggle "Responde la IA / Respondes tú" es engañoso (no hay IA que
@@ -1943,6 +1975,8 @@ export function MessageThread({
                           }
                           onToggleReaction={handlePillToggle}
                           onDeleted={() => handleDeleteMessage(msg.id)}
+                          opinion={opinionesIa[msg.id] ?? null}
+                          onOpinion={(o) => void opinarSobre(msg.id, o)}
                         />
                       </MessageActions>
                     );

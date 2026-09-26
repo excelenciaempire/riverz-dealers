@@ -49,6 +49,7 @@ import { PhoneActions } from "./phone-actions";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
 import { CommentModerationBar } from "./comment-moderation-bar";
+import { OpinionIaControl, type OpinionIa } from "./opinion-ia";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 interface MessageBubbleProps {
@@ -67,6 +68,9 @@ interface MessageBubbleProps {
   onToggleReaction?: (emoji: string) => void;
   /** Para que la barra de moderación pueda sacar la burbuja al borrar. */
   onDeleted?: () => void;
+  /** Lo que opina el equipo de esta respuesta automática. */
+  opinion?: OpinionIa | null;
+  onOpinion?: (o: OpinionIa) => void;
 }
 
 /**
@@ -1110,9 +1114,20 @@ export function MessageBubble({
   contactPhone,
   onToggleReaction,
   onDeleted,
+  opinion,
+  onOpinion,
 }: MessageBubbleProps) {
   const t = useT();
   const isAgent = message.sender_type === "agent" || message.sender_type === "bot";
+  // Se opina sobre lo que mandó Riverz solo (IA, automatizaciones), no sobre lo
+  // que escribió una persona del equipo.
+  const automatico =
+    message.sender_type === "bot" ||
+    (message.sender_type === "agent" &&
+      !message.sender_id &&
+      ["ai_agent", "comment_ai", "automation", "voice_agent", "order_update"].includes(
+        String((message as { origin?: string | null }).origin ?? ""),
+      ));
   const tz = useTimezone();
   const time = formatInTimeZone(new Date(message.created_at), tz, "HH:mm");
 
@@ -1330,6 +1345,9 @@ export function MessageBubble({
           currentUserId={currentUserId}
           onToggle={onToggleReaction}
         />
+      )}
+      {automatico && onOpinion && !isCommentDeleted(message) && (
+        <OpinionIaControl opinion={opinion ?? null} onCambio={onOpinion} />
       )}
       {!isCommentDeleted(message) &&
         (message.channel === "fb_comment" ||

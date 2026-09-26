@@ -1,34 +1,25 @@
 import { NextResponse } from 'next/server';
-import { cuentaDeLaPrueba } from '@/lib/ai/cuenta-de-prueba';
 import { aplicarReglaPropuesta } from '@/lib/ai/mejoras';
 import type { Propuestas } from '@/lib/ai/sesiones-de-prueba';
 import { serverError } from '@/lib/api/errors';
-import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
-import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import { cuentaDeSesion } from '@/lib/workspaces/cuenta-de-sesion';
 
 /**
- * POST /api/ai/probar/sesiones/[id]/aplicar
+ * POST /api/ai/feedback/lotes/[id]/aplicar
  *   body: { indice, titulo?, cuando?, hacer? } → { propuestas }
  *
- * Aplica una regla propuesta, con lo que haya corregido quien la revisó
- * (`lib/ai/mejoras`). La propuesta queda marcada como aplicada para no
- * aplicarla dos veces.
+ * Aplica una regla propuesta a partir del feedback real, con lo que haya
+ * corregido quien la revisó.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const block = await csrfGuard(request);
   if (block) return block;
   const { id } = await params;
-  const locale = await getLocale();
-  const admin = supabaseAdmin();
-  const { workspaceId, conSesion } = await cuentaDeLaPrueba(admin, null);
-  if (!workspaceId) {
-    return NextResponse.json(
-      { error: translate(locale, conSesion ? 'errAi.forbidden' : 'errAi.unauthorized') },
-      { status: conSesion ? 403 : 401 }
-    );
-  }
+  const c = await cuentaDeSesion();
+  if ('error' in c) return c.error;
+  const { admin, workspaceId, locale } = c;
   const body = (await request.json().catch(() => null)) as {
     indice?: unknown;
     titulo?: unknown;
@@ -37,7 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } | null;
 
   const { data: fila, error } = await admin
-    .from('ai_test_sessions')
+    .from('ai_mejoras_lotes')
     .select('propuestas')
     .eq('workspace_id', workspaceId)
     .eq('id', id)
@@ -61,7 +52,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     reglas: propuestas.reglas.map((x, i) => (i === indice ? r.propuesta : x)),
   };
   const { error: errGuardar } = await admin
-    .from('ai_test_sessions')
+    .from('ai_mejoras_lotes')
     .update({ propuestas: nuevas })
     .eq('workspace_id', workspaceId)
     .eq('id', id);

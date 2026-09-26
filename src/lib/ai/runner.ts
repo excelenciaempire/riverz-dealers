@@ -72,6 +72,7 @@ import { puertaDeIa } from '@/lib/wallet/puerta';
 import { puedeAtenderContacto } from '@/lib/billing/contact-cap';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { motorApagado } from '@/lib/workspaces/motor';
+import { puertaDelPiloto } from '@/lib/piloto';
 import type {
   Channel,
   ChannelConnection,
@@ -232,6 +233,23 @@ export async function runAiAgent(
 
     if (!(await puedeAtenderContacto(db, args.workspaceId, args.contact.id))) {
       await anotarSalida(db, args, 'cupo_contactos');
+      return;
+    }
+
+    // Piloto en vivo (`lib/piloto`): con límites o sólo para ciertos números.
+    // Acá sólo se pregunta; el cupo se descuenta justo antes de generar, para
+    // no gastarlo en un mensaje que después se saltea por otro motivo.
+    const telefonoDelCliente =
+      args.contact.phone ?? (args.channel === 'whatsapp' ? args.contact.external_id : null);
+    const piloto = await puertaDelPiloto(db, {
+      workspaceId: args.workspaceId,
+      tipo: 'mensaje',
+      canal: args.channel,
+      telefono: telefonoDelCliente,
+      reservar: false,
+    });
+    if (!piloto.permitido) {
+      await anotarSalida(db, args, piloto.motivo);
       return;
     }
 
@@ -920,6 +938,18 @@ export async function runAiAgent(
         args.contact.external_id,
         'typing_on'
       );
+    }
+
+    // El cupo del piloto se cuenta acá: ya se sabe que se va a contestar.
+    const cupo = await puertaDelPiloto(db, {
+      workspaceId: args.workspaceId,
+      tipo: 'mensaje',
+      canal: args.channel,
+      telefono: telefonoDelCliente,
+    });
+    if (!cupo.permitido) {
+      await anotarSalida(db, args, cupo.motivo);
+      return;
     }
 
     let reply: Awaited<ReturnType<typeof generateReply>>;

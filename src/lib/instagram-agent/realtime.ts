@@ -3,6 +3,7 @@ import { aplicarDesenlace } from '@/lib/ai/desenlace';
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { prometeAveriguar, salidaParaCliente } from '@/lib/ai/salida';
+import { puertaDelPiloto } from '@/lib/piloto';
 import { composeSuperAgentReply } from '@/lib/ai/super-agent';
 import { setCommentHidden } from '@/lib/channels/comment-moderation';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
@@ -1172,6 +1173,16 @@ async function decidirComentario(
   ) {
     return 'comment_tope_del_hilo';
   }
+
+  // Piloto en vivo: el cupo de comentarios se cuenta acá, con la decisión de
+  // contestar ya tomada. Contarlo antes gastaba cupo en spam y en comentarios
+  // sin intención que igual no se iban a contestar.
+  const cupoPiloto = await puertaDelPiloto(db, {
+    workspaceId: opts.workspaceId,
+    tipo: 'comentario',
+    canal: commentChannel,
+  });
+  if (!cupoPiloto.permitido) return cupoPiloto.motivo;
 
   const segment = resolveIgSegment({
     followsBusiness: profile?.follows_business,

@@ -65,6 +65,15 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     description: "admin.sectionConversationsDesc",
     group: "comercios",
   },
+  // Las pruebas de "Probar como cliente", el feedback de pruebas y de
+  // conversaciones reales, y la cola de lo que no se arregla con una regla:
+  // cómo le está yendo al asistente de cada comercio y qué hay que tocar.
+  {
+    href: "/admin/mejoras",
+    label: "admin.sectionMejoras",
+    description: "admin.sectionMejorasDesc",
+    group: "comercios",
+  },
   // Antes eran dos —Saldos e Infraestructura—, que sondeaban los mismos cinco
   // proveedores por caminos distintos y podían contradecirse. Va en «la plata»
   // y no en «qué está pasando» porque contesta cuánto hay que pagar, no qué se

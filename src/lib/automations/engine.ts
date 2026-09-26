@@ -20,6 +20,7 @@ import { confirmationDisplayVars } from './confirmation-copy'
 import { purchaseLines, purchaseLineSummary, purchaseConfirmationTemplates } from './purchase-confirmation'
 import { sendPurchasePhotos } from './purchase-photos'
 import { motorApagado } from '@/lib/workspaces/motor'
+import { puertaDelPilotoParaContacto } from '@/lib/piloto'
 import {
   inferVoiceCallScenario,
   isVoiceCallScenario,
@@ -177,6 +178,13 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
         )
         continue
       }
+      // Piloto en vivo: cada automatización que arranca cuenta contra su tope,
+      // y con "sólo estos números" sólo corre para ellos.
+      const piloto = await puertaDelPilotoParaContacto(db, input.workspaceId, input.contactId ?? null)
+      if (!piloto.permitido) {
+        console.log('[automations] fuera del piloto:', automation.id, piloto.motivo)
+        continue
+      }
       try {
         await executeAutomation(automation, input)
       } catch (err) {
@@ -325,6 +333,10 @@ export async function runAutomationById(input: {
     if (!gate.allow) {
       return { executed: false, reason: gate.reason }
     }
+    const piloto = await puertaDelPilotoParaContacto(db, automation.workspace_id, input.contactId)
+    if (!piloto.permitido) {
+      return { executed: false, reason: piloto.motivo }
+    }
     await executeAutomation(automation, {
       workspaceId: automation.workspace_id,
       triggerType: automation.trigger_type,
@@ -372,8 +384,15 @@ export async function resumePendingExecution(pending: {
     // callbacks and a cron claim racing with the pause). Keep its cursor/date.
     // El motor apagado pausa igual que una automatización apagada: la espera
     // conserva su lugar y sigue cuando la operación vuelva a estar encendida.
+    // Un piloto que llegó a su límite, o un contacto fuera de "sólo estos
+    // números", pausan la espera igual que el motor: sigue cuando el comercio
+    // pase a producción. Lo que ya arrancó no vuelve a contar contra el tope.
+    const fueraDelPiloto = !(await puertaDelPilotoParaContacto(
+      db, pending.workspace_id, pending.contact_id, { continuar: true },
+    )).permitido
     if (!automation.is_active || automation.deleted_at ||
         (automation.activation_state && automation.activation_state !== 'active') ||
+        fueraDelPiloto ||
         (await motorApagado(db, pending.workspace_id))) {
       const { error: releaseError } = await db.from('automation_pending_executions')
         .update({ status: 'pending' }).eq('id', pending.id)

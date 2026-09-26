@@ -336,6 +336,10 @@ export const health: Namespace = {
     es: "la operación está apagada",
     en: "operation is switched off",
   },
+  skip_piloto_numero: { es: "piloto sólo para ciertos números", en: "pilot only for certain numbers" },
+  skip_piloto_canal: { es: "ese canal no está en el piloto", en: "that channel isn't in the pilot" },
+  skip_piloto_agotado: { es: "el piloto llegó a su límite", en: "the pilot reached its limit" },
+  skip_piloto_sin_cupo: { es: "sin cupo en el piloto", en: "no quota left in the pilot" },
   skip_sin_saldo: { es: "sin saldo", en: "out of balance" },
   skip_suscripcion_vencida: {
     es: "la suscripción venció",

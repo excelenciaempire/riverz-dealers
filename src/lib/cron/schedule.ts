@@ -290,6 +290,16 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     path: '/api/cron/platform-watch',
     schedule: '*/15 * * * *',
   },
+  // "Aplicar mejoras solas": el feedback que el equipo deja en la bandeja y
+  // en las pruebas se convierte en reglas sin esperar a que alguien pulse
+  // "Proponer mejoras". Sólo para los comercios que lo activaron.
+  {
+    name: 'mejoras',
+    whatKey: 'admin.cronMejoras',
+    path: '/api/cron/mejoras',
+    schedule: '*/15 * * * *',
+    timeoutMs: 8 * 60_000,
+  },
 
   // --- horas ---
   // Cada 5 minutos, igual que la recuperación de pagos. El checkout entra por

@@ -100,6 +100,13 @@ export const POLITICA = {
   sin_agente: NO_ESCALA('no hay ningún asistente para ese canal'),
   comment_red_apagada: NO_ESCALA('esa red está apagada en Comentarios'),
   canal_desconectado: NO_ESCALA('el canal fue desconectado por el comercio'),
+  // Piloto en vivo (`lib/piloto`). Fuera del piloto el comercio atiende como
+  // siempre: marcar cada hilo como "necesita humano" llenaría la bandeja de
+  // avisos que ya se saben mirando el piloto.
+  piloto_numero: NO_ESCALA('piloto sólo para ciertos números: éste no está'),
+  piloto_canal: NO_ESCALA('ese canal no entra en el piloto'),
+  piloto_agotado: NO_ESCALA('el piloto llegó a su límite: la IA quedó en pausa'),
+  piloto_sin_cupo: NO_ESCALA('el piloto no tiene cupo para este tipo de respuesta'),
 
   // ── La IA se corre a propósito ──────────────────────────────────────────
   escalation_keyword: ESCALA('escalation_keyword', 'lo pidió el cliente'),
