@@ -49,7 +49,8 @@ export interface InboundEvent {
    *  un DM y quedaban indistinguibles — pero son la audiencia más caliente que
    *  Meta permite contactar, y hay que poder segmentarlas. */
   engagementKind?: "story_reply" | "story_mention" | null;
-  /** Optional rich HTML body (email channels). */
+  /** The original HTML when the message came as HTML (email, and what Mercado
+   *  Libre's own team writes in a claim). `text` is its readable version. */
   htmlBody?: string;
   /** Files / images / docs attached. */
   attachments?: MessageAttachment[];

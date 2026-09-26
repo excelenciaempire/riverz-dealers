@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ChannelConnection } from '@/types';
-import { closeResolvedClaimConversation } from './claims-poll';
+import {
+  claimMessageBody,
+  closeResolvedClaimConversation,
+} from './claims-poll';
 
 function mockDb() {
   const result = { error: null };
@@ -67,5 +70,61 @@ describe('Mercado Libre claim conversation state', () => {
     });
 
     expect(from).not.toHaveBeenCalled();
+  });
+});
+
+describe('Mercado Libre claim message body', () => {
+  it('turns the HTML its team writes into text and keeps the original', () => {
+    const html =
+      '<p dir="ltr"><span style="white-space: pre-wrap;">Hola, equipo.</span></p><p><br></p>' +
+      '<p dir="ltr"><span style="white-space: pre-wrap;">Envía la factura antes del </span>' +
+      '<b><strong class="coco-editor-textBold" style="white-space: pre-wrap;">29/09</strong></b>' +
+      '<span style="white-space: pre-wrap;">. Sigue este </span>' +
+      '<a href="https://vendedores.mercadolibre.com.ar/nota/facturar?a=1&amp;b=2"><span style="white-space: pre-wrap;">paso a paso</span></a>' +
+      '<span style="white-space: pre-wrap;">.</span></p>' +
+      '<p><span style="white-space: pre-wrap;">&nbsp;</span></p>' +
+      '<p dir="ltr"><b><strong class="coco-editor-textBold" style="white-space: pre-wrap;">Daniela.</strong></b></p>' +
+      '<p><a href="https://www.mercadolibre.com.mx/"><span style="white-space: pre-wrap;">Mercado Libre</span></a>' +
+      '<span style="white-space: pre-wrap;">&nbsp;|&nbsp;</span>' +
+      '<a href="https://www.mercadopago.com.mx/"><span style="white-space: pre-wrap;">Mercado Pago</span></a></p>';
+
+    expect(claimMessageBody(html)).toEqual({
+      text: [
+        'Hola, equipo.',
+        '',
+        'Envía la factura antes del 29/09. Sigue este paso a paso (https://vendedores.mercadolibre.com.ar/nota/facturar?a=1&b=2).',
+        '',
+        'Daniela.',
+        '',
+        'Mercado Libre | Mercado Pago',
+      ].join('\n'),
+      html,
+    });
+  });
+
+  it('decodes the entities of its template messages', () => {
+    const html =
+      '<p dir="ltr">Hola, Tienda.</p>\n' +
+      '<p dir="ltr">Tu comprador no recibi&oacute; el producto.</p>\n' +
+      '<p>&iexcl;&Eacute;xito en tus ventas!</p>';
+
+    expect(claimMessageBody(html).text).toBe(
+      'Hola, Tienda.\n\nTu comprador no recibió el producto.\n\n¡Éxito en tus ventas!',
+    );
+  });
+
+  it('does not repeat a link that already shows where it goes', () => {
+    const html =
+      '<p><a href="https://www.mercadolibre.com.ar/ayuda/23050">www.mercadolibre.com.ar/ayuda/23050</a></p>';
+
+    expect(claimMessageBody(html).text).toBe(
+      'www.mercadolibre.com.ar/ayuda/23050',
+    );
+  });
+
+  it('leaves what the buyer and the seller write as it is', () => {
+    const text = 'Hola <3\n\nya lo envié, llega en <48 h';
+
+    expect(claimMessageBody(`  ${text}  `)).toEqual({ text });
   });
 });

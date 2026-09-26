@@ -7,6 +7,7 @@ import { ingestInboundEvent } from "../inbox-writer";
 import { getFreshMLToken, resolveMlNickname } from "./adapter";
 import { mercadoLibreWebOrigin } from "./sites";
 import { ingestRawMedia } from "../media-ingest";
+import { htmlToText } from "../html-to-text";
 import { getLogger } from "@/lib/log/logger";
 import {
   mercadoLibreFailure,
@@ -267,7 +268,9 @@ export async function syncClaimsForConnection(
         reason: claim.reason_id != null ? String(claim.reason_id) : null,
         opened_at:
           claim.date_created != null ? String(claim.date_created) : null,
-        ...(last ? { last_message: (last.message ?? "").slice(0, 500) } : {}),
+        ...(last
+          ? { last_message: claimMessageBody(last.message).text.slice(0, 500) }
+          : {}),
         raw: claim,
         updated_at: new Date().toISOString(),
       },
@@ -426,6 +429,42 @@ function msgTime(m: MlClaimMessage): number {
   return Date.parse(m.message_date ?? m.date_created ?? "") || 0;
 }
 
+/** Una etiqueta de párrafo o de formato: separa el HTML del editor de Mercado
+ *  Libre de un texto con un "<" suelto ("<3", "menos de <100"). */
+const MARKUP = /<\/?(?:p|br|div|span|b|strong|i|em|u|a|ul|ol|li)\b[^>]*>/i;
+/** La portada de un sitio: el enlace de una firma, que no aporta destino. */
+const SITE_HOME = /^https?:\/\/[^/?#]+\/?(?:[?#].*)?$/i;
+
+/**
+ * El cuerpo de un mensaje del reclamo, listo para la bandeja.
+ *
+ * Lo que escribe el equipo de Mercado Libre llega en el HTML de su editor
+ * (`<p>`, `<span style=…>`, `&oacute;`). Guardado tal cual, la burbuja mostraba
+ * las etiquetas en vez del mensaje. Se guarda el texto —el HTML original queda
+ * en `html_body`, como en un correo— y cada enlace deja su destino entre
+ * paréntesis, porque "este instructivo" no dice adónde lleva. Lo que escriben
+ * comprador y vendedor ya es texto y pasa igual.
+ */
+export function claimMessageBody(message: string | undefined): {
+  text: string;
+  html?: string;
+} {
+  const raw = (message ?? "").trim();
+  if (!MARKUP.test(raw)) return { text: raw };
+  const withTargets = raw.replace(
+    /<a\b[^>]*?\bhref\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi,
+    (_link, _quote, href: string, label: string) => {
+      const url = href.trim();
+      const addsTarget =
+        /^https?:\/\//i.test(url) &&
+        !SITE_HOME.test(url) &&
+        !label.includes(url.replace(/^https?:\/\//i, ""));
+      return addsTarget ? `${label} (${url})` : label;
+    },
+  );
+  return { text: htmlToText(withTargets), html: raw };
+}
+
 async function ingestClaimMessages(
   db: SupabaseClient,
   conn: ChannelConnection,
@@ -454,6 +493,7 @@ async function ingestClaimMessages(
       externalContactId: buyerId,
       externalMessageId: m.hash ?? `${claimId}-${i}`,
     });
+    const body = claimMessageBody(m.message);
     const event: InboundEvent = {
       channel: "mercadolibre",
       connection: conn,
@@ -465,8 +505,8 @@ async function ingestClaimMessages(
       subject: claim.reason_id
         ? `Reclamo · ${claim.reason_id}`
         : `Reclamo ${claimId}`,
-      text:
-        (m.message ?? "").trim() || (attachments.length ? "" : "[unsupported]"),
+      text: body.text || (attachments.length ? "" : "[unsupported]"),
+      htmlBody: body.html,
       attachments: attachments.length ? attachments : undefined,
       receivedAt: m.message_date ?? m.date_created ?? new Date().toISOString(),
       outbound: m.sender_role === "respondent",

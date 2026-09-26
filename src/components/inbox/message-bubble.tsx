@@ -41,6 +41,7 @@ import {
   localizeContentToken,
   stripLeadingMentions,
 } from "@/lib/channels/display";
+import { decodeHtmlEntities } from "@/lib/channels/html-to-text";
 import { findLinks } from "@/lib/inbox/linkify";
 import { downloadMedia } from "@/lib/inbox/download";
 import { PhoneActions } from "./phone-actions";
@@ -1042,29 +1043,6 @@ function EmailHtmlBody({ html }: { html: string }) {
       style={{ height }}
     />
   );
-}
-
-const HTML_ENTITIES: Record<string, string> = {
-  amp: "&",
-  lt: "<",
-  gt: ">",
-  quot: '"',
-  apos: "'",
-  nbsp: " ",
-};
-
-function decodeHtmlEntities(s: string): string {
-  return s.replace(/&(amp|lt|gt|quot|apos|nbsp|#x?\d+);/gi, (full, name) => {
-    const key = name.toLowerCase();
-    if (HTML_ENTITIES[key]) return HTML_ENTITIES[key];
-    // numeric: &#39; or &#x27;
-    const num = /^#(x?)(\d+)$/i.exec(name);
-    if (num) {
-      const code = parseInt(num[2], num[1] ? 16 : 10);
-      if (!Number.isNaN(code)) return String.fromCodePoint(code);
-    }
-    return full;
-  });
 }
 
 /**
