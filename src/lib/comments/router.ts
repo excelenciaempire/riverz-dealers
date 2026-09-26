@@ -7,6 +7,7 @@ import { anotarPublicacion } from '@/lib/channels/publicacion-media';
 import { loadCommentConversation, type CommentChannel } from '@/lib/comments/hilo';
 import { puedeAtenderContacto } from '@/lib/billing/contact-cap';
 import { aplicarDesenlace } from '@/lib/ai/desenlace';
+import { motorApagado } from '@/lib/workspaces/motor';
 
 /**
  * UN solo portero para cada comentario que entra.
@@ -76,6 +77,16 @@ export async function routeComment(
     channel: ev.channel,
     postId: ev.postId,
   }).catch(() => {});
+
+  // Motor apagado —la instalación espera aprobación, o la cuenta está
+  // suspendida—: ni las reglas ni la IA contestan. Este camino no pasa por el
+  // runner ni por el motor de automatizaciones, así que tiene que preguntarlo
+  // él: con el motor apagado y "Responder con IA" encendido, los comentarios
+  // salían igual.
+  if (await motorApagado(db, ev.workspaceId)) {
+    await registrarSkipDeComentario(db, ev, 'motor_apagado');
+    return;
+  }
 
   // 1. Reglas del comercio.
   let handledByRule = false;

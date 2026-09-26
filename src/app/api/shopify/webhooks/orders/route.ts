@@ -18,6 +18,7 @@ import {
   shopifyOrderToPurchase,
 } from '@/lib/contacts/purchases';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import { motorApagado } from '@/lib/workspaces/motor';
 import {
   displayCarrierName,
   resolveCarrierTrackingUrl,
@@ -657,6 +658,10 @@ async function sendAiOrderConfirmation(
   }
 ): Promise<void> {
   const { workspaceId, contactId, order, name, shopDomain } = args;
+
+  // Es un mensaje que sale solo, disparado por el pedido: con el motor
+  // apagado no sale, igual que las automatizaciones del mismo webhook.
+  if (await motorApagado(admin, workspaceId)) return;
 
   // Elegir la conversación correcta:
   //  1) Si el pedido lo creó la tool create_order, la fila de `orders`

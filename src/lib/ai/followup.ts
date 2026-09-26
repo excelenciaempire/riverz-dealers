@@ -6,6 +6,7 @@ import {
 } from '@/lib/channels/send-guard';
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { puedeUsarIa } from '@/lib/wallet/puerta';
+import { motorApagado } from '@/lib/workspaces/motor';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
@@ -172,6 +173,11 @@ export async function runFollowUp(
   const { agent, conversation, contact, connection, silenceHours } = args;
   if (!(await storedConnectionCanSend(db, connection.id))) {
     return { sent: false, reason: 'channel_disconnected' };
+  }
+  // Motor apagado: la operación todavía no se aprobó o está suspendida, y un
+  // seguimiento es justo lo que sale sin que nadie escriba primero.
+  if (await motorApagado(db, agent.workspace_id)) {
+    return { sent: false, reason: 'motor_apagado' };
   }
   // Sin saldo no se manda un seguimiento. Es un mensaje que sale SOLO, sin que
   // nadie lo pida: cobrarselo a Riverz porque el comercio no recargo es

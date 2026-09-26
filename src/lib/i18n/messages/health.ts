@@ -333,8 +333,8 @@ export const health: Namespace = {
     en: "the thread was closed",
   },
   skip_motor_apagado: {
-    es: "la cuenta está suspendida",
-    en: "the account is suspended",
+    es: "la operación está apagada",
+    en: "operation is switched off",
   },
   skip_sin_saldo: { es: "sin saldo", en: "out of balance" },
   skip_suscripcion_vencida: {

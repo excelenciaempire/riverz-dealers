@@ -8,6 +8,7 @@ import { detectRepliesAndCapture } from '@/lib/instagram-agent/capture';
 import { attributeAndRollup } from '@/lib/instagram-agent/attribution';
 import { coercePlan, type InstagramCampaign } from '@/lib/instagram-agent/types';
 import { puedeUsarIa } from '@/lib/wallet/puerta';
+import { motorApagado } from '@/lib/workspaces/motor';
 import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
@@ -69,6 +70,13 @@ async function cronHandler(request: Request) {
     };
 
     try {
+      // Con el motor apagado la campaña no le escribe a nadie: ni DMs ni
+      // respuestas en comentarios. Medir y atribuir no sale hacia afuera, pero
+      // tampoco hay nada nuevo que medir, así que se salta entera.
+      if (await motorApagado(db, raw.workspace_id)) {
+        results.push({ campaign: raw.id, skipped: 'motor_apagado' });
+        continue;
+      }
       // Puntuar y redactar cada DM se cobra: la cuenta que no puede usar la
       // IA —sin pagar o sin saldo— no envía. Lo que sigue no gasta y corre igual.
       const conIa = await puedeUsarIa(db, raw.workspace_id);

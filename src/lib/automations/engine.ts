@@ -304,6 +304,12 @@ export async function runAutomationById(input: {
     if (error || !data) return { executed: false, reason: 'not_found' }
     const automation = data as Automation
     if (!automation.is_active) return { executed: false, reason: 'inactive' }
+    // Los crons de encuesta y de reactivación entran por acá y no por
+    // `runAutomationsForTrigger`, así que la pregunta del motor tiene que
+    // estar también en esta puerta.
+    if (await motorApagado(db, automation.workspace_id)) {
+      return { executed: false, reason: 'motor_apagado' }
+    }
     if (!(await audienceMatches(automation, input.contactId))) {
       return { executed: false, reason: 'segment_mismatch' }
     }
@@ -364,8 +370,11 @@ export async function resumePendingExecution(pending: {
   try {
     // A wait must respect a pause made after enrollment (including voice
     // callbacks and a cron claim racing with the pause). Keep its cursor/date.
+    // El motor apagado pausa igual que una automatización apagada: la espera
+    // conserva su lugar y sigue cuando la operación vuelva a estar encendida.
     if (!automation.is_active || automation.deleted_at ||
-        (automation.activation_state && automation.activation_state !== 'active')) {
+        (automation.activation_state && automation.activation_state !== 'active') ||
+        (await motorApagado(db, pending.workspace_id))) {
       const { error: releaseError } = await db.from('automation_pending_executions')
         .update({ status: 'pending' }).eq('id', pending.id)
         .eq('workspace_id', pending.workspace_id).eq('status', 'running')
