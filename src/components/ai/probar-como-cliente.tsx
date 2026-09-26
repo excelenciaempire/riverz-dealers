@@ -100,9 +100,9 @@ interface ResultadoComentario {
   espera_aprobacion: boolean;
 }
 
-type Pago = 'cod' | 'mercadopago' | 'tarjeta';
+type Pago = 'cod' | 'pendiente' | 'mercadopago' | 'tarjeta';
 
-type Agente = { id: string; nombre: string; role?: string } | null;
+type Agente = { id: string; nombre: string; role?: string; apagado?: boolean } | null;
 
 /** Lo que se ve en el hilo. `biz` es lo que manda el comercio (automatización o asistente). */
 type Item =
@@ -118,14 +118,22 @@ interface Pendiente {
   resto: PasoSimulado[];
 }
 
-export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string | null }) {
+export function ProbarComoCliente({
+  nombreComercio,
+  aceptaContraentrega = false,
+}: {
+  nombreComercio?: string | null;
+  /** Sin contra entrega no se ofrece simular un pedido contra entrega. */
+  aceptaContraentrega?: boolean;
+}) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [escenario, setEscenario] = useState<Escenario>('shopify_order_created');
   const [canal, setCanal] = useState<Channel>('whatsapp');
+  /** Una opción por oferta del producto (`id|unidades`), o el producto solo. */
   const [productos, setProductos] = useState<Array<{ id: string; title: string }>>([]);
   const [productoId, setProductoId] = useState('');
-  const [pago, setPago] = useState<Pago>('cod');
+  const [pago, setPago] = useState<Pago>(aceptaContraentrega ? 'cod' : 'mercadopago');
   const [guia, setGuia] = useState('');
   const [telefono, setTelefono] = useState('');
 
@@ -146,7 +154,9 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
     fetch('/api/shopify/products')
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        const lista = (j?.products ?? []) as Array<{ id: string; title: string }>;
+        const lista = opcionesDePedido(
+          (j?.products ?? []) as Array<{ id: string; title: string; allowed_offers?: unknown }>
+        );
         setProductos(lista);
         if (lista[0]) setProductoId((prev) => prev || lista[0].id);
       })
@@ -171,10 +181,11 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
     () => Object.fromEntries(productos.map((p) => [p.id, p.title])),
     [productos]
   );
-  const etiquetasPago: Record<Pago, string> = {
-    cod: t('assistant.probarPagoCod'),
+  const etiquetasPago: Record<string, string> = {
+    ...(aceptaContraentrega ? { cod: t('assistant.probarPagoCod') } : {}),
     mercadopago: 'Mercado Pago',
     tarjeta: t('assistant.probarPagoTarjeta'),
+    pendiente: t('assistant.probarPagoPendiente'),
   };
 
   function reiniciar() {
@@ -243,7 +254,8 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
         body: JSON.stringify({
           escenario,
           channel: canal,
-          product_id: productoId || undefined,
+          product_id: productoId.split('|')[0] || undefined,
+          unidades: Number(productoId.split('|')[1]) || undefined,
           pago,
           guia,
           simulated_phone: telefono || undefined,
@@ -279,6 +291,7 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
           .filter(Boolean)
           .join(' · ');
         nuevos.push({ k: 'sys', texto: cabecera });
+        if (auto.apagada) nuevos.push({ k: 'sys', texto: t('assistant.probarAutomatizacionApagada') });
         if (auto.armada && auto.armada.length > 0) {
           nuevos.push({
             k: 'sys',
@@ -426,7 +439,7 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
         ? (json.herramientas as unknown[]).map((h) => (typeof h === 'string' ? h : String((h as { name?: string })?.name ?? h)))
         : [];
       const quien = agente
-        ? `${t('assistant.probarQuienContesta', { agente: agente.nombre })} · ${motivoTexto(t, String(json.motivo ?? ''))}${herramientas.length ? ` · ${herramientas.join(', ')}` : ''}`
+        ? `${t('assistant.probarQuienContesta', { agente: agente.nombre })} · ${motivoTexto(t, String(json.motivo ?? ''))}${herramientas.length ? ` · ${herramientas.join(', ')}` : ''}${agente.apagado ? ` · ${t('assistant.probarAgenteApagado')}` : ''}`
         : json.motivo === 'asignado_inactivo'
           ? t('assistant.probarAsignadoInactivo')
           : t('assistant.probarSinAgente');
@@ -660,6 +673,27 @@ function Linea({ it, onBoton }: { it: Item; onBoton: (texto: string) => void }) 
       {it.alerta ? <p className="text-destructive mt-0.5 pl-1 text-[10px]">{it.alerta}</p> : null}
     </div>
   );
+}
+
+/**
+ * Qué pedido se puede simular: una opción por oferta de cada producto (el
+ * mismo producto en 1, 2, 3 o 10 unidades es otro pedido, otro total y otra
+ * recompra), o el producto solo si no tiene ofertas cargadas.
+ */
+function opcionesDePedido(
+  productos: Array<{ id: string; title: string; allowed_offers?: unknown }>
+): Array<{ id: string; title: string }> {
+  return productos.flatMap((p) => {
+    const ofertas = (Array.isArray(p.allowed_offers) ? p.allowed_offers : [])
+      .map((o) => o as { units?: unknown; label?: unknown })
+      .filter((o) => Number.isSafeInteger(Number(o?.units)) && Number(o?.units) > 0)
+      .sort((a, b) => Number(a.units) - Number(b.units));
+    if (ofertas.length === 0) return [{ id: p.id, title: p.title }];
+    return ofertas.map((o) => ({
+      id: `${p.id}|${Number(o.units)}`,
+      title: `${p.title} · ${typeof o.label === 'string' && o.label.trim() ? o.label.trim() : `× ${Number(o.units)}`}`,
+    }));
+  });
 }
 
 function barreraTexto(t: ReturnType<typeof useT>, b: { tipo: string; detalle: string | null }): string {

@@ -9,6 +9,7 @@ import type {
 import { confirmationDisplayVars } from './confirmation-copy';
 import { confirmationSummary } from '@/lib/shopify/confirmation-summary';
 import { TEMPLATE_VAR_SAMPLES } from './data-points';
+import { retentionProductVars } from './retention-product';
 import { RIVERZ_FLOWS, riverzOrderSkipReason } from './riverzoficial-context-gate';
 import { RIVERZOFICIAL_WORKSPACE } from './riverzoficial-template-context';
 
@@ -46,15 +47,18 @@ export const ESCENARIOS: EscenarioSimulado[] = [
 
 export interface ProductoDePrueba {
   title: string;
+  /** El total de la línea: con una oferta por cantidad, el precio del pack. */
   price: string;
   variant_title?: string | null;
+  /** Unidades de la oferta elegida. Sin esto, una. */
+  quantity?: number;
 }
 
 export interface PedidoDePrueba {
   producto: ProductoDePrueba;
   currency: string;
-  /** Contra entrega (pendiente de pago), o pagado con Mercado Pago o tarjeta. */
-  pago: 'cod' | 'mercadopago' | 'tarjeta';
+  /** Contra entrega o pendiente (Pago Fácil, Rapipago), o pagado con Mercado Pago o tarjeta. */
+  pago: 'cod' | 'pendiente' | 'mercadopago' | 'tarjeta';
   cliente: { nombre: string; telefono: string };
   /** Para "despachado": vacío simula una tienda que cumple sin guía. */
   guia?: string;
@@ -106,6 +110,8 @@ export interface AutomacionSimulada {
    * resuelva; estas son las claves i18n de lo que falta. null = activa.
    */
   armada: string[] | null;
+  /** Apagada (borrador): en vivo no corre. Se muestra para probarla. */
+  apagada: boolean;
 }
 
 /**
@@ -154,14 +160,17 @@ export function varsDePedido(
 ): Record<string, string> {
   const [first, ...rest] = pedido.cliente.nombre.trim().split(/\s+/);
   const lugar = lugarDePrueba(pedido.currency);
+  const cantidad =
+    Number.isSafeInteger(pedido.producto.quantity) && (pedido.producto.quantity ?? 0) > 0
+      ? (pedido.producto.quantity as number)
+      : 1;
+  const linea = {
+    title: pedido.producto.title,
+    quantity: cantidad,
+    variant_title: pedido.producto.variant_title ?? '',
+  };
   const resumen = confirmationSummary({
-    line_items: [
-      {
-        title: pedido.producto.title,
-        quantity: 1,
-        variant_title: pedido.producto.variant_title ?? '',
-      },
-    ],
+    line_items: [linea],
     shipping_address: {
       address1: lugar.address1,
       city: lugar.city,
@@ -187,12 +196,16 @@ export function varsDePedido(
     item_count: '1',
     first_item: pedido.producto.title,
     last_product: pedido.producto.title,
+    // Las mismas líneas que arma el webhook: de acá salen las unidades con las
+    // que la recompra elige cuándo volver a escribir.
+    purchase_order_lines: JSON.stringify([linea]),
+    retention_order_lines: JSON.stringify([{ title: linea.title, quantity: linea.quantity }]),
     is_repeat_customer: 'false',
     // Los nombres que Shopify pone en `gateway` / `payment_gateway_names`.
     payment_gateway:
-      pedido.pago === 'cod' ? 'Cash on Delivery' : pedido.pago === 'mercadopago' ? 'Mercado Pago' : 'Tarjeta',
+      pedido.pago === 'cod' ? 'Cash on Delivery' : pedido.pago === 'pendiente' ? 'Pago Fácil' : pedido.pago === 'mercadopago' ? 'Mercado Pago' : 'Tarjeta',
     payment_method: pedido.pago === 'cod' ? 'cod' : pedido.pago,
-    financial_status: pedido.pago === 'cod' ? 'pending' : 'paid',
+    financial_status: pedido.pago === 'cod' || pedido.pago === 'pendiente' ? 'pending' : 'paid',
     fulfillment_status:
       trigger === 'shopify_order_fulfilled' || trigger === 'shopify_order_delivered'
         ? 'fulfilled'
@@ -262,22 +275,33 @@ export async function simularDisparo(
   // prender y sólo espera a Meta. Probar antes de que Meta conteste es justo
   // cuando más se prueba, y dejarlas afuera decía "no hay automatizaciones"
   // de una cuenta que las tiene listas.
+  // Un pedido que entra ya pagado dispara además "pedido confirmado", igual
+  // que el webhook: ahí cuelgan la confirmación y las recompras.
+  const disparos: string[] =
+    trigger === 'shopify_order_created' && (pedido.pago === 'mercadopago' || pedido.pago === 'tarjeta')
+      ? [trigger, 'shopify_order_confirmed']
+      : [trigger];
   const { data: rows } = await db
     .from('automations')
     .select('id, name, trigger_type, trigger_config, is_active, activation_state, activation_blockers, deleted_at')
     .eq('workspace_id', workspaceId)
-    .eq('trigger_type', trigger)
-    .or('is_active.eq.true,activation_state.eq.armed')
+    .in('trigger_type', disparos)
     .is('deleted_at', null)
     .order('created_at', { ascending: true });
-  const automations = (rows ?? []) as Array<{
+  const todas = (rows ?? []) as Array<{
     id: string;
     name: string;
     trigger_type: AutomationTriggerType;
     trigger_config: Record<string, unknown> | null;
     is_active?: boolean | null;
+    activation_state?: string | null;
     activation_blockers?: Array<{ key?: string | null; message?: string | null }> | null;
   }>;
+  // Si ninguna está prendida para este evento, se muestran las apagadas: una
+  // automatización se prueba antes de encenderla. Con alguna prendida, sólo
+  // esas, que son las que corren en vivo.
+  const prendidas = todas.filter((a) => a.is_active || a.activation_state === 'armed');
+  const automations = prendidas.length > 0 ? prendidas : todas;
   if (automations.length === 0) {
     return { vars, automatizaciones: [], plataforma, whatsapp_conectado: whatsappConectado };
   }
@@ -349,11 +373,12 @@ export async function simularDisparo(
       pasos,
       omitida,
       contexto: ctx,
-      armada: a.is_active
+      armada: a.is_active || a.activation_state !== 'armed'
         ? null
         : (a.activation_blockers ?? [])
             .map((b) => String(b?.key || b?.message || '').trim())
             .filter(Boolean),
+      apagada: !a.is_active && a.activation_state !== 'armed',
     };
   });
   return { vars, automatizaciones, plataforma, whatsapp_conectado: whatsappConectado };
@@ -429,6 +454,11 @@ function recorrer(
       }
       case 'condition': {
         const cfg = step.step_config as ConditionStepConfig;
+        // Como el motor: al preguntar por el producto de la recompra se
+        // calculan, desde las líneas del pedido, el producto y sus unidades.
+        if (cfg.subject === 'context_var' && cfg.operand === 'retention_product') {
+          Object.assign(ctx, retentionProductVars(ctx.retention_order_lines, cfg.value));
+        }
         const { camino, asumido, descripcion } = evaluar(cfg, ctx);
         out.push({ tipo: 'condicion', descripcion, camino, asumido });
         out.push(...recorrer(steps, step.id, camino, ctx, templates, agentes));
@@ -491,8 +521,29 @@ function evaluar(
   if (cfg.subject === 'time_of_day') {
     return { camino: 'yes', asumido: true, descripcion: `horario ${cfg.operand ?? ''}` };
   }
-  // purchased, rejected_open, tag_presence, contact_field, in_segment,
-  // message_content…: sin datos vivos, la historia más común es "no pasó".
+  // `value` invierte la pregunta, igual que en el motor: "compró = no" es la
+  // rama que manda el recordatorio.
+  const quiere = String(valor || 'true').toLowerCase() !== 'false';
+  if (cfg.subject === 'order_paid') {
+    // El pedido de prueba sabe si está pagado: no hace falta suponerlo.
+    const pagado = ['paid', 'partially_paid'].includes(String(ctx.financial_status ?? '').toLowerCase());
+    return {
+      camino: pagado === quiere ? 'yes' : 'no',
+      asumido: false,
+      descripcion: `order_paid = «${quiere ? 'true' : 'false'}» (vale «${pagado ? 'true' : 'false'}»)`,
+    };
+  }
+  if (cfg.subject === 'purchased' || cfg.subject === 'messaged' || cfg.subject === 'rejected_open') {
+    // Sin datos vivos, la historia más común es "no pasó": no compró mientras
+    // tanto, no le escribimos, no tiene un pago rechazado abierto.
+    return {
+      camino: quiere ? 'no' : 'yes',
+      asumido: true,
+      descripcion: `${cfg.subject}${cfg.operand ? ` ${cfg.operand}` : ''} = «${quiere ? 'true' : 'false'}»`,
+    };
+  }
+  // tag_presence, contact_field, in_segment, message_content…: sin datos
+  // vivos, la historia más común es "no pasó".
   return {
     camino: 'no',
     asumido: true,

@@ -24,6 +24,7 @@ import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { createClient } from '@/lib/supabase/server';
+import { probandoSinPagar } from '@/lib/wallet/prueba';
 import { isOptInKeyword, isOptOutKeyword } from '@/lib/whatsapp/opt-out';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { NextResponse } from 'next/server';
@@ -64,7 +65,12 @@ import { NextResponse } from 'next/server';
  *   → sin `message`: { vars, automatizaciones, agente_asignado }
  *   → con `message`: { agente, motivo, barrera?, reply, chunks, herramientas, usage }
  */
-export async function POST(request: Request) {
+export function POST(request: Request) {
+  // Se prueba igual antes de pagar el link: ver `wallet/prueba`.
+  return probandoSinPagar(() => probar(request));
+}
+
+async function probar(request: Request) {
   const block = await csrfGuard(request);
   if (block) return block;
   const locale = await getLocale();
@@ -90,6 +96,7 @@ export async function POST(request: Request) {
     escenario?: unknown;
     channel?: unknown;
     product_id?: unknown;
+    unidades?: unknown;
     pago?: unknown;
     guia?: unknown;
     simulated_phone?: unknown;
@@ -119,14 +126,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ vars: {}, automatizaciones: [], agente_asignado: null });
     }
     const [producto, currency] = await Promise.all([
-      cargarProducto(admin, workspaceId, body?.product_id),
+      cargarProducto(admin, workspaceId, body?.product_id, body?.unidades),
       resolveWorkspaceCurrency(admin, workspaceId),
     ]);
     const { vars, automatizaciones, plataforma, whatsapp_conectado } = await simularDisparo(admin, workspaceId, escenario, {
       producto,
       currency,
       pago:
-        body?.pago === 'mercadopago' || body?.pago === 'tarjeta' ? body.pago : 'cod',
+        body?.pago === 'mercadopago' || body?.pago === 'tarjeta' || body?.pago === 'pendiente'
+          ? body.pago
+          : 'cod',
       cliente: { nombre: 'Ana Prueba', telefono: simulatedPhone || lugarDePrueba(currency).telefono },
       guia: typeof body?.guia === 'string' ? body.guia.trim() : '',
     });
@@ -207,7 +216,7 @@ export async function POST(request: Request) {
       .filter(Boolean)
       .join('\n')
   );
-  const agent = await pickAgent(admin, workspaceId, channel, {
+  const enrutamiento = {
     productMatch,
     stickyAgentId: actual,
     forcedAgentId: asignado,
@@ -215,7 +224,12 @@ export async function POST(request: Request) {
     hasOpenCart:
       escenario === 'shopify_abandoned_checkout' ||
       Boolean(automationContext?.pending_checkout_at),
-  });
+  };
+  // Si no hay ninguno prendido para este canal, se prueba el que atendería
+  // al prenderlo: un asistente se prueba antes de encenderlo.
+  const agent =
+    (await pickAgent(admin, workspaceId, channel, enrutamiento)) ??
+    (await pickAgent(admin, workspaceId, channel, { ...enrutamiento, incluirApagados: true }));
   if (!agent) {
     return NextResponse.json({
       agente: null,
@@ -230,7 +244,13 @@ export async function POST(request: Request) {
     : actual && agent.id === actual
       ? 'pegado'
       : 'enrutamiento';
-  const quien = { id: agent.id, nombre: agent.name, role: agent.role ?? 'general' };
+  const quien = {
+    id: agent.id,
+    nombre: agent.name,
+    role: agent.role ?? 'general',
+    // Apagado: en vivo no contestaría. Se muestra para probarlo igual.
+    apagado: agent.is_active === false,
+  };
 
   if (channel !== 'webchat') {
     if (esRespuestaAutomatica(message)) {
@@ -309,23 +329,46 @@ function uuidOrNull(v: unknown): string | null {
   return typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v) ? v : null;
 }
 
-/** El producto elegido, o el primero del catálogo, o uno de mentira. */
+/**
+ * El producto elegido, o el primero del catálogo, o uno de mentira.
+ *
+ * Con `unidades`, el pedido es el de esa oferta del producto (2, 3, 10
+ * frascos) con su total: así la confirmación muestra lo que pagaría y la
+ * recompra elige el camino de esas unidades.
+ */
 async function cargarProducto(
   admin: ReturnType<typeof supabaseAdmin>,
   workspaceId: string,
-  productId: unknown
-): Promise<{ title: string; price: string; variant_title: string | null }> {
+  productId: unknown,
+  unidades: unknown
+): Promise<{ title: string; price: string; variant_title: string | null; quantity: number }> {
   let q = admin
     .from('shopify_products')
-    .select('title, price_min')
+    .select('title, price_min, allowed_offers')
     .eq('workspace_id', workspaceId)
+    .is('master_id', null)
     .limit(1);
   if (typeof productId === 'string' && productId) q = q.eq('id', productId);
   const { data } = await q.maybeSingle();
-  const row = data as { title?: string | null; price_min?: number | string | null } | null;
+  const row = data as {
+    title?: string | null;
+    price_min?: number | string | null;
+    allowed_offers?: unknown;
+  } | null;
+  const n = Number(unidades);
+  const oferta = Number.isSafeInteger(n) && n > 0 && Array.isArray(row?.allowed_offers)
+    ? (row.allowed_offers as Array<{ units?: unknown; total?: unknown }>).find(
+        (o) => Number(o?.units) === n && Number.isFinite(Number(o?.total))
+      )
+    : undefined;
   return {
     title: row?.title?.trim() || 'Producto de prueba',
-    price: row?.price_min != null ? String(row.price_min) : '110000',
+    price: oferta
+      ? String(Number(oferta.total))
+      : row?.price_min != null
+        ? String(row.price_min)
+        : '110000',
     variant_title: null,
+    quantity: oferta ? n : 1,
   };
 }

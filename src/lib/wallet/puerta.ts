@@ -18,6 +18,7 @@
 import { acceso, leerSuscripcion, usaSaldo } from '@/lib/billing/plan';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { enPruebaSinPagar } from './prueba';
 import { leerBilletera, puedeGastar, type Billetera } from './saldo';
 
 export type Motivo = 'sin_saldo' | 'suscripcion_vencida' | 'sin_pagar' | null;
@@ -45,9 +46,10 @@ export async function puertaDeIa(
     ]);
 
     if (sus?.estado === 'cortesia') {
+      // Probar antes de pagar sí se puede (`wallet/prueba`); contestar en vivo no.
       return {
-        puede: false,
-        motivo: 'sin_pagar',
+        puede: enPruebaSinPagar(),
+        motivo: enPruebaSinPagar() ? null : 'sin_pagar',
         saldoCentavos: billetera.saldoCentavos,
       };
     }

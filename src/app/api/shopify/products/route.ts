@@ -32,7 +32,7 @@ export async function GET(request: Request) {
   let query = admin
     .from('shopify_products')
     .select(
-      'id, title, handle, product_type, vendor, price_min, price_max, currency, image_url, url, master_id, platform',
+      'id, title, handle, product_type, vendor, price_min, price_max, currency, image_url, url, master_id, platform, allowed_offers',
     )
     .eq('workspace_id', workspaceId)
     .order('title', { ascending: true })

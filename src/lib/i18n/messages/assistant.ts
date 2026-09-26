@@ -507,6 +507,15 @@ export const assistant = {
   probarCanal: { es: "Canal", en: "Channel" },
   probarPago: { es: "Pago", en: "Payment" },
   probarPagoTarjeta: { es: "Tarjeta", en: "Card" },
+  probarPagoPendiente: { es: "Pendiente de pago", en: "Payment pending" },
+  probarAgenteApagado: {
+    es: "apagado: en vivo no contestaría",
+    en: "off: it would not reply live",
+  },
+  probarAutomatizacionApagada: {
+    es: "Apagada: en vivo no se envía. Se muestra para probarla.",
+    en: "Off: it does not send live. Shown so you can test it.",
+  },
   probarOmitida: {
     es: "«{nombre}» no se envía: {motivo}.",
     en: "“{nombre}” is not sent: {motivo}.",

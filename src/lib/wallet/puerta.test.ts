@@ -81,6 +81,13 @@ describe('la puerta de la IA', () => {
     }
   })
 
+  it('sin pagar el link se puede probar, y sólo adentro de la prueba', async () => {
+    const { probandoSinPagar } = await import('./prueba')
+    estado.sus = sus({ estado: 'cortesia' })
+    expect(await probandoSinPagar(() => puertaDeIa(db, 'w1'))).toMatchObject({ puede: true, motivo: null })
+    expect(await puertaDeIa(db, 'w1')).toMatchObject({ puede: false, motivo: 'sin_pagar' })
+  })
+
   it('sin pagar no se cierra la cuenta: se avisa arriba', async () => {
     estado.sus = sus({ estado: 'cortesia' })
     expect(await estadoDeCobro(db, 'w1')).toMatchObject({ bloqueado: false, aviso: 'sin_pagar' })

@@ -1502,15 +1502,21 @@ export async function pickAgent(
     inboundText?: string | null;
     /** Hay un carrito o checkout sin cerrar: habilita el rol de recuperación. */
     hasOpenCart?: boolean;
+    /**
+     * Sólo "Probar": también los apagados, con las mismas reglas de
+     * enrutamiento. Un asistente se prueba antes de prenderlo.
+     */
+    incluirApagados?: boolean;
   }
 ): Promise<AiAgent | null> {
   // Levantamos todos los agentes activos del workspace + qué productos
   // tiene asignados cada uno (vía ai_agent_products). Un sólo round-trip.
-  const { data: rows } = await db
+  let consulta = db
     .from('ai_agents')
     .select('*, ai_agent_channels(channel), ai_agent_products(product_id)')
-    .eq('workspace_id', workspaceId)
-    .eq('is_active', true)
+    .eq('workspace_id', workspaceId);
+  if (!routing.incluirApagados) consulta = consulta.eq('is_active', true);
+  const { data: rows } = await consulta
     .is('deleted_at', null)
     .order('priority', { ascending: false })
     // Desempate por ANTIGÜEDAD, no por `updated_at`. Como `priority` no se
@@ -2456,9 +2462,13 @@ export function unificarFilas(filas: ProductRow[]): ProductRow[] {
       salida.push(principal);
       continue;
     }
+    // El precio por canal es de OTROS canales. Lo que cuelga de la principal
+    // en la misma tienda (un complemento, un envío prioritario) se pliega para
+    // que no parezca otro producto, pero su precio no es "el de Shopify".
+    const plataforma = principal.platform ?? 'shopify';
     salida.push({
       ...principal,
-      listings: grupo.map((p) => ({
+      listings: grupo.filter((p) => p === principal || (p.platform ?? 'shopify') !== plataforma).map((p) => ({
         platform: p.platform ?? 'shopify',
         price: p.price_min ?? null,
         currency: p.currency ?? null,

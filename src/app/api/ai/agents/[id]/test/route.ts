@@ -12,6 +12,7 @@ import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { createClient } from '@/lib/supabase/server';
+import { probandoSinPagar } from '@/lib/wallet/prueba';
 import { NextResponse } from 'next/server';
 
 /**
@@ -34,7 +35,15 @@ import { NextResponse } from 'next/server';
  *           simulated_channel?: Channel }
  *   → { reply, chunks, herramientas, usage }
  */
-export async function POST(
+export function POST(
+  request: Request,
+  contexto: { params: Promise<{ id: string }> }
+) {
+  // Se prueba igual antes de pagar el link: ver `wallet/prueba`.
+  return probandoSinPagar(() => probarAgente(request, contexto));
+}
+
+async function probarAgente(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {

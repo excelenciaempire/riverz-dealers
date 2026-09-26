@@ -128,6 +128,44 @@ describe('simularDisparo', () => {
     expect(automatizaciones[0].armada).toEqual(['automations.issuePlantillaNoAprobada'])
   })
 
+  it('con todo apagado muestra las apagadas para probarlas', async () => {
+    const db4 = dbConTablas({
+      automations: [
+        { id: 'borrador', workspace_id: 'w', name: 'Nuevo pedido', trigger_type: 'shopify_order_created', is_active: false,
+          activation_state: 'draft', deleted_at: null, trigger_config: {} },
+      ],
+      automation_steps: [], message_templates: [], ai_agents: [],
+    })
+    const { automatizaciones } = await simularDisparo(db4, 'w', 'shopify_order_created', pedidoCod)
+    expect(automatizaciones.map((a) => a.id)).toEqual(['borrador'])
+    expect(automatizaciones[0]).toMatchObject({ apagada: true, armada: null })
+  })
+
+  it('un pedido pagado dispara también las de pedido confirmado, con las unidades de la oferta', async () => {
+    const db5 = dbConTablas({
+      automations: [
+        { id: 'recompra', workspace_id: 'w', name: 'Recompras', trigger_type: 'shopify_order_confirmed', is_active: true, deleted_at: null, trigger_config: {} },
+      ],
+      automation_steps: [
+        { id: 'p', automation_id: 'recompra', parent_step_id: null, branch: null, position: 0, step_type: 'condition',
+          step_config: { subject: 'context_var', operand: 'retention_product', op: 'eq', value: 'Shampoo' } },
+        { id: 'u', automation_id: 'recompra', parent_step_id: 'p', branch: 'yes', position: 0, step_type: 'condition',
+          step_config: { subject: 'context_var', operand: 'retention_units', op: 'eq', value: '2' } },
+        { id: 'c', automation_id: 'recompra', parent_step_id: 'u', branch: 'yes', position: 0, step_type: 'condition',
+          step_config: { subject: 'purchased', operand: 'since_trigger', value: 'false' } },
+        { id: 'o', automation_id: 'recompra', parent_step_id: 'c', branch: 'yes', position: 0, step_type: 'condition',
+          step_config: { subject: 'order_paid', value: 'true' } },
+      ],
+      message_templates: [], ai_agents: [],
+    })
+    const pagado = { ...pedidoCod, pago: 'mercadopago' as const, producto: { title: 'Shampoo', price: '61990', quantity: 2 } }
+    const { automatizaciones } = await simularDisparo(db5, 'w', 'shopify_order_created', pagado)
+    expect(automatizaciones.map((a) => a.id)).toEqual(['recompra'])
+    expect(automatizaciones[0].pasos.map((p) => (p.tipo === 'condicion' ? p.camino : p.tipo))).toEqual(['yes', 'yes', 'yes', 'yes'])
+    const pendiente = await simularDisparo(db5, 'w', 'shopify_order_created', { ...pagado, pago: 'pendiente' })
+    expect(pendiente.automatizaciones).toEqual([])
+  })
+
   it('una activa no lleva nada pendiente', async () => {
     const { automatizaciones } = await simularDisparo(db, 'w', 'shopify_order_fulfilled', pedidoCod)
     expect(automatizaciones[0].armada).toBeNull()
