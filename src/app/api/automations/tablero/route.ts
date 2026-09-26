@@ -93,11 +93,15 @@ export async function GET() {
     .map((o) => o as { units?: unknown; total?: unknown; label?: unknown })
     .filter((o) => Number.isSafeInteger(Number(o.units)) && Number(o.units) > 0 && Number.isFinite(Number(o.total)))
     .sort((a, b) => Number(a.units) - Number(b.units));
+  // Las demás situaciones usan la primera oferta: en vivo el pedido siempre
+  // trae la suya, y sin ella el mensaje mostraba el título largo del producto.
+  const primera = ofertas[0];
   const base = {
     title: titulo,
-    price: fila?.price_min != null ? String(fila.price_min) : '110000',
+    price: primera ? String(Number(primera.total)) : fila?.price_min != null ? String(fila.price_min) : '110000',
     variant_title: null,
-    quantity: 1,
+    quantity: primera ? Number(primera.units) : 1,
+    oferta: primera && typeof primera.label === 'string' && primera.label.trim() ? primera.label.trim() : null,
   };
   const medios = new Set(
     ((agentes ?? []) as Array<{ medios_pago?: unknown }>).flatMap((a) =>
