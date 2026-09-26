@@ -134,9 +134,8 @@ export async function GET() {
     ...(acepta
       ? [{ id: 'contraentrega', escenario: 'shopify_order_created' as const, pago: 'cod' as const, oferta: null, pedido: { producto: base, currency, pago: 'cod' as const, cliente } }]
       : []),
-    ...(medios.has('transferencia')
-      ? [{ id: 'transferencia', escenario: 'shopify_order_created' as const, pago: 'transferencia' as const, oferta: null, pedido: { producto: base, currency, pago: 'transferencia' as const, cliente } }]
-      : []),
+    // Sin columna aparte para la transferencia: en la tienda entra como un
+    // pedido pendiente y recibe exactamente lo mismo que "Pago pendiente".
     { id: 'pendiente', escenario: 'shopify_order_created', pago: 'pendiente', oferta: null, pedido: { producto: base, currency, pago: 'pendiente', cliente } },
     { id: 'carrito', escenario: 'shopify_abandoned_checkout', pago: null, oferta: null, pedido: { producto: base, currency, pago: 'tarjeta', cliente } },
     { id: 'rechazado', escenario: 'payment_rejected', pago: null, oferta: null, pedido: { producto: base, currency, pago: 'tarjeta', cliente } },
