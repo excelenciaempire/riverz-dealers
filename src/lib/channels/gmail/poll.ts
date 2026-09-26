@@ -13,7 +13,15 @@ import { listConnections } from "../connections";
 import { savePollState } from "../poll-state";
 import { recoveredEvent } from '../recovered-event';
 import { htmlToText } from "../html-to-text";
+import { findMessageByExternalId } from "../message-lookup";
 import { detectAutomatedSender } from "../email/automated-sender";
+import {
+  destinatarioCliente,
+  direccionesDeCorreo,
+  direccionesPropias,
+} from "../email/direcciones";
+import { FallaTransitoria, pedirAlProveedor } from "../email/falla-transitoria";
+import { estadoDeHistorial, planDeHistorial } from "../email/historial";
 import { mapWithConcurrency } from "@/lib/async/concurrency";
 
 /**
@@ -23,14 +31,37 @@ import { mapWithConcurrency } from "@/lib/async/concurrency";
  * anything not already in `messages` (dedup is the unique index on
  * `messages.message_id`).
  *
- * Cursor is `config.history_id`, refreshed each run from the newest
- * message's historyId. First poll falls back to `q=newer_than:1d` so a
- * freshly connected account picks up the last day of mail.
+ * Dos recorridos por corrida, cada uno con su cursor de página:
+ *   - en vivo: la ventana desde la última pasada completa (1 día en el ritmo
+ *     normal, más si hubo una caída);
+ *   - historial: los 90 días previos a la conexión, una sola vez por buzón
+ *     (ver `email/historial.ts`), un tramo por corrida.
+ *
+ * Los dos miran TODO el correo menos spam, papelera, borradores y chats. Antes
+ * era `in:inbox` + `in:sent`: un hilo que el comercio archivó después de
+ * contestar no entraba nunca, y justo esas son las conversaciones completas.
  */
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1";
 const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const CONNECTION_CONCURRENCY = 3;
+const DIA_MS = 86_400_000;
+/** Ids por corrida del recorrido en vivo. */
+const TOPE_EN_VIVO = 250;
+/** Ids por corrida del historial: se suma al vivo, así que va más corto. */
+const TOPE_HISTORIAL = 100;
+
+/** Lo que no es una conversación con un cliente. */
+export const FILTRO_DE_CONVERSACIONES = "-in:spam -in:trash -in:draft -in:chats";
+
+/** Claves del recorrido anterior (bandeja + enviados por separado). */
+const CLAVES_LEGADAS = [
+  "gmail_sync_query",
+  "gmail_inbox_next",
+  "gmail_sent_next",
+  "gmail_inbox_done",
+  "gmail_sent_done",
+];
 
 interface PollSummary {
   connectionId: string;
@@ -65,6 +96,13 @@ export async function pollAllGmailConnections(): Promise<PollSummary[]> {
   });
 }
 
+/** La consulta de un tramo: [desde, hasta) si hay `hasta`, si no desde en adelante. */
+export function consultaGmail(desdeMs: number, hastaMs?: number): string {
+  const tramo = [`after:${Math.floor(desdeMs / 1000)}`];
+  if (hastaMs != null) tramo.push(`before:${Math.ceil(hastaMs / 1000)}`);
+  return `${FILTRO_DE_CONVERSACIONES} ${tramo.join(" ")}`;
+}
+
 async function pollOne(
   admin: SupabaseClient,
   connection: ChannelConnection,
@@ -72,77 +110,69 @@ async function pollOne(
   const accessToken = await getFreshAccessToken(admin, connection);
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
   const lastHistoryId = cfg.history_id ? String(cfg.history_id) : "";
+  const ahora = Date.now();
+  const historial = planDeHistorial(cfg, ahora);
 
-  // messages.list every run with a sliding 1-day window. The unique
-  // index on messages.message_id makes re-ingest a no-op, so overlap
-  // is free — and this avoids the history.list edge cases (cursor too
-  // old, label filter mismatches) that silently returned 0 even when
-  // the inbox had fresh mail.
-  //
-  // On a freshly-connected mailbox we widen to 7d so the user sees a
-  // realistic backlog instead of an empty inbox on day one. Gate on
-  // last_synced_at (has the POLLER ever run?) — NOT on history_id, which
-  // startGmailWatch writes at connect time, so keying on it defeated the 7d
-  // backlog on the very first poll.
-  const days = Number(ventanaDeBusqueda(connection.last_synced_at).match(/\d+/)?.[0] ?? 7);
-  const window = String(cfg.gmail_sync_query ?? `after:${Math.floor((Date.now() - days * 86_400_000) / 1000)}`);
-  const inboxPage = cfg.gmail_inbox_done ? { ids: [], next: '' } : await listMessageIdsViaQuery(
-    accessToken,
-    `in:inbox ${window}`,
-    String(cfg.gmail_inbox_next ?? ''),
+  // En vivo. La referencia es la última pasada completa del POLL (el push ya
+  // no la toca: antes la pisaba y encogía la primera lectura a un día). Un
+  // buzón recién conectado arranca en el corte del historial.
+  const referencia =
+    connection.last_synced_at ??
+    (historial.pendiente ? new Date(historial.hastaMs).toISOString() : null);
+  const consultaViva = String(
+    cfg.gmail_live_query ??
+      consultaGmail(ahora - diasDeVentana(referencia, ahora) * DIA_MS),
   );
-  // Also pull recently-sent mail so the agent's own replies (including
-  // ones sent straight from Gmail, outside this app) show in the thread.
-  const sentPage = cfg.gmail_sent_done ? { ids: [], next: '' } : await listMessageIdsViaQuery(
+  const vivo = await listMessageIdsViaQuery(
     accessToken,
-    `in:sent ${window}`,
-    String(cfg.gmail_sent_next ?? ''),
+    consultaViva,
+    String(cfg.gmail_live_next ?? ""),
+    TOPE_EN_VIVO,
   );
-  const inboxIds = inboxPage.ids;
-  const sentIds = sentPage.ids;
-  const complete = !inboxPage.next && !sentPage.next;
-  const progress = {
-    gmail_sync_query: complete ? null : window,
-    gmail_inbox_next: inboxPage.next, gmail_sent_next: sentPage.next,
-    gmail_inbox_done: !complete && !inboxPage.next,
-    gmail_sent_done: !complete && !sentPage.next,
-    poll_sync_complete: complete,
-  };
+  const vivoCompleto = !vivo.next;
 
-  if (inboxIds.length === 0 && sentIds.length === 0) {
-    await savePollState(admin, connection.id, progress, null, { complete });
-    return 0;
-  }
+  // Historial: el tramo congelado, un bloque por corrida.
+  const pasado = historial.pendiente
+    ? await listMessageIdsViaQuery(
+        accessToken,
+        consultaGmail(historial.desdeMs, historial.hastaMs),
+        String(cfg.gmail_backfill_next ?? ""),
+        TOPE_HISTORIAL,
+      )
+    : { ids: [], next: "" };
+  const historialCompleto = historial.pendiente && !pasado.next;
 
   let ingested = 0;
   let maxHistoryId = lastHistoryId ? BigInt(lastHistoryId) : BigInt(0);
-  for (const id of inboxIds) {
-    const msg = await fetchMessage(accessToken, id);
-    if (!msg) continue;
-    if (msg.historyId) {
-      const h = BigInt(msg.historyId);
+  for (const id of new Set([...vivo.ids, ...pasado.ids])) {
+    // Un 429/5xx corta acá, antes de guardar los cursores: la próxima corrida
+    // repite el tramo y lo ya guardado se saltea por id.
+    const r = await ingestGmailMessage(admin, connection, accessToken, id);
+    if (r.historyId) {
+      const h = BigInt(r.historyId);
       if (h > maxHistoryId) maxHistoryId = h;
     }
-    const event = await buildInboundEvent(connection, msg, accessToken);
-    if (!event) continue;
-    const result = await ingestInboundEvent(admin, recoveredEvent(event));
-    if (result) ingested++;
-  }
-  for (const id of sentIds) {
-    const msg = await fetchMessage(accessToken, id);
-    if (!msg) continue;
-    // El cursor debe avanzar también con los enviados, no solo con la bandeja.
-    if (msg.historyId) {
-      const h = BigInt(msg.historyId);
-      if (h > maxHistoryId) maxHistoryId = h;
-    }
-    const event = await buildOutboundEvent(connection, msg, accessToken);
-    if (!event) continue;
-    const result = await ingestInboundEvent(admin, event);
-    if (result) ingested++;
+    if (r.ingested) ingested++;
   }
 
-  await savePollState(admin, connection.id, { ...progress, history_id: maxHistoryId.toString() }, null, { complete });
+  const legado = Object.fromEntries(
+    CLAVES_LEGADAS.filter((k) => cfg[k] != null).map((k) => [k, null]),
+  );
+  await savePollState(
+    admin,
+    connection.id,
+    {
+      ...legado,
+      gmail_live_query: vivoCompleto ? null : consultaViva,
+      gmail_live_next: vivo.next || null,
+      gmail_backfill_next: pasado.next || null,
+      ...estadoDeHistorial(historial, historialCompleto, ["gmail_backfill_next"]),
+      poll_sync_complete: vivoCompleto && (!historial.pendiente || historialCompleto),
+      ...(maxHistoryId > BigInt(0) ? { history_id: maxHistoryId.toString() } : {}),
+    },
+    null,
+    { complete: vivoCompleto },
+  );
   return ingested;
 }
 
@@ -211,21 +241,28 @@ async function listMessageIdsViaQuery(
   accessToken: string,
   q: string,
   initialPage = '',
+  tope = TOPE_EN_VIVO,
 ): Promise<{ ids: string[]; next: string }> {
-  // Paginamos siguiendo nextPageToken hasta un tope prudente: antes
-  // maxResults=50 sin paginar descartaba todo lo que excediera 50 por
-  // consulta y corrida (se perdían entrantes y salientes en buzones activos).
-  const CAP = 250;
+  // Paginamos siguiendo nextPageToken hasta el tope: antes maxResults=50 sin
+  // paginar descartaba todo lo que excediera 50 por consulta y corrida.
   const ids: string[] = [];
   let pageToken = initialPage;
-  while (ids.length < CAP) {
+  while (ids.length < tope) {
     const u = new URL(`${GMAIL_API}/users/me/messages`);
     u.searchParams.set("q", q);
-    u.searchParams.set("maxResults", "100");
+    u.searchParams.set("maxResults", String(Math.min(100, tope - ids.length)));
     if (pageToken) u.searchParams.set("pageToken", pageToken);
-    const r = await fetch(u.toString(), {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const r = await pedirAlProveedor(
+      u,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      "messages.list",
+    );
+    if (r.status === 400 && pageToken && pageToken === initialPage) {
+      // Un token de página guardado que Gmail ya no acepta (el cron estuvo
+      // parado) trababa el recorrido para siempre: se rearranca el tramo.
+      pageToken = "";
+      continue;
+    }
     if (!r.ok) throw new Error(`messages.list ${r.status}: ${await r.text()}`);
     const j = (await r.json()) as {
       messages?: { id: string }[];
@@ -255,17 +292,101 @@ interface GmailPayload {
   parts?: GmailPayload[];
 }
 
+/** El mensaje completo, o null si ya no existe. 429/5xx lanzan. */
 async function fetchMessage(
   accessToken: string,
   id: string,
 ): Promise<GmailMessage | null> {
   const u = new URL(`${GMAIL_API}/users/me/messages/${id}`);
   u.searchParams.set("format", "full");
-  const r = await fetch(u.toString(), {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!r.ok) return null;
+  const r = await pedirAlProveedor(
+    u,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+    "messages.get",
+  );
+  // Borrado entre el listado y la lectura: no hay nada que reintentar.
+  if (r.status === 404) return null;
+  if (!r.ok) {
+    const detail = await r.text().catch(() => "");
+    throw new Error(`messages.get ${r.status}: ${detail.slice(0, 300)}`);
+  }
   return (await r.json()) as GmailMessage;
+}
+
+function header(
+  headers: { name: string; value: string }[],
+  name: string,
+): string | undefined {
+  const target = name.toLowerCase();
+  return headers.find((h) => h.name.toLowerCase() === target)?.value;
+}
+
+export type SentidoGmail = "entrante" | "saliente";
+
+/**
+ * ¿Lo escribió el cliente o el comercio? Enviado es la etiqueta SENT o un
+ * remitente que es el propio buzón. Spam, papelera, borradores y chats no son
+ * conversación (la consulta ya los excluye; esto es la segunda barrera).
+ */
+export function sentidoGmail(
+  labels: string[],
+  from: string,
+  propias: Set<string>,
+): SentidoGmail | null {
+  if (labels.some((l) => l === "DRAFT" || l === "SPAM" || l === "TRASH" || l === "CHAT")) {
+    return null;
+  }
+  if (labels.includes("SENT")) return "saliente";
+  const remitente = direccionesDeCorreo(from)[0]?.email;
+  if (remitente && propias.has(remitente)) return "saliente";
+  return "entrante";
+}
+
+/**
+ * Trae un mensaje de Gmail y lo guarda en la bandeja. Lo comparten el poll y
+ * el push, así los dos bajan adjuntos igual y los dos se saltean lo ya
+ * guardado ANTES de bajar nada (antes cada pasada de la ventana de un día
+ * volvía a bajar todos los adjuntos del día).
+ */
+export async function ingestGmailMessage(
+  admin: SupabaseClient,
+  connection: ChannelConnection,
+  accessToken: string,
+  id: string,
+  opciones: { enVivo?: boolean } = {},
+): Promise<{ ingested: boolean; historyId?: string }> {
+  const msg = await fetchMessage(accessToken, id);
+  if (!msg) return { ingested: false };
+  const historyId = msg.historyId;
+  const headers = msg.payload?.headers ?? [];
+  const sentido = sentidoGmail(
+    msg.labelIds ?? [],
+    header(headers, "From") ?? "",
+    direccionesPropias(connection),
+  );
+  if (!sentido) return { ingested: false, historyId };
+
+  // Mismas claves que usa cada builder: el enviado por el id de Gmail (el que
+  // guarda la ruta de envío), el recibido por su Message-ID.
+  const externalMessageId =
+    sentido === "saliente" ? msg.id : header(headers, "Message-ID") || msg.id;
+  const existente = await findMessageByExternalId(admin, {
+    workspaceId: connection.workspace_id,
+    channel: "gmail",
+    externalMessageId,
+  });
+  if (existente) return { ingested: false, historyId };
+
+  const event =
+    sentido === "saliente"
+      ? await buildOutboundEvent(connection, msg, accessToken)
+      : await buildInboundEvent(connection, msg, accessToken);
+  if (!event) return { ingested: false, historyId };
+  const result = await ingestInboundEvent(
+    admin,
+    event.outbound || opciones.enVivo ? event : recoveredEvent(event),
+  );
+  return { ingested: Boolean(result), historyId };
 }
 
 async function buildInboundEvent(
@@ -274,19 +395,14 @@ async function buildInboundEvent(
   accessToken: string,
 ): Promise<InboundEvent | null> {
   const headers = msg.payload?.headers ?? [];
-  const getH = (name: string): string | undefined =>
-    headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value;
+  const from = header(headers, "From") ?? "";
+  const subject = header(headers, "Subject") ?? "";
+  const messageIdHeader = header(headers, "Message-ID");
+  const remitente = direccionesDeCorreo(from)[0];
+  if (!remitente) return null;
+  const { email, name } = remitente;
 
-  const from = getH("From") ?? "";
-  const subject = getH("Subject") ?? "";
-  const messageIdHeader = getH("Message-ID") ?? getH("Message-Id");
-  const { email, name } = parseAddress(from);
-  if (!email) return null;
-
-  // Skip mail we sent ourselves (label SENT, no INBOX).
   const labels = msg.labelIds ?? [];
-  if (labels.includes("SENT") && !labels.includes("INBOX")) return null;
-
   const { text, html } = extractBody(msg.payload);
   const receivedAt = msg.internalDate
     ? new Date(Number(msg.internalDate)).toISOString()
@@ -367,7 +483,8 @@ export function collectGmailAttachments(
 }
 
 /** Download each Gmail attachment (base64url) and re-host in Storage.
- *  Best-effort per file — a failed one is skipped, not fatal. */
+ *  Un adjunto roto se saltea; un 429/5xx o una caída de red LANZA: si no, el
+ *  correo quedaba guardado sin su archivo y, como ya existe, no se repetía. */
 export async function fetchGmailAttachments(
   accessToken: string,
   gmailMessageId: string,
@@ -381,11 +498,10 @@ export async function fetchGmailAttachments(
     // Descartar por tamaño declarado ANTES de descargar/decodificar.
     if (ref.size && ref.size > MAX_ATTACHMENT_BYTES) continue;
     try {
-      const r = await fetch(
+      const r = await pedirAlProveedor(
         `${GMAIL_API}/users/me/messages/${gmailMessageId}/attachments/${ref.attachmentId}`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        },
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+        "attachments.get",
       );
       if (!r.ok) continue;
       const j = (await r.json()) as { data?: string; size?: number };
@@ -411,7 +527,8 @@ export async function fetchGmailAttachments(
         name: ref.filename,
         size: ingested.mediaSize,
       });
-    } catch {
+    } catch (err) {
+      if (err instanceof FallaTransitoria) throw err;
       /* skip this attachment */
     }
   }
@@ -424,17 +541,17 @@ async function buildOutboundEvent(
   accessToken: string,
 ): Promise<InboundEvent | null> {
   const headers = msg.payload?.headers ?? [];
-  const getH = (name: string): string | undefined =>
-    headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value;
 
   // A sent message is addressed TO the customer — that's who the
-  // conversation belongs to. Take the first To recipient.
-  const toRaw = getH("To") ?? "";
-  const firstTo = toRaw.split(",")[0] ?? "";
-  const { email, name } = parseAddress(firstTo);
-  if (!email) return null;
+  // conversation belongs to: the first To/Cc that isn't the mailbox itself.
+  const cliente = destinatarioCliente(
+    [header(headers, "To"), header(headers, "Cc")],
+    direccionesPropias(connection),
+  );
+  if (!cliente) return null;
+  const { email, name } = cliente;
 
-  const subject = getH("Subject") ?? "";
+  const subject = header(headers, "Subject") ?? "";
   const { text, html } = extractBody(msg.payload);
   // Los adjuntos de una respuesta enviada desde el celular/Gmail también se
   // re-hostean (mismo camino que el entrante), para que en Riverz se vea el
@@ -470,13 +587,6 @@ async function buildOutboundEvent(
   };
 }
 
-function parseAddress(raw: string): { email: string; name: string } {
-  // "John Doe <john@example.com>" or just "john@example.com"
-  const m = raw.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
-  if (m) return { name: m[1].replace(/^"|"$/g, ""), email: m[2].toLowerCase() };
-  return { name: "", email: raw.trim().toLowerCase() };
-}
-
 function extractBody(payload?: GmailPayload): { text: string; html: string } {
   if (!payload) return { text: "", html: "" };
   let text = "";
@@ -502,7 +612,7 @@ function decodeBody(data: string): string {
 }
 
 /**
- * Hasta dónde hacia atrás se pide el correo.
+ * Cuántos días hacia atrás mira el recorrido en vivo.
  *
  * Era `newer_than:1d` fijo, y ese "1d" era una apuesta a que el recorrido no
  * falla nunca. Una caída de más de 24 horas —el servicio caído, el buzón en
@@ -514,19 +624,27 @@ function decodeBody(data: string): string {
  * arriba y con un día de gracia por si los relojes no coinciden. Se topea en 30
  * días: más atrás Gmail se pone lento y ese correo ya lo atendió una persona.
  *
- * Sin `last_synced_at` es un buzón recién conectado: 7 días, para que el
- * comercio vea un historial de verdad y no una bandeja vacía el primer día.
+ * Sin referencia, 7 días. Un buzón recién conectado no llega acá sin ella: su
+ * referencia es el corte del historial, que trae los 90 días previos aparte.
  */
+export function diasDeVentana(
+  lastSyncedAt: string | null | undefined,
+  ahora = Date.now(),
+): number {
+  if (!lastSyncedAt) return 7;
+  const desde = Date.parse(lastSyncedAt);
+  if (!Number.isFinite(desde)) return 1;
+  const hueco = ahora - desde;
+  const dias = Math.max(1, Math.ceil(hueco / DIA_MS));
+  // El día de gracia sólo cuando de verdad hubo un hueco: en el ritmo normal
+  // —cada pocos minutos— pedir dos días sería traer el doble por nada.
+  const gracia = hueco > DIA_MS ? 1 : 0;
+  return Math.min(dias + gracia, 30);
+}
+
+/** La misma ventana en la sintaxis de búsqueda de Gmail. */
 export function ventanaDeBusqueda(
   lastSyncedAt: string | null | undefined,
 ): string {
-  if (!lastSyncedAt) return "newer_than:7d";
-  const desde = Date.parse(lastSyncedAt);
-  if (!Number.isFinite(desde)) return "newer_than:1d";
-  const hueco = Date.now() - desde;
-  const dias = Math.max(1, Math.ceil(hueco / 86_400_000));
-  // El día de gracia sólo cuando de verdad hubo un hueco: en el ritmo normal
-  // —cada pocos minutos— pedir dos días sería traer el doble por nada.
-  const gracia = hueco > 86_400_000 ? 1 : 0;
-  return `newer_than:${Math.min(dias + gracia, 30)}d`;
+  return `newer_than:${diasDeVentana(lastSyncedAt)}d`;
 }

@@ -20,8 +20,9 @@ describe('la ventana de búsqueda de Gmail', () => {
     vi.setSystemTime(new Date('2026-09-12T12:00:00Z'))
   })
   afterEach(() => vi.useRealTimers())
-  it('un buzón recién conectado ve una semana', () => {
-    // Para que el comercio vea historial de verdad y no una bandeja vacía.
+  it('sin ninguna referencia ve una semana', () => {
+    // Un buzón recién conectado usa el corte del historial como referencia;
+    // la semana es el resguardo si no hay ninguna.
     expect(ventanaDeBusqueda(null)).toBe('newer_than:7d')
     expect(ventanaDeBusqueda(undefined)).toBe('newer_than:7d')
   })

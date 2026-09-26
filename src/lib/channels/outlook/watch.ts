@@ -20,6 +20,8 @@ import crypto from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt, encrypt } from "../encryption";
+import { savePollState } from "../poll-state";
+import { pedirAlProveedor } from "../email/falla-transitoria";
 import {
   ingestRawMedia,
   MAX_ATTACHMENT_BYTES,
@@ -118,17 +120,28 @@ export async function startOutlookWatch(
   }
   const j = (await res.json()) as { id?: string; expirationDateTime?: string };
 
-  await admin
-    .from("channel_connections")
-    .update({
-      config: {
-        ...cfg,
+  // Mezclado contra la fila actual: escribir `{ ...config de la foto }` pisaba
+  // el progreso que el poll guardó mientras tanto (el historial volvía a
+  // empezar).
+  try {
+    await savePollState(
+      admin,
+      connection.id,
+      {
         subscription_id: j.id,
         subscription_expiration: j.expirationDateTime,
         subscription_fingerprint: fingerprint,
       },
-    })
-    .eq("id", connection.id);
+      null,
+      { complete: false },
+    );
+  } catch (err) {
+    return {
+      subscriptionId: j.id,
+      expiration: j.expirationDateTime,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 
   return { subscriptionId: j.id, expiration: j.expirationDateTime };
 }
@@ -252,6 +265,12 @@ export interface GraphMessageFull {
  * PDF, …) and re-host them in Storage. Graph returns fileAttachment
  * bytes inline as base64 `contentBytes`. Skips inline images (signature
  * logos) and non-file attachment types. Best-effort per file.
+ *
+ * Un 429/5xx o una caída de red LANZA en vez de devolver la lista vacía. Si
+ * no, el correo quedaba guardado sin su archivo y, como ya existe, ninguna
+ * pasada lo volvía a pedir. Lanzando, no se guarda: en el aviso de Graph el
+ * error se registra y el poll lo trae completo; en el poll la corrida no
+ * guarda el cursor y la siguiente lo repite.
  */
 export async function fetchOutlookAttachments(
   accessToken: string,
@@ -259,9 +278,10 @@ export async function fetchOutlookAttachments(
   workspaceId: string,
   convKey: string,
 ): Promise<MessageAttachment[]> {
-  const r = await fetch(
+  const r = await pedirAlProveedor(
     `${GRAPH_API}/me/messages/${graphMessageId}/attachments`,
     { headers: { Authorization: `Bearer ${accessToken}` } },
+    "attachments.list",
   );
   if (!r.ok) return [];
   const j = (await r.json()) as {

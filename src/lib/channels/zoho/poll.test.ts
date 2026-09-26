@@ -12,7 +12,28 @@ vi.mock('./auth', () => ({
   mailApiUrl: () => 'https://mail.zoho.test',
 }));
 
-import { fetchZohoAttachments } from './poll';
+import { fetchZohoAttachments, recorridoZohoTerminado } from './poll';
+import { FallaTransitoria } from '../email/falla-transitoria';
+
+describe('recorridoZohoTerminado', () => {
+  const borde = 1_000;
+
+  it('una página llena y toda posterior al borde deja el recorrido abierto', () => {
+    expect(recorridoZohoTerminado([3_000, 2_000], 2, borde)).toBe(false);
+  });
+
+  it('una página corta es la última', () => {
+    expect(recorridoZohoTerminado([3_000], 2, borde)).toBe(true);
+  });
+
+  it('una página que ya toca el borde es la última', () => {
+    expect(recorridoZohoTerminado([3_000, 900], 2, borde)).toBe(true);
+  });
+
+  it('un mensaje sin fecha no cierra el recorrido', () => {
+    expect(recorridoZohoTerminado([3_000, 0], 2, borde)).toBe(false);
+  });
+});
 
 describe('fetchZohoAttachments', () => {
   afterEach(() => {
@@ -110,5 +131,26 @@ describe('fetchZohoAttachments', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(ingestRawMedia).not.toHaveBeenCalled();
     expect(attachments).toEqual([]);
+  });
+
+  it('un límite de tasa corta la corrida en vez de guardar el correo sin su archivo', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: [{ attachmentId: 'a1', attachmentSize: 3 }] }))
+      )
+      .mockResolvedValueOnce(new Response('', { status: 429 }));
+
+    await expect(
+      fetchZohoAttachments({
+        connection: { id: 'connection', workspace_id: 'shop', config: {} } as never,
+        accessToken: 'token',
+        accountId: 'account',
+        folderId: 'folder',
+        messageId: 'mail-1',
+        workspaceId: 'shop',
+        conversationId: 'customer@example.com',
+      })
+    ).rejects.toBeInstanceOf(FallaTransitoria);
+    expect(ingestRawMedia).not.toHaveBeenCalled();
   });
 });

@@ -16,6 +16,7 @@ import { safeLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import { htmlToText } from "../html-to-text";
 import { detectAutomatedSender } from "../email/automated-sender";
+import { findMessageByExternalId } from "../message-lookup";
 import {
   fetchOutlookMessage,
   fetchOutlookAttachments,
@@ -165,6 +166,15 @@ export const outlookAdapter: ChannelAdapter = {
       const from = msg.from?.emailAddress;
       const email = from?.address?.toLowerCase();
       if (!email) continue;
+
+      // Graph repite avisos y el poll vuelve a pasar por lo mismo: lo ya
+      // guardado no se procesa de nuevo (ni se bajan otra vez sus adjuntos).
+      const yaGuardado = await findMessageByExternalId(admin, {
+        workspaceId: connection.workspace_id,
+        channel: "outlook",
+        externalMessageId: msg.internetMessageId || msg.id,
+      });
+      if (yaGuardado) continue;
 
       const html = msg.body?.contentType === "html" ? msg.body.content ?? "" : "";
       const text = msg.body?.contentType === "text" ? msg.body.content ?? "" : "";

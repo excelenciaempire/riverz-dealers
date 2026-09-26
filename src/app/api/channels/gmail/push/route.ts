@@ -3,16 +3,11 @@ import { sellarEntregaPorPush } from "@/lib/channels/connections";
 import { safeSecretEqual } from "@/lib/auth/cron";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { listConnections } from "@/lib/channels/connections";
-import { ingestInboundEvent } from "@/lib/channels/inbox-writer";
+import { savePollState } from "@/lib/channels/poll-state";
 import { getFreshAccessToken } from "@/lib/channels/gmail/watch";
-import {
-  collectGmailAttachments,
-  fetchGmailAttachments,
-} from "@/lib/channels/gmail/poll";
-import { detectAutomatedSender } from "@/lib/channels/email/automated-sender";
-import { htmlToText } from "@/lib/channels/html-to-text";
+import { ingestGmailMessage } from "@/lib/channels/gmail/poll";
+import { pedirAlProveedor } from "@/lib/channels/email/falla-transitoria";
 import type { ChannelConnection } from "@/types";
-import type { InboundEvent } from "@/lib/channels/types";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1";
 
@@ -29,11 +24,14 @@ const GMAIL_API = "https://gmail.googleapis.com/gmail/v1";
  *
  * Behaviour: look up the connection by emailAddress, call
  * `history.list` from the stored historyId, fetch each new message,
- * push it through ingestInboundEvent.
+ * push it through the same ingest path the poller uses
+ * (`ingestGmailMessage`: same attachments, same skip of what is already
+ * stored).
  *
  * Always returns 200 (or 401 on auth) — Pub/Sub will retry on any
  * non-2xx response, which would amplify any downstream failure into a
- * thundering herd. Per-message errors are logged and dropped.
+ * thundering herd. A failed delivery keeps the old history_id, so the next
+ * notification (and the poller) pick the same messages up again.
  */
 export async function POST(req: Request): Promise<Response> {
   const url = new URL(req.url);
@@ -126,9 +124,11 @@ async function processHistory(
     u.searchParams.set("startHistoryId", startHistoryId);
     u.searchParams.set("historyTypes", "messageAdded");
     if (pageToken) u.searchParams.set("pageToken", pageToken);
-    const r = await fetch(u.toString(), {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const r = await pedirAlProveedor(
+      u,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      "history.list",
+    );
     if (r.status === 404) {
       // startHistoryId too old — recover by listing recent inbox.
       return ingestRecentInbox(admin, connection, accessToken, newHistoryId);
@@ -141,7 +141,7 @@ async function processHistory(
     for (const h of j.history ?? []) {
       for (const m of h.messagesAdded ?? []) {
         // Only ingest mail that landed in INBOX. Drafts and sent
-        // copies show up as messageAdded too.
+        // copies show up as messageAdded too (el poll trae los enviados).
         if (m.message.labelIds?.includes("INBOX")) {
           ids.add(m.message.id);
         }
@@ -153,19 +153,13 @@ async function processHistory(
 
   let ingested = 0;
   for (const id of ids) {
-    const event = await fetchAndBuild(accessToken, connection, id);
-    if (!event) continue;
-    const r = await ingestInboundEvent(admin, event);
-    if (r) ingested++;
+    const r = await ingestGmailMessage(admin, connection, accessToken, id, {
+      enVivo: true,
+    });
+    if (r.ingested) ingested++;
   }
 
-  await admin
-    .from("channel_connections")
-    .update({
-      config: { ...cfg, history_id: newHistoryId },
-      last_synced_at: new Date().toISOString(),
-    })
-    .eq("id", connection.id);
+  await guardarHistoryId(admin, connection, newHistoryId);
   return ingested;
 }
 
@@ -178,140 +172,38 @@ async function ingestRecentInbox(
   const u = new URL(`${GMAIL_API}/users/me/messages`);
   u.searchParams.set("q", "in:inbox newer_than:1d");
   u.searchParams.set("maxResults", "25");
-  const r = await fetch(u.toString(), {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const r = await pedirAlProveedor(
+    u,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+    "messages.list",
+  );
   if (!r.ok) throw new Error(`messages.list ${r.status}`);
   const j = (await r.json()) as { messages?: { id: string }[] };
   let ingested = 0;
   for (const m of j.messages ?? []) {
-    const event = await fetchAndBuild(accessToken, connection, m.id);
-    if (!event) continue;
-    const result = await ingestInboundEvent(admin, event);
-    if (result) ingested++;
+    const result = await ingestGmailMessage(admin, connection, accessToken, m.id, {
+      enVivo: true,
+    });
+    if (result.ingested) ingested++;
   }
-  const cfg = (connection.config ?? {}) as Record<string, unknown>;
-  await admin
-    .from("channel_connections")
-    .update({
-      config: { ...cfg, history_id: newHistoryId },
-      last_synced_at: new Date().toISOString(),
-    })
-    .eq("id", connection.id);
+  await guardarHistoryId(admin, connection, newHistoryId);
   return ingested;
 }
 
-interface GmailMessage {
-  id: string;
-  threadId?: string;
-  internalDate?: string;
-  labelIds?: string[];
-  payload?: {
-    headers?: { name: string; value: string }[];
-    mimeType?: string;
-    body?: { data?: string };
-    parts?: GmailMessage["payload"][];
-  };
-}
-
-async function fetchAndBuild(
-  accessToken: string,
+/**
+ * Sólo el cursor del push, mezclado contra la fila ACTUAL. Antes se escribía
+ * `{ ...config de la foto, history_id }` más `last_synced_at`: la foto pisaba
+ * el progreso que el poll guardó mientras tanto (el historial volvía a
+ * empezar) y `last_synced_at` encogía la primera lectura del poll a un día.
+ * `last_synced_at` es del poll; la señal de que el push llega es
+ * `last_push_at` (`sellarEntregaPorPush`).
+ */
+async function guardarHistoryId(
+  admin: ReturnType<typeof supabaseAdmin>,
   connection: ChannelConnection,
-  id: string,
-): Promise<InboundEvent | null> {
-  const r = await fetch(`${GMAIL_API}/users/me/messages/${id}?format=full`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+  historyId: string,
+): Promise<void> {
+  await savePollState(admin, connection.id, { history_id: historyId }, null, {
+    complete: false,
   });
-  if (!r.ok) return null;
-  const msg = (await r.json()) as GmailMessage;
-  const headers = msg.payload?.headers ?? [];
-  const get = (n: string) =>
-    headers.find((h) => h.name.toLowerCase() === n.toLowerCase())?.value;
-
-  const fromHeader = get("From") ?? "";
-  const subject = get("Subject") ?? "";
-  const messageIdHeader = get("Message-ID") || get("Message-Id");
-  const fromEmail = parseEmail(fromHeader);
-  if (!fromEmail) return null;
-  if ((msg.labelIds ?? []).includes("SENT") && !(msg.labelIds ?? []).includes("INBOX")) {
-    return null;
-  }
-  const { text, html } = extractBody(msg.payload);
-
-  // Download file attachments to Storage too, so push-ingested mail has
-  // the same media as poll-ingested mail (reuses the poller's helpers;
-  // format=full responses carry filename + body.attachmentId at runtime).
-  const refs = collectGmailAttachments(
-    msg.payload as unknown as Parameters<typeof collectGmailAttachments>[0],
-  );
-  const attachments = refs.length
-    ? await fetchGmailAttachments(
-        accessToken,
-        msg.id,
-        refs,
-        connection.workspace_id,
-        fromEmail,
-      )
-    : [];
-
-  // El mismo portero que el poll (gmail/poll.ts) y que Outlook: rebotes,
-  // autorespuestas y boletines se guardan y se ven, pero no despiertan al
-  // agente. Push es tiempo real y le gana al poll de 5 min, así que sin esto
-  // el filtro no sirve de nada: el aviso de Shopify entra por acá primero.
-  // Sin el filtro, un fallo del proveedor de IA contesta cada notificación con
-  // el mensaje de cortesía — 500 correos en un día, medido el 2026-08-21.
-  const machine = detectAutomatedSender({
-    from: fromHeader,
-    subject,
-    headers,
-    contentType: msg.payload?.mimeType,
-  });
-  if (machine.automated) {
-    console.info(
-      `[gmail-push] remitente automático (${machine.reason}), no se responde solo: ${fromEmail}`,
-    );
-  }
-
-  return {
-    channel: "gmail",
-    connection,
-    externalContactId: fromEmail,
-    contactName: parseName(fromHeader),
-    suppressAutoReply: machine.automated || undefined,
-    externalMessageId: messageIdHeader || msg.id,
-    externalThreadId: msg.threadId,
-    subject,
-    text: text || htmlToText(html) || "",
-    htmlBody: html || undefined,
-    receivedAt: msg.internalDate
-      ? new Date(Number(msg.internalDate)).toISOString()
-      : new Date().toISOString(),
-    attachments: attachments.length ? attachments : undefined,
-  };
-}
-
-function parseEmail(raw: string): string {
-  const m = raw.match(/<([^>]+)>/);
-  return (m ? m[1] : raw).trim().toLowerCase();
-}
-function parseName(raw: string): string {
-  const m = raw.match(/^\s*(.*?)\s*</);
-  return m ? m[1].replace(/^"|"$/g, "") : "";
-}
-function extractBody(payload?: GmailMessage["payload"]): { text: string; html: string } {
-  if (!payload) return { text: "", html: "" };
-  let text = "";
-  let html = "";
-  const walk = (p: NonNullable<GmailMessage["payload"]>) => {
-    if (p.mimeType === "text/plain" && p.body?.data) text ||= decode(p.body.data);
-    else if (p.mimeType === "text/html" && p.body?.data) html ||= decode(p.body.data);
-    for (const part of p.parts ?? []) if (part) walk(part);
-  };
-  walk(payload);
-  return { text, html };
-}
-function decode(b: string): string {
-  const p = b.replace(/-/g, "+").replace(/_/g, "/");
-  const pad = p.length % 4 ? p + "=".repeat(4 - (p.length % 4)) : p;
-  return Buffer.from(pad, "base64").toString("utf8");
 }

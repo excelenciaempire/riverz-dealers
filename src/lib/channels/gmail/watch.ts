@@ -24,6 +24,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelConnection } from "@/types";
 import { decrypt, encrypt } from "../encryption";
+import { savePollState } from "../poll-state";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1";
 const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -64,17 +65,20 @@ export async function startGmailWatch(
   const j = (await res.json()) as { historyId?: string; expiration?: string };
 
   // Persist the historyId so the push receiver knows where to resume.
-  const cfg = (connection.config ?? {}) as Record<string, unknown>;
-  await admin
-    .from("channel_connections")
-    .update({
-      config: {
-        ...cfg,
-        history_id: j.historyId,
-        watch_expiration: j.expiration,
-      },
-    })
-    .eq("id", connection.id);
+  // Mezclado contra la fila actual: escribir `{ ...config de la foto }`
+  // pisaba el progreso que el poll guardó mientras tanto (el historial de 90
+  // días volvía a empezar).
+  try {
+    await savePollState(
+      admin,
+      connection.id,
+      { history_id: j.historyId, watch_expiration: j.expiration },
+      null,
+      { complete: false },
+    );
+  } catch (err) {
+    return { ...j, error: err instanceof Error ? err.message : String(err) };
+  }
 
   return j;
 }
