@@ -67,7 +67,7 @@ describe('lookup_order en el chat web', () => {
 
   it('contesta con la fila espejo cuando Shopify no atribuye nada', async () => {
     const local = baseCon([
-      { order_number: '#1002', currency: 'USD', total_price: '699.95', status: 'created' },
+      { order_number: '#1002', currency: 'USD', total_price: '699.95', status: 'created', contact_id: 'c1' },
     ])
     const salida = JSON.parse(
       await runTool('lookup_order', { order_number: '#1002' }, shopify as never, null, local as never),
@@ -119,11 +119,12 @@ describe('lookup_order distingue los datos del cliente', () => {
       )
     )
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const url = decodeURIComponent(String(fetchMock.mock.calls[0]?.[0]))
-    expect(url).toContain('/customers/search.json')
-    expect(url).toContain('query=phone:3003364305')
-    expect(url).not.toContain('/orders.json')
+    // Se busca como teléfono —primero tal cual, después en otras formas— y
+    // nunca como número de pedido.
+    const urls = fetchMock.mock.calls.map((c) => decodeURIComponent(String(c[0])))
+    expect(urls[0]).toContain('/customers/search.json')
+    expect(urls[0]).toContain('query=phone:3003364305')
+    expect(urls.some((u) => u.includes('/orders.json'))).toBe(false)
     expect(salida.searched_by).toBe('phone')
     expect(salida.instruction).toContain('ese teléfono')
     expect(salida.instruction).toContain('no vuelvas a pedirle el mismo dato')

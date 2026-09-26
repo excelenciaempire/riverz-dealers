@@ -508,6 +508,8 @@ export const assistant = {
   probarPago: { es: "Pago", en: "Payment" },
   probarPagoTarjeta: { es: "Tarjeta", en: "Card" },
   probarPagoPendiente: { es: "Pendiente de pago", en: "Payment pending" },
+  probarPagoTransferencia: { es: "Transferencia", en: "Bank transfer" },
+  probarOferta: { es: "Oferta", en: "Offer" },
   probarEnviar: { es: "Enviar", en: "Send" },
   probarCompartir: { es: "Link de prueba", en: "Test link" },
   probarCompartirHint: {

@@ -82,7 +82,7 @@ interface ResultadoComentario {
   espera_aprobacion: boolean;
 }
 
-type Pago = 'cod' | 'pendiente' | 'mercadopago' | 'tarjeta';
+type Pago = 'cod' | 'pendiente' | 'transferencia' | 'mercadopago' | 'tarjeta';
 
 type Agente = { id: string; nombre: string; role?: string; apagado?: boolean } | null;
 
@@ -111,11 +111,14 @@ export function ProbarComoCliente({
   const fetchWithCsrf = useFetchWithCsrf();
   const [escenario, setEscenario] = useState<EscenarioDePrueba>('shopify_order_created');
   const [canal, setCanal] = useState<Channel>('whatsapp');
-  /** Una opción por oferta del producto (`id|unidades`), o el producto solo. */
-  const [productos, setProductos] = useState<Array<{ id: string; title: string }>>([]);
+  /** Los productos del comercio (las variantes y publicaciones ya agrupadas), con sus ofertas. */
+  const [productos, setProductos] = useState<ProductoDePrueba[]>([]);
   const [productoId, setProductoId] = useState('');
-  /** Sin contra entrega no se ofrece simular un pedido contra entrega. */
+  /** La oferta elegida (unidades), si el producto tiene ofertas. */
+  const [unidades, setUnidades] = useState('');
+  /** Sin contra entrega no se ofrece simular un pedido contra entrega; sin transferencia, tampoco. */
   const [aceptaContraentrega, setAceptaContraentrega] = useState(false);
+  const [aceptaTransferencia, setAceptaTransferencia] = useState(false);
   const [nombreComercio, setNombreComercio] = useState<string | null>(nombreInicial ?? null);
   const [telefonoEjemplo, setTelefonoEjemplo] = useState('');
   const [link, setLink] = useState<string | null>(null);
@@ -152,12 +155,16 @@ export function ProbarComoCliente({
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (!j) return;
-        const lista = opcionesDePedido(
+        const lista = leerProductos(
           (j.productos ?? []) as Array<{ id: string; title: string; allowed_offers?: unknown }>
         );
         setProductos(lista);
-        if (lista[0]) setProductoId((prev) => prev || lista[0].id);
+        if (lista[0]) {
+          setProductoId((prev) => prev || lista[0].id);
+          setUnidades((prev) => prev || (lista[0].ofertas[0] ? String(lista[0].ofertas[0].units) : ''));
+        }
         setAceptaContraentrega(j.acepta_contraentrega === true);
+        setAceptaTransferencia(Array.isArray(j.medios_pago) && j.medios_pago.includes('transferencia'));
         if (j.acepta_contraentrega === true) setPago('cod');
         if (typeof j.comercio === 'string' && j.comercio) setNombreComercio(j.comercio);
         if (typeof j.telefono_ejemplo === 'string') setTelefonoEjemplo(j.telefono_ejemplo);
@@ -202,10 +209,16 @@ export function ProbarComoCliente({
     () => Object.fromEntries(productos.map((p) => [p.id, p.title])),
     [productos]
   );
+  const producto = productos.find((p) => p.id === productoId) ?? null;
+  const etiquetasOferta = useMemo(
+    () => Object.fromEntries((producto?.ofertas ?? []).map((o) => [String(o.units), o.label])),
+    [producto]
+  );
   const etiquetasPago: Record<string, string> = {
     ...(aceptaContraentrega ? { cod: t('assistant.probarPagoCod') } : {}),
     mercadopago: 'Mercado Pago',
     tarjeta: t('assistant.probarPagoTarjeta'),
+    ...(aceptaTransferencia ? { transferencia: t('assistant.probarPagoTransferencia') } : {}),
     pendiente: t('assistant.probarPagoPendiente'),
   };
 
@@ -228,7 +241,9 @@ export function ProbarComoCliente({
       escenario,
       canal: esEvento ? 'whatsapp' : canal,
       detalle: {
-        producto: esEvento ? (etiquetasProducto[productoId] ?? null) : null,
+        producto: esEvento
+          ? [producto?.title, etiquetasOferta[unidades]].filter(Boolean).join(' · ') || null
+          : null,
         pago: escenario === 'shopify_order_created' ? pago : null,
       },
       items: limpios,
@@ -360,8 +375,8 @@ export function ProbarComoCliente({
           token,
           escenario,
           channel: canal,
-          product_id: productoId.split('|')[0] || undefined,
-          unidades: Number(productoId.split('|')[1]) || undefined,
+          product_id: productoId || undefined,
+          unidades: Number(unidades) || undefined,
           pago,
           guia,
           simulated_phone: telefono || undefined,
@@ -587,12 +602,31 @@ export function ProbarComoCliente({
               </SelectContent>
             </Select>
           </Campo>
-          {esEvento ? (
+          {/* Un producto con sus ofertas es UN producto: se elige la oferta,
+              no "cuatro productos" con el mismo nombre. */}
+          {esEvento && productos.length > 1 ? (
             <Campo label={t('assistant.probarProducto')} className="col-span-2 sm:col-span-1">
-              <Select value={productoId} disabled={productos.length === 0} onValueChange={(v) => setProductoId(v ?? '')}>
+              <Select
+                value={productoId}
+                onValueChange={(v) => {
+                  const p = productos.find((x) => x.id === v);
+                  setProductoId(v ?? '');
+                  setUnidades(p?.ofertas[0] ? String(p.ofertas[0].units) : '');
+                }}
+              >
                 <SelectTrigger className="w-full"><SelectValue labels={etiquetasProducto} placeholder="—" /></SelectTrigger>
                 <SelectContent>
                   {productos.map((p) => <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Campo>
+          ) : null}
+          {esEvento && producto && producto.ofertas.length > 0 ? (
+            <Campo label={t('assistant.probarOferta')} className="col-span-2 sm:col-span-1">
+              <Select value={unidades} onValueChange={(v) => setUnidades(v ?? '')}>
+                <SelectTrigger className="w-full"><SelectValue labels={etiquetasOferta} placeholder="—" /></SelectTrigger>
+                <SelectContent>
+                  {producto.ofertas.map((o) => <SelectItem key={o.units} value={String(o.units)}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </Campo>
@@ -798,25 +832,28 @@ function Campo({
   );
 }
 
-/**
- * Qué pedido se puede simular: una opción por oferta de cada producto (el
- * mismo producto en 1, 2, 3 o 10 unidades es otro pedido, otro total y otra
- * recompra), o el producto solo si no tiene ofertas cargadas.
- */
-function opcionesDePedido(
+interface ProductoDePrueba {
+  id: string;
+  title: string;
+  /** Cada oferta es otro pedido: otro total y otra recompra. */
+  ofertas: Array<{ units: number; label: string }>;
+}
+
+function leerProductos(
   productos: Array<{ id: string; title: string; allowed_offers?: unknown }>
-): Array<{ id: string; title: string }> {
-  return productos.flatMap((p) => {
-    const ofertas = (Array.isArray(p.allowed_offers) ? p.allowed_offers : [])
+): ProductoDePrueba[] {
+  return productos.map((p) => ({
+    id: p.id,
+    title: p.title,
+    ofertas: (Array.isArray(p.allowed_offers) ? p.allowed_offers : [])
       .map((o) => o as { units?: unknown; label?: unknown })
       .filter((o) => Number.isSafeInteger(Number(o?.units)) && Number(o?.units) > 0)
-      .sort((a, b) => Number(a.units) - Number(b.units));
-    if (ofertas.length === 0) return [{ id: p.id, title: p.title }];
-    return ofertas.map((o) => ({
-      id: `${p.id}|${Number(o.units)}`,
-      title: `${p.title} · ${typeof o.label === 'string' && o.label.trim() ? o.label.trim() : `× ${Number(o.units)}`}`,
-    }));
-  });
+      .sort((a, b) => Number(a.units) - Number(b.units))
+      .map((o) => ({
+        units: Number(o.units),
+        label: typeof o.label === 'string' && o.label.trim() ? o.label.trim() : `× ${Number(o.units)}`,
+      })),
+  }));
 }
 
 function barreraTexto(t: ReturnType<typeof useT>, b: { tipo: string; detalle: string | null }): string {

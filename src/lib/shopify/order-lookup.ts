@@ -21,6 +21,7 @@
 
 import { resolveCarrierTrackingUrl } from './carrier-tracking';
 import { markShopifyConnectionExpired } from './admin-client';
+import { claveDeTelefono, normalizePhone, phoneVariants } from '@/lib/whatsapp/phone-utils';
 
 interface ShopifyLineItem {
   title: string;
@@ -54,7 +55,16 @@ interface ShopifyOrder {
   email?: string | null;
   phone?: string | null;
   customer?: { email?: string | null; phone?: string | null } | null;
-  shipping_address?: { phone?: string | null } | null;
+  shipping_address?: {
+    phone?: string | null;
+    address1?: string | null;
+    city?: string | null;
+    province?: string | null;
+    zip?: string | null;
+  } | null;
+  cancelled_at?: string | null;
+  order_status_url?: string | null;
+  shipping_lines?: Array<{ title?: string | null }>;
 }
 
 interface ShopifyCustomer {
@@ -80,6 +90,12 @@ export interface OrderSummary {
   }>;
   tracking_number: string | null;
   tracking_url: string | null;
+  tracking_company?: string | null;
+  /** La página de estado del pedido en la tienda, para mandarle al cliente. */
+  order_status_url?: string | null;
+  cancelled?: boolean;
+  shipping_method?: string | null;
+  shipping_address?: { address1: string | null; city: string | null; province: string | null; zip: string | null } | null;
 }
 
 export interface LookupOrdersResult {
@@ -88,20 +104,17 @@ export interface LookupOrdersResult {
 }
 
 const ORDER_FIELDS =
-  'id,name,created_at,financial_status,fulfillment_status,total_price,currency,line_items,fulfillments';
+  'id,name,created_at,cancelled_at,financial_status,fulfillment_status,total_price,currency,line_items,fulfillments,order_status_url,shipping_lines,shipping_address';
 
 /**
  * Los campos de arriba MÁS los identificadores del comprador. Se piden sólo
  * en la búsqueda por número de pedido, donde hay que comprobar que el pedido
  * sea de quien está escribiendo; nunca se devuelven al modelo.
  */
-const ORDER_FIELDS_WITH_OWNER = `${ORDER_FIELDS},email,phone,customer,shipping_address`;
+const ORDER_FIELDS_WITH_OWNER = `${ORDER_FIELDS},email,phone,customer`;
 
-/** Últimos 8 dígitos: sortea prefijos de país y formatos locales. */
-function phoneKey(value: string | null | undefined): string | null {
-  const digits = (value ?? '').replace(/\D/g, '');
-  return digits.length >= 8 ? digits.slice(-8) : null;
-}
+/** Últimos 8 dígitos: sortea prefijos de país, formatos locales y el 15 argentino. */
+const phoneKey = claveDeTelefono;
 
 /**
  * ¿El pedido es de quien está hablando con el agente?
@@ -186,23 +199,7 @@ export async function lookupCustomerOrders(opts: {
     }
 
     // 2) Buscar cliente por teléfono o email, después sus pedidos.
-    const query = buildCustomerQuery(opts.customerPhone, opts.customerEmail);
-    if (!query) return { found: false, orders: [] };
-
-    const searchUrl = `${base}/customers/search.json?query=${encodeURIComponent(
-      query
-    )}&limit=5`;
-    const customerRes = await fetch(searchUrl, { headers });
-    if (!customerRes.ok) {
-      if (customerRes.status === 401) {
-        void markShopifyConnectionExpired(opts.shopDomain);
-      }
-      return { found: false, orders: [] };
-    }
-    const customerData = (await customerRes.json()) as {
-      customers?: ShopifyCustomer[];
-    };
-    const customer = (customerData.customers ?? [])[0];
+    const customer = await buscarCliente(opts.shopDomain, base, headers, opts.customerPhone, opts.customerEmail);
     if (!customer) return { found: false, orders: [] };
 
     const ordersUrl = `${base}/orders.json?status=any&customer_id=${
@@ -225,24 +222,82 @@ export async function lookupCustomerOrders(opts: {
 }
 
 /**
- * El operador `phone:` de Shopify customer-search es estricto con el
- * formato — preferimos buscar por email cuando lo tenemos. Si sólo
- * hay phone, lo pasamos tal cual (Shopify normaliza E.164 internamente
- * pero acepta variantes razonables).
+ * El cliente de Shopify que corresponde a este correo o teléfono.
+ *
+ * El operador `phone:` de la búsqueda de clientes compara el teléfono LITERAL
+ * contra lo que se cargó en la tienda. Pasarle el de WhatsApp tal cual
+ * ("5492954543767") no encontraba a quien compró como "2954543767" o
+ * "+542954543767", que es como compra casi todo el mundo en Argentina. Se
+ * prueban las formas conocidas y, al final, una búsqueda libre por los
+ * últimos dígitos que sólo se acepta si el teléfono del cliente coincide.
  */
-function buildCustomerQuery(
+async function buscarCliente(
+  shopDomain: string,
+  base: string,
+  headers: Record<string, string>,
   phone: string | undefined,
   email: string | undefined
-): string | null {
-  const trimmedEmail = email?.trim();
-  const trimmedPhone = phone?.trim();
-  if (trimmedEmail) return `email:${trimmedEmail}`;
-  if (trimmedPhone) return `phone:${trimmedPhone}`;
-  return null;
+): Promise<ShopifyCustomer | null> {
+  const buscar = async (query: string, limit = 5): Promise<ShopifyCustomer[]> => {
+    const res = await fetch(
+      `${base}/customers/search.json?query=${encodeURIComponent(query)}&limit=${limit}`,
+      { headers }
+    );
+    if (!res.ok) {
+      if (res.status === 401) void markShopifyConnectionExpired(shopDomain);
+      return [];
+    }
+    const data = (await res.json()) as { customers?: ShopifyCustomer[] };
+    return data.customers ?? [];
+  };
+
+  const correo = email?.trim();
+  if (correo) {
+    const [c] = await buscar(`email:${correo}`);
+    if (c) return c;
+  }
+  const digitos = normalizePhone(phone?.trim() ?? '');
+  if (digitos.length < 8) return null;
+  for (const forma of formasDelTelefono(digitos)) {
+    const [c] = await buscar(`phone:${forma}`);
+    if (c) return c;
+  }
+  const clave = claveDeTelefono(digitos);
+  if (!clave) return null;
+  const candidatos = await buscar(clave, 10);
+  return candidatos.find((c) => claveDeTelefono(c.phone) === clave) ?? null;
+}
+
+/** Cómo puede estar cargado el mismo número en la tienda, lo más común primero. */
+export function formasDelTelefono(digitos: string): string[] {
+  const out = new Set<string>();
+  const sumar = (d: string) => {
+    if (d.length < 8) return;
+    out.add(d);
+    out.add(`+${d}`);
+  };
+  sumar(digitos);
+  // Argentina: WhatsApp exige el 9 de celular; la tienda casi nunca lo guarda,
+  // y muchas veces guarda el número nacional sin el 54.
+  if (digitos.startsWith('549')) {
+    sumar(`54${digitos.slice(3)}`);
+    out.add(digitos.slice(3));
+  } else if (digitos.startsWith('54')) {
+    sumar(`549${digitos.slice(2)}`);
+    out.add(digitos.slice(2));
+  }
+  for (const v of phoneVariants(digitos)) sumar(v);
+  // Cada forma es una llamada a Shopify: las más probables alcanzan.
+  return [...out].slice(0, 6);
 }
 
 function toSummary(o: ShopifyOrder): OrderSummary {
-  const fulfillment = (o.fulfillments ?? [])[0];
+  // La guía del ÚLTIMO envío con guía: un pedido reenviado tiene dos, y la
+  // primera es la del paquete que no llegó.
+  const conGuia = (o.fulfillments ?? []).filter(
+    (f) => f.tracking_number || f.tracking_numbers?.length
+  );
+  const fulfillment = conGuia[conGuia.length - 1] ?? (o.fulfillments ?? [])[0];
   const tracking_number =
     fulfillment?.tracking_number ?? fulfillment?.tracking_numbers?.[0] ?? null;
   const trackingCompany = fulfillment?.tracking_company ?? null;
@@ -279,5 +334,17 @@ function toSummary(o: ShopifyOrder): OrderSummary {
     })),
     tracking_number,
     tracking_url,
+    tracking_company: trackingCompany,
+    order_status_url: o.order_status_url ?? null,
+    cancelled: Boolean(o.cancelled_at),
+    shipping_method: o.shipping_lines?.[0]?.title ?? null,
+    shipping_address: o.shipping_address
+      ? {
+          address1: o.shipping_address.address1 ?? null,
+          city: o.shipping_address.city ?? null,
+          province: o.shipping_address.province ?? null,
+          zip: o.shipping_address.zip ?? null,
+        }
+      : null,
   };
 }

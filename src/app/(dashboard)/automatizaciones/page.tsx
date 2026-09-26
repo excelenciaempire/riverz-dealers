@@ -22,6 +22,7 @@ import {
   Star,
   Truck,
   ArrowRight,
+  LayoutGrid,
   Loader2,
 } from "lucide-react"
 
@@ -210,20 +211,24 @@ export default function AutomationsPage() {
 
   return (
     <div className="space-y-10">
-      <header className="flex items-end justify-between gap-4">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             {t("automations.pageTitle")}
           </h1>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => router.push("/automatizaciones/nueva")}
-          className="shrink-0"
-        >
-          <Plus className="h-4 w-4" />
-          {t("automations.createFromScratch")}
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Todo lo que recibe un cliente, por situación: para revisarlo con
+              el dueño de la marca y editar los textos ahí mismo. */}
+          <Button variant="outline" onClick={() => router.push("/automatizaciones/tablero")}>
+            <LayoutGrid className="h-4 w-4" />
+            {t("automations.tablero")}
+          </Button>
+          <Button variant="outline" onClick={() => router.push("/automatizaciones/nueva")}>
+            <Plus className="h-4 w-4" />
+            {t("automations.createFromScratch")}
+          </Button>
+        </div>
       </header>
 
       {/* Channel notice. Automations send only through WhatsApp; make that

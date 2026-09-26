@@ -154,18 +154,52 @@ export function normalizePhone(phone: string): string {
 }
 
 /**
+ * La clave con la que se comparan dos teléfonos: los últimos 8 dígitos, que
+ * no cambian entre "+54 9 …", "54 …", "0…" o el número a secas.
+ *
+ * Con una excepción argentina: el 15 de los celulares. "0351 15 123-4567"
+ * termina en "51234567" y el mismo celular en WhatsApp ("5493511234567")
+ * termina en "11234567", así que nunca coincidían. Si el número trae señas
+ * argentinas (el 54 o el 0 de larga distancia) y le sobran dos dígitos, se le
+ * saca el 15 que va después del código de área.
+ */
+export function claveDeTelefono(raw: string | null | undefined): string | null {
+  let d = normalizePhone(raw ?? '')
+  if (d.startsWith('00')) d = d.slice(2)
+  let argentino = false
+  if (d.startsWith('549') && d.length >= 12) {
+    d = d.slice(3)
+    argentino = true
+  } else if (d.startsWith('54') && d.length >= 11) {
+    d = d.slice(2)
+    argentino = true
+  }
+  if (d.startsWith('0')) {
+    d = d.slice(1)
+    argentino = true
+  }
+  if (argentino && d.length === 12) {
+    for (const i of [2, 3, 4]) {
+      if (d.slice(i, i + 2) === '15') {
+        d = d.slice(0, i) + d.slice(i + 2)
+        break
+      }
+    }
+  }
+  return d.length >= 8 ? d.slice(-8) : null
+}
+
+/**
  * Compare two phone numbers accounting for trunk prefix differences.
  * e.g. "370063949836" (with trunk 0) matches "37063949836" (without trunk 0)
- * by comparing the last 8 digits.
+ * by comparing the last 8 digits (see `claveDeTelefono`).
  */
 export function phonesMatch(phone1: string, phone2: string): boolean {
   const n1 = normalizePhone(phone1)
   const n2 = normalizePhone(phone2)
   if (n1 === n2) return true
-  if (n1.length >= 8 && n2.length >= 8) {
-    return n1.slice(-8) === n2.slice(-8)
-  }
-  return false
+  const k1 = claveDeTelefono(n1)
+  return k1 !== null && k1 === claveDeTelefono(n2)
 }
 
 /**

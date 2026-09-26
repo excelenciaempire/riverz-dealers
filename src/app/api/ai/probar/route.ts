@@ -72,7 +72,7 @@ export function POST(request: Request) {
 
 /**
  * GET /api/ai/probar[?token=]
- *   → { comercio, productos, acepta_contraentrega, telefono_ejemplo }
+ *   → { comercio, productos, acepta_contraentrega, medios_pago, telefono_ejemplo }
  *
  * Lo que la pantalla de prueba necesita para armarse, también desde el link
  * compartido, donde no hay sesión para pedir el catálogo por otro lado.
@@ -108,13 +108,17 @@ export async function GET(request: Request) {
     title: String(p.title ?? ''),
     allowed_offers: (p as { allowed_offers?: unknown }).allowed_offers ?? null,
   }));
+  // Con qué se puede pagar en el comercio: lo que declararon sus asistentes.
+  const medios = new Set<string>();
+  for (const a of (agentes ?? []) as Array<{ medios_pago?: unknown }>) {
+    if (Array.isArray(a.medios_pago)) for (const m of a.medios_pago) if (typeof m === 'string') medios.add(m);
+  }
   return NextResponse.json(
     {
       comercio: (ws as { name?: string | null } | null)?.name ?? null,
       productos,
-      acepta_contraentrega: ((agentes ?? []) as Array<{ medios_pago?: unknown }>).some(
-        (a) => Array.isArray(a.medios_pago) && a.medios_pago.includes('contraentrega')
-      ),
+      acepta_contraentrega: medios.has('contraentrega'),
+      medios_pago: [...medios],
       telefono_ejemplo: lugarDePrueba(currency).telefono,
       compartida,
     },
@@ -177,7 +181,10 @@ async function probar(request: Request) {
       producto,
       currency,
       pago:
-        body?.pago === 'mercadopago' || body?.pago === 'tarjeta' || body?.pago === 'pendiente'
+        body?.pago === 'mercadopago' ||
+        body?.pago === 'tarjeta' ||
+        body?.pago === 'pendiente' ||
+        body?.pago === 'transferencia'
           ? body.pago
           : 'cod',
       cliente: { nombre: 'Ana Prueba', telefono: simulatedPhone || lugarDePrueba(currency).telefono },

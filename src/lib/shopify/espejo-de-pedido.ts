@@ -104,17 +104,26 @@ function emailDelPedido(order: Record<string, unknown>): string | null {
   return e || null;
 }
 
-/** El seguimiento, si Shopify ya lo cargó. */
+/**
+ * El seguimiento, si Shopify ya lo cargó: el del ÚLTIMO envío con guía (un
+ * reenvío trae dos, y la primera es la del paquete que no llegó), y en qué
+ * anda ese envío según el transportista (`shipment_status`: en camino,
+ * entregado…), que el asistente usa para contestar "¿dónde está mi pedido?".
+ */
 function envioDelPedido(order: Record<string, unknown>): {
   numero: string | null;
   empresa: string | null;
   url: string | null;
+  estado: string | null;
 } {
   const fs = Array.isArray(order.fulfillments)
     ? (order.fulfillments as Array<Record<string, unknown>>)
     : [];
-  const f = fs[0];
-  if (!f) return { numero: null, empresa: null, url: null };
+  const conGuia = fs.filter(
+    (x) => x.tracking_number || (Array.isArray(x.tracking_numbers) && x.tracking_numbers.length > 0),
+  );
+  const f = conGuia[conGuia.length - 1] ?? fs[fs.length - 1];
+  if (!f) return { numero: null, empresa: null, url: null, estado: null };
   const numeros = Array.isArray(f.tracking_numbers) ? f.tracking_numbers : [];
   const urls = Array.isArray(f.tracking_urls) ? f.tracking_urls : [];
   return {
@@ -122,6 +131,7 @@ function envioDelPedido(order: Record<string, unknown>): {
       (f.tracking_number as string | null) ?? (numeros[0] as string) ?? null,
     empresa: (f.tracking_company as string | null) ?? null,
     url: (f.tracking_url as string | null) ?? (urls[0] as string) ?? null,
+    estado: typeof f.shipment_status === 'string' && f.shipment_status ? f.shipment_status : null,
   };
 }
 
@@ -226,6 +236,7 @@ export async function espejarPedidoDeShopify(
     if (envio.numero) parche.tracking_number = envio.numero;
     if (envio.empresa) parche.tracking_company = envio.empresa;
     if (envio.url) parche.tracking_url = envio.url;
+    if (envio.estado) parche.shipping_status = envio.estado;
     parche.status = estadoDelPedido(order);
 
     const { error } = await db
@@ -261,6 +272,7 @@ export async function espejarPedidoDeShopify(
     tracking_number: envio.numero,
     tracking_company: envio.empresa,
     tracking_url: envio.url,
+    shipping_status: envio.estado,
     checkout_token: checkoutToken || null,
     // 'sync' y no 'ai': este pedido lo hizo la persona en la tienda. Decir
     // que lo hizo la IA inflaría la atribución con ventas que no son suyas.

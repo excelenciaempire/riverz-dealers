@@ -21,6 +21,8 @@ import { armarLinkDeCompra } from '@/lib/commerce/create-checkout'
 import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { lookupCustomerOrders } from '@/lib/shopify/order-lookup'
+import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
+import { claveDeTelefono } from '@/lib/whatsapp/phone-utils'
 import { resolveStoreForLookup, lookupOrderNonShopify } from '@/lib/commerce/order-lookup'
 import { informarPago } from '@/lib/payments/reported-payment'
 import { createCheckoutLink, fmtMoney, type CheckoutConfig, type PaymentHint } from '@/lib/shopify/create-checkout'
@@ -1831,7 +1833,7 @@ export async function runTool(
         // correo ni teléfono con qué probar que el pedido es suyo, pero la fila
         // espejo sí sabe de quién es.
         if (localOrders) {
-          const local = await lookupLocalOrders(localOrders, numero)
+          const local = await lookupLocalOrders(localOrders, numero, quien)
           if ((JSON.parse(local) as { found?: boolean }).found) return local
         }
         return JSON.stringify({
@@ -1852,7 +1854,11 @@ export async function runTool(
     // conectado" a una compradora de Mercado Libre preguntando por SU pedido,
     // que es una respuesta a la vez cierta e inútil.
     if (!shopify && localOrders) {
-      return await lookupLocalOrders(localOrders, numero)
+      return await lookupLocalOrders(
+        localOrders,
+        numero,
+        pruebaDeIdentidad(localOrders.channel, correo, telefono)
+      )
     }
     if (!shopify) {
       return JSON.stringify({
@@ -1868,24 +1874,30 @@ export async function runTool(
       correo ?? shopify.customerEmail,
       telefono ?? shopify.customerPhone
     )
-    const result = await lookupCustomerOrders({
-      shopDomain: shopify.shopDomain,
-      accessToken: shopify.accessToken,
-      apiVersion: shopify.apiVersion,
-      customerPhone: quien.phone,
-      customerEmail: quien.email,
-      orderNumber: numero,
-    })
+    // Primero la copia local: tiene TODOS los pedidos de la tienda con su
+    // guía, la mantienen al día los webhooks, y compara el teléfono en
+    // cualquier formato. La búsqueda de clientes de Shopify compara el
+    // teléfono literal ("5492954543767" no encuentra "2954543767") y sólo ve
+    // los últimos 60 días: con ella sola, casi nadie encontraba su pedido.
+    const local = localOrders
+      ? (JSON.parse(await lookupLocalOrders(localOrders, numero, quien)) as { found?: boolean; orders?: unknown[] })
+      : null
+    const result = local?.found
+      ? { found: true, orders: local.orders ?? [] }
+      : await lookupCustomerOrders({
+          shopDomain: shopify.shopDomain,
+          accessToken: shopify.accessToken,
+          apiVersion: shopify.apiVersion,
+          customerPhone: quien.phone,
+          customerEmail: quien.email,
+          orderNumber: numero,
+        })
     // Shopify sólo devuelve los pedidos que se le pueden ATRIBUIR a esta
     // persona por teléfono o correo, y quien escribe por el chat web no tiene
     // ninguno de los dos hasta que se identifica. Resultado: el pedido que el
     // agente acababa de crear en esa misma conversación le contestaba
     // "no se encontró ningún pedido". La fila espejo sí sabe de quién es —
     // está atada al contacto — así que se contesta con ella.
-    if (!result.found && localOrders) {
-      const local = await lookupLocalOrders(localOrders, numero)
-      if ((JSON.parse(local) as { found?: boolean }).found) return local
-    }
     if (!result.found) {
       // Travel the explicit "don't invent" instruction with the empty
       // result so the model never paraphrases "found:false" into
@@ -2252,25 +2264,67 @@ export async function runTool(
  * El caller controla `tools` — si pasa [] desactiva tool-use entero,
  * que es lo que hacemos cuando no hay Shopify conectado.
  */
-/** Pedidos espejados del contacto, en el mismo formato que la búsqueda viva. */
-async function lookupLocalOrders(ctx: LocalOrdersContext, numero?: string): Promise<string> {
-  let q = ctx.db
-    .from('orders')
-    .select(
-      'order_number, currency, total_price, line_items, financial_status, fulfillment_status, status, tracking_number, tracking_company, shipping_status, order_status_url, created_at'
-    )
-    .eq('workspace_id', ctx.workspaceId)
-    .eq('contact_id', ctx.contactId)
-    .order('created_at', { ascending: false })
-    .limit(5)
-  // Con número, ése; sin número, los últimos. El recorte por `contact_id` es lo
-  // que hace segura esta consulta: la fila existe porque esta conversación
-  // generó el pedido, así que no hace falta que además coincida el correo.
-  const filtro = numero ? filtroDeNumero(numero) : null
-  if (filtro) q = q.or(filtro)
-  const { data } = await q
+/**
+ * Pedidos espejados del contacto, en el mismo formato que la búsqueda viva.
+ *
+ * La copia local de la tienda está completa (cada pedido, su guía y su
+ * transportista), pero casi ningún pedido queda atado a un contacto: el
+ * contacto de WhatsApp nace después de la compra. Buscar sólo por
+ * `contact_id` dejaba sin respuesta a quien preguntaba "¿dónde está mi
+ * pedido?" teniendo el pedido ahí. Ahora también vale la identidad que el
+ * canal PROBÓ —su teléfono, su correo—, con la misma regla que la búsqueda
+ * viva: un pedido se muestra sólo si es de quien pregunta.
+ */
+async function lookupLocalOrders(
+  ctx: LocalOrdersContext,
+  numero?: string,
+  identidad?: { phone?: string; email?: string }
+): Promise<string> {
+  const email = identidad?.email?.trim().toLowerCase() || null
+  const clave = claveDeTelefono(identidad?.phone)
+  let data: unknown[] | null = null
+  try {
+    let q = ctx.db
+      .from('orders')
+      .select(
+        'order_number, currency, total_price, line_items, financial_status, fulfillment_status, status, tracking_number, tracking_company, tracking_url, shipping_status, order_status_url, shipping_address, payment_method, created_at, contact_id, customer_email, customer_phone'
+      )
+      .eq('workspace_id', ctx.workspaceId)
+      .order('created_at', { ascending: false })
+      .limit(numero ? 10 : 30)
+    const filtro = numero ? filtroDeNumero(numero) : null
+    if (filtro) {
+      q = q.or(filtro)
+    } else {
+      const quien = [`contact_id.eq.${ctx.contactId}`]
+      if (email && /^[^\s,()"*]+@[^\s,()"*]+$/.test(email)) quien.push(`customer_email.ilike.${email}`)
+      // Grueso en la base, fino abajo: los teléfonos se guardan en cualquier
+      // formato, así que se traen los que terminan igual y se comparan enteros.
+      if (clave) {
+        quien.push(`customer_phone.ilike.*${clave.slice(-4)}`)
+        quien.push(`shipping_address->>phone.ilike.*${clave.slice(-4)}`)
+      }
+      q = q.or(quien.join(','))
+    }
+    data = (await q).data
+  } catch (err) {
+    // Sin la copia local todavía queda la tienda en vivo: no se corta el turno.
+    console.warn('[lookup_order] pedidos locales:', err)
+  }
 
-  const orders = (data ?? []) as Array<Record<string, unknown>>
+  // El número de pedido se adivina: sin esta comprobación, cualquiera que
+  // escriba "#1042" vería la guía y la dirección de otra compradora.
+  const esSuyo = (o: Record<string, unknown>) =>
+    o.contact_id === ctx.contactId ||
+    (email !== null && String(o.customer_email ?? '').trim().toLowerCase() === email) ||
+    (clave !== null &&
+      [o.customer_phone, (o.shipping_address as { phone?: unknown } | null)?.phone].some(
+        (t) => claveDeTelefono(typeof t === 'string' ? t : null) === clave
+      ))
+  const orders = ((data ?? []) as Array<Record<string, unknown>>)
+    .filter(esSuyo)
+    .slice(0, 5)
+    .map(pedidoLocalParaElModelo)
   if (orders.length === 0) {
     return JSON.stringify({
       found: false,
@@ -2280,6 +2334,40 @@ async function lookupLocalOrders(ctx: LocalOrdersContext, numero?: string): Prom
     })
   }
   return JSON.stringify({ found: true, orders })
+}
+
+/** Lo que el modelo necesita del pedido, sin los datos con que se comprobó de quién es. */
+function pedidoLocalParaElModelo(o: Record<string, unknown>): Record<string, unknown> {
+  const envio = (o.shipping_address ?? null) as Record<string, unknown> | null
+  const guia = typeof o.tracking_number === 'string' ? o.tracking_number : null
+  const transportista = typeof o.tracking_company === 'string' ? o.tracking_company : null
+  return {
+    order_number: o.order_number,
+    created_at: o.created_at,
+    status: o.status,
+    financial_status: o.financial_status,
+    fulfillment_status: o.fulfillment_status,
+    payment_method: o.payment_method,
+    total_price: o.total_price,
+    currency: o.currency,
+    line_items: o.line_items,
+    tracking_number: guia,
+    tracking_company: transportista,
+    tracking_url:
+      (typeof o.tracking_url === 'string' && o.tracking_url) ||
+      resolveCarrierTrackingUrl(transportista, guia) ||
+      null,
+    shipping_status: o.shipping_status,
+    order_status_url: o.order_status_url,
+    shipping_address: envio
+      ? {
+          address1: envio.address1 ?? null,
+          city: envio.city ?? null,
+          province: envio.province ?? null,
+          zip: envio.zip ?? null,
+        }
+      : null,
+  }
 }
 
 export async function runWithTools(

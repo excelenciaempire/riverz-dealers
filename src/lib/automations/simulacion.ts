@@ -58,7 +58,7 @@ export interface PedidoDePrueba {
   producto: ProductoDePrueba;
   currency: string;
   /** Contra entrega o pendiente (Pago Fácil, Rapipago), o pagado con Mercado Pago o tarjeta. */
-  pago: 'cod' | 'pendiente' | 'mercadopago' | 'tarjeta';
+  pago: 'cod' | 'pendiente' | 'transferencia' | 'mercadopago' | 'tarjeta';
   cliente: { nombre: string; telefono: string };
   /** Para "despachado": vacío simula una tienda que cumple sin guía. */
   guia?: string;
@@ -203,9 +203,19 @@ export function varsDePedido(
     is_repeat_customer: 'false',
     // Los nombres que Shopify pone en `gateway` / `payment_gateway_names`.
     payment_gateway:
-      pedido.pago === 'cod' ? 'Cash on Delivery' : pedido.pago === 'pendiente' ? 'Pago Fácil' : pedido.pago === 'mercadopago' ? 'Mercado Pago' : 'Tarjeta',
+      pedido.pago === 'cod'
+        ? 'Cash on Delivery'
+        : pedido.pago === 'pendiente'
+          ? 'Pago Fácil'
+          : pedido.pago === 'transferencia'
+            ? 'Transferencia bancaria'
+            : pedido.pago === 'mercadopago'
+              ? 'Mercado Pago'
+              : 'Tarjeta',
     payment_method: pedido.pago === 'cod' ? 'cod' : pedido.pago,
-    financial_status: pedido.pago === 'cod' || pedido.pago === 'pendiente' ? 'pending' : 'paid',
+    // Una transferencia entra pendiente: se confirma al ver el comprobante.
+    financial_status:
+      pedido.pago === 'cod' || pedido.pago === 'pendiente' || pedido.pago === 'transferencia' ? 'pending' : 'paid',
     fulfillment_status:
       trigger === 'shopify_order_fulfilled' || trigger === 'shopify_order_delivered'
         ? 'fulfilled'
