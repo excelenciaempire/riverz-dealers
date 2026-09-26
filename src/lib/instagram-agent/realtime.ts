@@ -2,13 +2,8 @@ import { avisarEscalada } from '@/lib/ai/aviso-escalada';
 import { aplicarDesenlace } from '@/lib/ai/desenlace';
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
-import {
-  prometeAveriguar,
-  recortarSalida,
-  salidaParaCliente,
-} from '@/lib/ai/salida';
+import { prometeAveriguar, salidaParaCliente } from '@/lib/ai/salida';
 import { composeSuperAgentReply } from '@/lib/ai/super-agent';
-import { stripPublicCommentUrls } from '@/lib/ai/url-integrity';
 import { setCommentHidden } from '@/lib/channels/comment-moderation';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
 import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
@@ -66,8 +61,8 @@ import {
   mintUniqueCode,
   parsePercent,
 } from './discounts';
-import type { DmDecision } from './dm-opportunity';
 import { decideCommentDm } from './dm-opportunity';
+import { esPagoManualEnComentario, publicReplyFrom } from './respuesta-publica';
 import { scoreLeads, type LeadScore } from './lead-scoring';
 import {
   afirmaLoQueNoSabe,
@@ -1375,10 +1370,7 @@ async function decidirComentario(
 
   // Pedido, pago o reclamo: se atiende fuera del post y queda visible para el
   // equipo. La marca y el aviso son idempotentes por conversación.
-  const esPagoManual =
-    /\b(transferencia|transferir|comprobante|bancolombia|nequi|llave|bold|addi)\b/i.test(
-      engagement
-    );
+  const esPagoManual = esPagoManualEnComentario(engagement);
   const decisionForPublic = esPagoManual
     ? { ...decision, reason: 'privado' as const }
     : decision;
@@ -1614,81 +1606,15 @@ async function decidirComentario(
   return null;
 }
 
-/**
- * El texto que se publica EN el comentario.
- *
- * Con DM enviado: lo lee cualquiera que pase por el post, así que no repite el
- * mensaje privado —que lleva precios, códigos y datos del pedido— sino que
- * avisa de que la respuesta ya salió por privado. Corto: Meta corta los
- * comentarios largos y un párrafo bajo una foto se lee como spam.
- *
- * Sin DM (modo 'público' o el clasificador dijo que no hacía falta): la
- * respuesta ES esta, así que va entera —recortada a lo que se lee bajo una
- * foto— y sin prometer un privado que nadie va a recibir.
- */
 /** ¿El comentario viene de TikTok? Se pregunta antes de resolver el canal. */
 function isTikTokChannel(channel?: CommentChannel): boolean {
   return channel === 'tiktok_comment';
 }
 
-/**
- * Oraciones completas de `texto` que entran en `tope` caracteres.
- *
- * `recortarSalida` sirve para un mensaje privado, donde llenar el presupuesto
- * importa: si la primera oración ocupa menos de la mitad del tope, corta por
- * palabra y pega un `…`. Bajo una foto eso se lee mal, y salió así en público
- * el 2026-08-29:
- *
- *   «…la zona de la papada, de abajo hacia… 💬 Te escribí por privado.»
- *
- * Acá se prefiere una oración corta y entera a una larga cortada. Devuelve ''
- * si no entra ni la primera.
- */
-function oracionesQueEntran(texto: string, tope: number): string {
-  // El punto sólo cierra una oración cuando lo sigue un espacio o el final.
-  // Así `$39.990` permanece entero en vez de convertir `990...` en la
-  // supuesta oración siguiente.
-  const partes = texto.match(/.+?(?:[.!?]+(?:\s+|$)|$)/g) ?? [];
-  let salida = '';
-  for (const parte of partes) {
-    const siguiente = salida + parte;
-    if (siguiente.trimEnd().length > tope) break;
-    salida = siguiente;
-  }
-  return salida.trim();
-}
-
-export function publicReplyFrom(
-  dmText: string,
-  dmSent = true,
-  decision?: Pick<DmDecision, 'reason'>
-): string {
-  // Un pedido, reclamo o dato que deba ir por privado no puede reutilizar la
-  // primera frase del borrador: esa frase puede contener guía, importe u otro
-  // dato del cliente. La respuesta pública sólo invita al DM.
-  if (
-    decision?.reason === 'pedido' ||
-    decision?.reason === 'reclamo' ||
-    decision?.reason === 'privado'
-  ) {
-    return dmSent
-      ? 'Te escribí por privado para revisarlo contigo 💬'
-      : 'Por favor, escríbenos por mensaje privado para revisarlo contigo 💬';
-  }
-  // Instagram y Facebook no convierten los enlaces de comentarios en enlaces
-  // clicables. El vínculo real ya salió por DM; repetirlo acá sólo deja texto
-  // inútil y además hacía que el recortador partiera el dominio por sus puntos.
-  const clean = stripPublicCommentUrls(dmText);
-  if (!dmSent) {
-    if (!clean) return '';
-    return recortarSalida(clean, 480);
-  }
-  const first = clean.split('\n')[0]?.trim() ?? '';
-  const short = oracionesQueEntran(first, 120);
-  return short
-    ? `${short} 💬 Te escribí por privado.`
-    : 'Te escribí por privado 💬';
-}
+// Lo que se publica debajo del comentario vive en un módulo puro, para poder
+// probarlo y simularlo sin cargar el camino en vivo. Se re-exporta acá porque
+// es donde lo buscan los que ya lo usaban.
+export { esPagoManualEnComentario, publicReplyFrom };
 
 /**
  * Alguien de una campaña respondió: lo marcamos en el embudo (sent → replied).

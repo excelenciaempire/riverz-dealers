@@ -99,6 +99,13 @@ export interface AutomacionSimulada {
    * el camino recorrido. Es lo que el asistente lee después.
    */
   contexto: Record<string, string>;
+  /**
+   * Armada pero todavía no activa: el comercio la pidió y espera algo de
+   * afuera (la aprobación de una plantilla en Meta, el método de pago del
+   * WhatsApp). Se muestra igual, porque es lo que va a pasar apenas eso se
+   * resuelva; estas son las claves i18n de lo que falta. null = activa.
+   */
+  armada: string[] | null;
 }
 
 /** Las variables que tendría el contexto para este pedido de mentira. */
@@ -210,12 +217,16 @@ export async function simularDisparo(
   const plataforma = plataformas.includes('shopify') ? 'shopify' : (plataformas[0] ?? null);
   vars.platform = plataforma ?? '';
   const whatsappConectado = ((wa ?? []) as unknown[]).length > 0;
+  // Las activas y las ARMADAS: una armada es una que el comercio ya pidió
+  // prender y sólo espera a Meta. Probar antes de que Meta conteste es justo
+  // cuando más se prueba, y dejarlas afuera decía "no hay automatizaciones"
+  // de una cuenta que las tiene listas.
   const { data: rows } = await db
     .from('automations')
-    .select('id, name, trigger_type, trigger_config, is_active, deleted_at')
+    .select('id, name, trigger_type, trigger_config, is_active, activation_state, activation_blockers, deleted_at')
     .eq('workspace_id', workspaceId)
     .eq('trigger_type', trigger)
-    .eq('is_active', true)
+    .or('is_active.eq.true,activation_state.eq.armed')
     .is('deleted_at', null)
     .order('created_at', { ascending: true });
   const automations = (rows ?? []) as Array<{
@@ -223,6 +234,8 @@ export async function simularDisparo(
     name: string;
     trigger_type: AutomationTriggerType;
     trigger_config: Record<string, unknown> | null;
+    is_active?: boolean | null;
+    activation_blockers?: Array<{ key?: string | null; message?: string | null }> | null;
   }>;
   if (automations.length === 0) {
     return { vars, automatizaciones: [], plataforma, whatsapp_conectado: whatsappConectado };
@@ -295,6 +308,11 @@ export async function simularDisparo(
       pasos,
       omitida,
       contexto: ctx,
+      armada: a.is_active
+        ? null
+        : (a.activation_blockers ?? [])
+            .map((b) => String(b?.key || b?.message || '').trim())
+            .filter(Boolean),
     };
   });
   return { vars, automatizaciones, plataforma, whatsapp_conectado: whatsappConectado };

@@ -1,6 +1,6 @@
 import { containsEscalationKeyword } from '@/lib/ai/business-hours';
 import { detectarEscalada } from '@/lib/ai/escalada';
-import { aiBudgetGuard } from '@/lib/ai/rate-limit';
+import { aiTestGuard } from '@/lib/ai/rate-limit';
 import { detectInboundProduct, pickAgent } from '@/lib/ai/runner';
 import {
   canalSimulado,
@@ -18,6 +18,7 @@ import {
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { esRespuestaAutomatica } from '@/lib/channels/respuesta-automatica';
 import { csrfGuard } from '@/lib/csrf';
+import { simularComentario } from '@/lib/instagram-agent/simulacion-comentario';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
@@ -147,6 +148,50 @@ export async function POST(request: Request) {
       ? (body.automation_context as Record<string, unknown>)
       : null;
 
+  // ── Comentarios ──
+  // Un comentario no pasa por el runner: lo atiende Comentarios, con sus
+  // propias puertas (crítica y spam se ocultan, intención, modo público o
+  // privado). Se simula ese camino entero y se devuelve qué se publicaría,
+  // qué llegaría por privado o por qué no saldría nada.
+  if (channel === 'ig_comment' || channel === 'fb_comment') {
+    const overBudget = await aiTestGuard(workspaceId);
+    if (overBudget) return overBudget;
+    try {
+      const r = await simularComentario(admin, {
+        workspaceId,
+        canal: channel,
+        texto: message,
+        historial,
+        simulatedPhone,
+      });
+      return NextResponse.json({
+        agente: r.agente
+          ? { id: r.agente.id, nombre: r.agente.nombre, role: 'general' }
+          : null,
+        motivo: 'comentarios',
+        comentario: {
+          publico: r.publico,
+          privado: r.privado,
+          oculto: r.oculto,
+          escala: r.escala,
+          espera_aprobacion: r.esperaAprobacion,
+        },
+        ...(r.barrera ? { barrera: r.barrera } : {}),
+        reply: [r.publico, r.privado].filter(Boolean).join('\n\n'),
+        chunks: [],
+        herramientas: r.herramientas,
+      });
+    } catch (err) {
+      if (err instanceof SinClaveError) {
+        return NextResponse.json(
+          { error: translate(locale, 'errAi.missingApiKey') },
+          { status: 500 }
+        );
+      }
+      return serverError(err, translate(locale, 'errAi.testGenerateFailed'), 502);
+    }
+  }
+
   // Las barreras que en vivo van ANTES que la IA. Se contestan sin gastar
   // un token, igual que el runner.
   if (channel !== 'webchat') {
@@ -215,7 +260,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const overBudget = await aiBudgetGuard(workspaceId);
+  const overBudget = await aiTestGuard(workspaceId);
   if (overBudget) return overBudget;
 
   try {

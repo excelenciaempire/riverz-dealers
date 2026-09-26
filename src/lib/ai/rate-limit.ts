@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { limitByKey, rateLimitResponse } from '@/lib/rate-limit';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
-import { exigirSaldo } from '@/lib/wallet/puerta';
+import { exigirSaldo, puertaDeIa } from '@/lib/wallet/puerta';
+import { motorApagado } from '@/lib/workspaces/motor';
 
 /**
  * Techo de uso para las rutas que llaman al modelo.
@@ -60,4 +61,36 @@ export async function aiBudgetGuard(
   // Devuelve 402 con el motivo, que la pantalla convierte en el cartel con el
   // boton de recargar. Lo automatico no pasa por acá: eso se calla y ya está.
   return await exigirSaldo(supabaseAdmin(), workspaceId);
+}
+
+/**
+ * La guardia de las PRUEBAS ("Probar" por asistente y "Probar como cliente").
+ *
+ * Es `aiBudgetGuard` con una sola excepción: la cuenta que todavía no pagó su
+ * link (`sin_pagar`) y tiene el motor apagado está en instalación. Riverz la
+ * configura, se prueba y el comercio aprueba antes de pagar; probar es parte de
+ * esa instalación y lo cubre Riverz. Nada sale hacia afuera: la prueba no envía
+ * y con el motor apagado tampoco contesta nada en vivo. Sin saldo o con la
+ * suscripción vencida se frena igual que siempre, y el cupo por minutos es el
+ * mismo.
+ */
+export async function aiTestGuard(
+  workspaceId: string | null | undefined,
+): Promise<NextResponse | null> {
+  if (!workspaceId) return null;
+  const result = await limitByKey(
+    `ai:standard:${workspaceId}`,
+    AI_RATE_LIMITS.standard,
+  );
+  if (!result.success) return rateLimitResponse(result);
+  const db = supabaseAdmin();
+  const puerta = await puertaDeIa(db, workspaceId);
+  if (puerta.puede) return null;
+  if (puerta.motivo === 'sin_pagar' && (await motorApagado(db, workspaceId))) {
+    return null;
+  }
+  return NextResponse.json(
+    { error: puerta.motivo ?? 'sin_saldo', saldoCentavos: puerta.saldoCentavos },
+    { status: 402 },
+  );
 }

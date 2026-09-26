@@ -1,4 +1,4 @@
-import { aiBudgetGuard } from '@/lib/ai/rate-limit';
+import { aiTestGuard } from '@/lib/ai/rate-limit';
 import {
   canalSimulado,
   normalizarHistorial,
@@ -90,7 +90,7 @@ export async function POST(
       { status: 403 }
     );
 
-  const overBudget = await aiBudgetGuard((agent as AiAgent).workspace_id);
+  const overBudget = await aiTestGuard((agent as AiAgent).workspace_id);
   if (overBudget) return overBudget;
 
   try {

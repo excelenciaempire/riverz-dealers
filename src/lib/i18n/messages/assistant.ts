@@ -623,4 +623,51 @@ export const assistant = {
   },
   probarReiniciar: { es: "Empezar de nuevo", en: "Start over" },
   probarFallo: { es: "No se pudo simular", en: "Couldn't simulate" },
+  probarArmada: {
+    es: "Armada, se activa cuando se resuelva: {detalle}",
+    en: "Armed, turns on once this is solved: {detalle}",
+  },
+  probarComentarioPublico: { es: "Respuesta pública en el comentario", en: "Public reply on the comment" },
+  probarComentarioPrivado: { es: "Mensaje privado", en: "Private message" },
+  probarComentarioOcultoCritica: {
+    es: "En vivo este comentario se oculta y no se contesta: es una crítica a la marca.",
+    en: "Live, this comment is hidden and not answered: it criticizes the brand.",
+  },
+  probarComentarioOcultoSpam: {
+    es: "En vivo este comentario se oculta y no se contesta: es spam.",
+    en: "Live, this comment is hidden and not answered: it is spam.",
+  },
+  probarComentarioEscala: {
+    es: "Además queda marcado para una persona del equipo ({motivo}).",
+    en: "It is also flagged for a team member ({motivo}).",
+  },
+  probarEscalaPedido: { es: "pregunta por un pedido", en: "asks about an order" },
+  probarEscalaReclamo: { es: "es un reclamo", en: "it's a complaint" },
+  probarEscalaPago: { es: "habla de pagar por fuera de la caja", en: "mentions paying outside checkout" },
+  probarComentarioAprobacion: {
+    es: "Con «Aprobar cada mensaje» la respuesta queda propuesta hasta que alguien la aprueba.",
+    en: "With «Approve each message» the reply waits until someone approves it.",
+  },
+  probarComentarioNoSale: { es: "En vivo no se contestaría: {motivo}.", en: "Live, it wouldn't be answered: {motivo}." },
+  probarComentarioSinIntencion: {
+    es: "no muestra intención de compra ni una duda concreta",
+    en: "it shows no purchase intent or concrete question",
+  },
+  probarComentarioPidePersona: { es: "pide hablar con una persona", en: "it asks for a person" },
+  probarComentarioTope: {
+    es: "ya se contestó {n} veces bajo esta publicación",
+    en: "it was already answered {n} times under this post",
+  },
+  probarComentarioPrecio: {
+    es: "la respuesta citaba un precio que no está verificado ({detalle})",
+    en: "the reply quoted an unverified price ({detalle})",
+  },
+  probarComentarioAfirma: {
+    es: "la respuesta afirmaba algo que la marca no puede sostener en público",
+    en: "the reply claimed something the brand can't back up in public",
+  },
+  probarComentarioAveriguar: {
+    es: "la respuesta prometía averiguar y volver, y eso no se publica",
+    en: "the reply promised to check back, which is never published",
+  },
 } satisfies Namespace;

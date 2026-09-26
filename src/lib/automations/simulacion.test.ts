@@ -11,6 +11,12 @@ function dbConTablas(tablas: Record<string, any[]>) {
         eq: (k: string, v: any) => { filtros.push((r) => r[k] === v); return q },
         is: (k: string, v: any) => { filtros.push((r) => (r[k] ?? null) === v); return q },
         in: (k: string, vs: any[]) => { filtros.push((r) => vs.includes(r[k])); return q },
+        // Sólo la forma que usa el simulador: `col.eq.valor,col.eq.valor`.
+        or: (expr: string) => {
+          const partes = expr.split(',').map((p) => p.split('.eq.'))
+          filtros.push((r) => partes.some(([k, v]) => String(r[k]) === v))
+          return q
+        },
         order: () => q,
         limit: () => q,
         then: (res: any, rej: any) =>
@@ -96,6 +102,27 @@ describe('simularDisparo', () => {
     expect(sin.automatizaciones[0].pasos.map((p) => p.tipo)).toEqual(['condicion'])
     const con = await simularDisparo(db2, 'w', 'shopify_order_fulfilled', { ...pedidoCod, guia: 'RA9' })
     expect(con.automatizaciones[0].pasos.map((p) => p.tipo)).toEqual(['condicion', 'plantilla'])
+  })
+
+  it('muestra la armada que espera a Meta, con lo que le falta, y deja afuera el borrador', async () => {
+    const db3 = dbConTablas({
+      automations: [
+        { id: 'armada', workspace_id: 'w', name: 'Nuevo pedido', trigger_type: 'shopify_order_created', is_active: false,
+          activation_state: 'armed', deleted_at: null, trigger_config: {},
+          activation_blockers: [{ key: 'automations.issuePlantillaNoAprobada', message: 'all templates must be approved' }] },
+        { id: 'borrador', workspace_id: 'w', name: 'Borrador', trigger_type: 'shopify_order_created', is_active: false,
+          activation_state: 'draft', deleted_at: null, trigger_config: {} },
+      ],
+      automation_steps: [], message_templates: [], ai_agents: [],
+    })
+    const { automatizaciones } = await simularDisparo(db3, 'w', 'shopify_order_created', pedidoCod)
+    expect(automatizaciones.map((a) => a.id)).toEqual(['armada'])
+    expect(automatizaciones[0].armada).toEqual(['automations.issuePlantillaNoAprobada'])
+  })
+
+  it('una activa no lleva nada pendiente', async () => {
+    const { automatizaciones } = await simularDisparo(db, 'w', 'shopify_order_fulfilled', pedidoCod)
+    expect(automatizaciones[0].armada).toBeNull()
   })
 
   it('en DeUNA un pedido pagado con Mercado Pago no recibe la confirmación de contra entrega', async () => {

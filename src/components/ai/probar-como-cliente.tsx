@@ -64,12 +64,41 @@ const ESCENARIOS: Array<{ id: Escenario; key: string }> = [
   { id: 'shopify_order_cancelled', key: 'assistant.probarEscCancelado' },
 ];
 
+/** `label` es el nombre de la marca tal cual, o una clave i18n (`assistant.`). */
 const CANALES: Array<{ id: Channel; label: string }> = [
   { id: 'whatsapp', label: 'WhatsApp' },
   { id: 'instagram', label: 'Instagram' },
   { id: 'messenger', label: 'Messenger' },
-  { id: 'webchat', label: 'Chat web' },
+  { id: 'ig_comment', label: 'assistant.channelIgComments' },
+  { id: 'fb_comment', label: 'assistant.channelFbComments' },
+  { id: 'mercadolibre', label: 'Mercado Libre' },
+  { id: 'gmail', label: 'Gmail' },
+  { id: 'webchat', label: 'assistant.channelWebchat' },
 ];
+
+/** Por qué en vivo un comentario no se contestaría, en palabras. */
+const MOTIVO_COMENTARIO: Record<string, string> = {
+  comment_apagado: 'health.skip_comment_apagado',
+  comment_red_apagada: 'health.skip_comment_red_apagada',
+  comment_sin_texto: 'health.skip_comment_sin_texto',
+  comment_sin_llave: 'health.skip_comment_sin_llave',
+  sin_agente: 'health.skip_sin_agente',
+  comment_sin_intencion: 'assistant.probarComentarioSinIntencion',
+  comment_pide_humano: 'assistant.probarComentarioPidePersona',
+  comment_tope_del_hilo: 'assistant.probarComentarioTope',
+  comment_precio_no_autorizado: 'assistant.probarComentarioPrecio',
+  comment_afirma_lo_que_no_sabe: 'assistant.probarComentarioAfirma',
+  comment_prometia_averiguar: 'assistant.probarComentarioAveriguar',
+  comment_respuesta_vacia: 'health.skip_comment_respuesta_vacia',
+};
+
+interface ResultadoComentario {
+  publico: string | null;
+  privado: string | null;
+  oculto: 'critica' | 'spam' | null;
+  escala: string | null;
+  espera_aprobacion: boolean;
+}
 
 type Pago = 'cod' | 'mercadopago' | 'tarjeta';
 
@@ -133,7 +162,11 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
     () => Object.fromEntries(ESCENARIOS.map((e) => [e.id, t(e.key)])),
     [t]
   );
-  const etiquetasCanal = useMemo(() => Object.fromEntries(CANALES.map((c) => [c.id, c.label])), []);
+  const etiquetaDeCanal = (label: string) => (label.startsWith('assistant.') ? t(label) : label);
+  const etiquetasCanal = useMemo(
+    () => Object.fromEntries(CANALES.map((c) => [c.id, c.label.startsWith('assistant.') ? t(c.label) : c.label])),
+    [t]
+  );
   const etiquetasProducto = useMemo(
     () => Object.fromEntries(productos.map((p) => [p.id, p.title])),
     [productos]
@@ -246,6 +279,14 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
           .filter(Boolean)
           .join(' · ');
         nuevos.push({ k: 'sys', texto: cabecera });
+        if (auto.armada && auto.armada.length > 0) {
+          nuevos.push({
+            k: 'sys',
+            texto: t('assistant.probarArmada', {
+              detalle: auto.armada.map((clave) => (clave.includes('.') ? t(clave) : clave)).join('; '),
+            }),
+          });
+        }
         const r = reproducir(auto, auto.pasos);
         nuevos.push(...r.items);
         if (r.pendiente) {
@@ -324,6 +365,50 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? '');
       const agente = (json.agente ?? null) as Agente;
+      // Un comentario: lo que se publicaría y lo que llegaría por privado, o
+      // por qué en vivo no saldría nada (incluido el ocultarlo).
+      if (json.comentario) {
+        const c = json.comentario as ResultadoComentario;
+        const nuevos: Item[] = [];
+        if (json.barrera) {
+          const b = json.barrera as { tipo: string; detalle: string | null };
+          const clave = MOTIVO_COMENTARIO[b.tipo];
+          const motivo = clave ? t(clave, { n: b.detalle ?? '', detalle: b.detalle ?? '' }) : b.tipo;
+          nuevos.push({ k: 'sys', texto: t('assistant.probarComentarioNoSale', { motivo }) });
+        } else if (c.oculto) {
+          nuevos.push({
+            k: 'sys',
+            texto: t(c.oculto === 'spam' ? 'assistant.probarComentarioOcultoSpam' : 'assistant.probarComentarioOcultoCritica'),
+          });
+        } else {
+          const quien = agente ? ` · ${t('assistant.probarQuienContesta', { agente: agente.nombre })}` : '';
+          if (c.publico) {
+            nuevos.push({ k: 'biz', texto: c.publico, botones: [], hora: ahora(), nota: `${t('assistant.probarComentarioPublico')}${quien}` });
+          }
+          if (c.privado) {
+            nuevos.push({ k: 'biz', texto: c.privado, botones: [], hora: ahora(), nota: t('assistant.probarComentarioPrivado') });
+          }
+          if (c.escala) {
+            const motivo =
+              c.escala === 'reclamo'
+                ? t('assistant.probarEscalaReclamo')
+                : c.escala === 'pedido'
+                  ? t('assistant.probarEscalaPedido')
+                  : t('assistant.probarEscalaPago');
+            nuevos.push({ k: 'sys', icono: 'persona', texto: t('assistant.probarComentarioEscala', { motivo }) });
+          }
+          if (c.espera_aprobacion) nuevos.push({ k: 'sys', texto: t('assistant.probarComentarioAprobacion') });
+        }
+        setItems((prev) => [...prev.filter((i) => i.k !== 'typing'), ...nuevos]);
+        const respuesta = c.privado || c.publico;
+        setHistorial((prev) => [
+          ...prev,
+          { role: 'user', content: texto },
+          ...(respuesta ? [{ role: 'assistant' as const, content: respuesta }] : []),
+        ]);
+        if (agente) setAgenteActual(agente);
+        return;
+      }
       if (json.barrera) {
         // Una barrera del runner: en vivo el asistente no contesta.
         const b = json.barrera as { tipo: string; detalle: string | null };
@@ -378,7 +463,7 @@ export function ProbarComoCliente({ nombreComercio }: { nombreComercio?: string 
           <Select value={esEvento ? 'whatsapp' : canal} disabled={esEvento} onValueChange={(v) => { if (v) { setCanal(v as Channel); reiniciar(); } }}>
             <SelectTrigger className="w-full"><SelectValue labels={etiquetasCanal} /></SelectTrigger>
             <SelectContent>
-              {CANALES.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
+              {CANALES.map((c) => <SelectItem key={c.id} value={c.id}>{etiquetaDeCanal(c.label)}</SelectItem>)}
             </SelectContent>
           </Select>
         </Campo>

@@ -66,7 +66,7 @@ import type { AiAgent } from './types';
 /** Tope duro de un DM de Instagram. La respuesta privada por comentario es UN
  *  solo mensaje: no hay dónde partir el texto. Mismo recorte que aplica hoy
  *  `craftPersonalizedDM`. */
-const IG_DM_MAX_CHARS = 950;
+export const IG_DM_MAX_CHARS = 950;
 
 export interface SuperAgentInput {
   workspaceId: string;
@@ -324,8 +324,11 @@ export async function composeSuperAgentReply(
  * Reglas de la superficie. El agente reactivo está entrenado para una charla
  * por privado; esto es la PRIMERA respuesta a alguien que comentó en público y
  * puede que no espere un DM.
+ *
+ * Exportadas para que "Probar como cliente" componga el comentario con las
+ * mismas reglas que producción.
  */
-const SURFACE_RULES = [
+export const SURFACE_RULES = [
   'Esta persona comentó en una publicación y le estás escribiendo por privado por primera vez.',
   'Responde SU duda concreta, en una sola respuesta corta. Nada de saludos largos ni de presentarte.',
   'No prometas nada que no puedas verificar con tus herramientas.',

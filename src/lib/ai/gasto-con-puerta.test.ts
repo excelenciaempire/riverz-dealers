@@ -41,7 +41,7 @@ const LLAMA_AL_MODELO =
   /getAnthropic\(|messages\.create\(|completeText\(|completeTextConUso\(|completeTextMedido\(|runWithTools\(/
 
 /** Cualquiera de las dos puertas. */
-const TIENE_PUERTA = /aiBudgetGuard\(|exigirSaldo\(|puedeUsarIa\(|puertaDeIa\(/
+const TIENE_PUERTA = /aiBudgetGuard\(|aiTestGuard\(|exigirSaldo\(|puedeUsarIa\(|puertaDeIa\(/
 
 function rutasTs(dir: string, out: string[] = []): string[] {
   for (const nombre of readdirSync(dir)) {

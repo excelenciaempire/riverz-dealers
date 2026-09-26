@@ -1,4 +1,8 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from '@/lib/ai/esfuerzo';
+import { untrustedContext } from '@/lib/ai/input-security';
+import { recortarSalida, salidaParaCliente } from '@/lib/ai/salida';
+import { IG_DM_MAX_CHARS, SURFACE_RULES } from '@/lib/ai/super-agent';
 import { ORDER_CONVERSATION_POLICY, ORDER_OPERATION_POLICY, orderConversationModel } from './order-conversation-policy';
 import { recoveryHasExistingOrder } from './recovery-policy';
 import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
@@ -75,6 +79,16 @@ export async function simularRespuesta(
      * producción (recuperación asignada, pedido actual).
      */
     automationContext?: Record<string, unknown> | null;
+    /**
+     * 'comentario' compone como `composeSuperAgentReply`: las reglas de la
+     * primera respuesta a un comentario, las herramientas en modo comentario y
+     * el tope de un DM de Instagram. Es lo que después se publica y se manda
+     * por privado; sin esto la prueba contestaba con las reglas de otra
+     * superficie.
+     */
+    superficie?: 'comentario';
+    /** Lo que producción averigua antes de componer (crítica, producto, hilo). */
+    extraBrief?: string | null;
   }
 ): Promise<RespuestaSimulada> {
   const resolvedKey = await resolveAnthropicKey(admin, {
@@ -143,24 +157,47 @@ export async function simularRespuesta(
     idioma: a.language,
     contact: contacto,
   });
-  const system =
-    buildSystemPrompt(
-      a,
-      contacto,
-      contacto,
-      null,
-      [],
-      { messages: [], rollingSummary: null, idleResetHint: null },
-      products,
-      productMatch,
-      shopify,
-      esComentarioPublico(input.simulatedChannel) ? REGLAS_COMENTARIO_PUBLICO : null,
-      businessCurrency,
-      reglas,
-      registro,
-      perfilOperativo,
-      input.simulatedChannel
-    ) + bloquesDeEntrega(a, automationContext, input.simulatedChannel) + '\n\n' + ORDER_CONVERSATION_POLICY + '\n\n' + ORDER_OPERATION_POLICY;
+  // Un comentario se compone como en `composeSuperAgentReply`: el mismo
+  // `buildSystemPrompt` sin perfil ni canal, más las reglas de la primera
+  // respuesta a un comentario y lo que producción averiguó antes. Sin los
+  // bloques de pedido: esa superficie no los lleva.
+  const comentario = input.superficie === 'comentario';
+  let system = comentario
+    ? buildSystemPrompt(
+        a,
+        contacto,
+        contacto,
+        null,
+        [],
+        { messages: [], rollingSummary: null, idleResetHint: null },
+        products,
+        productMatch,
+        shopify,
+        null,
+        businessCurrency,
+        reglas,
+        registro
+      ) + `\n\n## Estás contestando un COMENTARIO\n${SURFACE_RULES}`
+    : buildSystemPrompt(
+        a,
+        contacto,
+        contacto,
+        null,
+        [],
+        { messages: [], rollingSummary: null, idleResetHint: null },
+        products,
+        productMatch,
+        shopify,
+        esComentarioPublico(input.simulatedChannel) ? REGLAS_COMENTARIO_PUBLICO : null,
+        businessCurrency,
+        reglas,
+        registro,
+        perfilOperativo,
+        input.simulatedChannel
+      ) + bloquesDeEntrega(a, automationContext, input.simulatedChannel) + '\n\n' + ORDER_CONVERSATION_POLICY + '\n\n' + ORDER_OPERATION_POLICY;
+  if (comentario && input.extraBrief?.trim()) {
+    system += `\n\n${untrustedContext('conversation_brief', input.extraBrief.trim())}`;
+  }
 
   // La misma lista que produccion, resuelta por la pizarra del comercio.
   // `hayContacto` va en true a propósito: lo que hay que previsualizar es lo
@@ -172,7 +209,8 @@ export async function simularRespuesta(
     otherStore: otraTienda,
     // Nunca se llama por teléfono a nadie desde una prueba.
     voiceCtx: null,
-    topeDescuento,
+    topeDescuento: comentario ? 0 : topeDescuento,
+    ...(comentario ? { modo: 'comentario' as const } : {}),
   });
 
   const client = getAnthropic(apiKey, {
@@ -181,10 +219,21 @@ export async function simularRespuesta(
     concepto: 'ia_asistencia',
     origenDeLaClave: resolvedKey?.source,
   });
+  const maxComentario = Math.min(a.max_response_chars || 500, IG_DM_MAX_CHARS);
+  const modeloComentario = a.model || MODELO_POR_DEFECTO;
   const result = await runWithTools(client, {
-    model: orderConversationModel({ workspaceId: a.workspace_id, configuredModel: a.model || 'claude-sonnet-5', hasOrder: recoveryHasExistingOrder(automationContext), messages: [...input.historial, { content: input.message }] }),
-    reasoningEffort: 'high',
-    max_tokens: 4000 + Math.max(64, Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2))),
+    ...(comentario
+      ? {
+          model: modeloComentario,
+          max_tokens:
+            Math.max(64, Math.min(2048, Math.ceil(maxComentario / 2))) +
+            (reguladoPorEsfuerzo(modeloComentario) ? 4000 : 0),
+        }
+      : {
+          model: orderConversationModel({ workspaceId: a.workspace_id, configuredModel: a.model || 'claude-sonnet-5', hasOrder: recoveryHasExistingOrder(automationContext), messages: [...input.historial, { content: input.message }] }),
+          reasoningEffort: 'high' as const,
+          max_tokens: 4000 + Math.max(64, Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2))),
+        }),
     system,
     messages: [...input.historial, { role: 'user' as const, content: input.message }],
     tools,
@@ -203,10 +252,15 @@ export async function simularRespuesta(
   });
 
   // Probar cuesta lo mismo que contestar: es el agente entero corriendo.
-  const text = result.text;
+  // Un comentario sale en UN mensaje y con la misma limpieza que producción.
+  const limpio = (comentario ? salidaParaCliente(result.text) : result.text) ?? '';
+  const text =
+    comentario && limpio.length > maxComentario
+      ? recortarSalida(limpio, maxComentario)
+      : limpio;
   return {
     reply: text,
-    chunks: splitReplyForMode(text, a.response_mode),
+    chunks: comentario ? (text ? [text] : []) : splitReplyForMode(text, a.response_mode),
     // Qué herramientas usó. Es la mitad de lo que un comercio quiere ver al
     // probar: no sólo qué contestó, sino si fue a buscar el dato o se lo
     // inventó.
