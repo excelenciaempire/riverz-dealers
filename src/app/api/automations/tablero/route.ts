@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { CLIENTE_DE_PRUEBA } from '@/lib/ai/nombre-de-pila';
 import { pedirCambio } from '@/lib/templates/cambios';
 import { borrarPlantilla } from '@/lib/templates/borrar';
 import { serverError } from '@/lib/api/errors';
@@ -111,7 +112,7 @@ export async function GET() {
     )
   );
   const acepta = medios.has('contraentrega');
-  const cliente = { nombre: 'Ana Prueba', telefono: lugarDePrueba(currency).telefono };
+  const cliente = { nombre: CLIENTE_DE_PRUEBA, telefono: lugarDePrueba(currency).telefono };
 
   const pedidos: Array<Omit<Columna, 'automatizaciones'> & { pedido: PedidoDePrueba }> = [
     ...(ofertas.length ? ofertas : [null]).map((o) => ({

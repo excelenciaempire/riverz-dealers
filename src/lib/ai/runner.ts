@@ -169,6 +169,7 @@ import {
   type VoiceEscalationContext,
 } from './tools';
 import { transcribeAudio } from './transcribe';
+import { primerNombre } from './nombre-de-pila';
 import type { AiAgent, AiResponseMode, AiTone } from './types';
 import {
   BURST_MAX_REPLIES,
@@ -4250,6 +4251,15 @@ export function buildSystemPrompt(
     lines.push('Datos del cliente que ya conoces:');
     lines.push(knownContact.join(' · '));
   }
+  // El saludo lleva el primer nombre que la persona tiene en su perfil, salvo
+  // que no parezca un nombre (emojis, siglas, un negocio). Y nunca uno inventado:
+  // sin nombre conocido, se saluda sin nombre.
+  const nombreDePila = primerNombre(contact.name);
+  lines.push(
+    nombreDePila
+      ? `Nombre para saludar: ${nombreDePila}. Cada vez que saludes o te presentes, llama a la persona por ese primer nombre (sin apellido). Después no lo repitas en cada mensaje.`
+      : 'No conoces el nombre de la persona: saluda sin nombre. Nunca inventes ni supongas un nombre; úsalo solo si ella te lo dice.'
+  );
   // ── Módulo regulado ──
   // Sólo aplica cuando el comercio lo declaró. Las cuentas anteriores no
   // tienen perfil y conservan el resguardo histórico hasta validarse.

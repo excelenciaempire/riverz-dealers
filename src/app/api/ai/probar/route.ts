@@ -1,4 +1,5 @@
 import { containsEscalationKeyword } from '@/lib/ai/business-hours';
+import { CLIENTE_DE_PRUEBA } from '@/lib/ai/nombre-de-pila';
 import { detectarEscalada } from '@/lib/ai/escalada';
 import { cuentaDeLaPrueba } from '@/lib/ai/cuenta-de-prueba';
 import { aiTestGuard } from '@/lib/ai/rate-limit';
@@ -187,7 +188,7 @@ async function probar(request: Request) {
         body?.pago === 'transferencia'
           ? body.pago
           : 'cod',
-      cliente: { nombre: 'Ana Prueba', telefono: simulatedPhone || lugarDePrueba(currency).telefono },
+      cliente: { nombre: CLIENTE_DE_PRUEBA, telefono: simulatedPhone || lugarDePrueba(currency).telefono },
       guia: typeof body?.guia === 'string' ? body.guia.trim() : '',
     });
     const conEntrega = automatizaciones.find((a) => a.agente);
@@ -343,6 +344,9 @@ async function probar(request: Request) {
       simulatedChannel: channel,
       automationContext,
       traspaso,
+      // El mismo cliente que recibió las plantillas: sin nombre, el asistente
+      // saludaba con uno inventado distinto en cada prueba.
+      nombreCliente: CLIENTE_DE_PRUEBA,
     });
     // En vivo esa respuesta no sale y la conversación pasa a una persona.
     if (bloqueo) {

@@ -102,6 +102,8 @@ export async function simularRespuesta(
     extraBrief?: string | null;
     /** El triaje vio un problema: verifica, contesta y pasa a una persona (`instruccionDeTraspaso`). */
     traspaso?: string | null;
+    /** El nombre que el cliente de prueba tiene en su perfil. */
+    nombreCliente?: string | null;
   }
 ): Promise<RespuestaSimulada> {
   const resolvedKey = await resolveAnthropicKey(admin, {
@@ -147,7 +149,7 @@ export async function simularRespuesta(
     workspace_id: a.workspace_id,
     channel: input.simulatedChannel,
     external_id: 'prueba',
-    name: null,
+    name: input.nombreCliente ?? null,
     phone: input.simulatedPhone?.trim() || null,
     email: null,
   } as unknown as Contact;
