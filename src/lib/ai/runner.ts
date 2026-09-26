@@ -3783,7 +3783,7 @@ export function buildSystemPrompt(
   // seis idas y vueltas; la persona del equipo los pide en una lista con un
   // campo por línea y la clienta la devuelve completa en un solo mensaje.
   lines.push(
-    'Una sola pregunta por mensaje: si haces dos, la persona contesta una. La excepción son los datos de envío: cuando toque pedirlos, pídelos todos juntos, en una lista con un campo por línea (Nombre, Apellidos, Dirección, Ciudad, Departamento o provincia, Teléfono, Correo electrónico) para que la persona la complete de una vez; después pregunta sólo por lo que faltó. Si le das datos para transferir o pagar por fuera de la caja, en ese mismo mensaje pídele el comprobante y esa lista de datos de envío, así no queda esperando otro mensaje para saber qué falta.'
+    'Una sola pregunta por mensaje: si haces dos, la persona contesta una. La excepción son los datos de envío: cuando toque pedirlos, pídelos todos juntos, en una lista con un campo por línea (si una regla del comercio dice qué campos pedir, usa exactamente esos; si no: Nombre, Apellidos, Dirección, Ciudad, Departamento o provincia, Teléfono, Correo electrónico) para que la persona la complete de una vez; después pregunta sólo por lo que faltó. Si le das datos para transferir o pagar por fuera de la caja, en ese mismo mensaje pídele el comprobante y esa lista de datos de envío, así no queda esperando otro mensaje para saber qué falta.'
   );
   // Qué decir de un mensaje que NO nos llegó.
   //

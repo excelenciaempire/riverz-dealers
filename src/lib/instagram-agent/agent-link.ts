@@ -172,11 +172,15 @@ export async function resolveIgAgent(
     .maybeSingle();
   if (igOwned) return normalize(igOwned as unknown as AgentRow);
 
+  // Sin uno de Instagram, el que atiende todos los canales. Uno limitado a
+  // otros canales no habla acá: el de Mercado Libre contestaba comentarios de
+  // Instagram con los precios de Mercado Libre.
   const { data } = await db
     .from('ai_agents')
     .select(AGENT_FIELDS)
     .eq('workspace_id', workspaceId)
     .is('deleted_at', null)
+    .or('scope.is.null,scope.neq.channels')
     .order('is_active', { ascending: false })
     .order('priority', { ascending: false })
     // Mismo desempate estable que `pickAgent`: por antigüedad, para que
