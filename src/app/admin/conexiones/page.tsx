@@ -7,6 +7,7 @@ import Link from "@/components/i18n/locale-link";
 import { useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
 import type { ChannelRow } from "@/lib/admin/queries";
+import { COEXISTENCE_ECHOES_MISSING } from "@/lib/channels/whatsapp/echo-health";
 import {
   useAdminData,
   PageHeader,
@@ -156,7 +157,16 @@ export default function AdminChannelsPage() {
       {
         key: "error",
         header: t("admin.lastError"),
-        cell: (r) => <Clamp text={r.last_error} />,
+        // Los códigos de salud propios se explican; los de Meta van tal cual.
+        cell: (r) => (
+          <Clamp
+            text={
+              r.last_error === COEXISTENCE_ECHOES_MISSING
+                ? t("admin.errCoexistenceEchoesMissing")
+                : r.last_error
+            }
+          />
+        ),
       },
     ],
     [t, format],

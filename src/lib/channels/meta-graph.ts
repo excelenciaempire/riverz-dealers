@@ -731,6 +731,46 @@ export interface AppSubscriptionGap {
   expectedCallbackUrl: string;
 }
 
+/** Foto de la suscripción app-level de WhatsApp, apta para guardarse. */
+export interface WhatsappSubscriptionSnapshot {
+  active: boolean;
+  fields: string[];
+  /** Sólo el host: la URL puede llevar parámetros y no hace falta guardarlos. */
+  callbackHost: string | null;
+  /** Campos esperados que no están (`smb_message_echoes`, `history`…). */
+  missing: string[];
+}
+
+/**
+ * La suscripción de `whatsapp_business_account` tal como está viva en Meta,
+ * para dejarla en el registro de la corrida. Cuando faltan los ecos del
+ * teléfono del comercio, la primera pregunta es si la app los tenía suscritos
+ * en ese momento, y el cron la lee cada 15 minutos y la tiraba. Null si no se
+ * pudo leer; sin tokens ni la URL completa.
+ */
+export function whatsappSubscriptionSnapshot(
+  subs: Record<string, AppSubscription> | null | undefined
+): WhatsappSubscriptionSnapshot | null {
+  if (!subs) return null;
+  const expected = APP_WEBHOOK_EXPECTATIONS.whatsapp_business_account ?? [];
+  const wa = subs.whatsapp_business_account;
+  if (!wa) {
+    return { active: false, fields: [], callbackHost: null, missing: expected };
+  }
+  let callbackHost: string | null = null;
+  try {
+    callbackHost = wa.callbackUrl ? new URL(wa.callbackUrl).host : null;
+  } catch {
+    callbackHost = null;
+  }
+  return {
+    active: wa.active,
+    fields: [...wa.fields].sort(),
+    callbackHost,
+    missing: expected.filter((f) => !wa.fields.includes(f)),
+  };
+}
+
 /** Origen público de esta instancia — a dónde Meta debería entregar.
  *  Reexportado desde `lib/base-url` porque el mismo desvío afecta a Shopify,
  *  Tiendanube y WooCommerce, y la respuesta tiene que ser una sola. */

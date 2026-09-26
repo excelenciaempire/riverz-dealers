@@ -17,9 +17,10 @@ import {
   setAppWebhookSubscription,
   subscribeWabaToWebhooks,
   isWabaSubscribed,
+  whatsappSubscriptionSnapshot,
 } from "@/lib/channels/meta-graph";
 import type { ChannelConnection, Channel } from "@/types";
-import { withCronRun } from "@/lib/cron/heartbeat";
+import { withCronPayload, withCronRun } from "@/lib/cron/heartbeat";
 import {
   DEFAULT_CONNECTION_CONCURRENCY,
   forEachWithConcurrency,
@@ -32,6 +33,12 @@ import {
   ensureCoexistenceHistorySync,
   historyWebhookLive,
 } from "@/lib/channels/whatsapp/history-sync";
+import { replayHistoryOnce } from "@/lib/channels/whatsapp/history-progress";
+import {
+  COEXISTENCE_ECHOES_MISSING,
+  checkCoexistenceEchoes,
+  type EchoCounts,
+} from "@/lib/channels/whatsapp/echo-health";
 
 const log = getLogger("cron.meta-webhook-subscriptions");
 
@@ -189,9 +196,12 @@ async function cronHandler(request: Request) {
     subscribed: boolean | null;
     healthRefreshed: boolean;
     healthCanSend: string | null;
+    /** Coexistencia: null si no aplica. */
+    echoesMissing: boolean | null;
   }> = [];
   let waMissing = 0;
   const waErrors: Array<{ id: string; error: string }> = [];
+  const echoAlarms: Array<{ id: string; counts: EchoCounts | null }> = [];
   await forEachWithConcurrency(
     (waConns ?? []) as ChannelConnection[],
     DEFAULT_CONNECTION_CONCURRENCY,
@@ -243,6 +253,12 @@ async function cronHandler(request: Request) {
         healthRefreshed = true;
         healthCanSend = health.canSendMessage;
       }
+      // Coexistencia: si los clientes escriben y no llega un solo eco del
+      // teléfono del comercio, sus respuestas no están entrando a Riverz aunque
+      // la suscripción diga que sí (echo-health.ts). Queda como alarma de la
+      // conexión, detrás de una suscripción caída, que es la causa más grave.
+      const echoes = await checkCoexistenceEchoes(admin, c);
+      if (echoes?.alarm) echoAlarms.push({ id: c.id, counts: echoes.counts });
       waResults.push({
         id: c.id,
         wabaId,
@@ -250,10 +266,17 @@ async function cronHandler(request: Request) {
         subscribed,
         healthRefreshed,
         healthCanSend,
+        echoesMissing: echoes ? echoes.alarm : null,
       });
       await savePollState(admin, c.id, {
         health_sync_checked_at: new Date().toISOString(),
-        health_sync_error: subscribed === true ? null : 'waba_subscription_unverified',
+        health_sync_error:
+          subscribed !== true
+            ? 'waba_subscription_unverified'
+            : echoes?.alarm
+              ? COEXISTENCE_ECHOES_MISSING
+              : null,
+        ...echoes?.patch,
       }, null, { complete: false });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -371,6 +394,20 @@ async function cronHandler(request: Request) {
     }
   }
 
+  // Y una hora después del pedido, una relectura del diario: las tandas se
+  // procesan después de acusar recibo a Meta y un reinicio las corta sin que
+  // Meta las vuelva a mandar. Una vez por pedido (history-progress.ts).
+  const historyReplays: Array<{ id: string; ingested: number; error?: string }> = [];
+  for (const c of (waConns ?? []) as ChannelConnection[]) {
+    const replay = await replayHistoryOnce(admin, c);
+    if (replay) historyReplays.push({ id: c.id, ...replay });
+  }
+
+  // Lo que hay que poder mirar después de la corrida. La suscripción de
+  // WhatsApp va entera (campos, estado, host) porque es la primera sospecha
+  // cuando faltan los ecos del teléfono del comercio.
+  const whatsappSubscription = whatsappSubscriptionSnapshot(liveSubs);
+
   // Flip the Render cron red (207) ONLY on a CONFIRMED gap, so a transient
   // verify failure doesn't cry wolf. Matches the gmail/outlook polls' use of
   // 207 for partial failure. A confirmed app-level gap is also a 207 — it's the
@@ -378,22 +415,28 @@ async function cronHandler(request: Request) {
   const anyMissing =
     results.some((r) => !r.verified || r.missing.length > 0) || waResults.some(r => r.subscribed !== true) || waMissing > 0 || waErrors.length > 0 || skipped > 0;
   const anyAppGap = appGaps.length > 0;
-  return NextResponse.json(
-    {
-      ok: !anyMissing && !anyAppGap,
-      checked: list.length,
-      healthy,
-      skipped,
-      results,
-      waResults,
-      waErrors,
-      appSubscriptions: appSubs,
-      appGaps,
-      subscriptionFixes,
-      callbackFixes,
-      historySync,
-    },
-    { status: anyMissing || anyAppGap ? 207 : 200 },
+  return withCronPayload(
+    NextResponse.json(
+      {
+        ok: !anyMissing && !anyAppGap,
+        checked: list.length,
+        healthy,
+        skipped,
+        results,
+        waResults,
+        waErrors,
+        appSubscriptions: appSubs,
+        appGaps,
+        subscriptionFixes,
+        callbackFixes,
+        historySync,
+        whatsappSubscription,
+        echoAlarms,
+        historyReplays,
+      },
+      { status: anyMissing || anyAppGap ? 207 : 200 },
+    ),
+    { whatsappSubscription, echoAlarms, historyReplays },
   );
 }
 

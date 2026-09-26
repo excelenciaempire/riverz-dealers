@@ -3,11 +3,17 @@ import { ESTADOS_VIVOS } from './connections';
 
 /** Merge telemetry against the current row, never the pre-refresh snapshot.
  * Compare-and-swap prevents a concurrent token/webhook update being lost.
- * A merchant disconnecting while a poll runs must stay disconnected. */
+ * A merchant disconnecting while a poll runs must stay disconnected.
+ *
+ * El parche puede ser una función del config ACTUAL: un contador (las tandas
+ * del historial que llegan en paralelo) se suma sobre lo que hay en la fila en
+ * cada intento, no sobre una foto vieja que pisaría la suma de otra entrega. */
 export async function savePollState(
   db: SupabaseClient,
   id: string,
-  configPatch: Record<string, unknown>,
+  configPatch:
+    | Record<string, unknown>
+    | ((current: Record<string, unknown>) => Record<string, unknown>),
   error: string | null = null,
   options: { complete?: boolean; clearErrorPrefix?: string } = {},
 ): Promise<void> {
@@ -19,8 +25,10 @@ export async function savePollState(
     if (!row || !ESTADOS_VIVOS.some(s => s === row.status)) return;
     const clearMatchingError = options.clearErrorPrefix != null
       && row.last_error?.startsWith(options.clearErrorPrefix) === true;
+    const base = (row.config ?? {}) as Record<string, unknown>;
+    const patch = typeof configPatch === 'function' ? configPatch(base) : configPatch;
     let query = db.from('channel_connections').update({
-      config: { ...(row.config ?? {}), ...configPatch },
+      config: { ...base, ...patch },
       ...(error || options.complete !== false || clearMatchingError ? {
         status: error ? 'error' : 'connected',
         last_error: error,

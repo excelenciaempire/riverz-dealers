@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   appsecretProof,
   appSubscriptionGaps,
+  whatsappSubscriptionSnapshot,
   withAppsecretProof,
   withAppsecretProofBody,
 } from "./meta-graph";
@@ -209,5 +210,34 @@ describe("appSubscriptionGaps", () => {
     const gaps = appSubscriptionGaps(subs);
     expect(gaps).toHaveLength(1);
     expect(gaps[0].missing).toEqual(["smb_app_state_sync", "history"]);
+  });
+});
+
+describe("whatsappSubscriptionSnapshot", () => {
+  it("guarda campos, estado y host, sin la URL completa", () => {
+    const snapshot = whatsappSubscriptionSnapshot({
+      whatsapp_business_account: {
+        active: true,
+        fields: ["messages", "history"],
+        callbackUrl: "https://riverz.co/api/channels/whatsapp/webhook?connection_id=abc",
+      },
+    });
+    expect(snapshot).toEqual({
+      active: true,
+      fields: ["history", "messages"],
+      callbackHost: "riverz.co",
+      missing: [
+        "smb_message_echoes",
+        "smb_app_state_sync",
+        "message_template_status_update",
+        "message_template_quality_update",
+      ],
+    });
+    expect(JSON.stringify(snapshot)).not.toContain("connection_id");
+  });
+
+  it("distingue una suscripción ausente de una lectura fallida", () => {
+    expect(whatsappSubscriptionSnapshot(null)).toBeNull();
+    expect(whatsappSubscriptionSnapshot({})).toMatchObject({ active: false, fields: [], callbackHost: null });
   });
 });

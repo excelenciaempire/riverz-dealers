@@ -9,6 +9,10 @@ export const admin = {
   unlockRateLimited: { es: 'Demasiados intentos. Inténtalo más tarde.', en: 'Too many attempts. Try again later.' },
   syncPending: { es: 'Sincronización pendiente', en: 'Sync pending' },
   syncLiveOnly: { es: 'Eventos en vivo; sin historial recuperable', en: 'Live events; history unavailable' },
+  errCoexistenceEchoesMissing: {
+    es: 'Las respuestas enviadas desde el teléfono no llegan: clientes escribiendo y ningún eco en 24 h. Revisa el campo smb_message_echoes del webhook de la app de Meta o reconecta el número.',
+    en: 'Replies sent from the phone aren’t arriving: customers writing and no echo in 24 h. Check the smb_message_echoes webhook field in the Meta app or reconnect the number.',
+  },
   cronWalletReconciliation: {
     es: 'Revisa consumos pendientes y recupera recargas cobradas.',
     en: 'Checks pending usage and recovers paid top-ups.',

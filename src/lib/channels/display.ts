@@ -150,6 +150,27 @@ export function isHistoryMediaPlaceholder(text?: string | null): boolean {
   return (text ?? "").trim().startsWith("[unsupported message type: media_placeholder]");
 }
 
+/** Rótulos de tipo que dejan los adaptadores cuando el archivo no se guardó. */
+const MEDIA_TYPE_TOKENS = new Set([
+  "[Imagen]",
+  "[Audio]",
+  "[Video]",
+  "[Documento]",
+  "[Sticker]",
+  "[adjunto]",
+]);
+
+/**
+ * ¿El texto guardado es sólo el lugar de un archivo? El marcador del historial
+ * de coexistencia o el rótulo de tipo que queda cuando la descarga falló. Un
+ * texto así se reemplaza al completar el archivo; cualquier otro (un pie de
+ * foto, un mensaje) es de la persona y se conserva.
+ */
+export function isMediaPlaceholderText(text?: string | null): boolean {
+  const t = (text ?? "").trim();
+  return isHistoryMediaPlaceholder(t) || MEDIA_TYPE_TOKENS.has(t);
+}
+
 /** Caso concreto de lo anterior: Meta avisó `is_unsupported` — la persona SÍ
  *  mandó algo (nota de voz, GIF, contenido de una cuenta privada) pero la
  *  plataforma no lo entrega ni por webhook ni por Graph. La burbuja lo dice

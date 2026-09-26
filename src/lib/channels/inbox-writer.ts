@@ -17,7 +17,7 @@ import { linkUnifiedContact } from "@/lib/contacts/dedupe";
 import type { OrigenDelDato } from "@/lib/contacts/identidad-probada";
 import { resolveAssignmentForConversation } from "@/lib/inbox/assignment-rules";
 import { mimeToCategory } from "./media-ingest";
-import { mediaPreviewToken } from "./display";
+import { isMediaPlaceholderText, mediaPreviewToken } from "./display";
 import { isStoryMentionOrShareOnly } from "./meta-attachments";
 import { esRespuestaAutomatica } from "./respuesta-automatica";
 import {
@@ -163,18 +163,15 @@ export async function ingestInboundEvent(
       .limit(1)
       .maybeSingle();
     if (already) {
-      // El historial de coexistencia manda primero el mensaje con un marcador
-      // en lugar del archivo y después el MISMO mensaje con su archivo. Llega
-      // como repetido: se completa la fila en vez de tirar el archivo.
-      if (fillsMediaPlaceholder(already, event)) {
-        await db
-          .from("messages")
-          .update({
-            ...mediaColumns(channel, event.attachments),
-            attachments: event.attachments,
-            content_text: event.text,
-          })
-          .eq("id", already.id);
+      // Un repetido puede traer el archivo que a la fila le falta. El
+      // historial de coexistencia manda primero el mensaje con un marcador y
+      // después el MISMO mensaje con su archivo; una relectura del diario o una
+      // reentrega trae el archivo que la primera vez no se pudo bajar. Se
+      // completa la fila en vez de tirar el archivo. El id salió de la consulta
+      // acotada al workspace, así que la escritura también lo está.
+      const patch = missingMediaPatch(channel, already, event);
+      if (patch) {
+        await db.from("messages").update(patch).eq("id", already.id);
       }
       return null;
     }
@@ -758,23 +755,32 @@ function mediaColumns(
   };
 }
 
-/** Marcador que deja el adaptador de WhatsApp para un `media_placeholder`. */
-const MEDIA_PLACEHOLDER = "[unsupported message type: media_placeholder]";
-
 /**
- * ¿El evento trae el archivo de un mensaje que quedó guardado como marcador?
- * Pasa en el historial de coexistencia, que manda el archivo en una segunda
- * entrega con el mismo id.
+ * Lo que hay que escribir cuando un evento repetido trae el archivo que a la
+ * fila guardada le falta, en cualquier canal. Null si no hay nada que
+ * completar: la fila ya tiene archivo o el evento tampoco lo trae.
+ *
+ * El texto guardado se conserva salvo que sea sólo el lugar del archivo (el
+ * marcador del historial de coexistencia, "[Imagen]", "[Audio]"…): un pie de
+ * foto o un mensaje son de la persona y no se pisan.
  */
-export function fillsMediaPlaceholder(
+export function missingMediaPatch(
+  channel: Channel,
   existing: { content_text?: string | null; media_url?: string | null },
-  event: Pick<InboundEvent, "attachments">,
-): boolean {
-  return Boolean(
-    event.attachments?.some((a) => a.url) &&
-      !existing.media_url &&
-      String(existing.content_text ?? "").startsWith(MEDIA_PLACEHOLDER),
-  );
+  event: Pick<InboundEvent, "attachments" | "text">,
+): Record<string, unknown> | null {
+  const attachments = event.attachments ?? [];
+  if (existing.media_url || !attachments.some((a) => a.url)) return null;
+  // Las columnas salen del primer adjunto CON archivo: si el primero de la
+  // lista no lo trae, la fila quedaría otra vez sin `media_url`.
+  const first = attachments.filter((a) => a.url);
+  const patch: Record<string, unknown> = {
+    ...mediaColumns(channel, first),
+    attachments,
+  };
+  const stored = String(existing.content_text ?? "").trim();
+  if (!stored || isMediaPlaceholderText(stored)) patch.content_text = event.text;
+  return patch;
 }
 
 /**

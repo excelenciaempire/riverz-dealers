@@ -7,6 +7,7 @@ import { verifyChannelWebhook } from "@/lib/channels/verify-webhook";
 import { getLogger } from "@/lib/log/logger";
 import { captureWebhookFailure } from "@/lib/webhooks/capture";
 import { journalWhatsappDelivery } from "@/lib/channels/whatsapp/journal";
+import { recordHistoryProgress } from "@/lib/channels/whatsapp/history-progress";
 import { handlePaymentNotification, isPaymentTopic } from "@/lib/mercadopago/notify";
 import { mirrorsMercadoLibreNotification } from "@/lib/channels/mercadolibre/apps";
 import type { Channel, ChannelConnection } from "@/types";
@@ -271,6 +272,12 @@ async function processChannelsWebhookAsync(
 
     const adapter = getAdapter(c);
     for (const route of routes) {
+      // Coexistencia: cuántas tandas del historial llegaron, hasta dónde y si
+      // Meta avisó que el comercio no lo comparte. Va ANTES del sello de push,
+      // que reescribe el config sin comparar: en paralelo pisaría la suma.
+      if (c === "whatsapp") {
+        await recordHistoryProgress(db, route.connection, route.payload);
+      }
       // Llegó por push: se anota para poder decidir con datos si el recorrido
       // periódico puede espaciarse.
       sellarEntregaPorPush(db, route.connection.id);

@@ -306,6 +306,10 @@ export const settings = {
     es: 'Renueva el permiso de este activo. Solo se conectará esta marca.',
     en: 'Renew permission for this asset. Only this brand will be connected.',
   },
+  whatsappEchoesMissing: {
+    es: 'Las respuestas que envías desde la app de WhatsApp Business no están llegando a Riverz. Vuelve a conectar el número.',
+    en: 'Replies you send from the WhatsApp Business app aren’t reaching Riverz. Reconnect the number.',
+  },
   metaAssetAccessNeedsRenewal: {
     es: 'Meta ya no puede acceder a {account}. Conserva los activos de este perfil en Meta; aquí solo se conecta esta marca.',
     en: 'Meta can no longer access {account}. Keep this profile’s assets in Meta; only this brand connects here.',

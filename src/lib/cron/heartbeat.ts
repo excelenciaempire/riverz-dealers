@@ -36,7 +36,8 @@ async function record(
   startedAt: Date,
   status: 'ok' | 'error',
   error: string | null,
-  runId: string | null
+  runId: string | null,
+  summary?: Record<string, unknown>
 ): Promise<void> {
   try {
     const payload = {
@@ -44,6 +45,7 @@ async function record(
       finished_at: new Date().toISOString(),
       duration_ms: Date.now() - startedAt.getTime(),
       error,
+      ...(summary ? { payload: summary } : {}),
     };
     if (runId) {
       await supabaseAdmin().from('cron_runs').update(payload).eq('id', runId);
@@ -111,6 +113,24 @@ function describe(err: unknown): string {
   return String(err).slice(0, 500);
 }
 
+/** Resúmenes que un handler adjuntó a su respuesta (ver `withCronPayload`). */
+const summaries = new WeakMap<Response, Record<string, unknown>>();
+
+/**
+ * Deja un resumen de la corrida en `cron_runs.payload` (columna de la 059).
+ * Sirve para lo que hay que poder mirar después sin rehacer la corrida: por
+ * ejemplo, qué campos tenía suscritos la app de Meta en ese momento. Va aparte
+ * del cuerpo de la respuesta a propósito: el handler elige qué se guarda, y
+ * nada de eso puede ser un secreto.
+ */
+export function withCronPayload(
+  response: Response,
+  summary: Record<string, unknown>
+): Response {
+  summaries.set(response, summary);
+  return response;
+}
+
 /**
  * Envuelve el handler de un cron para que su corrida quede registrada con
  * duración y resultado reales:
@@ -141,7 +161,14 @@ export function withCronRun(
     // mientras el trabajo avisaba de un hueco en cada corrida — así pasaron
     // seis días sin que nadie viera que Meta entregaba a un host muerto.
     const failed = !response.ok || response.status === 207;
-    await record(name, startedAt, failed ? 'error' : 'ok', failed ? await motivo(response) : null, runId);
+    await record(
+      name,
+      startedAt,
+      failed ? 'error' : 'ok',
+      failed ? await motivo(response) : null,
+      runId,
+      summaries.get(response)
+    );
     return response;
   };
 }

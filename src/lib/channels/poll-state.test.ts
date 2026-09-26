@@ -66,6 +66,17 @@ describe('poll recovery state', () => {
     expect(patches[1].config).toEqual({ token_expires_at: 'rotated', last_push_at: 'now', history_id: '123' });
   });
 
+  it('computes a function patch against the row that wins, so counters never lose a sum', async () => {
+    const { db, patches } = database([
+      { config: { history_chunks_received: 1 }, status: 'connected' },
+      { config: { history_chunks_received: 2 }, status: 'connected' },
+    ], [false, true]);
+    await savePollState(db, 'c', (current) => ({
+      history_chunks_received: Number(current.history_chunks_received ?? 0) + 1,
+    }), null, { complete: false });
+    expect(patches[1].config).toEqual({ history_chunks_received: 3 });
+  });
+
   it('does not reconnect a deliberately disconnected account', async () => {
     const { db, patches } = database([{ config: {}, status: 'disconnected' }]);
     await savePollState(db, 'c', {});

@@ -3,6 +3,7 @@ import type { ChannelConnection } from "@/types";
 import type { InboundEvent } from "../types";
 import { getAdapter } from "../registry";
 import { ingestInboundEvent } from "../inbox-writer";
+import { isMediaPlaceholderText } from "../display";
 
 /**
  * Diario de entregas de WhatsApp y su relectura (backfill).
@@ -22,8 +23,21 @@ export const WHATSAPP_JOURNAL_PROVIDER = "channels:whatsapp:journal";
 /** Lo que dejó `captureWebhookFailure` antes de que existiera el diario. */
 const FAILURE_PROVIDERS = ["channels:whatsapp", "channels:whatsapp:ingest"];
 
-/** Un cuerpo cortado no se puede volver a leer: no vale la pena guardarlo. */
+/**
+ * Tope de cada fila del diario. Un cuerpo más grande no se descarta: se parte
+ * en varias filas (`journalBodies`). Antes se descartaba, y el historial de
+ * coexistencia —el que más pesa y el que Meta manda una sola vez— era justo el
+ * que podía quedar sin copia si el proceso se reiniciaba después de acusar
+ * recibo.
+ */
 const MAX_BODY = 1_000_000;
+
+/**
+ * Un solo hilo del historial puede pasar el tope por su cuenta: se guarda en
+ * una fila propia hasta acá. La columna es TEXT y admite más; el límite real es
+ * la memoria de la relectura, que baja de a PAGE filas.
+ */
+const MAX_UNIT_BODY = 8_000_000;
 
 /** Filas por página: un cuerpo de historial puede pesar cientos de KB. */
 const PAGE = 50;
@@ -91,24 +105,124 @@ export function journalAccounts(payload: unknown): string[] {
 
 let journalWarned = false;
 
+/** Una pieza de una entrega partida: un cambio, o un hilo de un cambio de historial. */
+interface JournalUnit {
+  entryId?: string;
+  field?: string;
+  value: JournalValue;
+}
+
 /**
- * Anota la entrega para poder releerla. Una fila por número, ya procesada.
- * Nunca lanza: el diario no puede tumbar la entrada del mensaje.
+ * Parte en piezas lo que una entrega trae para ESTE número: cada cambio de
+ * mensajes o ecos entero, y el historial de a un hilo, con los metadatos de su
+ * tanda (fase, avance, errores) repetidos en cada pieza.
+ */
+function journalUnits(body: JournalBody, account: string): JournalUnit[] {
+  const units: JournalUnit[] = [];
+  for (const entry of body.entry ?? []) {
+    for (const change of entry?.changes ?? []) {
+      const value = change?.value;
+      if (!value || String(value.metadata?.phone_number_id ?? "") !== account) continue;
+      if (change.field === "history") {
+        const rest: JournalValue = { ...value };
+        delete rest.history;
+        for (const chunk of value.history ?? []) {
+          const { threads, ...chunkRest } = chunk ?? {};
+          // Una tanda sin hilos (por ejemplo, sólo el error de Meta) va entera.
+          const parts = threads?.length ? threads.map((thread) => [thread]) : [undefined];
+          for (const part of parts) {
+            units.push({
+              entryId: entry.id,
+              field: change.field,
+              value: { ...rest, history: [part ? { ...chunkRest, threads: part } : chunkRest] },
+            });
+          }
+        }
+      } else if (change.field === "messages" || change.field === "smb_message_echoes") {
+        units.push({ entryId: entry.id, field: change.field, value });
+      }
+    }
+  }
+  return units;
+}
+
+/** Arma un cuerpo con estas piezas, agrupadas por `entry` como las manda Meta. */
+function bodyOf(object: string | undefined, units: JournalUnit[]): string {
+  const entries: NonNullable<JournalBody["entry"]> = [];
+  for (const unit of units) {
+    let entry = entries[entries.length - 1];
+    if (!entry || entry.id !== unit.entryId) {
+      entry = { id: unit.entryId, changes: [] };
+      entries.push(entry);
+    }
+    entry.changes?.push({ field: unit.field, value: unit.value });
+  }
+  return JSON.stringify({ object, entry: entries });
+}
+
+/**
+ * Las filas del diario para una entrega: una por número. Un cuerpo que pasa el
+ * tope se parte en varias filas por número, cada una un JSON completo que la
+ * relectura procesa como cualquier otra entrega. Las partes no llevan firma:
+ * la de Meta es del cuerpo original. Sólo se pierde un hilo que por sí solo
+ * pase MAX_UNIT_BODY.
+ */
+export function journalBodies(
+  rawBody: string,
+  payload: unknown,
+): Array<{ account: string; body: string; signed: boolean }> {
+  const accounts = journalAccounts(payload);
+  if (rawBody.length <= MAX_BODY) {
+    return accounts.map((account) => ({ account, body: rawBody, signed: true }));
+  }
+  const body = payload as JournalBody;
+  const rows: Array<{ account: string; body: string; signed: boolean }> = [];
+  for (const account of accounts) {
+    let batch: JournalUnit[] = [];
+    let size = 0;
+    const flush = () => {
+      if (batch.length) rows.push({ account, body: bodyOf(body.object, batch), signed: false });
+      batch = [];
+      size = 0;
+    };
+    for (const unit of journalUnits(body, account)) {
+      // El envoltorio de cada pieza suma unos pocos bytes: el margen los cubre.
+      const unitSize = JSON.stringify(unit.value).length + 200;
+      if (unitSize > MAX_UNIT_BODY) {
+        console.warn("[whatsapp/journal] un hilo del historial excede el tope y no se anota", {
+          account,
+          size: unitSize,
+        });
+        continue;
+      }
+      if (size + unitSize > MAX_BODY) flush();
+      batch.push(unit);
+      size += unitSize;
+    }
+    flush();
+  }
+  return rows;
+}
+
+/**
+ * Anota la entrega para poder releerla. Una fila por número (o varias, si la
+ * entrega es enorme), ya procesada. Nunca lanza: el diario no puede tumbar la
+ * entrada del mensaje.
  */
 export async function journalWhatsappDelivery(
   db: SupabaseClient,
   args: { rawBody: string; payload: unknown; signature: string | null },
 ): Promise<void> {
-  const accounts = journalAccounts(args.payload);
-  if (accounts.length === 0 || args.rawBody.length > MAX_BODY) return;
   const now = new Date().toISOString();
   try {
+    const rows = journalBodies(args.rawBody, args.payload);
+    if (rows.length === 0) return;
     const { error } = await db.from("webhook_events_raw").insert(
-      accounts.map((account_id) => ({
+      rows.map(({ account, body, signed }) => ({
         provider: WHATSAPP_JOURNAL_PROVIDER,
-        raw_body: args.rawBody,
-        signature: args.signature,
-        account_id,
+        raw_body: body,
+        signature: signed ? args.signature : null,
+        account_id: account,
         processed_at: now,
       })),
     );
@@ -209,6 +323,11 @@ function itemIds(body: JournalBody): string[] {
  * Los ids que ya están en la cuenta, en cualquier conversación. El mismo
  * criterio que la idempotencia de `ingestInboundEvent`, adelantado para no
  * volver a bajar la media de algo que ya está guardado.
+ *
+ * Una fila que todavía espera su archivo —el marcador del historial de
+ * coexistencia o un "[Imagen]" cuya descarga falló, sin `media_url`— NO cuenta
+ * como guardada: si la saltáramos, la entrega que trae el archivo nunca
+ * llegaría a `ingestInboundEvent`, que es quien completa la fila.
  */
 async function knownMessageIds(
   db: SupabaseClient,
@@ -220,15 +339,26 @@ async function knownMessageIds(
   for (let i = 0; i < unique.length; i += ID_CHUNK) {
     const { data, error } = await db
       .from("messages")
-      .select("message_id, conversations!inner(workspace_id)")
+      .select("message_id, content_text, media_url, conversations!inner(workspace_id)")
       .in("message_id", unique.slice(i, i + ID_CHUNK))
       .eq("conversations.workspace_id", workspaceId);
     if (error) throw new Error(`message lookup: ${error.code ?? error.message}`);
-    for (const row of (data ?? []) as Array<{ message_id?: string | null }>) {
-      if (row.message_id) known.add(row.message_id);
+    for (const row of (data ?? []) as Array<{
+      message_id?: string | null;
+      content_text?: string | null;
+      media_url?: string | null;
+    }>) {
+      if (!row.message_id) continue;
+      if (!row.media_url && isMediaPlaceholderText(row.content_text)) continue;
+      known.add(row.message_id);
     }
   }
   return known;
+}
+
+/** El evento quedó sin su archivo: otra entrega con el mismo id puede traerlo. */
+function stillMissingMedia(event: InboundEvent): boolean {
+  return !event.attachments?.some((a) => a.url) && isMediaPlaceholderText(event.text);
 }
 
 /**
@@ -429,6 +559,11 @@ export async function backfillWhatsappConnection(
         if (saved) ingested++;
       } catch (err) {
         fail(err);
+      }
+      // El historial manda el archivo en OTRA entrega con el mismo id. Si esta
+      // trajo sólo el marcador, el id queda abierto para la que lo trae.
+      if (event.externalMessageId && stillMissingMedia(event)) {
+        handled.delete(event.externalMessageId);
       }
     }
   });

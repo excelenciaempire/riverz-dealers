@@ -19,13 +19,17 @@ vi.mock("../registry", () => ({
     parseWebhook: vi.fn(async (ctx: { payload: unknown }) => {
       parsed.push(ctx.payload);
       const body = ctx.payload as {
-        entry: Array<{ changes: Array<{ value: { messages?: Array<{ id: string }> } }> }>;
+        entry: Array<{
+          changes: Array<{ value: { messages?: Array<{ id: string; body?: string; files?: unknown[] }> } }>;
+        }>;
       };
       return body.entry.flatMap((entry) =>
         entry.changes.flatMap((change) =>
           (change.value.messages ?? []).map((m) => ({
             channel: "whatsapp",
             externalMessageId: m.id,
+            text: m.body,
+            attachments: m.files,
             receivedAt: new Date().toISOString(),
           })),
         ),
@@ -38,6 +42,7 @@ import {
   WHATSAPP_JOURNAL_PROVIDER,
   backfillWhatsappConnection,
   journalAccounts,
+  journalBodies,
   journalWhatsappDelivery,
   replayablePayload,
 } from "./journal";
@@ -182,6 +187,88 @@ describe("journalWhatsappDelivery", () => {
     await expect(
       journalWhatsappDelivery(db, { rawBody: "{}", payload, signature: null }),
     ).resolves.toBeUndefined();
+  });
+
+  it("un historial de más de 1 MB se anota partido, sin la firma del original", async () => {
+    const { db, calls } = fakeDb(() => ({ error: null }));
+    const payload = bigHistory();
+    const rawBody = JSON.stringify(payload);
+    expect(rawBody.length).toBeGreaterThan(1_000_000);
+
+    await journalWhatsappDelivery(db, { rawBody, payload, signature: "sha256=x" });
+
+    const rows = calls[0].insert as Array<{ raw_body: string; signature: string | null; account_id: string }>;
+    expect(rows.length).toBeGreaterThan(1);
+    expect(rows.every((r) => r.signature === null && r.account_id === PHONE)).toBe(true);
+    expect(rows.every((r) => r.raw_body.length <= 1_000_000)).toBe(true);
+  });
+});
+
+/** Un historial de tres hilos de ~400 KB cada uno, con los datos de su tanda. */
+function bigHistory(): Body {
+  const filler = "x".repeat(400_000);
+  const thread = (id: string) => ({
+    id,
+    messages: [{ id: `${id}-m`, type: "text", timestamp: seconds(0), text: { body: filler } }],
+  });
+  return delivery([
+    {
+      field: "history",
+      value: {
+        metadata: { phone_number_id: PHONE, display_phone_number: "5491100000000" },
+        history: [
+          {
+            metadata: { phase: 1, chunk_order: 3, progress: 40 },
+            threads: [thread("5491111111111"), thread("5491122222222"), thread("5491133333333")],
+          },
+        ],
+      },
+    },
+  ]);
+}
+
+describe("journalBodies", () => {
+  it("una entrega normal va entera, una fila por número", () => {
+    const payload = delivery([messagesChange(PHONE, [{ id: "a", type: "text" }])]);
+    const rawBody = JSON.stringify(payload);
+    expect(journalBodies(rawBody, payload)).toEqual([{ account: PHONE, body: rawBody, signed: true }]);
+  });
+
+  it("parte el historial por hilo sin perder ninguno ni los datos de la tanda", () => {
+    const payload = bigHistory();
+    const parts = journalBodies(JSON.stringify(payload), payload);
+    expect(parts.length).toBe(2);
+
+    const threads = parts.flatMap(({ body }) => {
+      const out = replayablePayload(JSON.parse(body) as Body, PHONE, () => true);
+      return (out?.entry?.[0].changes ?? []).flatMap((change) => {
+        expect(change.field).toBe("history");
+        expect(change.value?.metadata?.phone_number_id).toBe(PHONE);
+        return (change.value?.history ?? []).flatMap((chunk) => {
+          expect((chunk as { metadata?: unknown }).metadata).toEqual({ phase: 1, chunk_order: 3, progress: 40 });
+          return (chunk.threads ?? []).map((t) => t.id);
+        });
+      });
+    });
+    expect(threads).toEqual(["5491111111111", "5491122222222", "5491133333333"]);
+  });
+
+  it("una tanda sin hilos (el error de Meta) también queda anotada", () => {
+    const filler = "y".repeat(1_100_000);
+    const payload = delivery([
+      {
+        field: "history",
+        value: {
+          metadata: { phone_number_id: PHONE },
+          history: [{ errors: [{ code: 2593109, title: "History sync is turned off" }] }],
+        },
+      },
+      messagesChange(PHONE, [{ id: "big", type: "text", text: { body: filler } }]),
+    ]);
+    const parts = journalBodies(JSON.stringify(payload), payload);
+    const bodies = parts.map((p) => JSON.parse(p.body) as Body);
+    const fields = bodies.flatMap((b) => b.entry?.flatMap((e) => e.changes?.map((c) => c.field) ?? []) ?? []);
+    expect(fields).toEqual(["history", "messages"]);
   });
 });
 
@@ -362,6 +449,47 @@ describe("backfillWhatsappConnection", () => {
     expect(result).toEqual({ ingested: 1 });
     expect(parsed).toHaveLength(1);
     expect(ingested.map((e) => e.externalMessageId)).toEqual(["dup"]);
+  });
+
+  it("relee la entrega con el archivo de una fila que quedó como marcador", async () => {
+    const PLACEHOLDER = "[unsupported message type: media_placeholder]";
+    const file = { url: "https://storage/f.jpg", mime_type: "image/jpeg" };
+    const rows = [
+      JSON.stringify(delivery([messagesChange(PHONE, [{ ...msg("h-1", "ana", 3), body: PLACEHOLDER }])])),
+      JSON.stringify(
+        delivery([
+          messagesChange(PHONE, [
+            { ...msg("h-1", "ana", 3, "image"), body: "[Imagen]", files: [file] },
+            { ...msg("ok-1", "ana", 2), body: "hola" },
+          ]),
+        ]),
+      ),
+    ];
+    const { db } = fakeDb((call) => {
+      if (call.table === "messages" && has(call, "in", "message_id")) {
+        return {
+          data: [
+            { message_id: "h-1", content_text: PLACEHOLDER, media_url: null },
+            { message_id: "ok-1", content_text: "hola", media_url: null },
+          ],
+          error: null,
+        };
+      }
+      const bandeja = inbox(call);
+      if (bandeja) return bandeja;
+      if (has(call, "eq", "provider", WHATSAPP_JOURNAL_PROVIDER)) {
+        return { data: rows.map((raw_body, i) => ({ id: `r${i}`, raw_body })), error: null };
+      }
+      return { data: [], error: null };
+    });
+
+    await backfillWhatsappConnection(db, connection, window);
+
+    // La fila con el marcador no cuenta como guardada y el marcador no cierra
+    // el id: la entrega con el archivo llega a la bandeja, que completa la
+    // fila. La que ya estaba completa no se relee.
+    expect(ingested.map((e) => e.externalMessageId)).toEqual(["h-1", "h-1"]);
+    expect(ingested[1].attachments).toEqual([file]);
   });
 
   it("no hace nada sin phone_number_id", async () => {
