@@ -116,3 +116,45 @@ export async function ensureCoexistenceHistorySync(
     token,
   });
 }
+
+/**
+ * Lo que Meta dice del número y de la cuenta, para diagnosticar una
+ * coexistencia a medias (ni historial ni ecos): si el número sigue en la app
+ * del celular (`is_on_biz_app`), su plataforma y qué apps están suscritas a la
+ * cuenta. Va al payload del cron de suscripciones. Nunca lanza.
+ */
+export async function diagnosticoCoexistencia(
+  connection: ChannelConnection,
+): Promise<Record<string, unknown> | null> {
+  const cfg = (connection.config ?? {}) as Record<string, unknown>;
+  if (cfg.coexistence !== true) return null;
+  const encrypted = String((connection.secrets as Record<string, unknown> | null)?.access_token ?? "");
+  const phoneNumberId = String(cfg.phone_number_id ?? connection.external_account_id ?? "");
+  const wabaId = String(cfg.waba_id ?? "");
+  if (!encrypted || !phoneNumberId) return null;
+  let token: string;
+  try {
+    token = decrypt(encrypted);
+  } catch {
+    return { error: "token" };
+  }
+  const leer = async (url: string) => {
+    try {
+      const res = await fetch(withAppsecretProof(url, token), {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      const text = await res.text();
+      return { status: res.status, body: text.slice(0, 800) };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  };
+  return {
+    id: connection.id,
+    numero: await leer(
+      `${GRAPH}/${phoneNumberId}?fields=is_on_biz_app,platform_type,status,code_verification_status,quality_rating,verified_name,throughput`,
+    ),
+    apps: wabaId ? await leer(`${GRAPH}/${wabaId}/subscribed_apps`) : null,
+  };
+}

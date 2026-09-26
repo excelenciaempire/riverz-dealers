@@ -30,6 +30,7 @@ import {
   persistWhatsAppHealthSnapshot,
 } from "@/lib/whatsapp/account-health";
 import {
+  diagnosticoCoexistencia,
   ensureCoexistenceHistorySync,
   historyWebhookLive,
 } from "@/lib/channels/whatsapp/history-sync";
@@ -408,6 +409,14 @@ async function cronHandler(request: Request) {
   // cuando faltan los ecos del teléfono del comercio.
   const whatsappSubscription = whatsappSubscriptionSnapshot(liveSubs);
 
+  // Qué dice Meta del número de cada coexistencia (¿sigue en la app del
+  // celular?), para diagnosticar cuando no llegan ni el historial ni los ecos.
+  const coexistencia: Array<Record<string, unknown>> = [];
+  for (const c of (waConns ?? []) as ChannelConnection[]) {
+    const d = await diagnosticoCoexistencia(c);
+    if (d) coexistencia.push(d);
+  }
+
   // Flip the Render cron red (207) ONLY on a CONFIRMED gap, so a transient
   // verify failure doesn't cry wolf. Matches the gmail/outlook polls' use of
   // 207 for partial failure. A confirmed app-level gap is also a 207 — it's the
@@ -433,10 +442,11 @@ async function cronHandler(request: Request) {
         whatsappSubscription,
         echoAlarms,
         historyReplays,
+        coexistencia,
       },
       { status: anyMissing || anyAppGap ? 207 : 200 },
     ),
-    { whatsappSubscription, echoAlarms, historyReplays },
+    { whatsappSubscription, echoAlarms, historyReplays, coexistencia },
   );
 }
 
