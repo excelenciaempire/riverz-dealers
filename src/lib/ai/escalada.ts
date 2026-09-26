@@ -112,6 +112,16 @@ const SEÑALES: Señal[] = [
       /(?<![\wáéíóúñ])dos veces(?![\wáéíóúñ])[^.!?]{0,20}(?<![\wáéíóúñ])(cobr|debit)/i,
       /(?<![\wáéíóúñ])no reconozco(?![\wáéíóúñ])[^.!?]{0,20}(?<![\wáéíóúñ])(cobro|cargo|compra)(?![\wáéíóúñ])/i,
       /(?<![\wáéíóúñ])desconoc(er|í|i|e) (el|ese) (cobro|cargo)(?![\wáéíóúñ])/i,
+    ],
+  },
+  {
+    // No es un reclamo: pagó por fuera de la tienda y alguien tiene que ver
+    // el comprobante. Con el rótulo del reclamo, el equipo leía un problema
+    // donde había una venta.
+    clase: 'cobro',
+    urgencia: 'ahora',
+    porQue: 'Avisa que pagó o manda el comprobante: validar el pago',
+    patrones: [
       /(?<![\wáéíóúñ])comprobante(?![\wáéíóúñ])/i,
       /(?<![\wáéíóúñ])(ya\s+)?(pagu[ée]|pagamos|pagaron|hice\s+el\s+pago)(?![\wáéíóúñ])[^.!?]{0,40}(?<![\wáéíóúñ])(bancolombia|nequi|llave|bold|addi)(?![\wáéíóúñ])/i,
       /(?<![\wáéíóúñ])(bancolombia|nequi|llave|bold|addi)(?![\wáéíóúñ])[^.!?]{0,40}(?<![\wáéíóúñ])(no\s+(figura|aparece|pas[óo])|rechaz[óo]|fall[óo]|cobr[óo]\s+(doble|de\s+m[áa]s))(?![\wáéíóúñ])/i,
