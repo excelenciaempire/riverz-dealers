@@ -3877,7 +3877,33 @@ function StepEditor({
                     </option>
                   ))}
                 </select>
-              ) : (
+              ) : null}
+              {/* Queda configurada aunque Meta no la haya aprobado: el paso ya
+                  está armado y sale en cuanto la aprueben. Sólo se avisa. */}
+              {(() => {
+                const elegida = templates.find((tp) => tp.name === cfg.template_name);
+                const estado = String(elegida?.status ?? '').toLowerCase();
+                if (!elegida || estado === 'approved') return null;
+                const clave =
+                  estado === 'rejected'
+                    ? 'templates.statusRejected'
+                    : estado === 'draft'
+                      ? 'templates.statusDraft'
+                      : 'templates.statusPending';
+                return (
+                  <span
+                    className={cn(
+                      'mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium',
+                      estado === 'rejected'
+                        ? 'bg-destructive/10 text-destructive'
+                        : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                    )}
+                  >
+                    {t(clave)}
+                  </span>
+                );
+              })()}
+              {templates.length > 0 ? null : (
                 <p className="border-border bg-muted/40 text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs">
                   {t('automations.noApprovedTemplates')}{' '}
                   <Link

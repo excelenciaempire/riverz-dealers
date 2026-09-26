@@ -57,7 +57,9 @@ export function UnlockForm({ configured }: { configured: boolean }) {
       });
       if (!res.ok) {
         const json = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(json?.error ?? t('admin.unlockFailed'));
+        // 404 = la sesión ya no es de un admin del equipo: se cambió de cuenta
+        // en otra pestaña (la sesión se comparte entre riverz.co y este panel).
+        setError(res.status === 404 ? t('admin.unlockSesionCambio') : (json?.error ?? t('admin.unlockFailed')));
         return;
       }
       window.location.reload();
