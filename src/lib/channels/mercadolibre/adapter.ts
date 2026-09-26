@@ -586,7 +586,16 @@ export async function getFreshMLToken(connection: ChannelConnection): Promise<st
   }
 
   const refreshEnc = String(secrets.refresh_token ?? "");
-  if (!refreshEnc) throw new Error("[mercadolibre] connection missing refresh_token");
+  if (!refreshEnc) {
+    // Sin refresh_token la conexión no se puede renovar sola: la cuenta vence
+    // a las 6 horas y queda muda. Se marca para que Integraciones pida
+    // reconectar, en vez de seguir figurando "conectada" sin traer nada.
+    await admin
+      .from("channel_connections")
+      .update({ status: "error", last_error: "ML sin refresh_token: hay que reconectar Mercado Libre" })
+      .eq("id", connection.id);
+    throw new Error("[mercadolibre] connection missing refresh_token");
+  }
   // Only the app that issued the refresh_token can redeem it.
   const app = mercadoLibreAppFor(config.app_id);
   const res = await fetch(`${ML}/oauth/token`, {

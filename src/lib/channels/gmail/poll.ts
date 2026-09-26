@@ -47,9 +47,15 @@ const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const CONNECTION_CONCURRENCY = 3;
 const DIA_MS = 86_400_000;
 /** Ids por corrida del recorrido en vivo. */
-const TOPE_EN_VIVO = 250;
+const TOPE_EN_VIVO = 100;
 /** Ids por corrida del historial: se suma al vivo, así que va más corto. */
-const TOPE_HISTORIAL = 100;
+const TOPE_HISTORIAL = 40;
+/**
+ * Cuánto se deja descansar un buzón que agotó la cuota de Gmail. Sin pausa, la
+ * corrida siguiente (2 minutos después) volvía a gastar la cuota que se estaba
+ * recuperando y el buzón quedaba trabado: 72 corridas seguidas fallando.
+ */
+const PAUSA_POR_CUOTA_MS = 10 * 60_000;
 
 /** Lo que no es una conversación con un cliente. */
 export const FILTRO_DE_CONVERSACIONES = "-in:spam -in:trash -in:draft -in:chats";
@@ -82,11 +88,29 @@ export async function pollAllGmailConnections(): Promise<PollSummary[]> {
     const email = String(
       (c.config ?? {}).email ?? c.external_account_id ?? c.label ?? "",
     );
+    const pausa = Date.parse(String((c.config ?? {}).gmail_pausa_hasta ?? ''));
+    if (Number.isFinite(pausa) && pausa > Date.now()) {
+      return { connectionId: c.id, email, ingested: 0 };
+    }
     try {
       const ingested = await pollOne(admin, c);
       return { connectionId: c.id, email, ingested };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      if (err instanceof FallaTransitoria && err.status === 429) {
+        // Cuota agotada: se pausa el buzón y no se cuenta como caída.
+        const { data: fila } = await admin.from("channel_connections").select("config").eq("id", c.id).maybeSingle();
+        await admin
+          .from("channel_connections")
+          .update({
+            config: {
+              ...((fila?.config ?? {}) as Record<string, unknown>),
+              gmail_pausa_hasta: new Date(Date.now() + PAUSA_POR_CUOTA_MS).toISOString(),
+            },
+          })
+          .eq("id", c.id);
+        return { connectionId: c.id, email, ingested: 0 };
+      }
       await admin
         .from("channel_connections")
         .update({ last_error: msg.slice(0, 500) })

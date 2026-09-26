@@ -20,6 +20,11 @@ export class FallaTransitoria extends Error {
   }
 }
 
+/** El 403 de Google cuando lo que se agotó es la cuota, no el permiso. */
+export function esCuotaAgotada(detalle: string): boolean {
+  return /quota exceeded|ratelimitexceeded|userratelimitexceeded|rate limit/i.test(detalle);
+}
+
 /** 429 y 5xx: el proveedor va a contestar si se le vuelve a preguntar. */
 export function esEstadoTransitorio(status: number): boolean {
   return status === 429 || status >= 500;
@@ -45,6 +50,14 @@ export async function pedirAlProveedor(
   if (esEstadoTransitorio(res.status)) {
     const detalle = await res.text().catch(() => '');
     throw new FallaTransitoria(`${contexto} ${res.status}: ${detalle.slice(0, 300)}`, res.status);
+  }
+  // Gmail avisa la cuota agotada con un 403 ("Quota exceeded", "rate limit"),
+  // no con un 429: es un "ahora no", no un permiso que falta.
+  if (res.status === 403) {
+    const detalle = await res.clone().text().catch(() => '');
+    if (esCuotaAgotada(detalle)) {
+      throw new FallaTransitoria(`${contexto} 403: ${detalle.slice(0, 300)}`, 429);
+    }
   }
   return res;
 }
