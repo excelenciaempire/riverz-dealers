@@ -1,4 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { instruccionDeTraspaso } from '@/lib/ai/escalada';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from '@/lib/ai/esfuerzo';
 import { untrustedContext } from '@/lib/ai/input-security';
 import { recortarSalida, salidaParaCliente } from '@/lib/ai/salida';
@@ -99,6 +100,8 @@ export async function simularRespuesta(
     superficie?: 'comentario';
     /** Lo que producción averigua antes de componer (crítica, producto, hilo). */
     extraBrief?: string | null;
+    /** El triaje vio un problema: verifica, contesta y pasa a una persona (`instruccionDeTraspaso`). */
+    traspaso?: string | null;
   }
 ): Promise<RespuestaSimulada> {
   const resolvedKey = await resolveAnthropicKey(admin, {
@@ -221,6 +224,7 @@ export async function simularRespuesta(
     system +=
       '\n\n## Prueba\nEl pedido de este contexto es de ejemplo y no está en la tienda. No lo busques con herramientas: contesta con los datos del contexto como si la búsqueda los hubiera devuelto.';
   }
+  if (!comentario && input.traspaso) system += '\n\n' + instruccionDeTraspaso(input.traspaso);
   if (comentario && input.extraBrief?.trim()) {
     system += `\n\n${untrustedContext('conversation_brief', input.extraBrief.trim())}`;
   }

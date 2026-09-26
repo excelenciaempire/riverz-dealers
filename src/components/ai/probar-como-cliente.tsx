@@ -133,6 +133,7 @@ export function ProbarComoCliente({
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
   const [agenteAsignado, setAgenteAsignado] = useState<Agente>(null);
   const [agenteActual, setAgenteActual] = useState<Agente>(null);
+  const [derivada, setDerivada] = useState(false);
   /** Lo que la automatización deja en la conversación; el asistente lo lee. */
   const [contexto, setContexto] = useState<Record<string, unknown> | null>(null);
   const [historial, setHistorial] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
@@ -299,6 +300,7 @@ export function ProbarComoCliente({
     setAgenteActual(null);
     setContexto(null);
     setHistorial([]);
+    setDerivada(false);
   }
 
   async function revisar() {
@@ -425,6 +427,16 @@ export function ProbarComoCliente({
   async function enviar(textoCrudo?: string) {
     const texto = (textoCrudo ?? mensaje).trim();
     if (!texto || enviando) return;
+    // Como en vivo: después del traspaso el asistente ya no contesta.
+    if (derivada) {
+      setItems((prev) => [
+        ...prev,
+        { k: 'me', texto, hora: ahora() },
+        { k: 'sys', icono: 'persona', texto: t('assistant.probarLaSiguePersona') },
+      ]);
+      setMensaje('');
+      return;
+    }
     if (!iniciado) setIniciado(true);
     if (!sesionId) setSesionId(nuevoId());
     // Responder frena los recordatorios que se detienen al recibir respuesta.
@@ -518,7 +530,11 @@ export function ProbarComoCliente({
         ...prev.filter((i) => i.k !== 'typing'),
         ...chunks.map((c, i): Item => ({ k: 'biz', texto: c, botones: [], hora: ahora(), opinable: i === chunks.length - 1 })),
         ...(chunks.length === 0 ? [{ k: 'sys', texto: sinRespuesta } as Item] : []),
+        ...(json.traspaso
+          ? [{ k: 'sys', icono: 'persona', texto: t('assistant.probarTraspaso', { motivo: String(json.traspaso) }) } as Item]
+          : []),
       ]);
+      if (json.traspaso) setDerivada(true);
       setHistorial((prev) => [...prev, { role: 'user', content: texto }, ...(chunks.length ? [{ role: 'assistant' as const, content: chunks.join('\n') }] : [])]);
       if (agente) setAgenteActual(agente);
     } catch (err) {

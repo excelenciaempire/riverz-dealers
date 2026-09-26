@@ -303,6 +303,7 @@ async function probar(request: Request) {
     apagado: agent.is_active === false,
   };
 
+  let traspaso: string | null = null;
   if (channel !== 'webchat') {
     if (esRespuestaAutomatica(message)) {
       return NextResponse.json({ agente: quien, motivo, ...barrera('respuesta_automatica') });
@@ -318,13 +319,12 @@ async function probar(request: Request) {
       workspaceId,
       agentKeyEncrypted: agent.api_key_encrypted,
     }).catch(() => null);
-    if (escalada) {
-      return NextResponse.json({
-        agente: quien,
-        motivo,
-        ...barrera(escalada.clase === 'pide_persona' ? 'escalation_keyword' : 'problema_detectado', escalada.porQue),
-      });
+    // Como en vivo: pedir una persona corta ahí; un problema se verifica,
+    // se contesta y después pasa al equipo (`instruccionDeTraspaso`).
+    if (escalada?.clase === 'pide_persona') {
+      return NextResponse.json({ agente: quien, motivo, ...barrera('escalation_keyword', escalada.porQue) });
     }
+    traspaso = escalada?.porQue ?? null;
     const tope = agent.escalate_after_messages ?? 0;
     const respondidas = historial.filter((t) => t.role === 'assistant').length;
     if (tope > 0 && respondidas >= tope) {
@@ -342,6 +342,7 @@ async function probar(request: Request) {
       simulatedPhone,
       simulatedChannel: channel,
       automationContext,
+      traspaso,
     });
     // En vivo esa respuesta no sale y la conversación pasa a una persona.
     if (bloqueo) {
@@ -352,7 +353,7 @@ async function probar(request: Request) {
         herramientas: result.herramientas,
       });
     }
-    return NextResponse.json({ agente: quien, motivo, ...result });
+    return NextResponse.json({ agente: quien, motivo, ...result, ...(traspaso ? { traspaso } : {}) });
   } catch (err) {
     if (err instanceof SinClaveError) {
       return NextResponse.json(

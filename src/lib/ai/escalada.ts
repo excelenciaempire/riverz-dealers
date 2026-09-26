@@ -619,3 +619,24 @@ export async function detectarEscalada(
   if (!conversacionCargada) return null;
   return clasificar(ctx);
 }
+
+/**
+ * Lo que el asistente hace en el turno en que el triaje vio un problema.
+ *
+ * Antes la IA se callaba y la conversación pasaba a una persona sin mirar
+ * nada: al que escribía "no me llegó" nadie le buscaba el pedido, y el
+ * comprobante que mandó nadie lo leía hasta que alguien abría la bandeja.
+ * Ahora verifica con lo que tiene, contesta lo que encontró y avisa que sigue
+ * una persona. La conversación pasa al equipo igual: este turno es el último.
+ */
+export function instruccionDeTraspaso(porQue: string): string {
+  return [
+    '## Este caso pasa a una persona del equipo',
+    `El triaje vio: ${porQue}. Después de esta respuesta la conversación la sigue una persona del equipo; tú no vuelves a contestar.`,
+    'Antes de responder, verifica con tus herramientas todo lo que puedas:',
+    '- Si hay un pedido (lo menciona, hay número, teléfono o correo), búscalo con lookup_order y mira su estado, pago, guía y seguimiento.',
+    '- Si mandó fotos, capturas, comprobantes o PDF, míralos y di en concreto qué ves (monto, fecha, estado del envío, daño).',
+    '- Si falta un dato para que la persona del equipo lo resuelva rápido (número de pedido, foto, comprobante), pídelo en esta misma respuesta.',
+    'Contesta con lo que encontraste, en concreto y con calma, y avisa que una persona del equipo lo sigue ahora por este mismo chat. No prometas reembolsos, reenvíos, cambios ni plazos: eso lo decide el equipo. Si es un tema legal, no discutas el fondo.',
+  ].join('\n');
+}

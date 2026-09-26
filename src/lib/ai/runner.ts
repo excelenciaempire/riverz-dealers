@@ -95,7 +95,7 @@ import {
 import { herramientaDeBusqueda, REGLAS_DE_BUSQUEDA } from './busqueda-web';
 import { aplicarDesenlace } from './desenlace';
 import { sinRespuestaNecesaria } from './sin-respuesta-necesaria';
-import { detectarEscalada, type Escalada } from './escalada';
+import { detectarEscalada, instruccionDeTraspaso, type Escalada } from './escalada';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
 import { appendBusinessScopeGuardrails } from './guardrails';
@@ -450,7 +450,20 @@ export async function runAiAgent(
             workspaceId: args.workspaceId,
             agentKeyEncrypted: agent.api_key_encrypted,
           }).catch(() => null);
-    if (escalada) {
+    // Un problema real (no "quiero hablar con alguien") ya no se escala a
+    // ciegas: primero se verifica con las herramientas —el pedido en la tienda,
+    // los archivos que mandó— y se le contesta lo que se encontró; después la
+    // conversación pasa a una persona. Se marca YA, para que ningún corte de
+    // más abajo deje el caso sin escalar, y este turno se deja salir igual.
+    let turnoDeTraspaso: string | null = null;
+    if (escalada && escalada.clase !== 'pide_persona') {
+      await flagNeedsHuman(db, args.conversation, 'problema_detectado', {
+        pidio: textoEntrante,
+        porQue: escalada.porQue,
+      });
+      await avisarDelCaso(db, args, escalada);
+      turnoDeTraspaso = escalada.porQue;
+    } else if (escalada) {
       // Sólo `pide_persona` conserva `escalation_keyword`: ese motivo dice "el
       // cliente pidió hablar con alguien" y la bandeja lo imprime literal. Todo
       // lo demás que ve el triaje —un envío mal, un producto distinto, un
@@ -818,7 +831,7 @@ export async function runAiAgent(
         if (fresh.error) throw fresh.error;
         const nowSkip = fresh.data && shouldSkip(agent, {
           ...args,
-          conversation: { ...args.conversation, ...fresh.data } as Conversation,
+          conversation: { ...args.conversation, ...fresh.data, ...(turnoDeTraspaso ? { ai_enabled: true } : {}) } as Conversation,
         });
         if (nowSkip) {
           await logReply(db, agent, args, { status: 'skipped', skip_reason: nowSkip });
@@ -972,6 +985,7 @@ export async function runAiAgent(
           conversationId: args.conversation.id,
           channel: args.channel,
           inboundText: args.inboundMessage.content_text ?? '',
+          traspaso: turnoDeTraspaso,
         },
         { priceQuestion, priceVerified },
         automationContext
@@ -1129,7 +1143,9 @@ export async function runAiAgent(
     //
     // El detector es angosto a propósito (ver `prometeAveriguar`): un falso
     // positivo silencia una respuesta buena, así que ante la duda se contesta.
-    if (prometeAveriguar(replyText)) {
+    // En el turno de traspaso "lo sigue una persona del equipo" es lo que se
+    // pidió decir, y el caso ya está escalado: no es un hueco.
+    if (!turnoDeTraspaso && prometeAveriguar(replyText)) {
       // El hueco de conocimiento, anotado. La herramienta para hacerlo existe
       // y el prompt se la pide, pero el modelo no la llamó: en todo el
       // historial hay UN solo hueco registrado. Acá se anota igual, que es la
@@ -1216,7 +1232,7 @@ export async function runAiAgent(
       };
       const nowSkip = shouldSkip(agent, {
         ...args,
-        conversation: { ...args.conversation, ...fresh } as Conversation,
+        conversation: { ...args.conversation, ...fresh, ...(turnoDeTraspaso ? { ai_enabled: true } : {}) } as Conversation,
       });
       if (nowSkip) {
         await logReply(db, agent, args, {
@@ -1296,7 +1312,7 @@ export async function runAiAgent(
       const current = await db.from('conversations').select('ai_enabled,assigned_agent_id,status').eq('id', args.conversation.id).maybeSingle();
       if (current.error) throw current.error;
       if (!current.data || current.data.assigned_agent_id !== freshConv?.assigned_agent_id) return false;
-      const reason = shouldSkip(agent, { ...args, conversation: { ...args.conversation, ...current.data } as Conversation });
+      const reason = shouldSkip(agent, { ...args, conversation: { ...args.conversation, ...current.data, ...(turnoDeTraspaso ? { ai_enabled: true } : {}) } as Conversation });
       if (reason) await logReply(db, agent, args, { status: 'skipped', skip_reason: reason });
       return !reason;
     };
@@ -3167,7 +3183,13 @@ async function generateReply(
   db: SupabaseClient,
   /** De dónde viene este turno. Lo necesitan las herramientas que dejan algo
    *  anotado —un pedido, una devolución— para poder atribuirlo. */
-  origen: { conversationId: string; channel: Channel; inboundText: string },
+  origen: {
+    conversationId: string;
+    channel: Channel;
+    inboundText: string;
+    /** El triaje vio un problema: este turno verifica, contesta y pasa a una persona. */
+    traspaso?: string | null;
+  },
   priceIntegrity: { priceQuestion: boolean; priceVerified: boolean },
   recoveryContext: Record<string, unknown> | null
 ): Promise<ReplyResult> {
@@ -3278,6 +3300,7 @@ async function generateReply(
   );
   system += bloquesDeEntrega(agent, recoveryContext, origen.channel);
   system += '\n\n' + ORDER_CONVERSATION_POLICY + '\n\n' + ORDER_OPERATION_POLICY;
+  if (origen.traspaso) system += '\n\n' + instruccionDeTraspaso(origen.traspaso);
   const handoffContext = recoveryContext?.retention_handoff ? null : recoveryContext;
 
   const messages = normalizarLimitesDeConversacion(context.messages, {

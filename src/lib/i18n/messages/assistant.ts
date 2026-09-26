@@ -704,6 +704,11 @@ export const assistant = {
   },
   probarEnLinea: { es: "en línea", en: "online" },
   probarPasaron: { es: "Pasaron {n} {unit}", en: "{n} {unit} went by" },
+  probarTraspaso: { es: "Pasa a una persona del equipo: {motivo}", en: "Handed to a team member: {motivo}" },
+  probarLaSiguePersona: {
+    es: "La sigue una persona del equipo: el asistente ya no contesta",
+    en: "A team member takes it from here: the assistant no longer replies",
+  },
   probarSegundo: { es: "segundo", en: "second" },
   probarSegundos: { es: "segundos", en: "seconds" },
   probarMinuto: { es: "minuto", en: "minute" },
