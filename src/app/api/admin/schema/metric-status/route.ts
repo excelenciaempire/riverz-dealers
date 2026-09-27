@@ -27,10 +27,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'supabase_management_not_configured' }, { status: 503 });
   }
 
-  const query = await readFile(
-    join(process.cwd(), 'supabase', 'migrations', '293_admin_metric_status_accuracy.sql'),
-    'utf8',
-  );
+  const migrations = [
+    '293_admin_metric_status_accuracy.sql',
+    '294_reconcile_historical_webhook_recovery.sql',
+  ];
+  const query = (
+    await Promise.all(
+      migrations.map((file) =>
+        readFile(join(process.cwd(), 'supabase', 'migrations', file), 'utf8'),
+      ),
+    )
+  ).join('\n\n');
   const response = await fetch(
     `https://api.supabase.com/v1/projects/${encodeURIComponent(project)}/database/query`,
     {
@@ -54,7 +61,7 @@ export async function POST(request: Request) {
   await recordAdminAction(gate.actor, request, {
     action: 'update.admin_metric_schema',
     targetType: 'schema_migration',
-    targetId: '293_admin_metric_status_accuracy',
+    targetId: '293_admin_metric_status_accuracy+294_webhook_recovery',
   });
-  return NextResponse.json({ ok: true, migration: '293_admin_metric_status_accuracy' });
+  return NextResponse.json({ ok: true, migrations });
 }

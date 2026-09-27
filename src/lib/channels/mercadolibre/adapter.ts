@@ -3,6 +3,7 @@ import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
 import { captureWebhookFailure } from "@/lib/webhooks/capture";
+import { requiresMercadoLibreReconnect } from "./sync-result";
 import { getLogger } from "@/lib/log/logger";
 import { attachmentFilename, fetchAttachmentBytes, ingestRawMedia } from "../media-ingest";
 import { safeLocale } from "@/lib/i18n/server";
@@ -276,11 +277,18 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       // sólo la recupera el sondeo, hasta cinco minutos después. Queda el
       // rastro para poder distinguir "ML no avisa" de "ML avisó y no pudimos
       // leerlo".
-      void captureWebhookFailure({
-        provider: "mercadolibre:token",
-        rawBody: JSON.stringify(n).slice(0, 4000),
-        error: err,
-      });
+      const detail = err instanceof Error ? err.message : String(err);
+      // Una credencial que exige reconexión ya deja la conexión en `error` y
+      // el sondeo recupera el recurso cuando el comercio vuelve a autorizarla.
+      // Guardar cada notificación mientras tanto sólo producía cientos de
+      // copias idénticas e inaccionables en el panel de operación.
+      if (!requiresMercadoLibreReconnect(detail)) {
+        void captureWebhookFailure({
+          provider: "mercadolibre:token",
+          rawBody: JSON.stringify(n).slice(0, 4000),
+          error: err,
+        });
+      }
       return [];
     }
     const auth = { authorization: `Bearer ${token}` };
