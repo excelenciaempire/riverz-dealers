@@ -23,6 +23,13 @@ describe.each(['es', 'en'] as const)('pricing in %s', (locale) => {
     current.locale = locale;
     for (const balancePlan of [true, false, true]) {
       const html = renderToStaticMarkup(<Faq balancePlan={balancePlan} />);
+      if (balancePlan) {
+        expect(html).toContain(t('faqBalanceBudgetQuestion'));
+        expect(html).toContain(t('faqBalanceBudgetAnswer'));
+      } else {
+        expect(html).not.toContain(t('faqBalanceBudgetQuestion'));
+        expect(html).not.toContain(t('faqBalanceBudgetAnswer'));
+      }
       expect(html).toContain(
         t(balancePlan ? 'faqBalanceIncludedAnswer' : 'faqIncludedAnswer')
       );

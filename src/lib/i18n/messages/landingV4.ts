@@ -729,6 +729,14 @@ export const landingV4 = {
     en: 'The order increase is an adjustable assumption. This estimate excludes external charges and time savings, and does not guarantee results.',
   },
   faqTitle: { es: 'Preguntas frecuentes', en: 'Frequently asked questions' },
+  faqBalanceBudgetQuestion: {
+    es: 'Además de la mensualidad, ¿cuánto voy a gastar en saldo?',
+    en: 'Besides the subscription, how much will I spend on balance?',
+  },
+  faqBalanceBudgetAnswer: {
+    es: 'No hay un monto mensual fijo. Depende de cuántas respuestas envíe la IA, su extensión y las llamadas o tareas que actives. En la llamada estimamos contigo un presupuesto según tu operación. Puedes empezar con una recarga de US$10 y revisar el consumo real en el panel; no significa que alcance para todo el mes. Tú eliges cuánto recargar y si activas recargas automáticas. La comisión de procesamiento del pago también se descuenta del saldo.',
+    en: 'There is no fixed monthly amount. It depends on how many replies AI sends, their length, and the calls or tasks you enable. During the call, we estimate a budget for your business together. You can start with a US$10 top-up and check actual usage in your dashboard; this does not mean it will last the entire month. You choose how much to top up and whether to enable automatic top-ups. Payment processing fees are also deducted from your balance.',
+  },
   faqBalanceIncludedAnswer: {
     es: 'La mensualidad incluye los agentes, ventas, recuperación, atención, automatizaciones e integraciones disponibles, con contactos ilimitados. El consumo de IA se paga aparte con el saldo que recargas.',
     en: 'The subscription includes agents, sales, recovery, support, automations, and available integrations, with unlimited contacts. AI usage is paid separately from the balance you top up.',
