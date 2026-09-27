@@ -8,6 +8,7 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { MAX_TEXTO_REGLA } from '@/lib/ai/guidance';
 
 /**
  * Las reglas del comercio.
@@ -171,7 +172,7 @@ export function ReglasPanel() {
           />
           <textarea
             value={hacer}
-            maxLength={600}
+            maxLength={MAX_TEXTO_REGLA}
             rows={2}
             placeholder={t('reglas.doPlaceholder')}
             onChange={(e) => setHacer(e.target.value)}

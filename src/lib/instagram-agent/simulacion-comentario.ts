@@ -15,6 +15,7 @@ import { commentAgentCanReply, resolveIgAgent } from './agent-link';
 import { loadBrandContext } from './brand-context';
 import { autoReplyCommentsEnabled, loadCommentSettings } from './controls';
 import { decideCommentDm } from './dm-opportunity';
+import { shouldHideComment, keepObjectionPublic } from './comment-moderation-policy';
 import { scoreLeads, type LeadScore } from './lead-scoring';
 import {
   afirmaLoQueNoSabe,
@@ -109,7 +110,8 @@ export async function simularComentario(
   // igual que en vivo. Primero la regla sin modelo, después el clasificador.
   const motivo = mereceRespuesta(texto);
   const priceQuestion = asksForPrice(texto);
-  if (esCriticaPublica(texto)) return vacio({ oculto: 'critica' });
+  const critica = esCriticaPublica(texto);
+  if (shouldHideComment(workspaceId, false, critica)) return vacio({ oculto: 'critica' });
   let score: LeadScore = 'medium';
   // El clasificador sólo corre si la cuenta puede gastar: es la misma puerta
   // que en vivo. En una instalación que todavía no pagó se prueba igual y la
@@ -117,7 +119,7 @@ export async function simularComentario(
   if (await puedeUsarIa(db, workspaceId)) {
     try {
       const [s] = await scoreLeads(apiKey, [texto], billing, null);
-      if (s?.spam) return vacio({ oculto: 'spam' });
+      if (s?.spam && shouldHideComment(workspaceId, true, critica)) return vacio({ oculto: 'spam' });
       if (s?.score) score = s.score;
     } catch {
       /* sin clasificar: se sigue como en vivo con el nivel medio */
@@ -209,6 +211,10 @@ export async function simularComentario(
     hasOrderQuestion: false,
   });
   const esPagoManual = esPagoManualEnComentario(texto);
+  if (keepObjectionPublic(workspaceId, critica, decision.reason === 'pedido' || esPagoManual)) {
+    decision.dm = false;
+    decision.reason = 'ninguna';
+  }
   const paraElPublico = esPagoManual
     ? { ...decision, reason: 'privado' as const }
     : decision;

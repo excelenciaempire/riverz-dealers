@@ -4,7 +4,7 @@ import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
-import { MAX_REGLAS } from '@/lib/ai/guidance';
+import { MAX_REGLAS, MAX_TEXTO_REGLA } from '@/lib/ai/guidance';
 
 /**
  * Las reglas del comercio (migración 200).
@@ -21,7 +21,7 @@ import { MAX_REGLAS } from '@/lib/ai/guidance';
  */
 
 const MAX_TITULO = 80;
-const MAX_TEXTO = 600;
+const MAX_TEXTO = MAX_TEXTO_REGLA;
 
 async function sesion() {
   const locale = await getLocale();

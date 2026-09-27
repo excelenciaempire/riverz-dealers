@@ -54,6 +54,7 @@ La transferencia de 4 meses a sucursal se comprobó en $55.791, con alias config
 
 - Los volúmenes de 300/600/900/3000 ml eran interpretados como precios no autorizados: corregido conservando el bloqueo de importes monetarios inventados.
 - El cargador tomaba solo 25 reglas y dejaba fuera nuevas instrucciones: ampliado a 50.
+- El editor recortaba instrucciones a 600 caracteres al guardarlas: ampliado a 4000 para conservar las reglas completas aplicadas.
 - La búsqueda local por correo en simulaciones incluía `contact_id` vacío: corregido. #1673 encontrado por correo y por número + correo; número solo continúa protegido.
 - Saludo inconsistente en el primer turno: normalizado para los canales privados de Revitaly, sin repetirlo en conversaciones iniciadas ni interferir con correo.
 - Pregunta de costo de envío confundida con precio de tratamientos: enfoque corregido y repetido para Palermo.
@@ -72,4 +73,4 @@ Referencia técnica: [Checkout de Stripe](https://docs.stripe.com/api/checkout/s
 
 18 escenarios de Natalia ejecutados sin envíos externos; se repitieron contra entrega, Palermo y local físico tras corregir las diferencias encontradas. Gmail, compra directa, enlaces, precios, transferencia, agradecimiento y cancelación fueron comprobados. Los escenarios históricos se preservan como evidencia, no se reescriben como si siempre hubieran respondido bien.
 
-La activación de Stripe se prueba con eventos simulados y suscripciones verificadas simuladas; no se realizó un checkout real con tarjeta del comercio. La comprobación de producción y el resultado final de compilación se documentan al terminar la publicación.
+Compilación de producción y ESLint satisfactorios. La suite principal de 21 archivos pasó sus 120 pruebas; se añadió después cobertura de paridad entre comentarios simulados y reales. La activación de Stripe se prueba con eventos simulados y suscripciones verificadas simuladas; no se realizó un checkout real con tarjeta del comercio. Los resultados del despliegue se informan en la entrega de la tarea.

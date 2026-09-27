@@ -34,6 +34,7 @@ export interface Regla {
 
 /** Tope de reglas que entran al prompt. Ver `reglasATexto`. */
 export const MAX_REGLAS = 50;
+export const MAX_TEXTO_REGLA = 4000;
 
 /**
  * Las reglas vivas que le tocan a este agente.

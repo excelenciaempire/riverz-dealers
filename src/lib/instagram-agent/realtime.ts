@@ -1384,6 +1384,10 @@ async function decidirComentario(
   // Pedido, pago o reclamo: se atiende fuera del post y queda visible para el
   // equipo. La marca y el aviso son idempotentes por conversación.
   const esPagoManual = esPagoManualEnComentario(engagement);
+  if (keepObjectionPublic(opts.workspaceId, esCriticaPublica(engagement), Boolean(orderStatus) || esPagoManual)) {
+    decision.dm = false;
+    decision.reason = 'ninguna';
+  }
   const decisionForPublic = esPagoManual
     ? { ...decision, reason: 'privado' as const }
     : decision;

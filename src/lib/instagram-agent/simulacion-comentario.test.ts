@@ -92,6 +92,18 @@ describe('simularComentario — el mismo camino que Comentarios en vivo', () => 
     expect(s.simulada).not.toHaveBeenCalled()
   })
 
+  it('Revitaly answers an objection publicly, without hiding it or starting a commercial DM', async () => {
+    s.clasificacion = {spam:true, score:'low', sentiment:'negative'}
+    s.ajustes.audience = 'all'
+    s.respuesta = 'Entiendo tu duda. No prometemos resultados garantizados.'
+    s.decision = {dm:true, reason:'reclamo'}
+    const r = await simularComentario(db, {workspaceId:'234604a9-909b-4e50-952b-acde4a85593a',canal:'ig_comment',texto:'Dejen de mentir, publicidad falsa',historial:[]})
+    expect(r.oculto).toBeNull()
+    expect(r.privado).toBeNull()
+    expect(r.publico).toContain('Entiendo tu duda')
+    expect(r.publico).not.toContain('Te escribí por privado')
+  })
+
   it('el spam se oculta', async () => {
     s.clasificacion = { spam: true, score: 'low', sentiment: 'negative' }
     expect((await comentar('Seguime y ganá plata fácil')).oculto).toBe('spam')
