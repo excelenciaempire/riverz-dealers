@@ -406,11 +406,11 @@ async function primerModelo(
 }
 
 /**
- * Anthropic no publica el saldo.
- *
- * Lo que sí se puede es preguntarle si cobraría: una llamada de un token. Sin
- * crédito responde 400 con `credit balance is too low`, que es exactamente el
- * estado que hay que ver acá.
+ * Anthropic no publica el saldo. La lista de modelos, en cambio, valida la
+ * llave sin generar contenido ni depender de la latencia de un modelo. Antes
+ * esta sonda hacía una generación de un token: una respuesta que tardara más
+ * de ocho segundos aparecía como proveedor caído aunque el bot siguiera
+ * contestando con normalidad.
  */
 async function anthropic(): Promise<Proveedor> {
   const p = base({
@@ -424,24 +424,16 @@ async function anthropic(): Promise<Proveedor> {
   const key = process.env.ANTHROPIC_API_KEY
   if (!key) return sinLlave(p, 'ANTHROPIC_API_KEY')
   try {
-    const r = await pedir('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
+    const r = await pedir('https://api.anthropic.com/v1/models?limit=1', {
       headers: {
         'x-api-key': key,
         'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'claude-sonnet-5',
-        max_tokens: 1,
-        messages: [{ role: 'user', content: 'hi' }],
-      }),
     })
-    if (r.status === 200) return { ...p, estado: 'ok' }
-    const j = await r.json().catch(() => null)
-    const msg = String(j?.error?.message || '')
-    if (/credit balance/i.test(msg))
-      return { ...p, estado: 'sin_saldo', detalleKey: 'admin.svcNoCredit' }
+    if (r.status === 200)
+      return { ...p, estado: 'desconocido', detalleKey: 'admin.svcNoBalanceApi' }
+    if (r.status === 429)
+      return { ...p, estado: 'bajo', detalleKey: 'admin.svcRateLimited' }
     return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
   } catch {
     return sinRespuesta(p)
@@ -464,9 +456,9 @@ async function gemini(): Promise<Proveedor> {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
   if (!key) return sinLlave(p, 'GEMINI_API_KEY')
   try {
-    const r = await pedir(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`,
-    )
+    const r = await pedir('https://generativelanguage.googleapis.com/v1beta/models', {
+      headers: { 'x-goog-api-key': key },
+    })
     if (r.status === 200) return { ...p, estado: 'desconocido' }
     return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
   } catch {
