@@ -15,6 +15,7 @@ const DASHBOARD_TABLES = [
   "contacts",
   "broadcasts",
   "automation_logs",
+  "orders",
 ] as const;
 
 interface UseDashboardRealtimeOptions {

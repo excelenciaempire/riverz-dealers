@@ -6,5 +6,9 @@
     headers: { apikey: key, Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(15000),
   });
   if (!response.ok) throw new Error(`Apply migration 255 before deploying integration recovery (HTTP ${response.status}).`);
+  const email = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/workspace_email_policy?select=mode,whatsapp_number&limit=0`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(15000),
+  });
+  if (!email.ok) throw new Error(`Apply migration 290 before deploying email policy (HTTP ${email.status}).`);
   console.log('Integration recovery schema verified.');
 })().catch(error => { console.error(error.message); process.exitCode = 1; });

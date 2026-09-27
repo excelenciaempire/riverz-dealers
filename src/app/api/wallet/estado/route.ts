@@ -40,10 +40,11 @@ export async function GET(request: Request) {
     url.searchParams.get('desde'),
     url.searchParams.get('hasta')
   );
+  const workspace=await admin.from('workspaces').select('timezone').eq('id',workspaceId).single();
 
   const [billetera, datos, tarifas, sus, costos] = await Promise.all([
     leerBilletera(admin, workspaceId),
-    resumen(admin, workspaceId, rango),
+    resumen(admin, workspaceId, rango, workspace.data?.timezone || 'UTC'),
     listarTarifas(admin),
     leerSuscripcion(admin, workspaceId),
     costosReales(admin, workspaceId),
@@ -69,7 +70,7 @@ export async function GET(request: Request) {
       // Lo que cuesta cada cosa de verdad, con quién lo cobra. La cuenta que
       // paga a costo mira esto, no las tarifas: la tarifa es precio de lista y
       // a ella se le prometió lo contrario.
-      costos,
+      costos: costos.filter(c=>c.concepto!=='comision_stripe'),
       // La recarga automática, tal como la ve el comercio.
       auto: {
         tieneTarjeta: billetera.tieneTarjeta,
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
       },
       resumen: datos,
       tarifas: tarifas
-        .filter((t) => t.activo)
+        .filter((t) => t.activo && t.concepto!=='comision_stripe')
         .map((t) => ({
           concepto: t.concepto,
           nombreEs: t.nombreEs,

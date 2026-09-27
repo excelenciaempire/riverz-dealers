@@ -109,6 +109,7 @@ export interface Resumen {
   rango: Rango
   cargadoCentavos: number
   gastadoCentavos: number
+  ajustesCentavos: number
   porConcepto: PorConcepto[]
   porDia: PorDia[]
   movimientos: number
@@ -126,38 +127,45 @@ export async function resumen(
   db: SupabaseClient,
   workspaceId: string,
   rango: Rango,
+  timezone = 'UTC',
 ): Promise<Resumen> {
-  const { data, error } = await db
+  const filas: Array<{tipo:string;concepto:string;centavos:number;cantidad:number|null;creado_en:string}> = []
+  for (let offset=0;;offset+=1000) {
+   const { data, error } = await db
     .from('wallet_movimientos')
     .select('tipo, concepto, centavos, cantidad, creado_en')
     .eq('workspace_id', workspaceId)
     .gte('creado_en', rango.desde)
     .lte('creado_en', rango.hasta)
     .order('creado_en', { ascending: false })
-    .limit(50_000)
-  if (error) throw new Error(`[wallet] ${error.message}`)
+    .order('id', {ascending:false}).range(offset,offset+999)
+   if (error) throw new Error(`[wallet] ${error.message}`)
+   filas.push(...(data ?? []))
+   if (!data || data.length<1000) break
+   if(offset>=99000)throw new Error('wallet_summary_range_too_large')
+  }
+  return summarizeMovements(filas,rango,timezone)
+}
 
-  const filas = (data ?? []) as {
-    tipo: string
-    concepto: string
-    centavos: number
-    cantidad: number | null
-    creado_en: string
-  }[]
+export function summarizeMovements(filas: Array<{tipo:string;concepto:string;centavos:number;cantidad:number|null;creado_en:string}>,rango:Rango,timezone='UTC'):Resumen {
 
   const conceptos = new Map<string, PorConcepto>()
   const dias = new Map<string, PorDia>()
   let cargado = 0
   let gastado = 0
+  let ajustes = 0
+  const dateFormat=new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'})
 
   for (const f of filas) {
     const c = Number(f.centavos ?? 0)
-    const dia = f.creado_en.slice(0, 10)
+    const parts=dateFormat.formatToParts(new Date(f.creado_en))
+    const part=(key:string)=>parts.find(p=>p.type===key)?.value
+    const dia = `${part('year')}-${part('month')}-${part('day')}`
     const d = dias.get(dia) ?? { dia, gastadoCentavos: 0, cargadoCentavos: 0 }
-    if (c >= 0) {
+    if (f.tipo==='recarga' && c>0) {
       cargado += c
       d.cargadoCentavos += c
-    } else {
+    } else if (f.tipo==='consumo' && f.concepto!=='comision_stripe' && c<0) {
       gastado += -c
       d.gastadoCentavos += -c
       const acc =
@@ -173,6 +181,8 @@ export async function resumen(
       acc.cantidad += Number(f.cantidad ?? 0)
       acc.movimientos += 1
       conceptos.set(f.concepto, acc)
+    } else {
+      ajustes+=c
     }
     dias.set(dia, d)
   }
@@ -181,6 +191,7 @@ export async function resumen(
     rango,
     cargadoCentavos: cargado,
     gastadoCentavos: gastado,
+    ajustesCentavos: ajustes,
     movimientos: filas.length,
     porConcepto: [...conceptos.values()]
       .map((c) => ({
@@ -208,6 +219,7 @@ export async function listar(
     .eq('workspace_id', workspaceId)
     .gte('creado_en', opts.rango.desde)
     .lte('creado_en', opts.rango.hasta)
+    .neq('centavos',0)
     .order('creado_en', { ascending: false })
     .range(desde, desde + porPagina) // uno de más: así se sabe si hay página siguiente
 
@@ -217,6 +229,13 @@ export async function listar(
   const { data, error } = await q
   if (error) throw new Error(`[wallet] ${error.message}`)
   const crudas = (data ?? []) as unknown as FilaCruda[]
+  const ids=crudas.filter(f=>f.referencia_tipo==='provider_operation'&&f.referencia_id).map(f=>f.referencia_id!)
+  if(ids.length){
+    const operations=await db.from('wallet_operaciones').select('id,detalle').eq('workspace_id',workspaceId).in('id',ids)
+    if(operations.error)throw new Error(`[wallet] ${operations.error.message}`)
+    const details=new Map((operations.data??[]).map(o=>[o.id,o.detalle]))
+    for(const f of crudas)if(f.referencia_id)f.detalle={...details.get(f.referencia_id),...f.detalle}
+  }
   return {
     filas: crudas.slice(0, porPagina).map(aFila),
     hayMas: crudas.length > porPagina,

@@ -29,9 +29,11 @@ export const dashboard = {
     en: 'Pending now · All periods',
   },
   outcomeSales: {
-    es: 'Ventas asistidas con evidencia',
-    en: 'Sales assisted with evidence',
+    es: 'Ventas con atribución directa',
+    en: 'Directly attributed sales',
   },
+  outcomeAssisted:{es:'Ventas después de conversar',en:'Sales after a conversation'},
+  outcomeAssistedSub:{es:'{n} pedidos pagados · Sin atribución directa',en:'{n} paid orders · No direct attribution'},
   outcomeSalesSub: {
     es: '{n} pedidos pagados · Ver evidencia',
     en: '{n} paid orders · View evidence',

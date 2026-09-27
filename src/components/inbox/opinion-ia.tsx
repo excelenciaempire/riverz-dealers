@@ -9,7 +9,7 @@ import { useT } from "@/hooks/use-locale";
  *
  * Una nota ("qué debería haber respondido"); sin 👍/👎, que no dicen qué cambiar. Se guarda con el tramo de
  * la conversación y se convierte en mejoras del asistente (Asistente IA →
- * Feedback). Disponible en cada mensaje real, también del cliente o del equipo.
+ * Feedback). Un control al final de cada grupo de respuestas del equipo/Riverz.
  */
 
 export interface OpinionIa {

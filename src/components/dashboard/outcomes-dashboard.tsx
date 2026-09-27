@@ -63,7 +63,7 @@ export function OutcomesDashboard({
           </Button>
         </div>
       )}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard
           title={t('dashboard.outcomePending')}
           value={data ? fmt.number(pending.length) : '—'}
@@ -93,6 +93,13 @@ export function OutcomesDashboard({
                     })
           }
           onClick={!salesUnavailable ? () => setSalesOpen(true) : undefined}
+        />
+        <MetricCard
+          title={t('dashboard.outcomeAssisted')}
+          value={salesUnavailable?'—':fmt.money(attribution?.assisted?.revenue??0,attribution?.assisted?.currency??attribution?.totals?.currency)}
+          icon={ShoppingBag}
+          subtitle={salesUnavailable?t('dashboard.outcomeSalesUnavailable'):t('dashboard.outcomeAssistedSub',{n:fmt.number(attribution?.assisted?.orders??0)})}
+          onClick={!salesUnavailable?()=>setSalesOpen(true):undefined}
         />
       </div>
       <DetalleAtribucion

@@ -51,7 +51,7 @@ export async function liquidar(
       p_proveedor: proveedor,
       p_costo_centavos: Math.round(usd * 100 * 1e8) / 1e8,
       p_cantidad: cantidad,
-      p_detalle: detalle,
+      p_detalle: { ...ctx.detalle, ...detalle },
     });
     if (!error) return data;
     lastError = error.message;

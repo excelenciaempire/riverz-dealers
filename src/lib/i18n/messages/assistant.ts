@@ -2,6 +2,19 @@ import type { Namespace } from "./types";
 
 /** AI Assistant area: agents list page + the agent editor dialog. */
 export const assistant = {
+  emailPolicyTitle: {es:'Correo: Gmail, Outlook/Hotmail y Zoho',en:'Email: Gmail, Outlook/Hotmail and Zoho'},
+  emailPolicyMode: {es:'Atención por correo',en:'Email handling'},
+  emailPolicyRedirect: {es:'Redirigir a WhatsApp',en:'Redirect to WhatsApp'},
+  emailPolicyAssist: {es:'Responder con el asistente',en:'Reply with the assistant'},
+  emailPolicyManual: {es:'Solo atención manual',en:'Manual handling only'},
+  emailPolicyPhone: {es:'WhatsApp con código de país',en:'WhatsApp with country code'},
+  emailPolicyMissing: {es:'Sin un número disponible, las consultas quedan para el equipo.',en:'Without an available number, inquiries are left for the team.'},
+  emailPolicyFilter: {es:'Ignorar notificaciones, publicidad y agradecimientos',en:'Ignore notifications, promotions and acknowledgements'},
+  emailPolicyRepeat: {es:'No repetir la redirección en el mismo hilo',en:'Do not repeat redirects in the same thread'},
+  emailPolicySave: {es:'Guardar',en:'Save'},
+  emailPolicySaved: {es:'Configuración guardada',en:'Settings saved'},
+  emailPolicyError: {es:'No se pudo cargar o guardar la configuración',en:'Unable to load or save settings'},
+  emailPolicyInvalid: {es:'Revisa la configuración y el número de WhatsApp.',en:'Check the settings and WhatsApp number.'},
   // Dos asistentes para lo mismo no se reparten el trabajo: gana el más viejo.
   tapadoPor: {
     es: "No atiende: con este alcance contesta «{nombre}». Cambiale el alcance o apagá uno.",

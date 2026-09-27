@@ -9,6 +9,10 @@ import { useLocale, useT } from '@/hooks/use-locale';
 import { avisarSaldoCambio } from '@/hooks/use-saldo';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { cn } from '@/lib/utils';
+import {movementContext,movementTokens} from '@/lib/wallet/movement-context';
+import {useTimezone} from '@/hooks/use-timezone';
+import {daysAgoStart} from '@/lib/dashboard/date-utils';
+import {fromZonedTime} from 'date-fns-tz';
 import { ChevronDown, CreditCard, Loader2, Plus, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -60,6 +64,7 @@ interface Estado {
     rango: { desde: string; hasta: string };
     cargadoCentavos: number;
     gastadoCentavos: number;
+    ajustesCentavos: number;
     movimientos: number;
     porConcepto: {
       concepto: string;
@@ -93,6 +98,7 @@ interface Movimiento {
   unidad: string | null;
   referenciaTipo: string | null;
   referenciaId: string | null;
+  detalle?: Record<string,unknown>;
 }
 
 /** 0 = hoy, -1 = ayer. Los positivos son ventanas móviles hacia atrás. */
@@ -104,12 +110,6 @@ function desdeHace(dias: number): string {
 
 /** Medianoche de hoy, o de hace `offset` días. En la hora del navegador: el
  *  comercio piensa "hoy" en su reloj, no en UTC. */
-function inicioDelDia(offset: number): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + offset);
-  return d.toISOString();
-}
 
 /** Sólo la parte YYYY-MM-DD, que es lo que entiende un <input type=date>. */
 const soloDia = (iso: string) => iso.slice(0, 10);
@@ -118,6 +118,7 @@ export function WalletPanel() {
   const t = useT();
   const { locale } = useLocale();
   const fmt = useFormat();
+  const tz=useTimezone();
   const fetchWithCsrf = useFetchWithCsrf();
 
   const [dias, setDias] = useState<number | null>(30);
@@ -135,26 +136,36 @@ export function WalletPanel() {
   const [autoDeseado, setAutoDeseado] = useState<boolean | null>(null);
   const [autoMonto, setAutoMonto] = useState('');
   const [autoUmbral, setAutoUmbral] = useState('');
+  const [revision,setRevision]=useState(0);
+  useEffect(()=>{
+    const refresh=()=>{if(document.visibilityState==='visible')setRevision(v=>v+1);};
+    const interval=setInterval(refresh,30_000);
+    window.addEventListener('focus',refresh);
+    document.addEventListener('visibilitychange',refresh);
+    return()=>{clearInterval(interval);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);};
+  },[]);
 
   const rango = useMemo(() => {
+    // Refresh the current range as live usage arrives, including across midnight.
+    void revision;
     // Hoy y ayer son DÍAS, no ventanas de 24 horas: "hoy" arranca a la
     // medianoche. Un resumen que dice "hoy" y trae lo de anoche hace dudar de
     // todos los demás números de la pantalla.
     if (dias === 0) {
-      return { desde: inicioDelDia(0), hasta: new Date().toISOString() };
+      return { desde: daysAgoStart(tz,0).toISOString(), hasta: new Date().toISOString() };
     }
     if (dias === -1) {
-      return { desde: inicioDelDia(-1), hasta: inicioDelDia(0) };
+      return { desde: daysAgoStart(tz,1).toISOString(), hasta: daysAgoStart(tz,0).toISOString() };
     }
     if (dias !== null) {
       return { desde: desdeHace(dias), hasta: new Date().toISOString() };
     }
     return {
-      desde: new Date(`${desde}T00:00:00`).toISOString(),
+      desde: fromZonedTime(`${desde}T00:00:00`,tz).toISOString(),
       // El día "hasta" se toma entero: quien elige el 20 quiere lo del 20.
-      hasta: new Date(`${hasta}T23:59:59`).toISOString(),
+      hasta: fromZonedTime(`${hasta}T23:59:59`,tz).toISOString(),
     };
-  }, [dias, desde, hasta]);
+  }, [dias, desde, hasta, revision, tz]);
 
   useEffect(() => {
     let vivo = true;
@@ -181,7 +192,7 @@ export function WalletPanel() {
     return () => {
       vivo = false;
     };
-  }, [rango.desde, rango.hasta]);
+  }, [rango.desde, rango.hasta, revision]);
 
   useEffect(() => {
     let vivo = true;
@@ -211,7 +222,7 @@ export function WalletPanel() {
     return () => {
       vivo = false;
     };
-  }, [rango.desde, rango.hasta, concepto, pagina]);
+  }, [rango.desde, rango.hasta, concepto, pagina, revision]);
 
   const recargar = useCallback(
     async (centavos: number) => {
@@ -307,7 +318,7 @@ export function WalletPanel() {
   const nombreConcepto = useCallback(
     (c: string) => {
       if (c === 'recarga_ajuste') return t('settings.walletTopupAdjustment');
-      if (c === 'comision_stripe') return t('settings.walletStripeFee');
+      if (c === 'comision_stripe') return t('settings.walletTopupAdjustment');
       if (c === 'recarga') return t('settings.walletTopUp');
       const tar = e?.tarifas.find((x) => x.concepto === c);
       if (!tar) return c;
@@ -643,6 +654,7 @@ export function WalletPanel() {
               </p>
             </div>
           </div>
+          {!!resumen.ajustesCentavos&&<p className="mt-2 text-xs text-muted-foreground">{t('settings.walletAdjustments')}: {plata(resumen.ajustesCentavos)}</p>}
 
           {resumen.porDia.length > 1 && (
             <div className="mt-6">
@@ -654,7 +666,7 @@ export function WalletPanel() {
                   <div
                     key={d.dia}
                     className="group relative flex h-full flex-1 items-end"
-                    title={`${fmt.date(d.dia)} · ${plata(d.gastadoCentavos)}`}
+                    title={`${fmt.date(d.dia,{timeZone:'UTC'})} · ${plata(d.gastadoCentavos)}`}
                   >
                     <div
                       className="bg-primary w-full rounded-t transition-colors"
@@ -666,9 +678,9 @@ export function WalletPanel() {
                 ))}
               </div>
               <div className="text-muted-foreground mt-2 flex justify-between text-xs">
-                <span>{fmt.date(resumen.porDia[0].dia)}</span>
+                <span>{fmt.date(resumen.porDia[0].dia,{timeZone:'UTC'})}</span>
                 <span>
-                  {fmt.date(resumen.porDia[resumen.porDia.length - 1].dia)}
+                  {fmt.date(resumen.porDia[resumen.porDia.length - 1].dia,{timeZone:'UTC'})}
                 </span>
               </div>
             </div>
@@ -781,8 +793,11 @@ export function WalletPanel() {
                   <p className="text-foreground truncate">
                     {nombreConcepto(m.concepto)}
                   </p>
+                  {movementContext(m.detalle,t)&&<p className="text-xs text-muted-foreground">{movementContext(m.detalle,t)}</p>}
+                  {movementTokens(m.detalle)!==null&&<p className="text-xs text-muted-foreground">{t('settings.walletProcessedTokens',{n:fmt.number(movementTokens(m.detalle)!)})}</p>}
                   <p className="text-muted-foreground text-xs">
                     {fmt.dateTime(m.creadoEn)}
+                    {` · #${m.id.slice(0,8)}`}
                     {m.cantidad !== null && m.unidad
                       ? ` · ${fmt.number(m.cantidad)} ${m.unidad}`
                       : ''}
@@ -876,9 +891,7 @@ export function WalletPanel() {
                   </span>
                 </span>
                 <span className="text-foreground shrink-0 text-right tabular-nums">
-                  {c.concepto === 'comision_stripe' ? (
-                    t('settings.walletStripeFeeRate')
-                  ) : !esMedido && c.centavos === 0 ? (
+                  {!esMedido && c.centavos === 0 ? (
                     t('settings.walletActualUsageRate')
                   ) : c.cobro === 'por_uso' ? (
                     <>

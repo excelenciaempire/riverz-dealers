@@ -2,6 +2,13 @@ import type { Namespace } from './types';
 
 /** Settings page: tabs, appearance and the language picker. */
 export const settings = {
+  walletPurposeReply:{es:'Respuesta al cliente',en:'Customer reply'},
+  walletPurposeRewrite:{es:'Revisión de una respuesta',en:'Reply revision'},
+  walletPurposeClosure:{es:'Comprobar si el cliente necesita respuesta',en:'Check whether the customer needs a reply'},
+  walletPurposeEscalation:{es:'Evaluar si necesita atención humana',en:'Assess need for human attention'},
+  walletPurposeEscalationNote:{es:'Preparar aviso para el equipo',en:'Prepare team notification'},
+  walletAdjustments:{es:'Ajustes de saldo',en:'Balance adjustments'},
+  walletProcessedTokens:{es:'{n} tokens procesados',en:'{n} tokens processed'},
   webhooksTitle: { es: 'Webhooks', en: 'Webhooks' },
   webhooksDescription: {
     es: 'Envía eventos de Riverz a tus automatizaciones.',
@@ -1593,8 +1600,8 @@ export const settings = {
   //    a veces desde un cron donde no hay pantalla ni cookie de idioma.
   walletProductName: { es: 'Saldo Riverz', en: 'Riverz balance' },
   walletProductDesc: {
-    es: 'El importe completo se acredita como saldo. Riverz asume la comisión de procesamiento.',
-    en: 'The full amount is credited to your balance. Riverz covers the processing fee.',
+    es: 'El importe completo se acredita como saldo.',
+    en: 'The full amount is credited to your balance.',
   },
   avisoSaldoBajoTitulo: {
     es: 'Saldo bajo: {saldo}',

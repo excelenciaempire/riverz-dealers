@@ -15,9 +15,13 @@ it.each([
 it.each(['Mi pedido no llegó','Quiero corregir la dirección','¿Cuánto cuesta?','#1530','How long does delivery take?',
  'Mi compra no llegó\nEl lunes Revitaly escribió:\nNo responder, correo automático de Shopify'])('redirects a real inquiry: %s',text=>expect(disposition({...base,text})).toBe('customer'));
 it.each(['Carta documento por mi pedido','Notificarle formalmente como representante legal','Hola, ¿eres el gerente?',''])('does not auto-reply to ambiguous or legal mail',text=>expect(disposition({...base,text})).toBe('review'));
-it('does not change other merchants or channels',()=>{
- expect(disposition({...base,workspaceId:'other',text:'hello'})).toBeNull();
+it('applies to every merchant but not non-email channels',()=>{
+ expect(disposition({...base,workspaceId:'other',text:'¿Cuál es el precio?'})).toBe('customer');
  expect(disposition({...base,channel:'whatsapp',text:'hello'})).toBeNull();
+});
+it.each(['gmail','outlook','zoho'])('filters notifications on %s',channel=>{
+ expect(disposition({...base,workspaceId:'new-store',channel,from:'reviews@judge.me',text:'Producto'})).toBe('ignore');
+ expect(disposition({...base,workspaceId:'new-store',channel,text:'¿Cuánto cuesta?'})).toBe('customer');
 });
 it('keeps repeated unresolved inquiries for the team instead of looping redirects',()=>{
  expect(disposition({...base,text:'Solicité la devolución del pedido 1494, tambien envi mensaje por whatsapp, ¿podría proceder?'})).toBe('review');

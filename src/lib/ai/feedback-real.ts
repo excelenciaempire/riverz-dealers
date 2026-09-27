@@ -13,9 +13,17 @@ import type { ItemGuardado } from '@/lib/ai/sesiones-de-prueba';
 
 const ORIGENES_AUTOMATICOS = new Set(['ai_agent', 'comment_ai', 'automation', 'voice_agent', 'order_update']);
 
-/** Feedback can describe a customer inquiry, a human reply, or an automatic reply. */
+/** Feedback concerns Riverz/team replies, never inbound customer messages. */
 export function admiteFeedbackReal(m: { sender_type: string | null }): boolean {
-  return ['customer', 'agent', 'bot'].includes(m.sender_type ?? '');
+  return ['agent', 'bot'].includes(m.sender_type ?? '');
+}
+
+export function feedbackGroupEnd(messages: Array<{sender_type:string|null;deleted_at?:string|null;content_text?:string|null}>,index:number):boolean {
+  const current=messages[index];
+  if(!current||current.deleted_at||current.content_text==='[deleted]'||!admiteFeedbackReal(current))return false;
+  const next=messages.slice(index+1).find(m=>!m.deleted_at&&m.content_text!=='[deleted]'&&
+    !(m.sender_type==='agent'&&/replied to (an|your) ad|respondió a (un|tu) anuncio/i.test(m.content_text??'')));
+  return !next||!admiteFeedbackReal(next);
 }
 
 /** Sólo se opina sobre lo que mandó Riverz solo, no sobre lo que escribió una persona. */

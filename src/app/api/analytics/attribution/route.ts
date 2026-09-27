@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { getLocale } from '@/lib/i18n/server';
 import { emptyResponse, leerAtribucion } from '@/lib/attribution/informe';
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/analytics/attribution
@@ -86,5 +87,5 @@ export async function GET(request: Request) {
     lookbackMs,
     locale,
   });
-  return NextResponse.json(informe);
+  return NextResponse.json(informe,{headers:{'Cache-Control':'no-store'}});
 }

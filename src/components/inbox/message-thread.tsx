@@ -39,6 +39,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MlKindBadge } from "@/components/inbox/ml-kind-badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./message-bubble";
+import {feedbackGroupEnd} from '@/lib/ai/feedback-real';
 import type { OpinionIa } from "./opinion-ia";
 import { MessageActions } from "./message-actions";
 import { MessageComposer } from "./message-composer";
@@ -1897,7 +1898,7 @@ export function MessageThread({
                 </div>
                 {/* Messages */}
                 <div className="space-y-2">
-                  {group.messages.map((msg) => {
+                  {group.messages.map((msg, messageIndex) => {
                     // Suppress Meta's synthetic "X replied to an ad" echo — that
                     // context now lives in the ad-referral banner above. It's a
                     // plain agent text row with no structured marker, so we match
@@ -1976,7 +1977,7 @@ export function MessageThread({
                           onToggleReaction={handlePillToggle}
                           onDeleted={() => handleDeleteMessage(msg.id)}
                           opinion={opinionesIa[msg.id] ?? null}
-                          onOpinion={(o) => void opinarSobre(msg.id, o)}
+                          onOpinion={feedbackGroupEnd(group.messages,messageIndex)?(o)=>void opinarSobre(msg.id,o):undefined}
                         />
                       </MessageActions>
                     );

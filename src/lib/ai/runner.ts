@@ -1,6 +1,6 @@
 import { replyWasSuperseded } from './reply-freshness';
-import { revitalyEmailDisposition } from './revitaly-email-filter';
-import { revitalyEmailRedirect, revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-channel-policy';
+import { emailDispositionForPolicy, emailRedirectText, isEmailChannel, loadEmailPolicy } from './email-policy';
+import { revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-channel-policy';
 import type { OtherStoreContext } from '@/lib/ai/tools';
 import { untrustedContext } from './input-security';
 import { captureCustomerOrder, orderScreenshotMessageId, type OrderScreenshot } from './order-screenshot';
@@ -205,18 +205,20 @@ export async function runAiAgent(
   }
 ): Promise<void> {
   try {
+    const emailPolicy = isEmailChannel(args.channel) ? await loadEmailPolicy(db, args.workspaceId) : null;
     const emailInput = {
       workspaceId: args.workspaceId, channel: args.channel,
       from: args.contact.email || args.contact.external_id,
       subject: args.conversation.subject, text: args.inboundMessage.content_text,
+      preventRepeatedRedirects: emailPolicy?.mode === 'redirect' && emailPolicy.prevent_repeated_redirects,
     };
-    let emailDisposition = revitalyEmailDisposition(emailInput);
-    if (emailDisposition === 'customer') {
+    let emailDisposition = emailPolicy ? emailDispositionForPolicy(emailPolicy,emailInput) : null;
+    if (emailDisposition === 'customer' && emailPolicy?.mode === 'redirect' && emailPolicy.prevent_repeated_redirects) {
       const previous = await db.from('messages').select('id')
         .eq('conversation_id', args.conversation.id).eq('sender_type', 'bot')
         .in('status', ['sent', 'delivered', 'read']).is('deleted_at', null)
         .lt('created_at', args.inboundMessage.created_at)
-        .ilike('content_text', '%https://wa.me/5492255629123%').limit(1);
+        .ilike('content_text', '%https://wa.me/%').limit(1);
       // Fail closed when history cannot be checked; do not repeat a redirect.
       if (previous.error || previous.data?.length) emailDisposition = 'review';
     }
@@ -3219,7 +3221,8 @@ async function generateReply(
   priceIntegrity: { priceQuestion: boolean; priceVerified: boolean },
   recoveryContext: Record<string, unknown> | null
 ): Promise<ReplyResult> {
-  const redirect = revitalyEmailRedirect(agent.workspace_id, origen.channel, agent.language);
+  const redirect = isEmailChannel(origen.channel)
+    ? emailRedirectText(await loadEmailPolicy(db, agent.workspace_id), agent.language) : null;
   // The normal runner still applies billing, opt-out, freshness and approval gates.
   if (redirect) return { text: redirect, promptTokens: 0, completionTokens: 0, herramientas: [] };
   if (agent.provider !== 'anthropic') {
@@ -3242,6 +3245,7 @@ async function generateReply(
     workspaceId: agent.workspace_id,
     concepto: 'ia_respuesta',
     origenDeLaClave: resolved.source,
+    detalle: {para:'respuesta',conversacion:origen.conversationId,canal:origen.channel,agente:agent.id},
   });
   // "One brain": on Instagram, feed the reactive agent the same per-person
   // context the proactive engine uses (segment, persona, follow relationship,
@@ -3560,6 +3564,7 @@ async function generateReply(
         workspaceId: agent.workspace_id,
         concepto: 'ia_respuesta',
         origenDeLaClave: respaldo.source,
+        detalle: {para:'respuesta',conversacion:origen.conversationId,canal:origen.channel,agente:agent.id},
       }),
       opciones
     );
