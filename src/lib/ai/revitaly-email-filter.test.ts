@@ -19,3 +19,8 @@ it('does not change other merchants or channels',()=>{
  expect(disposition({...base,workspaceId:'other',text:'hello'})).toBeNull();
  expect(disposition({...base,channel:'whatsapp',text:'hello'})).toBeNull();
 });
+it('keeps repeated unresolved inquiries for the team instead of looping redirects',()=>{
+ expect(disposition({...base,text:'Solicité la devolución del pedido 1494, tambien envi mensaje por whatsapp, ¿podría proceder?'})).toBe('review');
+ expect(disposition({...base,text:'Mi pedido no llegó',alreadyRedirected:true})).toBe('review');
+ expect(disposition({...base,text:'Gracias',alreadyRedirected:true})).toBe('ignore');
+});

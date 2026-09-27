@@ -205,11 +205,21 @@ export async function runAiAgent(
   }
 ): Promise<void> {
   try {
-    const emailDisposition = revitalyEmailDisposition({
+    const emailInput = {
       workspaceId: args.workspaceId, channel: args.channel,
       from: args.contact.email || args.contact.external_id,
       subject: args.conversation.subject, text: args.inboundMessage.content_text,
-    });
+    };
+    let emailDisposition = revitalyEmailDisposition(emailInput);
+    if (emailDisposition === 'customer') {
+      const previous = await db.from('messages').select('id')
+        .eq('conversation_id', args.conversation.id).eq('sender_type', 'bot')
+        .in('status', ['sent', 'delivered', 'read']).is('deleted_at', null)
+        .lt('created_at', args.inboundMessage.created_at)
+        .ilike('content_text', '%https://wa.me/5492255629123%').limit(1);
+      // Fail closed when history cannot be checked; do not repeat a redirect.
+      if (previous.error || previous.data?.length) emailDisposition = 'review';
+    }
     if (emailDisposition === 'ignore' || emailDisposition === 'review') {
       const reason = emailDisposition === 'ignore' ? 'respuesta_automatica_del_cliente'
         : args.conversation.status === 'closed' ? 'conversation_closed'
