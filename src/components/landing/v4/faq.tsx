@@ -11,6 +11,7 @@ const QUESTIONS = [
   ['faqFirstMonthQuestion', 'faqFirstMonthAnswer'],
   ['faqBalanceBudgetQuestion', 'faqBalanceBudgetAnswer'],
   ['faqMetaChargesQuestion', 'faqMetaChargesAnswer'],
+  ['faqUsageReturnQuestion', 'faqUsageReturnAnswer'],
   ['faqCountingQuestion', 'faqCountingAnswer'],
   ['faqGrowthQuestion', 'faqGrowthAnswer'],
   ['faqMistakesQuestion', 'faqMistakesAnswer'],
