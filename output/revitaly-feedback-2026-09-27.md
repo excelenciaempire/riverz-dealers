@@ -53,6 +53,7 @@ La transferencia de 4 meses a sucursal se comprobó en $55.791, con alias config
 ## Fallos técnicos encontrados al repetir las pruebas
 
 - Los volúmenes de 300/600/900/3000 ml eran interpretados como precios no autorizados: corregido conservando el bloqueo de importes monetarios inventados.
+- La comprobación en producción detectó además que «$49.990. 1 frasco» se interpretaba como 49990,1: corregida la separación entre importes, oraciones y cantidades, con pruebas de regresión.
 - El cargador tomaba solo 25 reglas y dejaba fuera nuevas instrucciones: ampliado a 50.
 - El editor recortaba instrucciones a 600 caracteres al guardarlas: ampliado a 4000 para conservar las reglas completas aplicadas.
 - La búsqueda local por correo en simulaciones incluía `contact_id` vacío: corregido. #1673 encontrado por correo y por número + correo; número solo continúa protegido.
@@ -73,4 +74,8 @@ Referencia técnica: [Checkout de Stripe](https://docs.stripe.com/api/checkout/s
 
 18 escenarios de Natalia ejecutados sin envíos externos; se repitieron contra entrega, Palermo y local físico tras corregir las diferencias encontradas. Gmail, compra directa, enlaces, precios, transferencia, agradecimiento y cancelación fueron comprobados. Los escenarios históricos se preservan como evidencia, no se reescriben como si siempre hubieran respondido bien.
 
-Compilación de producción y ESLint satisfactorios. La suite principal de 21 archivos pasó sus 120 pruebas; se añadió después cobertura de paridad entre comentarios simulados y reales. La activación de Stripe se prueba con eventos simulados y suscripciones verificadas simuladas; no se realizó un checkout real con tarjeta del comercio. Los resultados del despliegue se informan en la entrega de la tarea.
+Compilación de producción y ESLint satisfactorios. La suite final de 22 archivos pasó sus 138 pruebas, incluida la paridad entre comentarios simulados y reales. La activación de Stripe se prueba con eventos simulados y suscripciones verificadas simuladas; no se realizó un checkout real con tarjeta del comercio.
+
+Comprobaciones autenticadas de producción: Natalia y sus reglas actualizadas visibles; las 30 sesiones originales intactas; cuenta todavía en cortesía/sin pagar; webhook de Stripe rechaza con HTTP 400 una solicitud sin firma. La simulación de crítica responde públicamente sin ocultar, abrir un privado ni afirmar que la publicidad es auténtica. Tablero y cuatro editores de automatización mantienen sus plantillas PDF v5, sin vínculos v4.
+
+Meta confirmó directamente que las 21 plantillas PDF v5 están en PENDING. No se presentan como aprobadas ni enviadas. La habilitación real sigue dependiendo del pago del comercio, saldo cuando corresponda y requisitos propios de Meta.
