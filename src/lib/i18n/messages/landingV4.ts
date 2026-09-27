@@ -733,6 +733,18 @@ export const landingV4 = {
     es: 'Además de la mensualidad, ¿cuánto voy a gastar en saldo?',
     en: 'Besides the subscription, how much will I spend on balance?',
   },
+  faqMetaChargesQuestion: {
+    es: '¿También debo pagar los mensajes de WhatsApp a Meta?',
+    en: 'Do I also need to pay Meta for WhatsApp messages?',
+  },
+  faqMetaChargesAnswer: {
+    es: 'Sí. Si usas WhatsApp, debes contemplar los cargos de Meta por los mensajes entregados que estén sujetos a cobro. Son adicionales a la mensualidad de Riverz y no están incluidos en el saldo de IA ni en los planes por contactos. El importe depende del país del destinatario, la categoría del mensaje y las condiciones vigentes de Meta; no todos los mensajes generan un cargo. En la llamada también revisamos este costo para tu negocio.',
+    en: 'Yes. If you use WhatsApp, you must budget for Meta charges on delivered messages that are billable. These are additional to your Riverz subscription and are not included in your AI balance or contact-based plans. The amount depends on the recipient’s country, the message category, and Meta’s current terms; not every message incurs a charge. We also review this cost for your business during the call.',
+  },
+  faqMetaRatesLink: {
+    es: 'Consultar tarifas de Meta',
+    en: 'View Meta pricing',
+  },
   faqBalanceBudgetAnswer: {
     es: 'No hay un monto mensual fijo. Depende de cuántas respuestas envíe la IA, su extensión y las llamadas o tareas que actives. En la llamada estimamos contigo un presupuesto según tu operación. Puedes empezar con una recarga de US$10 y revisar el consumo real en el panel; no significa que alcance para todo el mes. Tú eliges cuánto recargar y si activas recargas automáticas. La comisión de procesamiento del pago también se descuenta del saldo.',
     en: 'There is no fixed monthly amount. It depends on how many replies AI sends, their length, and the calls or tasks you enable. During the call, we estimate a budget for your business together. You can start with a US$10 top-up and check actual usage in your dashboard; this does not mean it will last the entire month. You choose how much to top up and whether to enable automatic top-ups. Payment processing fees are also deducted from your balance.',
