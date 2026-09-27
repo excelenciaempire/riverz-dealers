@@ -23,6 +23,36 @@ búsqueda de la App Store. El estado correcto es, por tanto: **homologación
 aprobada; entrega final de publicación enviada; publicación pública aún no
 confirmada**. No volver a describirla como “En aprobación”.
 
+### Próxima comprobación y seguimiento
+
+El 27 de septiembre se repitió la búsqueda pública para Argentina, Chile,
+Colombia y México. Riverz todavía no aparece indexada. Esto es coherente con
+una revisión editorial pendiente y no contradice la aprobación técnica.
+
+No enviar otro correo antes del **1 de octubre de 2026**: entre la entrega final
+del miércoles 23 y el domingo 27 sólo transcurrieron dos días hábiles. Si para
+el 1 de octubre no hay confirmación ni ficha pública, responder en el mismo hilo
+de aprobación con este texto, sin adjuntar nuevamente los archivos:
+
+> Hola, Luciana:
+>
+> El 23 de septiembre enviamos en este hilo el FAQ final de Riverz, completamos
+> la descripción detallada para Argentina, Chile, Colombia y México y
+> actualizamos el video comercial de la ficha.
+>
+> ¿Podrían confirmarnos si el material quedó recibido correctamente y si falta
+> algún ajuste para publicar la aplicación 37693 en la App Store? También nos
+> ayudaría conocer la fecha estimada de publicación.
+>
+> Gracias,
+> Juan Diego Rios Mesa
+> Riverz
+
+La copia interna corregida del FAQ queda en
+`docs/FAQ-Riverz-Tiendanube-final.docx`. Sólo corrige la numeración duplicada de
+los ocho pasos de la sección 3.5.2; no cambia el contenido aprobado ni debe
+reenviarse salvo que Tiendanube solicite una nueva versión.
+
 ### Auditoría completa de correos
 
 | Fecha | Dirección | Resultado |
