@@ -64,18 +64,19 @@ export async function ajustarRecargaDesdeEvento(
       typeof item === 'string'
         ? await stripe().balanceTransactions.retrieve(item)
         : item;
-    if (tx.currency !== 'usd' || !Number.isSafeInteger(tx.net))
+    if (tx.currency !== 'usd' || !Number.isSafeInteger(tx.amount))
       throw new Error('wallet_adjustment_currency_mismatch');
     await mover(db, workspaceId, {
-      tipo: tx.net >= 0 ? 'reembolso' : 'ajuste',
+      tipo: tx.amount >= 0 ? 'reembolso' : 'ajuste',
       concepto: 'recarga_ajuste',
-      centavos: tx.net,
+      centavos: tx.amount,
       stripeId: `wallet:${tx.id}`,
       detalle: {
         paymentIntent: piId,
         balanceTransaction: tx.id,
         evento: event.id,
         moneda: tx.currency,
+        comisionAsumidaPorRiverz: tx.fee,
       },
     });
   }

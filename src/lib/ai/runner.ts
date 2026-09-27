@@ -1,4 +1,5 @@
 import { replyWasSuperseded } from './reply-freshness';
+import { revitalyEmailDisposition } from './revitaly-email-filter';
 import { revitalyEmailRedirect, revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-channel-policy';
 import type { OtherStoreContext } from '@/lib/ai/tools';
 import { untrustedContext } from './input-security';
@@ -204,6 +205,19 @@ export async function runAiAgent(
   }
 ): Promise<void> {
   try {
+    const emailDisposition = revitalyEmailDisposition({
+      workspaceId: args.workspaceId, channel: args.channel,
+      from: args.contact.email || args.contact.external_id,
+      subject: args.conversation.subject, text: args.inboundMessage.content_text,
+    });
+    if (emailDisposition === 'ignore' || emailDisposition === 'review') {
+      const reason = emailDisposition === 'ignore' ? 'respuesta_automatica_del_cliente'
+        : args.conversation.status === 'closed' ? 'conversation_closed'
+        : args.conversation.ai_enabled === false ? 'ai_disabled_for_conversation'
+        : args.conversation.assigned_agent_id ? 'conversation_assigned' : 'answer_gap';
+      await anotarSalida(db, args, reason);
+      return;
+    }
     // A disconnect is a hard stop and is checked before spending any model
     // tokens. The connection object came from the inbound delivery and may be
     // older than the current database state.
@@ -359,7 +373,7 @@ export async function runAiAgent(
     }
 
     // Understanding attachments is independent of the permission to reply.
-    await enrichConversationEvidence(db, { workspaceId: args.workspaceId, conversationId: args.conversation.id, agentKeyEncrypted: agent.api_key_encrypted });
+    if (emailDisposition !== 'customer') await enrichConversationEvidence(db, { workspaceId: args.workspaceId, conversationId: args.conversation.id, agentKeyEncrypted: agent.api_key_encrypted });
     const skip = shouldSkip(agent, args);
     if (skip) {
       await summarizeConversationIfNeeded(db, args.conversation, agent);
@@ -403,7 +417,7 @@ export async function runAiAgent(
     // problem. Run this before escalation so "No, that's all, thank you" cannot
     // create a fresh human alert. The classifier reads the full customer burst
     // and defaults to attending whenever an action or question remains.
-    if (!purchaseButtonReply && recoveryIntent === 'none' &&
+    if (emailDisposition !== 'customer' && !purchaseButtonReply && recoveryIntent === 'none' &&
       args.inboundMessage.content_type === 'text' && !args.inboundMessage.media_url &&
       await sinRespuestaNecesaria(db, {
         workspaceId: args.workspaceId,
@@ -418,7 +432,7 @@ export async function runAiAgent(
       return;
     }
     if (
-      args.channel !== 'webchat' &&
+      emailDisposition !== 'customer' && args.channel !== 'webchat' &&
       containsEscalationKeyword(agent, textoEntrante)
     ) {
       await flagNeedsHuman(db, args.conversation, 'escalation_keyword', {
@@ -440,7 +454,7 @@ export async function runAiAgent(
     // Un envío que va a la ciudad equivocada no trae ninguna palabra clave y
     // no puede esperar a que alguien mire la bandeja.
     const escalada =
-      args.channel === 'webchat'
+      args.channel === 'webchat' || emailDisposition === 'customer'
         ? null
         : await detectarEscalada({
             mensaje: textoEntrante,

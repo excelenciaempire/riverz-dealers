@@ -70,6 +70,8 @@ export async function routeComment(
     text: string;
   },
 ): Promise<void> {
+  // Historical tombstones are not new comments and cannot be moderated/replied to.
+  if (ev.text.trim() === '[deleted]') return;
   // 0. De qué habla esta persona. La fila debe existir antes de resolver el
   //    caption: si ambas operaciones corren a la vez, el texto puede intentar
   //    actualizar una fila que todavía no existe y el agente queda a ciegas.

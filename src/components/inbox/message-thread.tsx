@@ -267,13 +267,13 @@ export function MessageThread({
   }, [conversation?.id]);
   const opinarSobre = useCallback(
     async (messageId: string, opinion: OpinionIa) => {
-      setOpinionesIa((prev) => ({ ...prev, [messageId]: opinion }));
       const res = await fetchWithCsrf("/api/ai/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message_id: messageId, ...opinion }),
       }).catch(() => null);
       if (!res?.ok) toast.error(t("inbox.opinionError"));
+      else setOpinionesIa((prev) => ({ ...prev, [messageId]: opinion }));
     },
     [fetchWithCsrf, t],
   );

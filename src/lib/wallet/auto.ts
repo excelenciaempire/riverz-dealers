@@ -451,7 +451,6 @@ export async function recargarLasQueHagaFalta(
         throw new Error(`el pago quedó en ${pi.status}`);
       }
       paid = true;
-      await descontarComision(db, f.workspace_id, pi.id);
       const r = await mover(db, f.workspace_id, {
         tipo: 'recarga',
         concepto: 'recarga',
@@ -459,6 +458,7 @@ export async function recargarLasQueHagaFalta(
         stripeId: pi.id,
         detalle: { automatica: true },
       });
+      await descontarComision(db, f.workspace_id, pi.id);
       await db
         .from('wallet_accounts')
         .update({

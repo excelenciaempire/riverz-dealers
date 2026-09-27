@@ -34,24 +34,24 @@ beforeEach(() => {
   });
 });
 describe('top-up refund and dispute accounting', () => {
-  it('uses the actual net adjustment and a stable balance-transaction key', async () => {
+  it('adjusts only principal, leaving processing fees to Riverz', async () => {
     await ajustarRecargaDesdeEvento(
       db,
       event('refund.updated', {
         charge: 'ch',
-        balance_transaction: { id: 'tx', currency: 'usd', net: -503 },
+        balance_transaction: { id: 'tx', currency: 'usd', net: -503, amount: -500, fee: 3 },
       })
     );
     expect(mocks.mover).toHaveBeenCalledWith(
       db,
       'ws',
-      expect.objectContaining({ centavos: -503, stripeId: 'wallet:tx' })
+      expect.objectContaining({ centavos: -500, stripeId: 'wallet:tx' })
     );
   });
   it('applies the withdrawal and reinstatement with their own actual fees', async () => {
     const txs = [
-      { id: 'withdrawn', currency: 'usd', net: -2500 },
-      { id: 'returned', currency: 'usd', net: 1000 },
+      { id: 'withdrawn', currency: 'usd', net: -2500, amount: -1000, fee: 1500 },
+      { id: 'returned', currency: 'usd', net: 1000, amount: 1000, fee: 0 },
     ];
     await ajustarRecargaDesdeEvento(
       db,
@@ -63,7 +63,7 @@ describe('top-up refund and dispute accounting', () => {
     expect(
       mocks.mover.mock.calls.map((c) => [c[2].stripeId, c[2].centavos])
     ).toEqual([
-      ['wallet:withdrawn', -2500],
+      ['wallet:withdrawn', -1000],
       ['wallet:returned', 1000],
     ]);
   });

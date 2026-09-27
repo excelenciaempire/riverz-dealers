@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { stripe } from '@/lib/billing/stripe'
 import { mover } from './saldo'
 
-/** Only new top-ups opt in. Historical payments keep their original terms. */
+/** Legacy metadata marker; Stripe processing is now an operating expense. */
 export const COMISION_REAL = 'stripe_real_v1'
 
 export async function descontarComision(db: SupabaseClient, workspaceId: string, pago: string) {
@@ -24,9 +24,9 @@ export async function descontarComision(db: SupabaseClient, workspaceId: string,
   await mover(db, workspaceId, {
     tipo: 'consumo',
     concepto: 'comision_stripe',
-    centavos: -tx.fee,
+    centavos: 0,
     costoCentavos: tx.fee,
     stripeId: `${pago}:comision`,
-    detalle: { paymentIntent: pago, balanceTransaction: tx.id, brutoCentavos: pi.amount_received, moneda: tx.currency },
+    detalle: { paymentIntent: pago, balanceTransaction: tx.id, brutoCentavos: pi.amount_received, moneda: tx.currency, asumidaPor: 'riverz' },
   })
 }

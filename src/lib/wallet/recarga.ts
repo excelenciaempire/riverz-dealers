@@ -149,7 +149,7 @@ export async function acreditarDesdeEvento(
     if (!workspaceId) return 'recarga sin workspace_id'
     const centavos = Number(pi.amount_received ?? pi.amount ?? 0)
     if (!(centavos > 0)) return `recarga en cero: ${pi.id}`
-    await descontarComision(db, workspaceId, pi.id)
+    if (pi.currency !== 'usd' || !Number.isSafeInteger(centavos)) throw new Error('wallet_invalid_topup')
     const r = await mover(db, workspaceId, {
       tipo: 'recarga',
       concepto: 'recarga',
@@ -157,6 +157,9 @@ export async function acreditarDesdeEvento(
       stripeId: pi.id,
       detalle: { moneda: pi.currency ?? 'usd', porWebhook: true },
     })
+    // Gross credit is independent of asynchronous processor settlement.
+    // A webhook retry records the cost without crediting the payment twice.
+    await descontarComision(db, workspaceId, pi.id)
     return r.duplicado
       ? `recarga ya acreditada: ${pi.id}`
       : `${workspaceId}: +${centavos} → ${r.saldoCentavos} (rescatada del webhook)`
@@ -175,6 +178,7 @@ export async function acreditarDesdeEvento(
 
   const centavos = Number(sesion.amount_total ?? 0)
   if (!(centavos > 0)) return `recarga en cero: ${sesion.id}`
+  if (sesion.currency !== 'usd' || !Number.isSafeInteger(centavos)) throw new Error('wallet_invalid_topup')
 
   const pago =
     typeof sesion.payment_intent === 'string'
@@ -207,7 +211,6 @@ export async function acreditarDesdeEvento(
     }
   }
 
-  await descontarComision(db, workspaceId, pago)
   const r = await mover(db, workspaceId, {
     tipo: 'recarga',
     concepto: 'recarga',
@@ -215,6 +218,7 @@ export async function acreditarDesdeEvento(
     stripeId: pago,
     detalle: { sesion: sesion.id, moneda: sesion.currency ?? 'usd' },
   })
+  await descontarComision(db, workspaceId, pago)
   return r.duplicado
     ? `recarga repetida, ignorada: ${pago}`
     : `${workspaceId}: +${centavos} → ${r.saldoCentavos}`

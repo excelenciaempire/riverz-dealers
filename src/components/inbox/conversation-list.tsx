@@ -1,5 +1,7 @@
 "use client";
 
+import { emailPreview } from '@/lib/channels/email/preview';
+
 import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { createClient } from "@/lib/supabase/client";
@@ -736,7 +738,7 @@ const ConversationItem = memo(function ConversationItem({
               {conversation.subject &&
               conversation.channel !== "mercadolibre" &&
               conversation.channel !== "tiktok_comment" ? (
-                <span className="font-medium text-foreground">{conversation.subject} · </span>
+                <span className="font-medium text-foreground">{emailPreview(conversation.channel, conversation.subject)} · </span>
               ) : null}
               {isUnsupportedSnippet(conversation.last_message_text)
                 ? t("inbox.unsupported", { channel: channelLabel(conversation.channel, t) })
@@ -750,7 +752,7 @@ const ConversationItem = memo(function ConversationItem({
                     ? stripLeadingMentions(
                         localizeContentToken(conversation.last_message_text, t),
                       )
-                    : localizeContentToken(conversation.last_message_text, t)) ||
+                    : localizeContentToken(emailPreview(conversation.channel, conversation.last_message_text), t)) ||
                   t("inbox.noMessages")}
             </span>
           </p>

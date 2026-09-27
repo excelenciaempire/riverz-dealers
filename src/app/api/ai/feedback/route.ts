@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { capturaHasta, esMensajeAutomatico } from '@/lib/ai/feedback-real';
+import { capturaHasta, admiteFeedbackReal } from '@/lib/ai/feedback-real';
 import { serverError } from '@/lib/api/errors';
 import { csrfGuard } from '@/lib/csrf';
 import { cuentaDeSesion } from '@/lib/workspaces/cuenta-de-sesion';
@@ -83,6 +83,7 @@ export async function POST(request: Request) {
     .select('id, conversation_id, created_at, sender_type, sender_id, origin, channel, conversations!inner(workspace_id, assigned_ai_agent_id)')
     .eq('id', messageId)
     .eq('conversations.workspace_id', workspaceId)
+    .is('deleted_at', null)
     .maybeSingle();
   const m = mensaje as {
     id: string;
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
     conversations: { assigned_ai_agent_id?: string | null } | null;
   } | null;
   if (!m) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  if (!esMensajeAutomatico(m)) return NextResponse.json({ error: 'bad_request' }, { status: 400 });
+  if (!admiteFeedbackReal(m)) return NextResponse.json({ error: 'bad_request' }, { status: 400 });
 
   if (!voto && !nota) {
     const { error } = await admin

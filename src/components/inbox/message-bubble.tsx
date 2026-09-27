@@ -51,6 +51,7 @@ import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
 import { CommentModerationBar } from "./comment-moderation-bar";
 import { OpinionIaControl, type OpinionIa } from "./opinion-ia";
+import { admiteFeedbackReal } from '@/lib/ai/feedback-real';
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 interface MessageBubbleProps {
@@ -1355,7 +1356,7 @@ export function MessageBubble({
           onToggle={onToggleReaction}
         />
       )}
-      {automatico && onOpinion && !isCommentDeleted(message) && (
+      {admiteFeedbackReal(message) && onOpinion && !isCommentDeleted(message) && (
         <OpinionIaControl opinion={opinion ?? null} onCambio={onOpinion} />
       )}
       {!isCommentDeleted(message) &&

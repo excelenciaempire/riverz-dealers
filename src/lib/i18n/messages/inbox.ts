@@ -305,9 +305,9 @@ export const inbox = {
     es: "{channel} no entrega este mensaje · ábrelo en la app",
     en: "{channel} doesn't deliver this message · open it in the app",
   },
-  opinionComentar: { es: "Comentar", en: "Comment" },
+  opinionComentar: { es: "Feedback", en: "Feedback" },
   enviadoPorAsistente: { es: "Asistente Riverz", en: "Riverz assistant" },
-  opinionPlaceholder: { es: "¿Qué debería haber respondido?", en: "What should it have replied?" },
+  opinionPlaceholder: { es: "¿Qué se debería mejorar en este mensaje?", en: "What should be improved about this message?" },
   opinionAviso: {
     es: "Riverz ve este tramo de la conversación para mejorar el asistente.",
     en: "Riverz sees this part of the conversation to improve the assistant.",

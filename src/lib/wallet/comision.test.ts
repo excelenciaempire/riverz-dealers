@@ -26,13 +26,13 @@ describe('actual Stripe fees', () => {
     })
     await acreditarDesdeEvento(db, event('payment_intent.succeeded', payment()))
     await acreditarDesdeEvento(db, event('payment_intent.succeeded', payment()))
-    expect(balance).toBe(941)
+    expect(balance).toBe(1000)
     expect(seen.size).toBe(2)
   })
-  it('passes through actual cost with a separate idempotency key', async () => {
+  it('records the operating cost without debiting the customer balance', async () => {
     await descontarComision(db, 'ws', 'pi_1')
     expect(mocks.mover).toHaveBeenCalledWith(db, 'ws', expect.objectContaining({
-      centavos: -59, costoCentavos: 59, stripeId: 'pi_1:comision', concepto: 'comision_stripe',
+      centavos: 0, costoCentavos: 59, stripeId: 'pi_1:comision', concepto: 'comision_stripe',
     }))
   })
   it('does not charge historical payments', async () => {
@@ -40,21 +40,21 @@ describe('actual Stripe fees', () => {
     await descontarComision(db, 'ws', 'pi_1')
     expect(mocks.mover).not.toHaveBeenCalled()
   })
-  it('retries missing settlement without crediting gross funds', async () => {
+  it('credits gross funds even when processor settlement needs a retry', async () => {
     mocks.retrieve.mockResolvedValue({ ...payment(), latest_charge: null })
     await expect(acreditarDesdeEvento(db, event('payment_intent.succeeded', payment()))).rejects.toThrow('wallet_fee_pending')
-    expect(mocks.mover).not.toHaveBeenCalled()
+    expect(mocks.mover).toHaveBeenCalledWith(db, 'ws', expect.objectContaining({centavos:1000,stripeId:'pi_1'}))
   })
   it('rejects currency mismatches instead of treating foreign cents as dollars', async () => {
     const pi = payment(); pi.latest_charge.balance_transaction.currency = 'eur'; mocks.retrieve.mockResolvedValue(pi)
     await expect(descontarComision(db, 'ws', 'pi_1')).rejects.toThrow('wallet_fee_invalid_transaction')
   })
   it.each(['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'payment_intent.succeeded'])(
-    'settles fees before credit for %s', async type => {
-      const object = type.startsWith('checkout') ? { metadata: payment().metadata, payment_status: 'paid', amount_total: 1000, payment_intent: 'pi_1', id: 'cs_1' } : payment()
+    'credits the full amount and records operating costs for %s', async type => {
+      const object = type.startsWith('checkout') ? { metadata: payment().metadata, currency:'usd', payment_status: 'paid', amount_total: 1000, payment_intent: 'pi_1', id: 'cs_1' } : payment()
       await acreditarDesdeEvento(db, event(type, object))
-      expect(mocks.mover.mock.calls.map(c => c[2].centavos)).toEqual([-59, 1000])
-      expect(mocks.mover.mock.calls.map(c => c[2].stripeId)).toEqual(['pi_1:comision', 'pi_1'])
+      expect(mocks.mover.mock.calls.map(c => c[2].centavos)).toEqual([1000, 0])
+      expect(mocks.mover.mock.calls.map(c => c[2].stripeId)).toEqual(['pi_1', 'pi_1:comision'])
     })
   it('does not write a zero fee movement', async () => {
     const pi = payment(); pi.latest_charge.balance_transaction.fee = 0; mocks.retrieve.mockResolvedValue(pi)

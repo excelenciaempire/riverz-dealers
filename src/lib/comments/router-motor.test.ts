@@ -64,4 +64,12 @@ describe('routeComment con el motor apagado', () => {
     expect(m.reglas).toHaveBeenCalledOnce()
     expect(m.agente).toHaveBeenCalledOnce()
   })
+
+  it('ignora comentarios eliminados sin gastar IA ni crear alertas', async () => {
+    m.motorApagado = false
+    await routeComment(db, { ...evento, text: '[deleted]' })
+    expect(m.reglas).not.toHaveBeenCalled()
+    expect(m.agente).not.toHaveBeenCalled()
+    expect(m.inserts).toEqual([])
+  })
 })

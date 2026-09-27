@@ -13,6 +13,11 @@ import type { ItemGuardado } from '@/lib/ai/sesiones-de-prueba';
 
 const ORIGENES_AUTOMATICOS = new Set(['ai_agent', 'comment_ai', 'automation', 'voice_agent', 'order_update']);
 
+/** Feedback can describe a customer inquiry, a human reply, or an automatic reply. */
+export function admiteFeedbackReal(m: { sender_type: string | null }): boolean {
+  return ['customer', 'agent', 'bot'].includes(m.sender_type ?? '');
+}
+
 /** Sólo se opina sobre lo que mandó Riverz solo, no sobre lo que escribió una persona. */
 export function esMensajeAutomatico(m: { sender_type: string | null; origin: string | null; sender_id?: string | null }): boolean {
   if (m.sender_type === 'bot') return true;
