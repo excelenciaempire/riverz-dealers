@@ -10,6 +10,7 @@ const QUESTIONS = [
   ['faqSetupQuestion', 'faqSetupAnswer'],
   ['faqFirstMonthQuestion', 'faqFirstMonthAnswer'],
   ['faqBalanceBudgetQuestion', 'faqBalanceBudgetAnswer'],
+  ['faqMetaChargesQuestion', 'faqMetaChargesAnswer'],
   ['faqCountingQuestion', 'faqCountingAnswer'],
   ['faqGrowthQuestion', 'faqGrowthAnswer'],
   ['faqMistakesQuestion', 'faqMistakesAnswer'],
@@ -63,6 +64,19 @@ export function Faq({ balancePlan = true }: { balancePlan?: boolean }) {
               {t(key(answer), {
                 percent: FIRST_MONTH_DISCOUNT_PERCENT,
               })}
+              {question === 'faqMetaChargesQuestion' && (
+                <>
+                  {' '}
+                  <a
+                    href="https://whatsappbusiness.com/products/platform-pricing/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-4"
+                  >
+                    {t('landingV4.faqMetaRatesLink')}
+                  </a>
+                </>
+              )}
             </p>
           </details>
         ))}
