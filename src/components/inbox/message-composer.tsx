@@ -823,7 +823,7 @@ export function MessageComposer({
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+            className="hidden h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground sm:inline-flex"
             onClick={handleDraft}
             disabled={sessionExpired || sending || drafting || improving}
             title={t("inbox.draftReply")}
@@ -841,7 +841,7 @@ export function MessageComposer({
         <Button
           variant="ghost"
           size="sm"
-          className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+          className="hidden h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground sm:inline-flex"
           onClick={handleImprove}
           disabled={!text.trim() || sessionExpired || sending || improving}
           title={t("inbox.improveText")}
