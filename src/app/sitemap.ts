@@ -1,7 +1,7 @@
-import type { MetadataRoute } from "next";
-import { signupsOpen } from "@/lib/auth/signups";
+import type { MetadataRoute } from 'next';
+import { signupsOpen } from '@/lib/auth/signups';
 
-const BASE_URL = "https://riverz.co";
+const BASE_URL = 'https://riverz.co';
 
 // Only public, crawlable routes belong here. The private dashboard and
 // API live behind auth and are excluded (see robots.ts).
@@ -12,19 +12,25 @@ export default function sitemap(): MetadataRoute.Sitemap {
     {
       url: BASE_URL,
       lastModified,
-      changeFrequency: "weekly",
+      changeFrequency: 'weekly',
       priority: 1,
     },
     {
       url: `${BASE_URL}/calculadora`,
       lastModified,
-      changeFrequency: "monthly",
+      changeFrequency: 'monthly',
       priority: 0.6,
+    },
+    {
+      url: `${BASE_URL}/afiliados`,
+      lastModified,
+      changeFrequency: 'monthly',
+      priority: 0.8,
     },
     {
       url: `${BASE_URL}/ingresar`,
       lastModified,
-      changeFrequency: "monthly",
+      changeFrequency: 'monthly',
       priority: 0.7,
     },
     // /crear only while sign-ups are open — no point sending crawlers
@@ -34,7 +40,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
           {
             url: `${BASE_URL}/crear`,
             lastModified,
-            changeFrequency: "monthly" as const,
+            changeFrequency: 'monthly' as const,
             priority: 0.7,
           },
         ]
@@ -42,19 +48,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
     {
       url: `${BASE_URL}/terminos`,
       lastModified,
-      changeFrequency: "yearly",
+      changeFrequency: 'yearly',
       priority: 0.3,
     },
     {
       url: `${BASE_URL}/privacidad`,
       lastModified,
-      changeFrequency: "yearly",
+      changeFrequency: 'yearly',
       priority: 0.3,
     },
     {
       url: `${BASE_URL}/eliminar-datos`,
       lastModified,
-      changeFrequency: "yearly",
+      changeFrequency: 'yearly',
       priority: 0.3,
     },
   ];

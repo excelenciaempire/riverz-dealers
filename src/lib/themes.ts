@@ -12,7 +12,7 @@
  * data-theme swap on <html>.
  */
 
-export const THEME_IDS = ["light", "dark"] as const;
+export const THEME_IDS = ['light', 'dark'] as const;
 
 export type ThemeId = (typeof THEME_IDS)[number];
 
@@ -21,7 +21,7 @@ export type ThemeId = (typeof THEME_IDS)[number];
  * Only the default before the visitor makes an explicit choice — a saved
  * light/dark preference (STORAGE_KEY) still wins on every surface.
  */
-export const DEFAULT_THEME: ThemeId = "light";
+export const DEFAULT_THEME: ThemeId = 'light';
 
 /**
  * Default for the public marketing *landing* (`/`): deep charcoal dark — the
@@ -31,7 +31,7 @@ export const DEFAULT_THEME: ThemeId = "light";
  * anywhere, that choice wins on every surface. See the path-aware boot script
  * in `src/app/layout.tsx`.
  */
-export const DEFAULT_LANDING_THEME: ThemeId = "dark";
+export const DEFAULT_LANDING_THEME: ThemeId = 'dark';
 
 /**
  * Marketing routes that default to {@link DEFAULT_LANDING_THEME} instead of
@@ -40,9 +40,13 @@ export const DEFAULT_LANDING_THEME: ThemeId = "dark";
  * is exact (full pathname) — duplicated literally in the boot script string,
  * so keep the two in sync.
  */
-export const LANDING_PATHS: ReadonlyArray<string> = ["/"];
+export const LANDING_PATHS: ReadonlyArray<string> = [
+  '/',
+  '/afiliados',
+  '/affiliates',
+];
 
-export const STORAGE_KEY = "wacrm.theme";
+export const STORAGE_KEY = 'wacrm.theme';
 
 export interface ThemeMeta {
   id: ThemeId;
@@ -58,22 +62,23 @@ export interface ThemeMeta {
 
 export const THEMES: ReadonlyArray<ThemeMeta> = [
   {
-    id: "light",
-    name: "Claro",
-    tagline: "Crema editorial — superficies cálidas, tinta carbón, acento lima.",
-    swatch: "#f5f3ec",
+    id: 'light',
+    name: 'Claro',
+    tagline:
+      'Crema editorial — superficies cálidas, tinta carbón, acento lima.',
+    swatch: '#f5f3ec',
   },
   {
-    id: "dark",
-    name: "Oscuro",
-    tagline: "Carbón profundo — ideal para sesiones largas y poca luz.",
-    swatch: "#0a0a0a",
+    id: 'dark',
+    name: 'Oscuro',
+    tagline: 'Carbón profundo — ideal para sesiones largas y poca luz.',
+    swatch: '#0a0a0a',
   },
 ];
 
 export function isThemeId(value: unknown): value is ThemeId {
   return (
-    typeof value === "string" &&
+    typeof value === 'string' &&
     (THEME_IDS as ReadonlyArray<string>).includes(value)
   );
 }

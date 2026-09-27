@@ -19,6 +19,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { leerSuscripcion, listarPlanes, type ModeloCobro, type Plan, type Suscripcion } from './plan'
 import { costoAmpliacionCentavos } from './upgrade-policy'
 import { prepareSubscriptionWallet } from './subscription-wallet'
+import { attachAffiliateWorkspace } from '@/lib/affiliates/program'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
@@ -162,6 +163,7 @@ export async function urlDeCheckout(
   opciones?: { cupon?: string | null; primerMesSinCargo?: boolean },
 ): Promise<string> {
   const locale = await localeDeCuenta(db, workspaceId)
+  await attachAffiliateWorkspace(db, workspaceId)
   if (!s.plan || s.precioAcuerdoCentavos <= 0) {
     throw new Error(translate(locale, 'settings.billingMissingPrice'))
   }

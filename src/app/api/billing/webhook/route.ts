@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { aplicarEvento, stripe, stripeDisponible } from '@/lib/billing/stripe';
 import { guardarTarjetaDesdeEvento } from '@/lib/wallet/auto';
 import { acreditarDesdeEvento } from '@/lib/wallet/recarga';
+import { applyAffiliateStripeEvent } from '@/lib/affiliates/program';
 
 /**
  * Lo que Stripe cuenta después.
@@ -54,8 +55,11 @@ export async function POST(request: Request) {
     if (tarjeta) return NextResponse.json({ ok: true, que: tarjeta });
     const recarga = await acreditarDesdeEvento(db, evento);
     if (recarga) return NextResponse.json({ ok: true, que: recarga });
+    // No corta el flujo: invoice.paid tambien puede activar una ampliacion o
+    // actualizar el estado general de facturacion.
+    const afiliado = await applyAffiliateStripeEvent(db, evento, stripe());
     const que = await aplicarEvento(db, evento);
-    return NextResponse.json({ ok: true, que });
+    return NextResponse.json({ ok: true, que, afiliado });
   } catch (e) {
     // 500 para que Stripe reintente: el evento es válido y algo nuestro falló.
     return NextResponse.json(

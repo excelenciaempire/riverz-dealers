@@ -1,27 +1,36 @@
-import { NextResponse } from "next/server";
-import { cookies as nextCookies } from "next/headers";
-import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { NextResponse } from 'next/server';
+import { cookies as nextCookies } from 'next/headers';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
 import {
   checkRateLimit,
   rateLimitResponse,
   clientIp,
   RATE_LIMITS,
-} from "@/lib/rate-limit";
-import { safeRedirectTo } from "@/lib/auth/redirect";
-import { recordLegalConsent } from "@/lib/legal/consent";
-import { getLocale } from "@/lib/i18n/server";
-import { translate } from "@/lib/i18n/translate";
-import { signupsOpen } from "@/lib/auth/signups";
-import { pendingInstallExists, CLAIM_COOKIE as SHOPIFY_CLAIM_COOKIE } from "@/lib/shopify/pending-install";
-import { TN_CLAIM_COOKIE } from "@/lib/commerce/tiendanube-claim-cookies";
+} from '@/lib/rate-limit';
+import { safeRedirectTo } from '@/lib/auth/redirect';
+import { recordLegalConsent } from '@/lib/legal/consent';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
+import { signupsOpen } from '@/lib/auth/signups';
+import {
+  pendingInstallExists,
+  CLAIM_COOKIE as SHOPIFY_CLAIM_COOKIE,
+} from '@/lib/shopify/pending-install';
+import { TN_CLAIM_COOKIE } from '@/lib/commerce/tiendanube-claim-cookies';
 import {
   claimSignupCode,
   releaseSignupCode,
   recordSignupCodeRedemption,
-} from "@/lib/auth/signup-codes";
-import { sanitizePhoneForMeta, isValidE164 } from "@/lib/whatsapp/phone-utils";
-import { sendAuthEmail } from "@/lib/auth/email";
-import { localizePath } from "@/lib/i18n/routes";
+} from '@/lib/auth/signup-codes';
+import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
+import { sendAuthEmail } from '@/lib/auth/email';
+import { localizePath } from '@/lib/i18n/routes';
+import {
+  AFFILIATE_COOKIE,
+  activeAffiliate,
+  normalizeAffiliateCode,
+  recordAffiliateSignup,
+} from '@/lib/affiliates/program';
 
 /**
  * POST /api/auth/signup
@@ -50,43 +59,43 @@ export async function POST(req: Request) {
   // para saltarse tanto el cierre como el código.
   const cookies = await nextCookies();
   const reclamo =
-    cookies.get(TN_CLAIM_COOKIE)?.value ?? cookies.get(SHOPIFY_CLAIM_COOKIE)?.value;
+    cookies.get(TN_CLAIM_COOKIE)?.value ??
+    cookies.get(SHOPIFY_CLAIM_COOKIE)?.value;
   const instalando =
     Boolean(reclamo) && (await pendingInstallExists(supabaseAdmin(), reclamo!));
 
   if (!signupsOpen() && !instalando) {
     return NextResponse.json(
-      { error: translate(locale, "errAccount.signupsClosed") },
-      { status: 403 },
+      { error: translate(locale, 'errAccount.signupsClosed') },
+      { status: 403 }
     );
   }
 
   const genericOk = {
     ok: true,
-    message: translate(locale, "errAccount.signupGenericOk"),
+    message: translate(locale, 'errAccount.signupGenericOk'),
   } as const;
 
-  const body = (await req.json().catch(() => null)) as
-    | {
-        email?: string;
-        password?: string;
-        full_name?: string;
-        phone?: string;
-        accept_terms?: boolean;
-        terms_version?: string;
-        redirect_to?: string;
-        invite_code?: string;
-        /** Token de invitación de equipo, si vino por `/invitacion/<token>`. */
-        invite_token?: string;
-      }
-    | null;
+  const body = (await req.json().catch(() => null)) as {
+    email?: string;
+    password?: string;
+    full_name?: string;
+    phone?: string;
+    accept_terms?: boolean;
+    terms_version?: string;
+    redirect_to?: string;
+    invite_code?: string;
+    referral_code?: string;
+    /** Token de invitación de equipo, si vino por `/invitacion/<token>`. */
+    invite_token?: string;
+  } | null;
   const email = body?.email?.trim().toLowerCase();
   const password = body?.password;
-  const fullName = body?.full_name?.trim() ?? "";
+  const fullName = body?.full_name?.trim() ?? '';
   // El teléfono es el canal por el que la plataforma le escribe al dueño
   // cuando el asistente necesita una decisión. Se guarda normalizado (solo
   // dígitos, como lo quiere Meta) para no depender de cómo lo tipeó cada uno.
-  const phone = sanitizePhoneForMeta(body?.phone?.trim() ?? "");
+  const phone = sanitizePhoneForMeta(body?.phone?.trim() ?? '');
 
   // Compliance gate: an account cannot be created without an explicit,
   // affirmative acceptance of the Terms & Privacy Policy. This is
@@ -94,8 +103,8 @@ export async function POST(req: Request) {
   // nothing (preserves the anti-enumeration design below).
   if (body?.accept_terms !== true) {
     return NextResponse.json(
-      { error: translate(locale, "errAccount.mustAcceptTerms") },
-      { status: 400 },
+      { error: translate(locale, 'errAccount.mustAcceptTerms') },
+      { status: 400 }
     );
   }
 
@@ -104,8 +113,8 @@ export async function POST(req: Request) {
   // nada sobre si la cuenta existe.
   if (phone && !isValidE164(phone)) {
     return NextResponse.json(
-      { error: translate(locale, "errAccount.phoneInvalid") },
-      { status: 400 },
+      { error: translate(locale, 'errAccount.phoneInvalid') },
+      { status: 400 }
     );
   }
 
@@ -118,7 +127,7 @@ export async function POST(req: Request) {
   if (!ipCheck.success) return rateLimitResponse(ipCheck);
   const emailCheck = checkRateLimit(
     `auth-signup:email:${email}`,
-    RATE_LIMITS.auth,
+    RATE_LIMITS.auth
   );
   if (!emailCheck.success) return rateLimitResponse(emailCheck);
 
@@ -132,15 +141,27 @@ export async function POST(req: Request) {
   // las dos ya hay una invitación, sólo que no tiene forma de código.
   const invitadoAlEquipo = await tieneInvitacionDeEquipo(
     body?.invite_token,
-    email,
+    email
   );
+  const rawReferral =
+    body?.referral_code ?? cookies.get(AFFILIATE_COOKIE)?.value ?? null;
+  const referralCode = normalizeAffiliateCode(rawReferral);
+  const affiliate = referralCode
+    ? await activeAffiliate(supabaseAdmin(), referralCode)
+    : null;
+  if (referralCode && !affiliate) {
+    return NextResponse.json(
+      { error: translate(locale, 'affiliates.referralUnavailable') },
+      { status: 400 }
+    );
+  }
   let codeId: string | null = null;
-  if (!instalando && !invitadoAlEquipo) {
-    const raw = body?.invite_code?.trim() ?? "";
+  if (!instalando && !invitadoAlEquipo && !affiliate) {
+    const raw = body?.invite_code?.trim() ?? '';
     if (!raw) {
       return NextResponse.json(
-        { error: translate(locale, "errAccount.inviteCodeRequired") },
-        { status: 400 },
+        { error: translate(locale, 'errAccount.inviteCodeRequired') },
+        { status: 400 }
       );
     }
     codeId = await claimSignupCode(supabaseAdmin(), raw);
@@ -148,8 +169,8 @@ export async function POST(req: Request) {
       // Un solo mensaje para inexistente, revocado, vencido y agotado: por
       // fuera son el mismo hecho, y distinguirlos sólo ayudaría a adivinar.
       return NextResponse.json(
-        { error: translate(locale, "errAccount.inviteCodeInvalid") },
-        { status: 400 },
+        { error: translate(locale, 'errAccount.inviteCodeInvalid') },
+        { status: 400 }
       );
     }
   }
@@ -161,7 +182,7 @@ export async function POST(req: Request) {
   const redirectTo = safeRedirectTo(body?.redirect_to);
   const admin = supabaseAdmin();
   const { data, error } = await admin.auth.admin.generateLink({
-    type: "signup",
+    type: 'signup',
     email,
     password,
     options: {
@@ -171,9 +192,9 @@ export async function POST(req: Request) {
   });
 
   const isCollision =
-    error?.code === "email_exists" ||
-    error?.code === "user_already_exists" ||
-    /already (?:been )?registered|already exists/i.test(error?.message ?? "");
+    error?.code === 'email_exists' ||
+    error?.code === 'user_already_exists' ||
+    /already (?:been )?registered|already exists/i.test(error?.message ?? '');
 
   if (isCollision) {
     // El correo ya tenía cuenta: no se creó nada, así que el código vuelve a
@@ -183,8 +204,8 @@ export async function POST(req: Request) {
     const loginLink = safeRedirectTo(localizePath('/ingresar', locale));
     if (!loginLink) {
       return NextResponse.json(
-        { error: translate(locale, "errAccount.emailDeliveryUnavailable") },
-        { status: 503 },
+        { error: translate(locale, 'errAccount.emailDeliveryUnavailable') },
+        { status: 503 }
       );
     }
 
@@ -193,18 +214,21 @@ export async function POST(req: Request) {
     const safeNext = safeRedirectTo(next || undefined);
     if (safeNext) {
       const target = new URL(safeNext);
-      loginUrl.searchParams.set('next', target.pathname + target.search + target.hash);
+      loginUrl.searchParams.set(
+        'next',
+        target.pathname + target.search + target.hash
+      );
     }
     const delivery = await sendAuthEmail({
       to: email,
       actionLink: loginUrl.toString(),
       locale,
-      kind: "existing_account",
+      kind: 'existing_account',
     });
     if (!delivery.ok) {
       return NextResponse.json(
-        { error: translate(locale, "errAccount.emailDeliveryUnavailable") },
-        { status: 503 },
+        { error: translate(locale, 'errAccount.emailDeliveryUnavailable') },
+        { status: 503 }
       );
     }
     return NextResponse.json(genericOk);
@@ -214,14 +238,14 @@ export async function POST(req: Request) {
     if (codeId) await releaseSignupCode(admin, codeId);
     console.error(
       JSON.stringify({
-        scope: "auth-signup",
-        event: "signup_link_failed",
-        code: error?.code ?? "missing_link",
-      }),
+        scope: 'auth-signup',
+        event: 'signup_link_failed',
+        code: error?.code ?? 'missing_link',
+      })
     );
     return NextResponse.json(
-      { error: translate(locale, "errAccount.signupFailed") },
-      { status: 400 },
+      { error: translate(locale, 'errAccount.signupFailed') },
+      { status: 400 }
     );
   }
 
@@ -229,15 +253,15 @@ export async function POST(req: Request) {
     to: email,
     actionLink: data.properties.action_link,
     locale,
-    kind: "confirmation",
+    kind: 'confirmation',
   });
   if (!delivery.ok) {
     // Si el correo propio no está configurado, Supabase conserva la entrega
     // nativa de confirmaciones. Así cada alta sigue requiriendo verificar el
     // correo y no queda una cuenta pendiente sin forma de activarse.
-    if (delivery.reason === "not_configured") {
+    if (delivery.reason === 'not_configured') {
       const { error: nativeConfirmationError } = await admin.auth.resend({
-        type: "signup",
+        type: 'signup',
         email,
         options: { emailRedirectTo: redirectTo },
       });
@@ -250,6 +274,7 @@ export async function POST(req: Request) {
           termsVersion: body?.terms_version,
           req,
           phone,
+          referralCode,
         });
         return NextResponse.json(genericOk);
       }
@@ -257,24 +282,24 @@ export async function POST(req: Request) {
     // Si el proveedor rechazó el mensaje con certeza, dejamos el alta como si
     // nunca hubiera ocurrido. Un error de red es ambiguo: Resend pudo aceptarlo
     // antes de cortarse la respuesta, así que conservamos la cuenta y el enlace.
-    if (delivery.reason !== "network_error") {
+    if (delivery.reason !== 'network_error') {
       const { error: rollbackError } = await admin.auth.admin.deleteUser(
-        data.user.id,
+        data.user.id
       );
       if (rollbackError) {
         console.error(
           JSON.stringify({
-            scope: "auth-signup",
-            event: "signup_rollback_failed",
+            scope: 'auth-signup',
+            event: 'signup_rollback_failed',
             code: rollbackError.code,
-          }),
+          })
         );
       }
     }
     if (codeId) await releaseSignupCode(admin, codeId);
     return NextResponse.json(
-      { error: translate(locale, "errAccount.emailDeliveryUnavailable") },
-      { status: 503 },
+      { error: translate(locale, 'errAccount.emailDeliveryUnavailable') },
+      { status: 503 }
     );
   }
 
@@ -286,6 +311,7 @@ export async function POST(req: Request) {
     termsVersion: body?.terms_version,
     req,
     phone,
+    referralCode,
   });
   return NextResponse.json(genericOk);
 }
@@ -298,6 +324,7 @@ async function completeSignup({
   termsVersion,
   req,
   phone,
+  referralCode,
 }: {
   admin: ReturnType<typeof supabaseAdmin>;
   codeId: string | null;
@@ -306,9 +333,18 @@ async function completeSignup({
   termsVersion: string | undefined;
   req: Request;
   phone: string;
+  referralCode: string | null;
 }) {
   if (codeId) {
     await recordSignupCodeRedemption(admin, { codeId, userId, email });
+  }
+
+  if (referralCode) {
+    await recordAffiliateSignup(admin, {
+      code: referralCode,
+      userId,
+      email,
+    });
   }
 
   // Genuine new account: persist the clickwrap consent (append-only audit row
@@ -320,7 +356,7 @@ async function completeSignup({
     userId,
     email,
     version: termsVersion,
-    context: "signup",
+    context: 'signup',
     req,
   });
 
@@ -331,12 +367,12 @@ async function completeSignup({
   // Ajustes → Perfil.
   if (!phone) return;
   const { error: phoneError } = await admin
-    .from("profiles")
+    .from('profiles')
     .update({ phone })
-    .eq("user_id", userId);
+    .eq('user_id', userId);
   if (phoneError) {
     console.warn(
-      `[auth/signup] no se pudo guardar el teléfono de ${userId}: ${phoneError.message}`,
+      `[auth/signup] no se pudo guardar el teléfono de ${userId}: ${phoneError.message}`
     );
   }
 }
@@ -350,15 +386,15 @@ async function completeSignup({
  */
 async function tieneInvitacionDeEquipo(
   token: string | undefined,
-  email: string,
+  email: string
 ): Promise<boolean> {
   if (!token) return false;
   const { data } = await supabaseAdmin()
-    .from("workspace_invites")
-    .select("email, accepted_at, expires_at")
-    .eq("token", token)
+    .from('workspace_invites')
+    .select('email, accepted_at, expires_at')
+    .eq('token', token)
     .maybeSingle();
   if (!data || data.accepted_at) return false;
   if (data.expires_at && new Date(data.expires_at) <= new Date()) return false;
-  return (data.email ?? "").trim().toLowerCase() === email;
+  return (data.email ?? '').trim().toLowerCase() === email;
 }
