@@ -29,7 +29,6 @@ export async function POST(request: Request) {
 
   const migrations = [
     '293_admin_metric_status_accuracy.sql',
-    '294_reconcile_historical_webhook_recovery.sql',
   ];
   const query = (
     await Promise.all(
@@ -61,7 +60,7 @@ export async function POST(request: Request) {
   await recordAdminAction(gate.actor, request, {
     action: 'update.admin_metric_schema',
     targetType: 'schema_migration',
-    targetId: '293_admin_metric_status_accuracy+294_webhook_recovery',
+    targetId: '293_admin_metric_status_accuracy',
   });
   return NextResponse.json({ ok: true, migrations });
 }
