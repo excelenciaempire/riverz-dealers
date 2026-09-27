@@ -5,6 +5,38 @@ import {
 } from '../../../scripts/reconcile-revitaly-flows';
 import { validateStepsForActivation } from './validate';
 import type { BuilderStepInput } from './steps-tree';
+import { pdfCopy } from '../../../scripts/revitaly-pdf-copy';
+import { buildTemplateComponents } from '../whatsapp/template-components';
+
+it('uses the PDF copy without paraphrasing or adding a footer', () => {
+  for (const t of templates) {
+    const key = t.nombre.replace(/^revitaly_/, '').replace(/_pdf_v5$/, '');
+    expect(t.bodyText).toBe(
+      pdfCopy[key === 'pago_vencido_carrito' ? 'carrito_3_cupon' : key]
+    );
+    expect(t.footerText).toBeUndefined();
+    expect(
+      buildTemplateComponents({
+        headerType: 'none',
+        category: t.categoria as 'MARKETING' | 'UTILITY',
+        bodyText: t.bodyText,
+        bodySamples: t.bodySamples,
+        buttons: t.buttons,
+      }).error
+    ).toBeNull();
+  }
+  const byName = (key: string) =>
+    templates.find((t) => t.nombre === `revitaly_${key}_pdf_v5`)!;
+  expect(byName('postventa_experiencia').buttons?.[0].text).toBe(
+    'Ya noto cambios'
+  );
+  expect(byName('recompra_oferta_10').buttons?.map((b) => b.text)).toEqual([
+    'Quiero otras 10',
+    'Otro pack',
+    'Necesito ayuda',
+  ]);
+  expect(byName('rechazado_3').buttons?.[0].text).toBe('Sí, ayudame');
+});
 
 function walk(steps: BuilderStepInput[], vars: Record<string, string> = {}) {
   let minutes = 0;
@@ -66,5 +98,5 @@ it.each([
     day + 14,
     day + 24,
   ]);
-  expect(messages[4].name).toBe(`revitaly_recompra_oferta_${units}_v4`);
+  expect(messages[4].name).toBe(`revitaly_recompra_oferta_${units}_pdf_v5`);
 });
