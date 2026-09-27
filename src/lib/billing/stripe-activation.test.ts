@@ -107,3 +107,11 @@ it('fails for webhook retry before publishing activation when wallet preparation
   );
   expect(f.writes).toEqual([]);
 });
+
+it('uses current Stripe state rather than a delayed subscription update', async () => {
+  const f = fixture('active');
+  const delayed = { type: 'customer.subscription.updated', data: { object: { ...f.sub, status: 'past_due' } } } as unknown as Stripe.Event;
+  await aplicarEvento(f.db, delayed);
+  expect(m.retrieve).toHaveBeenCalledWith('sub-1');
+  expect(f.writes[0]).toMatchObject({ estado: 'activa', vencida_desde: null });
+});

@@ -56,6 +56,7 @@ export function SaldoProvider({
   const pathname = usePathname();
   const router = useRouter();
   const sinPagar = useRef(inicial?.sinPagar === true);
+  const revisionCobro = useRef(inicial?.revisionCobro);
   // El valor del servidor ya cuenta como una lectura: sin esto, la primera
   // navegación —que suele ocurrir a los pocos segundos— pediría de nuevo algo
   // que se acaba de leer.
@@ -71,9 +72,12 @@ export function SaldoProvider({
       if (r.ok) {
         const siguiente = (await r.json()) as Vistazo;
         const activada = sinPagar.current && siguiente.sinPagar === false;
+        const cambioAcuerdo = siguiente.revisionCobro !== undefined &&
+          revisionCobro.current !== siguiente.revisionCobro;
+        revisionCobro.current = siguiente.revisionCobro;
         sinPagar.current = siguiente.sinPagar === true;
         setSaldo(siguiente);
-        if (activada) router.refresh();
+        if (activada || cambioAcuerdo) router.refresh();
         ultima.current = Date.now();
       }
     } catch {
@@ -85,12 +89,11 @@ export function SaldoProvider({
   }, [router]);
 
   useEffect(() => {
-    if (!saldo?.sinPagar) return;
-    // The checkout may be completed on another device. Keep the unpaid screen
-    // current without requiring a logout, but never poll a hidden tab.
+    // Checkout and admin agreement changes may happen on another device.
+    // Refresh visible sessions without requiring a logout.
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void leer(true);
-    }, 10_000);
+    }, saldo?.sinPagar ? 10_000 : 30_000);
     return () => window.clearInterval(timer);
   }, [saldo?.sinPagar, leer]);
 

@@ -34,12 +34,8 @@ interface PlatformSettings {
 let cache: { at: number; value: PlatformSettings } | null = null
 const CACHE_MS = 60_000
 
-/** Qué cuentas son BYOK, con la misma caché de un minuto, por cuenta. */
-const byokCache = new Map<string, { at: number; value: boolean }>()
-
 export function invalidatePlatformKeyCache(): void {
   cache = null
-  byokCache.clear()
 }
 
 /**
@@ -54,8 +50,8 @@ export function invalidatePlatformKeyCache(): void {
  */
 export async function esCuentaByok(workspaceId: string): Promise<boolean> {
   if (!workspaceId) return false
-  const hit = byokCache.get(workspaceId)
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.value
+  // Billing can be changed by an admin on another replica. Never cache the
+  // payer: invalidating one process cannot invalidate the other workers.
   try {
     const { data, error } = await supabaseAdmin()
       .from('workspace_subscriptions')
@@ -64,7 +60,6 @@ export async function esCuentaByok(workspaceId: string): Promise<boolean> {
       .maybeSingle()
     if (error) return false
     const value = (data as { modelo_cobro?: string } | null)?.modelo_cobro === 'byok'
-    byokCache.set(workspaceId, { at: Date.now(), value })
     return value
   } catch {
     return false

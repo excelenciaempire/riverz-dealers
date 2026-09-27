@@ -4,20 +4,22 @@ import type { Suscripcion } from './plan'
 
 const mocks = vi.hoisted(() => ({
   createSession: vi.fn(),
+  listSessions: vi.fn(),
+  expireSession: vi.fn(),
   retrieveCoupon: vi.fn(),
   attachAffiliateWorkspace: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('stripe', () => ({
   default: class {
-    checkout = { sessions: { create: mocks.createSession } }
+    checkout = { sessions: { create: mocks.createSession, list: mocks.listSessions, expire: mocks.expireSession } }
     coupons = { retrieve: mocks.retrieveCoupon }
   },
 }))
 vi.mock('@/lib/i18n/cuenta', () => ({ localeDeCuenta: async () => 'es' }))
 vi.mock('@/lib/affiliates/program', () => ({ attachAffiliateWorkspace: mocks.attachAffiliateWorkspace }))
 
-import { lineItemsDeSuscripcion, urlDeCheckout } from './stripe'
+import { expirarCheckoutsDelAcuerdo, lineItemsDeSuscripcion, urlDeCheckout } from './stripe'
 import { firstMonthCouponId, firstMonthDiscountCents } from './first-month-offer'
 
 const cuenta = (cambio: Partial<Suscripcion> = {}): Suscripcion => ({
@@ -91,7 +93,7 @@ describe('link de pago', () => {
     expect(mocks.attachAffiliateWorkspace).toHaveBeenCalledWith(db, 'w1')
     const sesion = mocks.createSession.mock.calls[0][0]
     expect(sesion.subscription_data).toEqual({
-      metadata: { workspace_id: 'w1' },
+      metadata: { workspace_id: 'w1', plan_id: 'p-saldo', modelo_cobro: 'saldo' },
       trial_period_days: 30,
     })
     expect(sesion.discounts).toBeUndefined()
@@ -106,7 +108,7 @@ describe('link de pago', () => {
   it('sin esa opción cobra hoy con la promoción del primer mes', async () => {
     await urlDeCheckout(db, 'w1', saldo, quien)
     const sesion = mocks.createSession.mock.calls[0][0]
-    expect(sesion.subscription_data).toEqual({ metadata: { workspace_id: 'w1' } })
+    expect(sesion.subscription_data).toEqual({ metadata: { workspace_id: 'w1', plan_id: 'p-saldo', modelo_cobro: 'saldo' } })
     expect(sesion.discounts).toEqual([{ coupon: 'riverz-first-month-35-usd-39900-v2' }])
   })
 
@@ -135,5 +137,17 @@ describe('link de pago', () => {
     expect(session.line_items[0].price_data.unit_amount).toBe(amount)
     expect(session.line_items[0].price_data.recurring.interval).toBe('month')
     expect(session.discounts).toEqual(freeMonth ? undefined : [{ coupon: firstMonthCouponId(amount, 'usd') }])
+  })
+
+  it('expires only this merchant subscription checkouts, not balance payments or other merchants', async () => {
+    mocks.listSessions.mockReturnValue([
+      { id: 'old', mode: 'subscription', metadata: { workspace_id: 'w1' } },
+      { id: 'wallet', mode: 'payment', metadata: { workspace_id: 'w1' } },
+      { id: 'other', mode: 'subscription', metadata: { workspace_id: 'w2' } },
+    ])
+    await expirarCheckoutsDelAcuerdo(saldo)
+    expect(mocks.listSessions).toHaveBeenCalledWith({ customer: 'cus_1', status: 'open', limit: 100 })
+    expect(mocks.expireSession).toHaveBeenCalledTimes(1)
+    expect(mocks.expireSession).toHaveBeenCalledWith('old')
   })
 })

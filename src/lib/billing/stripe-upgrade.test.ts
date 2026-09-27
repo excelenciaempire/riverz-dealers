@@ -77,7 +77,7 @@ describe('ampliación de capacidad en Stripe', () => {
     expect(mocks.updateSubscription).toHaveBeenCalledWith('sub_1', expect.objectContaining({
       billing_cycle_anchor: 'unchanged', proration_behavior: 'none',
       items: [{ id: 'si_1', price: 'price_5', quantity: 1 }],
-      metadata: { plan_id: 'p5', capacity_upgrade_invoice_id: 'in_paid' },
+      metadata: { plan_id: 'p5', modelo_cobro: 'oficial', capacity_upgrade_invoice_id: 'in_paid' },
     }), expect.anything())
   })
 
@@ -89,5 +89,23 @@ describe('ampliación de capacidad en Stripe', () => {
     expect(result).toEqual({ paid: false, url: invoice.hosted_invoice_url })
     expect(mocks.payInvoice).not.toHaveBeenCalled()
     expect(mocks.updateSubscription).not.toHaveBeenCalled()
+  })
+
+  it.each(['oficial', 'byok', 'saldo'] as const)('sincroniza el cambio a %s sin cobro inmediato', async modelo => {
+    mocks.retrieveSubscription.mockResolvedValue({ ...stripeSubscription,
+      items: { data: [...stripeSubscription.items.data, { id: 'si_meter', price: { recurring: { usage_type: 'metered' } } }] } })
+    mocks.createPrice.mockResolvedValue({ id: 'price_new' })
+    await sincronizarPrecioSuscripcion(suscripcion, 99900, 'usd', modelo,
+      { planId: 'new', planName: 'Nuevo plan' }, true)
+    expect(mocks.createPrice).toHaveBeenCalledWith(expect.objectContaining({
+      product_data: { name: 'Riverz · Nuevo plan' }, unit_amount: 99900,
+    }), expect.anything())
+    expect(mocks.updateSubscription).toHaveBeenCalledWith('sub_1', expect.objectContaining({
+      metadata: { plan_id: 'new', modelo_cobro: modelo },
+      items: [{ id: 'si_1', price: 'price_new', quantity: 1 }, { id: 'si_meter', deleted: true }],
+      billing_cycle_anchor: 'unchanged', proration_behavior: 'none',
+    }), undefined)
+    expect(mocks.createInvoice).not.toHaveBeenCalled()
+    expect(mocks.payInvoice).not.toHaveBeenCalled()
   })
 })

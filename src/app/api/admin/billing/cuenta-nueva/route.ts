@@ -5,6 +5,9 @@ import { requireAdmin } from '@/lib/admin/guard';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { ensureWorkspace } from '@/lib/workspaces/ensure';
 import { estadoAlConfigurar, listarPlanes, type ModeloCobro } from '@/lib/billing/plan';
+import { compatibleBillingPlan } from '@/lib/billing/admin-agreement';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * Dar de alta un comercio desde el panel, con su trato ya definido.
@@ -51,11 +54,14 @@ export async function POST(request: Request) {
   const planes = await listarPlanes(db);
   const plan = body?.plan_id
     ? planes.find((p) => p.id === body.plan_id)
-    : planes.find((p) => p.activo);
+    : planes.find((p) => compatibleBillingPlan(modelo, p) &&
+      (modelo !== 'saldo' || p.slug === 'saldo-ilimitado'));
   // Todo incluido lleva un plan de contactos; BYOK, el suyo.
-  if (!plan?.activo || (modelo === 'oficial' && plan.incluidas <= 0) ||
-      (plan.slug === 'byok') !== (modelo === 'byok')) {
-    return NextResponse.json({ error: 'plan inválido' }, { status: 400 });
+  if ((body?.modelo_cobro !== undefined && !['saldo', 'oficial', 'byok'].includes(body.modelo_cobro)) ||
+      !compatibleBillingPlan(modelo, plan) || !plan ||
+      (body?.precio_centavos != null &&
+        (!Number.isSafeInteger(body.precio_centavos) || body.precio_centavos < 0))) {
+    return NextResponse.json({ error: translate(await getLocale(), 'admin.billingInvalidAgreement') }, { status: 400 });
   }
   const nombre = body?.nombre?.trim() || `${email.split('@')[0]}'s workspace`;
 
@@ -88,8 +94,13 @@ export async function POST(request: Request) {
   }
 
   const precioPropio = typeof body?.precio_centavos === 'number' ? body.precio_centavos : null;
+  const existing = await db.from('workspace_subscriptions').select('workspace_id').eq('workspace_id', workspaceId).maybeSingle();
+  if (existing.error) return NextResponse.json({ error: translate(await getLocale(), 'admin.billingSaveFailed') }, { status: 500 });
+  if (existing.data) {
+    return NextResponse.json({ error: translate(await getLocale(), 'admin.billingAlreadyConfigured'), workspaceId }, { status: 409 });
+  }
   const estado = body?.estado ?? estadoAlConfigurar(null, precioPropio ?? plan.precioCentavos) ?? 'cortesia';
-  const { error: subErr } = await db.from('workspace_subscriptions').upsert(
+  const { error: subErr } = await db.from('workspace_subscriptions').insert(
     {
       workspace_id: workspaceId,
       plan_id: plan?.id ?? null,
@@ -106,7 +117,6 @@ export async function POST(request: Request) {
       nota: body?.nota?.trim() || null,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: 'workspace_id' },
   );
   if (subErr) return NextResponse.json({ error: subErr.message }, { status: 400 });
 

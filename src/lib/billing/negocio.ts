@@ -65,6 +65,7 @@ export interface CuentaDelNegocio {
   cancelarAlFinal: boolean
   /** Tiene una suscripción de Stripe o Shopify, viva o no. */
   suscripcionExterna: boolean
+  proveedorFacturacion?: 'stripe' | 'shopify'
   tieneSuscripcion: boolean
   /** Cobra con link de pago: no tiene una suscripción de Stripe o Shopify en curso. */
   admiteLinkPago: boolean
@@ -259,7 +260,8 @@ export async function leerNegocio(
         pago,
         periodoHasta: s?.periodoHasta ?? null,
         cancelarAlFinal: s?.cancelarAlFinal ?? false,
-        suscripcionExterna: Boolean(s?.stripeSubscriptionId),
+        suscripcionExterna: Boolean(s?.stripeSubscriptionId || s?.shopifySubscriptionId),
+        proveedorFacturacion: s?.billingProvider ?? 'stripe',
         tieneSuscripcion: Boolean(s),
         admiteLinkPago,
         plan: s?.plan?.nombre ?? null,

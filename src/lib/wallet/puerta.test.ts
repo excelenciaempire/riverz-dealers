@@ -73,6 +73,16 @@ describe('la puerta de la IA', () => {
     estado.saldoCentavos = 0
   })
 
+  it('publica una revisión distinta cuando el admin cambia el modelo o el precio', async () => {
+    estado.sus = sus({ modeloCobro: 'oficial' })
+    const original = (await estadoDeCobro(db, 'w1')).vistazo.revisionCobro
+    estado.sus = sus({ modeloCobro: 'byok' })
+    const byok = (await estadoDeCobro(db, 'w1')).vistazo.revisionCobro
+    expect(byok).not.toBe(original)
+    estado.sus = sus({ modeloCobro: 'byok', precioAcuerdoCentavos: 29900 })
+    expect((await estadoDeCobro(db, 'w1')).vistazo.revisionCobro).not.toBe(byok)
+  })
+
   it('sin pagar el link no hay IA, aunque tenga saldo cargado', async () => {
     estado.saldoCentavos = 5000
     for (const modeloCobro of ['saldo', 'oficial', 'byok'] as const) {

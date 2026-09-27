@@ -969,6 +969,12 @@ export const admin = {
   billingConversationsShort: { es: 'conversaciones', en: 'conversations' },
   billingEdit: { es: 'Configurar', en: 'Configure' },
   billingEditTitle: { es: 'Configurar cuenta', en: 'Configure account' },
+  billingManageAgreement: { es: 'Plan y facturación', en: 'Plan and billing' },
+  billingAlreadyConfigured: { es: 'El comercio ya está configurado. Edita su acuerdo desde Cuentas.', en: 'This merchant is already configured. Edit their agreement in Accounts.' },
+  billingCopyFailed: { es: 'No se pudo copiar. Selecciona el enlace y cópialo manualmente.', en: 'Could not copy. Select the link and copy it manually.' },
+  billingExistingChange: { es: 'Al guardar, cambia el acceso y se actualiza la mensualidad futura en Stripe, sin cobrar un prorrateo ni mover la renovación.', en: 'Saving changes access and updates the future Stripe monthly fee, without a prorated charge or changing the renewal date.' },
+  billingInvalidAgreement: { es: 'Revisa el plan, la modalidad y los importes. Los contactos incluidos deben ser mayores que cero.', en: 'Check the plan, billing model and amounts. Included contacts must be greater than zero.' },
+  billingShopifyManaged: { es: 'Este comercio paga por Shopify. El cambio requiere su aprobación desde Facturación; no se modificó su acuerdo.', en: 'This merchant pays through Shopify. Changes require their approval in Billing; the agreement was not changed.' },
   billingFirstMonth: { es: 'Primer mes', en: 'First month' },
   billingFirstMonthPromo: { es: '{percent} % de descuento', en: '{percent}% off' },
   billingFirstMonthFree: { es: 'Sin cargo', en: 'Free' },
@@ -1002,9 +1008,14 @@ export const admin = {
     es: 'Cancela la suscripción en Stripe antes de poner esta cuenta en cortesía.',
     en: 'Cancel the Stripe subscription before marking this account as comped.',
   },
+  billingSyncNeedsReview: { es: 'No se pudo sincronizar ni restaurar el acuerdo. Revisa la cuenta y Stripe antes de reintentar.', en: 'The agreement could not be synced or restored. Review the account and Stripe before retrying.' },
   billingStripeSyncFailed: {
     es: 'No se pudo actualizar el cobro en Stripe. No se guardó el cambio.',
     en: 'Could not update billing in Stripe. The change was not saved.',
+  },
+  billingActivePriceRequired: {
+    es: 'Una suscripción activa requiere una mensualidad mayor que cero.',
+    en: 'An active subscription requires a monthly fee greater than zero.',
   },
   billingSaveFailed: { es: 'No se pudo guardar el cambio.', en: 'Could not save the change.' },
   billingPlanHasSubscribers: {

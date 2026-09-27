@@ -79,6 +79,10 @@ export default function AdminWorkspaceDetailPage({
       <PageHeader
         live={live}
         title={workspace.name}
+        actions={<Link href={`/admin/negocio?tab=cuentas&comercio=${workspace.id}`}
+          className="rounded-lg border border-border px-3 py-2 text-sm font-medium">
+          {t('admin.billingManageAgreement')}
+        </Link>}
         description={[owner?.email, workspace.timezone]
           .filter(Boolean)
           .join(" · ")}

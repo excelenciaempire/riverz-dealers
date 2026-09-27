@@ -101,6 +101,17 @@ describe('resolveAnthropicKey con cuentas BYOK', () => {
     await expect(resolveAnthropicKey(db, { workspaceId: 'w1' })).resolves.toBeNull()
   })
 
+  it('aplica cambios de modelo entre peticiones sin reiniciar ni invalidar otra instancia', async () => {
+    h.servicio.rows = { workspace_subscriptions: { modelo_cobro: 'oficial' }, ai_agents: [] }
+    await expect(resolveAnthropicKey(db, { workspaceId: 'w1' }))
+      .resolves.toEqual({ key: 'sk-riverz', source: 'platform' })
+    h.servicio.rows.workspace_subscriptions = { modelo_cobro: 'byok' }
+    await expect(resolveAnthropicKey(db, { workspaceId: 'w1' })).resolves.toBeNull()
+    h.servicio.rows.workspace_subscriptions = { modelo_cobro: 'saldo' }
+    await expect(resolveAnthropicKey(db, { workspaceId: 'w1' }))
+      .resolves.toEqual({ key: 'sk-riverz', source: 'platform' })
+  })
+
   it('la clave del agente manda aunque la cuenta sea BYOK', async () => {
     h.servicio.rows = { workspace_subscriptions: { modelo_cobro: 'byok' } }
     await expect(resolveAnthropicKey(db, { workspaceId: 'w1', agentKeyEncrypted: 'enc:sk-agente' }))

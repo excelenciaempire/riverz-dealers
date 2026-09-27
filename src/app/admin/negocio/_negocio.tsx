@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "@/components/i18n/locale-link";
+import { toast } from "sonner";
+import { billingAmount, compatibleBillingPlan } from "@/lib/billing/admin-agreement";
 import { useLocale, useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
@@ -70,7 +74,7 @@ const PAGO: Record<EstadoDePago, { tono: Tone; etiqueta: string }> = {
 };
 
 const usd = (centavos: number) =>
-  `US$${(centavos / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  `US$${(centavos / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 
 /**
  * Un precio tal como se escribiría en el campo: con centavos sólo si los
@@ -85,8 +89,7 @@ const usdExacto = (centavos: number) =>
 
 /** Dólares escritos a mano, en centavos. `null` si no es un monto válido. */
 function aCentavos(texto: string): number | null {
-  const dolares = Number(texto.trim().replace(",", "."));
-  return Number.isFinite(dolares) && dolares >= 0 ? Math.round(dolares * 100) : null;
+  return billingAmount(texto);
 }
 
 /** El plan del acuerdo por saldo: mensualidad fija y el consumo desde la billetera. */
@@ -129,8 +132,10 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [dias, setDias] = useState(30);
-  const [editando, setEditando] = useState<string | null>(null);
+  const params = useSearchParams();
+  const [editando, setEditando] = useState<string | null>(params.get('comercio'));
   const [guardando, setGuardando] = useState(false);
+  const [generandoLink, setGenerandoLink] = useState(false);
   const [alta, setAlta] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [errorAlta, setErrorAlta] = useState<string | null>(null);
@@ -178,19 +183,28 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
    */
   const crearCuenta = async (cuenta: Record<string, unknown>) => {
     setGuardando(true);
+    setErrorAlta(null);
     try {
       const res = await fetchWithCsrf("/api/admin/billing/cuenta-nueva", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(cuenta),
       });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (json.ok) {
+      const json = (await res.json()) as { ok?: boolean; error?: string; workspaceId?: string };
+      if (res.ok && json.ok) {
         setAlta(false);
+        if (json.workspaceId) setEditando(json.workspaceId);
+        reload();
+      } else if (res.status === 409 && json.workspaceId) {
+        setAlta(false);
+        setErrorCuenta(json.error ?? t('admin.billingAlreadyConfigured'));
+        setEditando(json.workspaceId);
         reload();
       } else {
         setErrorAlta(json.error ?? t("admin.billingSaveFailed"));
       }
+    } catch {
+      setErrorAlta(t("admin.billingSaveFailed"));
     } finally {
       setGuardando(false);
     }
@@ -204,12 +218,15 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
   const moverSaldo = async (saldo: Record<string, unknown>) => {
     setGuardando(true);
     try {
-      await fetchWithCsrf("/api/admin/billing", {
+      const response = await fetchWithCsrf("/api/admin/billing", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ saldo }),
       });
+      if (!response.ok) throw new Error((await response.json()).error || t('admin.billingSaveFailed'));
       reload();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('admin.billingSaveFailed'));
     } finally {
       setGuardando(false);
     }
@@ -221,12 +238,15 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
   ) => {
     setGuardando(true);
     try {
-      await fetchWithCsrf("/api/admin/billing", {
+      const response = await fetchWithCsrf("/api/admin/billing", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ billetera: { workspace_id, ...cambio } }),
       });
+      if (!response.ok) throw new Error((await response.json()).error || t('admin.billingSaveFailed'));
       reload();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('admin.billingSaveFailed'));
     } finally {
       setGuardando(false);
     }
@@ -235,12 +255,15 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
   const guardarTarifa = async (tarifa: Record<string, unknown>) => {
     setGuardando(true);
     try {
-      await fetchWithCsrf("/api/admin/billing", {
+      const response = await fetchWithCsrf("/api/admin/billing", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tarifa }),
       });
+      if (!response.ok) throw new Error((await response.json()).error || t('admin.billingSaveFailed'));
       reload();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('admin.billingSaveFailed'));
     } finally {
       setGuardando(false);
     }
@@ -275,7 +298,7 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
         header: t("admin.workspace"),
         cell: (c) => (
           <div>
-            <p className="font-medium text-foreground">{c.nombre}</p>
+            <Link href={`/admin/comercios/${c.workspaceId}`} className="font-medium text-foreground hover:underline">{c.nombre}</Link>
             {c.correo && <Muted>{c.correo}</Muted>}
           </div>
         ),
@@ -501,11 +524,11 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
       <Dialog
         open={Boolean(editando) && vista === "cuentas"}
         onOpenChange={(open) => {
-          if (!open && !guardando) setEditando(null);
+          if (!open && !guardando && !generandoLink) setEditando(null);
         }}
       >
         {cuentaEditada && (
-          <DialogContent className="gap-0 p-0 sm:max-w-2xl" showCloseButton={!guardando}>
+          <DialogContent className="max-h-[90dvh] overflow-y-auto gap-0 p-0 sm:max-w-2xl" showCloseButton={!guardando && !generandoLink}>
             <DialogHeader className="border-b border-border px-5 py-4 pr-12">
               <DialogTitle>{t("admin.billingEditTitle")}</DialogTitle>
               <DialogDescription>{cuentaEditada.nombre}</DialogDescription>
@@ -514,6 +537,8 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
               <FormularioCuenta
                 key={cuentaEditada.workspaceId}
                 cuenta={cuentaEditada}
+                generandoLink={generandoLink}
+                onGenerandoLink={setGenerandoLink}
                 planes={planes}
                 guardando={guardando}
                 error={errorCuenta}
@@ -809,6 +834,8 @@ function FilaPlan({
  */
 function FormularioCuenta({
   cuenta,
+  generandoLink,
+  onGenerandoLink,
   planes,
   guardando,
   error,
@@ -818,6 +845,8 @@ function FormularioCuenta({
   onBloqueo,
 }: {
   cuenta: CuentaDelNegocio;
+  generandoLink: boolean;
+  onGenerandoLink: (value: boolean) => void;
   planes: Plan[];
   guardando: boolean;
   error: string | null;
@@ -838,19 +867,20 @@ function FormularioCuenta({
   const planDeSaldo = planPropio(planes, "saldo");
   // El plan con el que queda la cuenta al guardar.
   const plan = f.plan_id ? planes.find((p) => p.id === f.plan_id) : planActual;
-  const planValido = f.modelo === "saldo" ||
-    (f.modelo === "byok" ? plan?.slug === PLAN_BYOK : esPlanOficial(plan));
+  const planValido = compatibleBillingPlan(f.modelo, plan);
   const precioEscrito = f.precio.trim() !== "";
   const precio = aCentavos(f.precio);
   const precioValido = !precioEscrito || precio !== null;
   const incluidasEscritas = f.incluidas.trim();
   const incluidasValidas = !oficial || incluidasEscritas === "" ||
-    (Number.isInteger(Number(incluidasEscritas)) && Number(incluidasEscritas) >= 0);
-  const valido = planValido && precioValido && incluidasValidas;
+    (Number.isSafeInteger(Number(incluidasEscritas)) && Number(incluidasEscritas) > 0);
+  const externoShopify = cuenta.proveedorFacturacion === 'shopify' && cuenta.suscripcionExterna;
   // La mensualidad pactada al guardar: la escrita, la del plan nuevo o la de hoy.
   const mensualidad = precioEscrito
     ? precio ?? 0
     : f.plan_id ? plan?.precioCentavos ?? 0 : cuenta.precioAcuerdoCentavos;
+  const precioActivoInvalido = cuenta.suscripcionExterna && !cuenta.admiteLinkPago && !externoShopify && mensualidad <= 0;
+  const valido = planValido && precioValido && incluidasValidas && !externoShopify && !precioActivoInvalido;
   const pendiente = !cuenta.tieneSuscripcion || f.modelo !== cuenta.modeloCobro ||
     plan?.id !== planActual?.id || mensualidad !== cuenta.precioAcuerdoCentavos ||
     (oficial && incluidasEscritas !== "");
@@ -903,7 +933,8 @@ function FormularioCuenta({
 
   return (
     <>
-      <div className="space-y-2">
+      {externoShopify && <p className="text-sm text-amber-600">{t('admin.billingShopifyManaged')}</p>}
+      <fieldset disabled={guardando || generandoLink || externoShopify} className="space-y-2 disabled:opacity-60">
         <div className="grid gap-4 sm:grid-cols-2">
           <Campo label={t("admin.billingModel")}>
             <select
@@ -997,21 +1028,26 @@ function FormularioCuenta({
         {pausaLaIa && (
           <p className="text-xs text-amber-600 dark:text-amber-400">{t("admin.billingPausesAi")}</p>
         )}
-      </div>
+        {pendiente && cuenta.suscripcionExterna && !externoShopify && (
+          <p className="text-xs text-muted-foreground">{t('admin.billingExistingChange')}</p>
+        )}
+        {precioActivoInvalido && <p className="text-xs text-destructive">{t('admin.billingActivePriceRequired')}</p>}
+      </fieldset>
       <Cobro
         cuenta={cuenta}
         disponible={cobraConLink && Boolean(plan?.activo)}
-        planInactivo={cobraConLink && !plan?.activo}
+        planInactivo={Boolean(plan && !plan.activo)}
         mensualidadCentavos={mensualidad}
         conPromo={conPromo}
         trato={`${f.modelo}|${plan?.id ?? ""}|${mensualidad}`}
         ocupado={guardando}
         antesDeArmar={guardarPendiente}
+        onGenerando={onGenerandoLink}
       />
-      {f.modelo === "saldo" ? (
+      {f.modelo === "saldo" && cuenta.modeloCobro === "saldo" ? (
         <BloqueBilletera
           cuenta={cuenta}
-          guardando={guardando}
+          guardando={guardando || generandoLink}
           onMover={onMover}
           onBloqueo={onBloqueo}
         />
@@ -1024,7 +1060,7 @@ function FormularioCuenta({
         {error && <p className="mr-auto text-xs text-destructive">{error}</p>}
         <button
           type="button"
-          disabled={guardando}
+          disabled={guardando || generandoLink}
           onClick={onCerrar}
           className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
         >
@@ -1032,7 +1068,7 @@ function FormularioCuenta({
         </button>
         <button
           type="button"
-          disabled={guardando || !valido}
+          disabled={guardando || generandoLink || !valido}
           onClick={guardar}
           className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
         >
@@ -1134,8 +1170,8 @@ function FormularioAlta({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          disabled={guardando || !f.email.trim() || (precioEscrito && precio === null) ||
-            (f.modelo === "byok" && plan?.slug !== PLAN_BYOK)}
+          disabled={guardando || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim()) ||
+            (precioEscrito && precio === null) || !compatibleBillingPlan(f.modelo, plan)}
           onClick={() =>
             onCrear({
               email: f.email,
@@ -1204,6 +1240,7 @@ function Cobro({
   trato,
   ocupado,
   antesDeArmar,
+  onGenerando,
 }: {
   cuenta: CuentaDelNegocio;
   /** Se puede armar el link con el trato del formulario. */
@@ -1216,6 +1253,7 @@ function Cobro({
   trato: string;
   ocupado: boolean;
   antesDeArmar: () => Promise<boolean>;
+  onGenerando: (value: boolean) => void;
 }) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
@@ -1249,11 +1287,13 @@ function Cobro({
   }, [pedirCupones]);
 
   async function armar() {
+    if (armando || ocupado) return;
     setError(null);
     setCopiado(false);
-    if (!(await antesDeArmar())) return;
     setArmando(true);
+    onGenerando(true);
     try {
+      if (!(await antesDeArmar())) return;
       const res = await fetchWithCsrf("/api/admin/billing/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1270,6 +1310,7 @@ function Cobro({
       setError(t("admin.billingLinkFailed"));
     } finally {
       setArmando(false);
+      onGenerando(false);
     }
   }
 
@@ -1290,6 +1331,7 @@ function Cobro({
                 <select
                   className={INPUT}
                   value={primerMes}
+                  disabled={armando || ocupado}
                   onChange={(e) => {
                     setPrimerMes(e.target.value);
                     setError(null);
@@ -1331,9 +1373,11 @@ function Cobro({
               <input readOnly value={url} className={`${INPUT} min-w-0 flex-1`} />
               <button
                 type="button"
-                onClick={() => {
-                  void navigator.clipboard.writeText(url);
-                  setCopiado(true);
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(url);
+                    setCopiado(true);
+                  } catch { setError(t('admin.billingCopyFailed')); }
                 }}
                 className="h-[34px] shrink-0 rounded-lg border border-border px-3 text-xs font-medium text-foreground"
               >

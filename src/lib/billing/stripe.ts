@@ -199,7 +199,7 @@ export async function urlDeCheckout(
     // y sin esto habría que adivinar de quién es. El mes sin cargo es una
     // prueba de Stripe: se guarda la tarjeta y no se cobra hasta que termina.
     subscription_data: {
-      metadata: { workspace_id: workspaceId },
+      metadata: { workspace_id: workspaceId, plan_id: s.plan.id, modelo_cobro: s.modeloCobro },
       ...(sinCargo ? { trial_period_days: FREE_FIRST_MONTH_DAYS } : {}),
     },
     ...(coupon ? { discounts: [{ coupon }] } : {}),
@@ -208,6 +208,16 @@ export async function urlDeCheckout(
   })
   if (!sesion.url) throw new Error('Stripe no devolvió una URL de pago.')
   return sesion.url
+}
+
+/** A changed agreement must not leave an unpaid checkout selling the old one. */
+export async function expirarCheckoutsDelAcuerdo(s: Suscripcion): Promise<void> {
+  if (!s.stripeCustomerId || s.billingProvider !== 'stripe') return;
+  for await (const session of stripe().checkout.sessions.list({ customer: s.stripeCustomerId, status: 'open', limit: 100 })) {
+    if (session.mode === 'subscription' && session.metadata?.workspace_id === s.workspaceId) {
+      await stripe().checkout.sessions.expire(session.id);
+    }
+  }
 }
 
 /** Lleva a cambiar la tarjeta, ver facturas o cancelar. Lo maneja Stripe. */
@@ -279,7 +289,7 @@ export async function sincronizarPrecioSuscripcion(
   precioCentavos: number,
   moneda: string,
   modelo: ModeloCobro,
-  cambio?: { planId: string; invoiceId?: string },
+  cambio?: { planId: string; invoiceId?: string; planName?: string },
   sinMedido = false,
 ): Promise<void> {
   if (!s.stripeSubscriptionId) return
@@ -293,17 +303,19 @@ export async function sincronizarPrecioSuscripcion(
   if (!cambiaPrecio && (!quitarMedidos || medidos.length === 0) && !cambio) return
 
   let priceId = base.price.id
-  if (cambiaPrecio) {
+  if (cambiaPrecio || (cambio?.planName && cambio.planId !== s.plan?.id)) {
     const product = typeof base.price.product === 'string'
       ? base.price.product
       : base.price.product.id
     const nuevo = await stripe().prices.create({
-      product,
+      ...(cambio?.planName && cambio.planId !== s.plan?.id
+        ? { product_data: { name: `Riverz · ${cambio.planName}` } }
+        : { product }),
       currency: moneda,
       unit_amount: precioCentavos,
       recurring: { interval: 'month' },
       metadata: { workspace_id: s.workspaceId },
-    }, { idempotencyKey: `riverz-${s.workspaceId}-${precioCentavos}-${moneda}` })
+    }, { idempotencyKey: `riverz-${s.workspaceId}-${cambio?.planId ?? s.plan?.id ?? 'plan'}-${precioCentavos}-${moneda}-${cambio?.planName && cambio.planId !== s.plan?.id ? 'new-product' : product}` })
     priceId = nuevo.id
   }
 
@@ -317,6 +329,7 @@ export async function sincronizarPrecioSuscripcion(
     ...(cambio ? {
       metadata: {
         plan_id: cambio.planId,
+        modelo_cobro: modelo,
         ...(cambio.invoiceId ? { capacity_upgrade_invoice_id: cambio.invoiceId } : {}),
       },
     } : {}),
@@ -560,6 +573,9 @@ export async function aplicarEvento(
     return `ignorado: ${tipo}`
   } else {
     sub = evento.data.object as Stripe.Subscription;
+    // Events can arrive out of order after an admin changes the agreement.
+    // Never restore an old plan or payment status from a delayed snapshot.
+    if (tipo !== 'customer.subscription.deleted') sub = await stripe().subscriptions.retrieve(sub.id);
   }
 
   const workspaceId = sub.metadata?.workspace_id

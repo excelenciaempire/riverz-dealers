@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CreditCard, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useT } from '@/hooks/use-locale';
@@ -78,6 +78,7 @@ const plata = (centavos: number, moneda: string) =>
 export function BillingPanel() {
   const t = useT();
   const { saldo } = useSaldo();
+  const revisionCobro = useRef(saldo?.revisionCobro);
   const fetchWithCsrf = useFetchWithCsrf();
   const [e, setE] = useState<Estado | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -92,8 +93,10 @@ export function BillingPanel() {
   }, []);
 
   useEffect(() => {
-    if (e?.estado === 'cortesia' && saldo?.sinPagar === false) void recargar();
-  }, [e?.estado, saldo?.sinPagar, recargar]);
+    const changed = saldo?.revisionCobro !== undefined && revisionCobro.current !== saldo.revisionCobro;
+    revisionCobro.current = saldo?.revisionCobro;
+    if (changed || (e?.estado === 'cortesia' && saldo?.sinPagar === false)) void recargar();
+  }, [e?.estado, saldo?.sinPagar, saldo?.revisionCobro, recargar]);
 
   const cotizar = useCallback(async (planId: string) => {
     if (!planId) return;

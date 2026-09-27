@@ -6,11 +6,12 @@ import { adminGet, rangeFromSearch } from '@/lib/admin/route';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { estadoAlConfigurar, listarPlanes, leerSuscripcion, DIAS_DE_PRUEBA, type ModeloCobro } from '@/lib/billing/plan';
 import { invalidatePlatformKeyCache } from '@/lib/ai/platform-key';
-import { sincronizarPrecioSuscripcion } from '@/lib/billing/stripe';
+import { expirarCheckoutsDelAcuerdo, sincronizarPrecioSuscripcion } from '@/lib/billing/stripe';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { leerNegocio } from '@/lib/billing/negocio';
 import { listarTarifas } from '@/lib/wallet/tarifas';
+import { compatibleBillingPlan } from '@/lib/billing/admin-agreement';
 
 /**
  * El negocio y sus perillas, en un solo lugar.
@@ -182,6 +183,19 @@ export async function PUT(request: Request) {
       ? planes.find((p) => p.id === c.plan_id)
       : previa?.plan;
     const modelo = c.modelo_cobro ?? previa?.modeloCobro ?? 'oficial';
+    const invalidAmount = [c.precio_centavos_override, c.incluidas_override, c.excedente_centavos_override]
+      .some(value => value !== undefined && value !== null &&
+        (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0));
+    if (c.plan_id === null || !compatibleBillingPlan(modelo, plan) || invalidAmount ||
+        (modelo === 'oficial' && c.incluidas_override === 0)) {
+      return NextResponse.json({ error: translate(await getLocale(), 'admin.billingInvalidAgreement') }, { status: 400 });
+    }
+    // Shopify must approve its own recurring charge; never only change our DB.
+    if (previa?.billingProvider === 'shopify' && previa.shopifySubscriptionId &&
+        ['plan_id', 'modelo_cobro', 'precio_centavos_override', 'incluidas_override', 'excedente_centavos_override', 'estado']
+          .some(key => key in c)) {
+      return NextResponse.json({ error: translate(await getLocale(), 'admin.billingShopifyManaged') }, { status: 409 });
+    }
     if (modelo === 'oficial' && (!plan?.activo || plan.incluidas <= 0)) {
       return NextResponse.json({
         error: translate(await getLocale(), 'admin.billingOfficialPlanRequired'),
@@ -244,6 +258,16 @@ export async function PUT(request: Request) {
     }
     if (c.nota !== undefined) fila.nota = c.nota?.trim() || null;
 
+    if (previa && !suscripcionStripeViva && ['plan_id', 'modelo_cobro', 'precio_centavos_override', 'incluidas_override', 'excedente_centavos_override']
+      .some(key => key in fila && fila[key] !== (antes as Record<string, unknown> | null)?.[key])) {
+      try {
+        await expirarCheckoutsDelAcuerdo(previa);
+      } catch (error) {
+        console.error('[billing] checkout expiration failed', error);
+        return NextResponse.json({ error: translate(await getLocale(), 'admin.billingStripeSyncFailed') }, { status: 502 });
+      }
+    }
+
     const { error } = await db
       .from('workspace_subscriptions')
       .upsert(fila, { onConflict: 'workspace_id' });
@@ -253,26 +277,28 @@ export async function PUT(request: Request) {
     if (c.modelo_cobro !== undefined) invalidatePlatformKeyCache();
 
     if (previa && suscripcionStripeViva) {
-      const nueva = await leerSuscripcion(db, c.workspace_id);
       try {
-        if (nueva && (
+        const nueva = await leerSuscripcion(db, c.workspace_id);
+        if (!nueva) throw new Error('billing_subscription_read_failed');
+        if (
           nueva.precioCentavos !== previa.precioCentavos ||
           nueva.modeloCobro !== previa.modeloCobro ||
           nueva.plan?.moneda !== previa.plan?.moneda ||
           nueva.plan?.id !== previa.plan?.id ||
           (nueva.plan?.slug === 'saldo-ilimitado' && previa.plan?.slug !== 'saldo-ilimitado')
-        )) await sincronizarPrecioSuscripcion(
-          previa, nueva.precioCentavos, nueva.plan?.moneda ?? 'usd', nueva.modeloCobro,
-          nueva.plan ? { planId: nueva.plan.id } : undefined,
+        ) await sincronizarPrecioSuscripcion(
+          previa, nueva.precioAcuerdoCentavos, nueva.plan?.moneda ?? 'usd', nueva.modeloCobro,
+          nueva.plan ? { planId: nueva.plan.id, planName: nueva.plan.nombre } : undefined,
           nueva.plan?.slug === 'saldo-ilimitado',
         );
       } catch (stripeError) {
         const { error: rollbackError } = await db.from('workspace_subscriptions')
           .update(antes ?? {})
           .eq('workspace_id', c.workspace_id);
+        invalidatePlatformKeyCache();
         console.error('[billing] no se pudo sincronizar Stripe', stripeError, rollbackError);
         return NextResponse.json({
-          error: translate(await getLocale(), 'admin.billingStripeSyncFailed'),
+          error: translate(await getLocale(), rollbackError ? 'admin.billingSyncNeedsReview' : 'admin.billingStripeSyncFailed'),
         }, { status: 502 });
       }
     }
@@ -297,7 +323,7 @@ export async function PUT(request: Request) {
       action: 'update.billing_subscription',
       targetType: 'workspace',
       targetId: c.workspace_id,
-      meta: { estado: c.estado, modelo_cobro: c.modelo_cobro, nota: c.nota },
+      meta: { before: antes, after: fila },
     });
     return NextResponse.json({ ok: true });
   }
