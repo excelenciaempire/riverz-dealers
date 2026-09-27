@@ -31,7 +31,7 @@ confirmada**. No volver a describirla como “En aprobación”.
 | 19/08 | Riverz → Tiendanube | Entrega de diagrama, FAQ, video, cuenta demo y perfil de cuatro países. |
 | 04/09 | Tiendanube → Riverz | Seis observaciones: confirmación de correo, demo incompleta, explicación de sincronización, justificación de `write_orders`, precios redondeados y consultas de pedidos con 404. |
 | 11/09 | Tiendanube → Riverz | Recordatorio solicitando fecha de disponibilidad de los ajustes. |
-| 13/09 | Riverz → Tiendanube | Cuatro respuestas en el ticket #7973300 con correcciones, pruebas, captura y dos videos; se acreditaron correo, precios, sincronización, pedidos, IA, campaña y recuperación controlada. |
+| 13/09 | Riverz → Tiendanube | Cinco respuestas en el ticket #7973300 con correcciones, pruebas, captura y dos videos; se acreditaron correo, precios, sincronización, pedidos, IA, campaña y recuperación controlada. |
 | 23/09 | Tiendanube → Riverz | Aprobación de la solicitud y paso a la etapa de publicación. |
 | 23/09 | Riverz → Tiendanube | Entrega final de FAQ, ficha completa por país y video comercial. |
 
