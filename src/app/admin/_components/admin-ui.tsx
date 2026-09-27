@@ -77,10 +77,10 @@ function guardarCache(url: string, valor: unknown): void {
  * quedaran los datos de todos los comercios en la pestaña esperando a que
  * alguien abra las herramientas del navegador.
  */
-export function limpiarCacheAdmin(): void {
+export function limpiarCacheAdmin(url?: string): void {
   try {
     for (const k of Object.keys(sessionStorage)) {
-      if (k.startsWith(CACHE_PREFIJO)) sessionStorage.removeItem(k);
+      if (url ? k === CACHE_PREFIJO + url : k.startsWith(CACHE_PREFIJO)) sessionStorage.removeItem(k);
     }
   } catch {
     // Nada que limpiar si no hay storage.

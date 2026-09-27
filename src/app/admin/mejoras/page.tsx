@@ -19,7 +19,7 @@ import { ConfirmarBorrado } from "@/components/ai/confirmar-borrado";
 import type { FeedbackGuardado, Propuestas } from "@/lib/ai/sesiones-de-prueba";
 import type { BorradoMejora } from "@/lib/ai/borrar-mejora";
 import { cn } from "@/lib/utils";
-import { useAdminData, useTabParam, PageHeader, Loading, LoadError, Tabs, StatusPill, Muted } from "../_components/admin-ui";
+import { useAdminData, useTabParam, PageHeader, Loading, LoadError, Tabs, StatusPill, Muted, limpiarCacheAdmin } from "../_components/admin-ui";
 import { RefreshButton } from "../_components/filters";
 
 /**
@@ -190,6 +190,8 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
       if (!borrar) return;
       const result = await accion(borrar.que, borrar.objetivo);
       if (!result) return;
+      limpiarCacheAdmin(`/api/admin/mejoras?workspace=${encodeURIComponent(id)}`);
+      limpiarCacheAdmin('/api/admin/mejoras');
       setPropuestasDe({});
       // Clear stale proposal buttons immediately, including a mixed batch
       // invalidated by deletion of just one of its feedback inputs.
