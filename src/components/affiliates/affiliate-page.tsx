@@ -200,7 +200,7 @@ function Calculator() {
   const t = useT();
   const { locale } = useLocale();
   const [referrals, setReferrals] = useState(5);
-  const [monthlyPlan, setMonthlyPlan] = useState(199);
+  const [monthlyPlan, setMonthlyPlan] = useState(399);
   const monthly = referrals * monthlyPlan * 0.35;
   const money = useMemo(
     () =>
