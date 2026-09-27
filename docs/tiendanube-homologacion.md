@@ -1,8 +1,56 @@
 # App de Tiendanube
 
-## Revisión vigente al 13 de septiembre de 2026
+## Revisión vigente al 27 de septiembre de 2026
 
-La app 37693 continúa **En aprobación**, verificado en Partners con la cuenta
+La aplicación **Riverz #37693 fue aprobada por Tiendanube el 23 de septiembre
+de 2026**. Luciana Bandeira confirmó por correo que la solicitud pasó con éxito
+a la etapa de publicación en la App Store. Esto cierra la homologación técnica,
+pero no equivale por sí solo a que la ficha ya esté pública.
+
+El mismo 23 de septiembre, a las 22:01 America/New_York, Riverz respondió desde
+`riverzoficial@gmail.com` y entregó el último paquete solicitado:
+
+- descripción detallada completada para Argentina, Chile, Colombia y México;
+- secciones de producto, funcionamiento, características, ventajas, precios,
+  integración y soporte;
+- preguntas frecuentes y tutorial de instalación de la sección 3.5;
+- documento adjunto `FAQ-Riverz-Tiendanube.docx`;
+- video comercial actualizado de 1:01: <https://youtu.be/cxIBGercZyA>.
+
+Al 27 de septiembre **no hay un correo posterior de Tiendanube que confirme la
+publicación oficial**. Tampoco se encontró una ficha pública de Riverz en la
+búsqueda de la App Store. El estado correcto es, por tanto: **homologación
+aprobada; entrega final de publicación enviada; publicación pública aún no
+confirmada**. No volver a describirla como “En aprobación”.
+
+### Auditoría completa de correos
+
+| Fecha | Dirección | Resultado |
+| --- | --- | --- |
+| 17/08 | Tiendanube → Riverz | Apertura formal del proceso de homologación. |
+| 19/08 | Riverz → Tiendanube | Entrega de diagrama, FAQ, video, cuenta demo y perfil de cuatro países. |
+| 04/09 | Tiendanube → Riverz | Seis observaciones: confirmación de correo, demo incompleta, explicación de sincronización, justificación de `write_orders`, precios redondeados y consultas de pedidos con 404. |
+| 11/09 | Tiendanube → Riverz | Recordatorio solicitando fecha de disponibilidad de los ajustes. |
+| 13/09 | Riverz → Tiendanube | Cuatro respuestas en el ticket #7973300 con correcciones, pruebas, captura y dos videos; se acreditaron correo, precios, sincronización, pedidos, IA, campaña y recuperación controlada. |
+| 23/09 | Tiendanube → Riverz | Aprobación de la solicitud y paso a la etapa de publicación. |
+| 23/09 | Riverz → Tiendanube | Entrega final de FAQ, ficha completa por país y video comercial. |
+
+No hubo omisión de respuesta de Riverz dentro del ticket: el seguimiento del
+13 de septiembre fue amplio y la entrega final del 23 de septiembre salió el
+mismo día de la aprobación. Lo que sí estaba omitido en este documento era el
+correo de aprobación y la respuesta final de publicación.
+
+Dos decisiones anteriores siguen vigentes y están respaldadas por correo:
+
+- Tiendanube confirmó el 15 de agosto que **NubeSDK no aplica** a Riverz porque
+  la aplicación es server-side y no renderiza una interfaz embebida.
+- Tiendanube confirmó el 16 de agosto que cambiar la distribución a pública no
+  interrumpe instalaciones reales, no afecta clientes existentes y conserva la
+  información de la ficha.
+
+## Histórico: revisión al 13 de septiembre de 2026
+
+La app 37693 continuaba **En aprobación**, verificado en Partners con la cuenta
 oficial. Ticket vigente **7973300**, referencia **1YNLPK-KP3VE**. Los artefactos
 se entregaron el 19 de agosto; Luciana envió seis observaciones el 4 de septiembre
 y pidió fecha de ajustes el 11. Las secciones fechadas más abajo son históricas.
@@ -710,6 +758,7 @@ El video reúne las pruebas reales disponibles:
    cobro ni despacho.
 
 El mensaje enviado aclara que la recuperación fue una ejecución controlada
-de la plantilla y no presenta esa prueba como un abandono automático. La
-solicitud continúa **En aprobación**, a la espera de respuesta del equipo de
-Tiendanube.
+de la plantilla y no presenta esa prueba como un abandono automático. En ese
+momento la solicitud continuaba **En aprobación**, a la espera de respuesta del
+equipo de Tiendanube. Este estado quedó superado por la aprobación del 23 de
+septiembre y la entrega final de publicación descritas al inicio.
