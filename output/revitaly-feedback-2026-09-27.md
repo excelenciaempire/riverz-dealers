@@ -2,6 +2,8 @@
 
 Cuenta: Revitaly. Fecha: 27/09/2026.
 
+Actualización posterior, solicitada por el dueño: se eliminaron las 14 sesiones con feedback accionable ya resuelto. Permanecen 16: 13 sin feedback y 3 con texto de prueba sin indicación aplicable. El análisis nota por nota de abajo se conserva como registro; las afirmaciones de conservación de 30 sesiones describen la validación anterior a esa limpieza. Respaldo completo local: `tmp/revitaly-cleanup-backup-1790526113580.json`.
+
 Se revisaron 30 sesiones y sus 33 notas, repartidas en 17 sesiones. Las otras tablas de feedback, plataforma, cambios de plantilla y lotes no contenían registros para esta cuenta. Se conservaron las pruebas y comentarios originales: una conversación histórica no cambia cuando se corrige Natalia.
 
 ## Revisión nota por nota

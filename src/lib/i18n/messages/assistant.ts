@@ -396,14 +396,15 @@ export const assistant = {
   },
 
   // Advanced: API key
-  apiKeyLabel: { es: "API key propia (opcional)", en: "Your own API key (optional)" },
+  apiKeyTitle: { es: "Clave propia de IA", en: "Your own AI key" },
+  apiKeyLabel: { es: "API key de Anthropic", en: "Anthropic API key" },
   apiKeyPlaceholderSaved: {
     es: "••••••••  (ya hay una key guardada)",
     en: "••••••••  (a key is already saved)",
   },
   apiKeyHelp: {
-    es: "Usa tu cuenta de Anthropic en vez de la del servidor. Se guarda cifrada.",
-    en: "Use your own Anthropic account instead of the server's. Stored encrypted.",
+    es: "Obligatoria en BYOK; opcional en otros planes. Se guarda cifrada. Déjala vacía para conservar la actual.",
+    en: "Required for BYOK; optional for other plans. Stored encrypted. Leave blank to keep the current key.",
   },
 
   // ── Editor: test panel ─────────────────────────────────────

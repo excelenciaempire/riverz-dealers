@@ -18,6 +18,7 @@ vi.mock('@/lib/i18n/cuenta', () => ({ localeDeCuenta: async () => 'es' }))
 vi.mock('@/lib/affiliates/program', () => ({ attachAffiliateWorkspace: mocks.attachAffiliateWorkspace }))
 
 import { lineItemsDeSuscripcion, urlDeCheckout } from './stripe'
+import { firstMonthCouponId, firstMonthDiscountCents } from './first-month-offer'
 
 const cuenta = (cambio: Partial<Suscripcion> = {}): Suscripcion => ({
   plan: {
@@ -76,6 +77,7 @@ describe('link de pago', () => {
   const quien = { email: null, nombre: null }
 
   beforeEach(() => {
+    vi.clearAllMocks()
     process.env.STRIPE_SECRET_KEY = 'sk_test_fake'
     mocks.createSession.mockResolvedValue({ url: 'https://checkout.stripe.com/c/pay/cs_test_1' })
     mocks.retrieveCoupon.mockResolvedValue({
@@ -106,5 +108,32 @@ describe('link de pago', () => {
     const sesion = mocks.createSession.mock.calls[0][0]
     expect(sesion.subscription_data).toEqual({ metadata: { workspace_id: 'w1' } })
     expect(sesion.discounts).toEqual([{ coupon: 'riverz-first-month-35-usd-39900-v2' }])
+  })
+
+  it.each([
+    ['new-balance-merchant-a', 'cus_new_a', 39900, true],
+    ['new-balance-merchant-b', 'cus_new_b', 29900, false],
+  ] as const)('keeps the admin agreement and account identity for %s', async (workspaceId, customerId, amount, freeMonth) => {
+    mocks.retrieveCoupon.mockResolvedValue({
+      id: firstMonthCouponId(amount, 'usd'), valid: true, duration: 'once',
+      amount_off: firstMonthDiscountCents(amount), currency: 'usd',
+    })
+    const merchant = cuenta({
+      ...saldo, workspaceId, stripeCustomerId: customerId,
+      precioAcuerdoCentavos: amount, tratoPropio: true,
+    })
+    await urlDeCheckout(db, workspaceId, merchant, quien, { primerMesSinCargo: freeMonth })
+    const session = mocks.createSession.mock.calls[0][0]
+    expect(session.mode).toBe('subscription')
+    expect(session.customer).toBe(customerId)
+    expect(session.client_reference_id).toBe(workspaceId)
+    expect(session.metadata.workspace_id).toBe(workspaceId)
+    expect(session.subscription_data.metadata.workspace_id).toBe(workspaceId)
+    expect(session.subscription_data.trial_period_days).toBe(freeMonth ? 30 : undefined)
+    expect(session.payment_method_collection).toBe('always')
+    expect(session.line_items).toHaveLength(1)
+    expect(session.line_items[0].price_data.unit_amount).toBe(amount)
+    expect(session.line_items[0].price_data.recurring.interval).toBe('month')
+    expect(session.discounts).toEqual(freeMonth ? undefined : [{ coupon: firstMonthCouponId(amount, 'usd') }])
   })
 })

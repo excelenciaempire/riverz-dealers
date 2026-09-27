@@ -526,6 +526,7 @@ export function AgentEditor({
   const [applyingProduct, setApplyingProduct] = useState(false);
 
   const [saving, setSaving] = useState(false);
+  const [apiKey, setApiKey] = useState('');
   const [showAdvancedPersona, setShowAdvancedPersona] = useState(false);
   const [voiceAgentId, setVoiceAgentId] = useState(agent?.voice_agent_id ?? '');
   const [voiceCanPropose, setVoiceCanPropose] = useState(
@@ -982,11 +983,13 @@ export function AgentEditor({
     }
     setSaving(true);
     const payload: Partial<AiAgent> & {
+      api_key?: string;
       workspace_id?: string;
       channels?: string[];
       product_ids?: string[];
     } = {
       workspace_id: workspaceId,
+      ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
       name: name.trim(),
       is_active: isActive,
       persona: persona.trim(),
@@ -1774,6 +1777,14 @@ export function AgentEditor({
 
             {tab === 'advanced' && (
               <>
+                <SectionCard title={t('assistant.apiKeyTitle')}>
+                  <Field label={t('assistant.apiKeyLabel')}>
+                    <Input type="password" aria-label={t('assistant.apiKeyLabel')} autoComplete="new-password" value={apiKey}
+                      onChange={(event) => setApiKey(event.target.value)}
+                      placeholder={agent?.has_api_key ? t('assistant.apiKeyPlaceholderSaved') : 'sk-ant-…'} />
+                    <p className="mt-1 text-xs text-muted-foreground">{t('assistant.apiKeyHelp')}</p>
+                  </Field>
+                </SectionCard>
                 {/* Rol y permisos (migración 164). El rol reparte el trabajo
                     cuando hay varios agentes en un canal; los permisos dicen
                     qué puede tocar este. */}

@@ -7,6 +7,7 @@ import { useT } from '@/hooks/use-locale';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { cn } from '@/lib/utils';
 import { useSaldo } from '@/hooks/use-saldo';
+import Link from '@/components/i18n/locale-link';
 
 /**
  * El plan de la cuenta, y lo que va del período.
@@ -33,6 +34,7 @@ import { useSaldo } from '@/hooks/use-saldo';
 interface Estado {
   estado: 'prueba' | 'activa' | 'vencida' | 'cancelada' | 'cortesia';
   modeloCobro: 'oficial' | 'saldo' | 'byok';
+  byok?: { needsKey: boolean; agentId: string | null } | null;
   plan: { nombre: string; slug: string } | null;
   acceso: { puede: boolean; diasDePrueba: number | null };
   cuenta: {
@@ -253,6 +255,16 @@ export function BillingPanel() {
           </button>
         )}
       </div>
+
+      {e.modeloCobro === 'byok' && e.byok?.needsKey && (
+        <div className="rounded-lg border border-amber-500/30 p-3 text-sm">
+          <p>{t('settings.billingByokNeedsKey')}</p>
+          <Link href={`/asistente?agent=${encodeURIComponent(e.byok.agentId ?? 'nuevo')}&tab=advanced`}
+            className="mt-2 inline-block font-medium underline underline-offset-2">
+            {t('settings.billingByokConfigureKey')}
+          </Link>
+        </div>
+      )}
 
       <div className="space-y-2 border-t border-border pt-3 text-sm">
         <div className="flex items-baseline justify-between gap-4">

@@ -1380,6 +1380,8 @@ export const settings = {
   billingAllIncluded: { es: 'Todo incluido', en: 'All included' },
   billingBalanceModel: { es: 'Saldo por consumo', en: 'Usage balance' },
   billingByokModel: { es: 'Tu propia clave de IA', en: 'Your own AI key' },
+  billingByokNeedsKey: { es: 'Agrega tu clave de Anthropic para usar la IA. No necesitas recargar saldo en Riverz.', en: 'Add your Anthropic key to use AI. You do not need to top up your Riverz balance.' },
+  billingByokConfigureKey: { es: 'Configurar clave de IA', en: 'Set up AI key' },
   billingServedContacts: {
     es: 'Contactos atendidos este período',
     en: 'Contacts served this period',

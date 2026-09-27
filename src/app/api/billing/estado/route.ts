@@ -8,6 +8,7 @@ import { eligibleForFirstMonthOffer, firstMonthCents, FIRST_MONTH_DISCOUNT_PERCE
 import { createClient } from '@/lib/supabase/server'
 import { isWorkspaceAdmin, resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { getShopifyBillingConnection } from '@/lib/shopify/billing'
+import { byokReadiness } from '@/lib/billing/byok-readiness'
 
 /**
  * Cómo está la cuenta con la facturación.
@@ -35,6 +36,7 @@ export async function GET() {
   const shopifyBilling = sus.billingProvider === 'shopify' ||
     (!sus.stripeSubscriptionId && Boolean(shopifyConnection))
   const periodo = periodoDe(sus)
+  const byok = await byokReadiness(admin, workspaceId, sus.modeloCobro)
   const uso = await usoDelPeriodo(admin, workspaceId, periodo, sus.modeloCobro === 'oficial')
   const puedeMejorar = sus.modeloCobro === 'oficial' && !sus.tratoPropio &&
     ['activa', 'prueba'].includes(sus.estado) && !sus.cancelarAlFinal &&
@@ -50,6 +52,7 @@ export async function GET() {
     {
       estado: sus.estado,
       modeloCobro: sus.modeloCobro,
+      byok,
       plan: sus.plan ? { nombre: sus.plan.nombre, slug: sus.plan.slug } : null,
       acceso: acceso(sus),
       cuenta: cuentaDelPeriodo(sus, uso),
