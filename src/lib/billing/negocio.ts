@@ -161,15 +161,7 @@ export async function leerNegocio(
       select: 'workspace_id, conversaciones, costo_usd', orderBy: 'dia', strict: true,
     }).then(data => ({ data, error: null })),
     db.from('wallet_accounts').select('workspace_id, saldo_centavos, bloquear_sin_saldo, cobrar_a_costo'),
-    // El libro del período, crudo. Se suma acá y no con un `group by` en SQL
-    // porque son los movimientos de un puñado de cuentas en un rango, y una
-    // vista nueva por cada corte que quiera mirar el dueño no escala como
-    // trabajo aunque escale como consulta.
-    selectAll(db, 'wallet_movimientos', q => q
-      .gte('creado_en', periodo.desde.toISOString())
-      .lt('creado_en', periodo.hasta.toISOString()), {
-      select: 'workspace_id, tipo, concepto, centavos, costo_centavos', strict: true,
-    }).then(data => ({ data, error: null })),
+    db.rpc('wallet_business_totals', { p_desde: periodo.desde.toISOString(), p_hasta: periodo.hasta.toISOString() }),
     // Sólo si existe; la clave nunca sale de la base.
     db.from('ai_agents').select('workspace_id').not('api_key_encrypted', 'is', null),
   ])
@@ -223,22 +215,14 @@ export async function leerNegocio(
 
   const libro = new Map<string, { cargado: number; gastado: number; costo: number }>()
   for (const m of (movimientosRes.data ?? []) as {
-    workspace_id: string
-    tipo: string
-    concepto: string
-    centavos: number
-    costo_centavos: number
+    workspace_id: string | null
+    cargado: number
+    gastado: number
+    costo: number
   }[]) {
-    const a = libro.get(m.workspace_id) ?? { cargado: 0, gastado: 0, costo: 0 }
-    const c = Number(m.centavos ?? 0)
-    // Sólo la recarga es ingreso. El bono es saldo regalado y contarlo como
-    // plata que entró sería facturarse a uno mismo.
-    if (m.tipo === 'recarga') a.cargado += c
-    if (m.tipo === 'consumo' && m.concepto !== 'comision_stripe' && c < 0) {
-      a.gastado += -c
-      a.costo += Number(m.costo_centavos ?? 0)
-    }
-    libro.set(m.workspace_id, a)
+    libro.set(m.workspace_id ?? '__platform__', {
+      cargado: Number(m.cargado), gastado: Number(m.gastado), costo: Number(m.costo),
+    })
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -306,7 +290,7 @@ export async function leerNegocio(
   const saldoTotal = cuentas.reduce((n, c) => n + c.saldoCentavos, 0)
   const cargado = cuentas.reduce((n, c) => n + c.cargadoCentavos, 0)
   const gastado = cuentas.reduce((n, c) => n + c.gastadoCentavos, 0)
-  const costoBilletera = cuentas.reduce((n, c) => n + c.costoBilleteraCentavos, 0)
+  const costoBilletera = Math.round([...libro.values()].reduce((n, c) => n + c.costo, 0))
   const costoUsd = cuentas.reduce((n, c) => n + c.costoUsd, 0)
   const porPago: Record<EstadoDePago, number> = {
     sin_configurar: 0, sin_pagar: 0, en_prueba: 0, al_dia: 0, fallido: 0, cancelado: 0, sin_mensualidad: 0,

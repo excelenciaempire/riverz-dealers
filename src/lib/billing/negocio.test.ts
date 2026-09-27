@@ -45,7 +45,8 @@ function base(fallarWorkspaces = false, suscripciones: unknown[] = [], extras: R
     }
     return q
   })
-  return { db: { from } as unknown as SupabaseClient, from }
+  const rpc = vi.fn().mockResolvedValue({ data: [], error: null })
+  return { db: { from, rpc } as unknown as SupabaseClient, from, rpc }
 }
 
 describe('cuentas de Negocio', () => {
@@ -122,8 +123,8 @@ describe('cuentas de Negocio', () => {
     await expect(leerNegocio(db, periodo)).rejects.toThrow('DB unavailable')
   })
 
-  it('suma todas las páginas y no presenta ajustes ni comisiones como consumo', async () => {
-    const { db } = base(false, [], {
+  it('conserva la paginación de uso y lee consumo y costos del agregado contable', async () => {
+    const { db, rpc } = base(false, [], {
       wallet_movimientos: [
         ...Array.from({ length: 1005 }, () => ({ workspace_id: 'w1', tipo: 'consumo', concepto: 'ia_respuesta', centavos: -2, costo_centavos: 1 })),
         { workspace_id: 'w1', tipo: 'ajuste', concepto: 'ajuste', centavos: -500, costo_centavos: 0 },
@@ -132,8 +133,20 @@ describe('cuentas de Negocio', () => {
       ],
       billing_usage_daily: Array.from({ length: 1005 }, () => ({ workspace_id: 'w1', conversaciones: 1, costo_usd: 1 })),
     })
+    rpc.mockResolvedValue({ data: [{ workspace_id: 'w1', cargado: 3000, gastado: 2010, costo: 1030 }], error: null })
     const negocio = await leerNegocio(db, periodo)
-    expect(negocio).toMatchObject({ gastadoCentavos: 2010, costoBilleteraCentavos: 1005, cargadoCentavos: 3000, costoUsd: 1005 })
+    expect(negocio).toMatchObject({ gastadoCentavos: 2010, costoBilleteraCentavos: 1030, cargadoCentavos: 3000, costoUsd: 1005 })
     expect(negocio.cuentas.find(c => c.workspaceId === 'w1')?.conversaciones).toBe(1005)
+  })
+  it('incluye los gastos financieros internos sin convertirlos en cargos separados', async () => {
+    const { db, rpc } = base()
+    rpc.mockResolvedValue({ data: [
+      { workspace_id: 'w1', cargado: 2500, gastado: 300, costo: 290.5 },
+      { workspace_id: null, cargado: 0, gastado: 0, costo: 50 },
+    ], error: null })
+    const result = await leerNegocio(db, periodo)
+    expect(result.costoBilleteraCentavos).toBe(341)
+    expect(result.gastadoCentavos).toBe(300)
+    expect(result.cuentas[0].costoBilleteraCentavos).toBe(291)
   })
 })
