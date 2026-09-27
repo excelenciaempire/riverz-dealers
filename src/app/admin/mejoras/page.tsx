@@ -17,6 +17,7 @@ import {
 import { TarjetaDeRegla } from "@/components/ai/pruebas-guardadas";
 import { ConfirmarBorrado } from "@/components/ai/confirmar-borrado";
 import type { FeedbackGuardado, Propuestas } from "@/lib/ai/sesiones-de-prueba";
+import type { BorradoMejora } from "@/lib/ai/borrar-mejora";
 import { cn } from "@/lib/utils";
 import { useAdminData, useTabParam, PageHeader, Loading, LoadError, Tabs, StatusPill, Muted } from "../_components/admin-ui";
 import { RefreshButton } from "../_components/filters";
@@ -152,11 +153,11 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
   const t = useT();
   const format = useFormat();
   const fetchWithCsrf = useFetchWithCsrf();
-  const { data, loading, error, reload } = useAdminData<Datos>(`/api/admin/mejoras?workspace=${encodeURIComponent(id)}`);
+  const { data, loading, error, reload, setData } = useAdminData<Datos>(`/api/admin/mejoras?workspace=${encodeURIComponent(id)}`);
   const [trabajando, setTrabajando] = useState<string | null>(null);
   // Lo que se va proponiendo y aplicando, sin esperar al refresco.
   const [propuestasDe, setPropuestasDe] = useState<Record<string, Propuestas>>({});
-  const [borrar, setBorrar] = useState<"todas" | string | null>(null);
+  const [borrar, setBorrar] = useState<{ que: BorradoMejora; objetivo: string } | null>(null);
 
   if (loading && !data) return <Loading />;
   if (error || !data) return <LoadError onRetry={reload} />;
@@ -168,7 +169,7 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
   async function accion(que: string, objetivo: string): Promise<Record<string, unknown> | null> {
     setTrabajando(`${que}:${objetivo}`);
     try {
-      const res = await fetchWithCsrf(`/api/admin/mejoras/accion?que=${que}&id=${encodeURIComponent(objetivo)}`, { method: "POST" });
+      const res = await fetchWithCsrf(`/api/admin/mejoras/accion?que=${que}&id=${encodeURIComponent(objetivo)}&workspace=${encodeURIComponent(id)}`, { method: "POST" });
       const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
       if (!res.ok) throw new Error(String(json?.error ?? ""));
       return json;
@@ -179,6 +180,34 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
       setTrabajando(null);
     }
   }
+
+  const confirmar = <ConfirmarBorrado
+    abierto={borrar !== null}
+    onCerrar={() => setBorrar(null)}
+    titulo={borrar?.que === "borrar-pruebas" ? t("assistant.pruebasBorrarTodasTitulo", { n: data.pruebas.length }) : t("common.delete")}
+    descripcion={t("admin.mejorasBorrarAviso")}
+    onBorrar={async () => {
+      if (!borrar) return;
+      const result = await accion(borrar.que, borrar.objetivo);
+      if (!result) return;
+      setPropuestasDe({});
+      // Clear stale proposal buttons immediately, including a mixed batch
+      // invalidated by deletion of just one of its feedback inputs.
+      setData(prev => prev ? {
+        ...prev,
+        pruebas: borrar.que === "borrar-pruebas" ? [] : prev.pruebas.filter(p => borrar.que !== "borrar-prueba" || p.id !== borrar.objetivo),
+        feedback: prev.feedback.filter(f => borrar.que !== "borrar-feedback" || f.id !== borrar.objetivo),
+        cambios: prev.cambios.filter(c => borrar.que !== "borrar-cambio" || c.id !== borrar.objetivo),
+        lotes: [],
+        plataforma: [],
+      } : prev);
+      reload();
+    }}
+  />;
+  const eliminar = (que: BorradoMejora, objetivo: string) => <button
+    type="button" disabled={trabajando !== null} onClick={() => setBorrar({ que, objetivo })}
+    className="text-destructive hover:bg-muted inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs disabled:opacity-60"
+  ><Trash2 className="size-3.5" />{t("common.delete")}</button>;
 
   const Propuestas = ({ clave, url, propuestas }: { clave: string; url: string; propuestas: Propuestas | null }) => {
     const p = propuestasDe[clave] ?? propuestas;
@@ -208,23 +237,12 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
     if (data.pruebas.length === 0) return <Muted>{t("admin.mejorasVacio")}</Muted>;
     return (
       <div className="space-y-3">
-        <ConfirmarBorrado
-          abierto={borrar !== null}
-          onCerrar={() => setBorrar(null)}
-          titulo={
-            borrar === "todas"
-              ? t("assistant.pruebasBorrarTodasTitulo", { n: data.pruebas.length })
-              : t("assistant.pruebasBorrar")
-          }
-          onBorrar={async () => {
-            const r = await accion(borrar === "todas" ? "borrar-pruebas" : "borrar-prueba", borrar === "todas" ? id : String(borrar));
-            if (r) reload();
-          }}
-        />
+        {confirmar}
         <div className="flex justify-end">
           <button
             type="button"
-            onClick={() => setBorrar("todas")}
+            onClick={() => setBorrar({ que: "borrar-pruebas", objetivo: id })}
+            disabled={trabajando !== null}
             className="text-destructive hover:bg-muted inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs"
           >
             <Trash2 className="size-3.5" />
@@ -245,15 +263,7 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
                   {etiquetaDeEscenario(t, p.escenario)} · {etiquetaDeCanal(t, p.canal)}
                   <span className="text-muted-foreground font-normal"> · {fecha(p.created_at)}</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setBorrar(p.id)}
-                  aria-label={t("assistant.pruebasBorrar")}
-                  title={t("assistant.pruebasBorrar")}
-                  className="text-muted-foreground hover:text-destructive shrink-0 rounded p-1"
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
+                {eliminar("borrar-prueba", p.id)}
               </div>
               {general ? <p className="rounded-lg bg-[#fff5c4] px-3 py-2 text-xs whitespace-pre-wrap text-[#54656f]">{general}</p> : null}
               <MarcoDeTelefono titulo={titulo} alto="h-[360px]">
@@ -288,6 +298,7 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
     const lote = data.lotes[0] ?? null;
     return (
       <div className="space-y-4">
+        {confirmar}
         {data.feedback.length > 0 ? (
           <button
             type="button"
@@ -297,7 +308,7 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
               if (r?.sin_feedback) toast.success(t("admin.mejorasSinFeedbackNuevo"));
               else if (r?.lote) {
                 const l = r.lote as { id: string; propuestas: Propuestas };
-                setPropuestasDe((prev) => ({ ...prev, "lote:ultimo": l.propuestas }));
+                setPropuestasDe((prev) => ({ ...prev, [`lote:${l.id}`]: l.propuestas }));
                 reload();
               }
             }}
@@ -307,16 +318,22 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
             {t("admin.mejorasProponer")}
           </button>
         ) : null}
-        {lote ? <Propuestas clave="lote:ultimo" url={`/api/admin/mejoras/accion?que=aplicar-lote&id=${lote.id}`} propuestas={lote.propuestas} /> : null}
+        {lote ? <div className="space-y-2">
+          <div className="flex justify-end">{eliminar("borrar-lote", lote.id)}</div>
+          <Propuestas clave={`lote:${lote.id}`} url={`/api/admin/mejoras/accion?que=aplicar-lote&id=${lote.id}`} propuestas={lote.propuestas} />
+        </div> : null}
         {data.feedback.length === 0 ? (
           <Muted>{t("admin.mejorasVacio")}</Muted>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {data.feedback.map((f) => (
               <article key={f.id} className="space-y-2">
-                <p className="text-muted-foreground text-xs">
+                <div className="text-muted-foreground flex items-center justify-between gap-2 text-xs">
+                  <span>
                   {etiquetaDeCanal(t, f.canal)} · {fecha(f.created_at)}
-                </p>
+                  </span>
+                  {eliminar("borrar-feedback", f.id)}
+                </div>
                 <MarcoDeTelefono titulo={titulo} alto="h-[340px]">
                   {(f.captura ?? []).map((it, i) => (
                     <Linea key={i} it={it} feedback={i === (f.captura ?? []).length - 1 ? { voto: f.voto, nota: f.nota } : null} />
@@ -334,8 +351,10 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
     if (data.cambios.length === 0) return <Muted>{t("admin.mejorasVacio")}</Muted>;
     return (
       <div className="space-y-4">
+        {confirmar}
         {data.cambios.map((c) => (
           <article key={c.id} className="border-border space-y-3 rounded-xl border p-4">
+            <div className="flex justify-end">{eliminar("borrar-cambio", c.id)}</div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-foreground text-sm font-medium">
                 {c.plantilla_nombre}
@@ -401,6 +420,7 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
   if (data.plataforma.length === 0) return <Muted>{t("admin.mejorasVacio")}</Muted>;
   return (
     <div className="space-y-3">
+      {confirmar}
       {data.plataforma.map((p) => (
         <article key={p.id} className="border-border space-y-2 rounded-xl border p-4">
           <div className="flex items-start justify-between gap-2">
@@ -412,6 +432,7 @@ function DelComercio({ id, pestana }: { id: string; pestana: Pestana }) {
           </div>
           <pre className="bg-muted text-foreground rounded-lg px-3 py-2 text-xs whitespace-pre-wrap">{p.prompt}</pre>
           <div className="flex flex-wrap justify-end gap-2">
+            {eliminar("borrar-plataforma", p.id)}
             <button
               type="button"
               onClick={() => {

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { borrarMejora } from '@/lib/ai/borrar-mejora';
 import { cuentaDeLaPrueba } from '@/lib/ai/cuenta-de-prueba';
 import {
   contarMensajes,
@@ -161,7 +162,7 @@ export async function DELETE(request: Request) {
       { status: conSesion ? 403 : 401 }
     );
   }
-  const { error } = await admin.from('ai_test_sessions').delete().eq('workspace_id', workspaceId);
-  if (error) return serverError(error);
+  try { await borrarMejora(admin, workspaceId, 'borrar-pruebas', workspaceId); }
+  catch (error) { return serverError(error); }
   return NextResponse.json({ ok: true });
 }

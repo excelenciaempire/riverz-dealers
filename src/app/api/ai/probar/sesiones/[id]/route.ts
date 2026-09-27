@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import { borrarMejora } from '@/lib/ai/borrar-mejora';
 
 /**
  * Una prueba entera, para verla como chat, marcarla y borrarla.
@@ -96,7 +97,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       { status: conSesion ? 403 : 401 }
     );
   }
-  const { error } = await admin.from('ai_test_sessions').delete().eq('workspace_id', workspaceId).eq('id', id);
-  if (error) return serverError(error);
+  try { await borrarMejora(admin, workspaceId, 'borrar-prueba', id); }
+  catch (error) { return serverError(error); }
   return NextResponse.json({ ok: true });
 }

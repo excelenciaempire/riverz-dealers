@@ -589,6 +589,10 @@ export const admin = {
   mejorasTabPlantillas: { es: 'Plantillas', en: 'Templates' },
   mejorasTabPlataforma: { es: 'Plataforma', en: 'Platform' },
   mejorasProponer: { es: 'Proponer mejoras', en: 'Suggest improvements' },
+  mejorasBorrarAviso: {
+    es: 'Se eliminará este registro de evaluación y sus propuestas pendientes relacionadas. No se borran chats ni plantillas activas, ni se revierten cambios ya aplicados.',
+    en: 'This evaluation record and its related pending proposals will be deleted. Live chats and templates are not deleted, and previously applied changes are not reverted.',
+  },
   mejorasSinFeedbackNuevo: { es: 'No hay feedback nuevo.', en: 'No new feedback.' },
   mejorasAntes: { es: 'Antes', en: 'Before' },
   mejorasDespues: { es: 'Después', en: 'After' },

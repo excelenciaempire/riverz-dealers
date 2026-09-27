@@ -5,6 +5,7 @@ import { serverError } from '@/lib/api/errors';
 import { csrfGuard } from '@/lib/csrf';
 import { translate } from '@/lib/i18n/translate';
 import { cuentaDeSesion } from '@/lib/workspaces/cuenta-de-sesion';
+import { loteVigente } from '@/lib/ai/borrar-mejora';
 
 /**
  * POST /api/ai/feedback/lotes/[id]/aplicar
@@ -38,6 +39,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const indice = Number(body?.indice);
   const propuesta = Number.isSafeInteger(indice) ? propuestas?.reglas?.[indice] : undefined;
   if (!propuestas || !propuesta) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  if (!(await loteVigente(admin, workspaceId, id))) return NextResponse.json({ error: 'not_found' }, { status: 404 });
   if (propuesta.aplicada) return NextResponse.json({ propuestas });
 
   const r = await aplicarReglaPropuesta(admin, workspaceId, propuesta, body ?? {});

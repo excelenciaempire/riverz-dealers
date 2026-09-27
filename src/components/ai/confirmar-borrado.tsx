@@ -19,11 +19,13 @@ export function ConfirmarBorrado({
   onCerrar,
   titulo,
   onBorrar,
+  descripcion,
 }: {
   abierto: boolean;
   onCerrar: () => void;
   titulo: string;
   onBorrar: () => Promise<void>;
+  descripcion?: string;
 }) {
   const t = useT();
   const [borrando, setBorrando] = useState(false);
@@ -32,7 +34,7 @@ export function ConfirmarBorrado({
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>{titulo}</DialogTitle>
-          <DialogDescription>{t('assistant.pruebasBorrarAviso')}</DialogDescription>
+          <DialogDescription>{descripcion ?? t('assistant.pruebasBorrarAviso')}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="ghost" onClick={onCerrar} disabled={borrando}>

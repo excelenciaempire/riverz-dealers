@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { borrarMejora, feedbackVigente } from './borrar-mejora';
 import {
   aplicarSolasSiCorresponde,
   encolarParaPlataforma,
@@ -43,9 +44,23 @@ export async function mejorarSesionDePrueba(
     referenciaId: sesionId,
   });
   if (!generadas) return 'fallo';
-  const propuestas = await aplicarSolasSiCorresponde(admin, workspaceId, generadas);
+  const vigente = async () => {
+    const { data, error } = await admin.from('ai_test_sessions').select('feedback')
+      .eq('workspace_id', workspaceId).eq('id', sesionId).maybeSingle();
+    return !error && !!data && JSON.stringify(data.feedback) === JSON.stringify((fila as { feedback: unknown }).feedback);
+  };
+  // Generation can take minutes. Never apply the snapshot if it was deleted
+  // or edited while the provider was running.
+  if (!(await vigente())) return 'no_existe';
+  const propuestas = await aplicarSolasSiCorresponde(admin, workspaceId, generadas, vigente);
+  if (!(await vigente())) return 'no_existe';
+  const saved = await admin.from('ai_test_sessions').update({ propuestas }).eq('workspace_id', workspaceId).eq('id', sesionId).select('id');
+  if (saved.error || !saved.data?.length) return 'fallo';
   await encolarParaPlataforma(admin, { workspaceId, origen: 'prueba', origenId: sesionId, propuestas });
-  await admin.from('ai_test_sessions').update({ propuestas }).eq('workspace_id', workspaceId).eq('id', sesionId);
+  if (!(await vigente())) {
+    await admin.from('mejoras_plataforma').delete().eq('workspace_id', workspaceId).eq('origen', 'prueba').eq('origen_id', sesionId);
+    return 'no_existe';
+  }
   return propuestas;
 }
 
@@ -67,7 +82,8 @@ export async function mejorarFeedbackReal(
   const utiles = filas.filter((f) => f.voto === 'mal' || f.nota.trim());
   const ids = filas.map((f) => f.id);
   if (utiles.length === 0) {
-    if (ids.length) await admin.from('ai_feedback').update({ estado: 'usado' }).in('id', ids);
+    if (ids.length) await admin.from('ai_feedback').update({ estado: 'usado' })
+      .eq('workspace_id', workspaceId).eq('estado', 'nuevo').in('id', ids);
     return 'sin_feedback';
   }
   const generadas = await generarPropuestas(admin, {
@@ -77,19 +93,27 @@ export async function mejorarFeedbackReal(
     referenciaId: null,
   });
   if (!generadas) return 'fallo';
-  const propuestas = await aplicarSolasSiCorresponde(admin, workspaceId, generadas);
+  const vigente = () => feedbackVigente(admin, workspaceId, ids);
+  if (!(await vigente())) return 'sin_feedback';
+  const propuestas = await aplicarSolasSiCorresponde(admin, workspaceId, generadas, vigente);
+  if (!(await vigente())) return 'sin_feedback';
   const { data: lote, error } = await admin
     .from('ai_mejoras_lotes')
     .insert({ workspace_id: workspaceId, feedback_ids: ids, propuestas, automatico: opts.automatico })
     .select('id')
     .single();
   if (error || !lote) return 'fallo';
-  await admin.from('ai_feedback').update({ estado: 'usado', updated_at: new Date().toISOString() }).in('id', ids);
+  await admin.from('ai_feedback').update({ estado: 'usado', updated_at: new Date().toISOString() })
+    .eq('workspace_id', workspaceId).eq('estado', 'nuevo').in('id', ids);
   await encolarParaPlataforma(admin, {
     workspaceId,
     origen: 'bandeja',
     origenId: (lote as { id: string }).id,
     propuestas,
   });
+  if (!(await vigente())) {
+    await borrarMejora(admin, workspaceId, 'borrar-lote', (lote as { id: string }).id);
+    return 'sin_feedback';
+  }
   return { id: (lote as { id: string }).id, propuestas };
 }

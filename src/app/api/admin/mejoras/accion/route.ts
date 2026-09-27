@@ -7,6 +7,9 @@ import type { Propuestas } from '@/lib/ai/sesiones-de-prueba';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { aprobarCambio, descartarCambio } from '@/lib/templates/cambios';
+import { BORRADOS, borrarMejora, loteVigente, type BorradoMejora } from '@/lib/ai/borrar-mejora';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +47,7 @@ export async function POST(request: Request) {
       targetType: que.endsWith('cambio')
         ? 'cambios_de_plantilla'
         : que.startsWith('borrar')
-          ? 'ai_test_sessions'
+          ? BORRADOS[que as BorradoMejora] ?? 'mejoras'
           : 'mejoras',
       targetId: id,
       meta,
@@ -75,6 +78,7 @@ export async function POST(request: Request) {
     const { data: fila } = await db.from('ai_mejoras_lotes').select('workspace_id, propuestas').eq('id', id).maybeSingle();
     const lote = fila as { workspace_id: string; propuestas: Propuestas | null } | null;
     if (!lote) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+    if (!(await loteVigente(db, lote.workspace_id, id))) return NextResponse.json({ error: 'not_found' }, { status: 404 });
     return aplicar(db, 'ai_mejoras_lotes', id, lote.workspace_id, lote.propuestas, body, auditar);
   }
 
@@ -90,14 +94,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  if (que === 'borrar-prueba' || que === 'borrar-pruebas') {
-    const { error } = await db
-      .from('ai_test_sessions')
-      .delete()
-      .eq(que === 'borrar-prueba' ? 'id' : 'workspace_id', id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    await auditar({});
-    return NextResponse.json({ ok: true });
+  if (Object.hasOwn(BORRADOS, que)) {
+    const workspaceId = url.searchParams.get('workspace');
+    if (!workspaceId || (que === 'borrar-pruebas' && id !== workspaceId)) {
+      return NextResponse.json({ error: 'bad_request' }, { status: 400 });
+    }
+    try {
+      const result = await borrarMejora(db, workspaceId, que as BorradoMejora, id);
+      await auditar({ workspaceId, ...result });
+      return NextResponse.json({ ok: true, ...result });
+    } catch {
+      return NextResponse.json({ error: translate(await getLocale(), 'admin.mejorasError') }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ error: 'bad_request' }, { status: 400 });

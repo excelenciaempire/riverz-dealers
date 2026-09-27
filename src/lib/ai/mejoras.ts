@@ -184,11 +184,13 @@ export async function aplicaSolas(admin: SupabaseClient, workspaceId: string): P
 export async function aplicarSolasSiCorresponde(
   admin: SupabaseClient,
   workspaceId: string,
-  propuestas: Propuestas
+  propuestas: Propuestas,
+  sigueVigente?: () => Promise<boolean>
 ): Promise<Propuestas> {
   if (!propuestas.reglas.length || !(await aplicaSolas(admin, workspaceId))) return propuestas;
   const reglas: PropuestaDeRegla[] = [];
   for (const r of propuestas.reglas) {
+    if (sigueVigente && !(await sigueVigente())) return { ...propuestas, reglas };
     if (r.aplicada) {
       reglas.push(r);
       continue;
