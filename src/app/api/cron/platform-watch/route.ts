@@ -11,6 +11,7 @@ import {
 import { platformTechnicalAlertRecipients, sendPlatformAlert } from '@/lib/admin/platform-whatsapp'
 import { leerProveedores } from '@/lib/admin/proveedores'
 import { getLogger } from '@/lib/log/logger'
+import {alertCandidates, rememberAlerts, type AlertHistory} from '@/lib/health/alert-history'
 
 const log = getLogger('cron.platform-watch')
 
@@ -111,12 +112,13 @@ async function cronHandler(request: Request) {
   // An unreadable snapshot is not an empty incident list.
   const { data: estadoRow, error: estadoError } = await admin
     .from('platform_watch_state')
-    .select('fingerprint')
+    .select('fingerprint, alert_history, updated_at')
     .eq('id', true)
     .maybeSingle()
   if (estadoError) throw new Error(`platform_watch_state: ${estadoError.message}`)
   const anterior = estadoRow?.fingerprint ?? ''
   const previas = new Set<string>(anterior ? anterior.split('|') : [])
+  const history = (estadoRow?.alert_history ?? {}) as AlertHistory
   const conservar = new Set<string>()
   const lecturasFallidas: string[] = []
   const conservarPrefijo = (prefix: string) => {
@@ -151,6 +153,9 @@ async function cronHandler(request: Request) {
   // Lo mismo roto en varios comercios a la vez: eso sí es de la plataforma.
   let masivos = 0
   for (const [kind, comercios] of porClase(porWorkspace)) {
+    // Missing labels are a fulfillment task, not proof of a platform outage.
+    // Keep them in the merchant/admin logistics views; never invent shipment data.
+    if (kind === 'tracking_missing') continue
     if (comercios < UMBRAL_MASIVO) continue
     masivos++
     actuales.set(`masivo:${kind}`, `· ${comercios} comercios con ${nombreProblema(kind)}`)
@@ -376,13 +381,14 @@ async function cronHandler(request: Request) {
     })
   }
 
-  const nuevas = [...actuales.keys()].filter((k) => !previas.has(k) && !pendientes.has(k))
+  const nuevas = alertCandidates([...actuales.keys()].filter((k) => !previas.has(k) && !pendientes.has(k)), history)
 
   // Guardar SIEMPRE, aunque el aviso no salga: si no, un fallo de WhatsApp
   // convierte el próximo tick en el mismo mensaje otra vez, cada 15 minutos.
   const snapshot = {
       id: true,
       fingerprint,
+      alert_history: rememberAlerts(history, nuevas),
       notified_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }

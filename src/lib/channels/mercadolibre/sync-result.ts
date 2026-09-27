@@ -33,7 +33,7 @@ export function hasMercadoLibreFailures(value: unknown): boolean {
   );
 }
 
-/** Account/permission blocks need the next scheduled probe, not a 2-second retry. */
+/** Account blocks and exhausted quotas need the next scheduled probe, not a 2-second retry. */
 export function onlyPermanentMercadoLibreFailures(results: unknown[]): boolean {
   const errors = results.flatMap(value => {
     if (!value || typeof value !== 'object') return [];
@@ -42,6 +42,6 @@ export function onlyPermanentMercadoLibreFailures(results: unknown[]): boolean {
     return result.error ? [result.error] : [];
   });
   return errors.length > 0 && errors.every(error =>
-    /(?:HTTP\s+(?:401|403)\b|^items\/search (?:401|403):|user is not active|cuenta está inactiva|account is inactive)/i.test(error)
+    requiresMercadoLibreReconnect(error) || /(?:HTTP\s+(?:401|403|429)\b|^items\/search (?:401|403|429):|user is not active|cuenta está inactiva|account is inactive)/i.test(error)
   );
 }

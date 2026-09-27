@@ -37,6 +37,9 @@ const connection = {
 /** Supabase de mentira: devuelve la conexión y guarda lo que se le actualice. */
 function fakeDb(conn: ChannelConnection): SupabaseClient {
   const db = {
+    rpc: async (_name:string,args:{p_config:Record<string,unknown>})=>{
+      savedConfig={...conn.config,...args.p_config};return {error:null};
+    },
     from() {
       const chain: Record<string | symbol, unknown> = new Proxy(
         {},

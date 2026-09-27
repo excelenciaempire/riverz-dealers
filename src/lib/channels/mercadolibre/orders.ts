@@ -166,10 +166,9 @@ async function syncOneSeller(
   // El cursor se escribe ANTES de los reclamos: `cfg` es una copia leída al
   // entrar, y guardarla después pisaría cualquier cosa que la sincronización de
   // reclamos —o un refresco de token— haya dejado en `config` mientras tanto.
-  const { error: cursorError } = await db
-    .from("channel_connections")
-    .update({ config: { ...cfg, orders_cursor: newest } })
-    .eq("id", conn.id);
+  const { error: cursorError } = await db.rpc('patch_ml_connection_state', {
+    p_id: conn.id, p_config: { orders_cursor: newest },
+  });
   if (cursorError) throw new Error(`orders cursor: ${cursorError.message}`);
 
   const claims =

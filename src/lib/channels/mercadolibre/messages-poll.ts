@@ -206,20 +206,10 @@ async function rememberQuietPacks(
   const trimmed = Object.fromEntries(entries);
   if (JSON.stringify(trimmed) === JSON.stringify(previous)) return;
 
-  // Relectura antes de escribir: el refresco de token reescribe `config` y
-  // pisar la fila con una copia vieja borraría el `refresh_token` recién
-  // rotado.
-  const { data } = await db
-    .from("channel_connections")
-    .select("config")
-    .eq("id", conn.id)
-    .maybeSingle();
-  const fresh = ((data as { config?: Record<string, unknown> } | null)
-    ?.config ?? {}) as Record<string, unknown>;
-  await db
-    .from("channel_connections")
-    .update({ config: { ...fresh, quiet_packs: trimmed } })
-    .eq("id", conn.id);
+  // Merge atómico: conservar la renovación del token y los otros cursores,
+  // incluso si otro trabajador los actualiza durante esta sincronización.
+  const {error}=await db.rpc('patch_ml_connection_state',{p_id:conn.id,p_config:{quiet_packs:trimmed}});
+  if(error)throw new Error(`quiet_packs: ${error.message}`);
 }
 
 /**

@@ -5,6 +5,10 @@ let row: { secrets: Record<string, unknown>; config: Record<string, unknown> };
 const updates: Array<Record<string, unknown>> = [];
 vi.mock("../admin-client", () => ({
   supabaseAdmin: () => ({
+    rpc: async (_name:string, args:Record<string,unknown>) => {
+      updates.push({config:{...row.config,...args.p_config as object},secrets:args.p_secrets});
+      return {error:null};
+    },
     from: () => ({
       select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: row }) }) }),
       update: (patch: Record<string, unknown>) => {

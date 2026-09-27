@@ -219,10 +219,9 @@ async function pollOneSeller(
     state[itemId] = { total, checkedAt: now };
   }
 
-  const { error: stateError } = await db
-    .from("channel_connections")
-    .update({ config: { ...cfg, reviews_state: state } })
-    .eq("id", conn.id);
+  const { error: stateError } = await db.rpc('patch_ml_connection_state', {
+    p_id: conn.id, p_config: { reviews_state: state },
+  });
   if (stateError) throw new Error(`reviews_state: ${stateError.message}`);
 
   return { items: itemIds.length, ingested, notes };

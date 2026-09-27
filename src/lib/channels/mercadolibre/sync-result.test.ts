@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { hasMercadoLibreFailures, onlyPermanentMercadoLibreFailures } from './sync-result';
 
 describe('ML retry classification', () => {
+  it('does not amplify a rate limit with an immediate full-batch retry',()=>{
+    expect(onlyPermanentMercadoLibreFailures([{failures:[{connectionId:'a',error:'connection missing refresh_token'},{connectionId:'b',error:'orders/search HTTP 429'}]}])).toBe(true);
+  });
   it('does not rapidly retry blocked accounts', () => {
     expect(onlyPermanentMercadoLibreFailures([
       { failures: [{ connectionId: 'a', error: 'Mercado Libre indica que la cuenta está inactiva.' }] },

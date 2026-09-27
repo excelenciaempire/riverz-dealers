@@ -637,24 +637,22 @@ export async function getFreshMLToken(connection: ChannelConnection): Promise<st
   };
   if (!json.access_token) throw new Error("[mercadolibre] refresh returned no access_token");
   const newExpiry = new Date(Date.now() + (json.expires_in ?? 21_600) * 1000).toISOString();
-  await admin
-    .from("channel_connections")
-    .update({
-      secrets: {
-        ...secrets,
+  const persisted=await admin.rpc('patch_ml_connection_state',{
+      p_id: connection.id,
+      p_secrets: {
         access_token: encrypt(json.access_token),
         // Single-use refresh token — persist the rotated one or the connection dies.
         ...(json.refresh_token ? { refresh_token: encrypt(json.refresh_token) } : {}),
       },
       // A successful refresh proves which app owns the token: record it for
       // rows that predate `app_id`.
-      config: { ...config, token_expires_at: newExpiry, app_id: app.clientId },
+      p_config: { token_expires_at: newExpiry, app_id: app.clientId },
       // Renewing OAuth does not reactivate a seller disabled by Mercado Libre.
       // Only a successful resource read can clear that confirmed account error.
-      status: isInactiveMLAccountError(connection.last_error) ? "error" : "connected",
-      last_error: isInactiveMLAccountError(connection.last_error) ? connection.last_error : null,
-    })
-    .eq("id", connection.id);
+      p_status: isInactiveMLAccountError(connection.last_error) ? "error" : "connected",
+      p_clear_error: !isInactiveMLAccountError(connection.last_error),
+    });
+  if(persisted.error)throw new Error('[mercadolibre] refreshed token persistence failed');
   return json.access_token;
 }
 

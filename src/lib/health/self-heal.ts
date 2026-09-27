@@ -11,7 +11,7 @@ export const PARTIAL_SETTLE_GRACE_MS = 2 * 60 * 60_000;
 
 export function isStalledRunning(
   runAt: string | null | undefined,
-  now = Date.now(),
+  now = Date.now()
 ): boolean {
   if (!runAt) return false;
   const at = Date.parse(runAt);
@@ -22,92 +22,116 @@ type HealResult = {
   automationPendingReset: number;
   flowPendingReset: number;
   automationLogsSettled: number;
+  manualReview: number;
 };
 
 /**
  * Recupera únicamente estado interno que quedó tomado por un proceso muerto.
- * No reenvía mensajes, no recrea webhooks ni ejecuta campañas: al devolver la
- * fila a `pending`, el cron dueño vuelve a reclamarla con su protección normal
- * contra carreras. Así una caída se repara sin inventar entregas duplicadas.
+ * Sólo reencola flujos de plantillas con deduplicación persistente y pasos
+ * internos repetibles. Las entregas inciertas sin esa protección requieren
+ * revisión; nunca se inventa éxito ni se reenvía a ciegas.
  */
 export async function healStalledWork(
   db: SupabaseClient,
-  now = new Date(),
+  now = new Date()
 ): Promise<HealResult> {
   const nowIso = now.toISOString();
-  const stalledBefore = new Date(now.getTime() - RUNNING_GRACE_MS).toISOString();
-  const partialBefore = new Date(now.getTime() - PARTIAL_SETTLE_GRACE_MS).toISOString();
+  const stalledBefore = new Date(
+    now.getTime() - RUNNING_GRACE_MS
+  ).toISOString();
+  const partialBefore = new Date(
+    now.getTime() - PARTIAL_SETTLE_GRACE_MS
+  ).toISOString();
 
-  const [automationRows, flowRows, partialLogs] = await Promise.all([
+  const [automationRows, flowRows] = await Promise.all([
     db
       .from('automation_pending_executions')
-      .select('id')
+      .select(
+        'id, automations!inner(trigger_config, automation_steps(step_type))'
+      )
       .eq('status', 'running')
-      .lte('run_at', stalledBefore)
+      .lte('claimed_at', stalledBefore)
       .limit(100),
     db
       .from('flow_pending_executions')
       .select('id')
       .eq('status', 'running')
-      .lte('run_at', stalledBefore)
-      .limit(100),
-    db
-      .from('automation_logs')
-      .select('id')
-      .eq('status', 'partial')
-      .lte('created_at', partialBefore)
+      .lte('claimed_at', stalledBefore)
       .limit(100),
   ]);
 
   if (automationRows.error) throw new Error(automationRows.error.message);
   if (flowRows.error) throw new Error(flowRows.error.message);
-  if (partialLogs.error) throw new Error(partialLogs.error.message);
 
-  const automationIds = (automationRows.data ?? []).map((row) => String(row.id));
+  const safe = (
+    row: typeof automationRows.data extends (infer R)[] | null ? R : never
+  ) => {
+    const flow = row.automations as unknown as {
+      trigger_config?: { session_template_fallback?: boolean };
+      automation_steps?: { step_type: string }[];
+    };
+    const repeatable = new Set([
+      'wait',
+      'condition',
+      'send_template',
+      'set_context',
+      'add_tag',
+      'remove_tag',
+      'update_contact_field',
+    ]);
+    return (
+      flow?.trigger_config?.session_template_fallback === true &&
+      Boolean(flow.automation_steps?.length) &&
+      flow.automation_steps!.every((step) => repeatable.has(step.step_type))
+    );
+  };
+  const automationIds = (automationRows.data ?? [])
+    .filter(safe)
+    .map((row) => String(row.id));
+  const uncertainIds = (automationRows.data ?? [])
+    .filter((row) => !safe(row))
+    .map((row) => String(row.id));
   const flowIds = (flowRows.data ?? []).map((row) => String(row.id));
-  const logIds = (partialLogs.data ?? []).map((row) => String(row.id));
+  let automationPendingReset = 0,
+    manualReview = 0;
 
   if (automationIds.length) {
-    const { error } = await db
+    const { data, error } = await db
       .from('automation_pending_executions')
       .update({ status: 'pending', run_at: nowIso })
       .in('id', automationIds)
-      .eq('status', 'running');
+      .eq('status', 'running')
+      .lte('claimed_at', stalledBefore)
+      .select('id');
     if (error) throw new Error(error.message);
+    automationPendingReset = data?.length ?? 0;
   }
-  if (flowIds.length) {
-    const { error } = await db
-      .from('flow_pending_executions')
-      .update({ status: 'pending', run_at: nowIso })
-      .in('id', flowIds)
-      .eq('status', 'running');
+  // Legacy workers have no durable outbound claim. A crash could follow a
+  // successful send: mark for review, never blindly replay the customer message.
+  for (const [table, ids] of [
+    ['automation_pending_executions', uncertainIds],
+    ['flow_pending_executions', flowIds],
+  ] as const) {
+    if (!ids.length) continue;
+    const { data, error } = await db
+      .from(table)
+      .update({ status: 'failed' })
+      .in('id', ids)
+      .eq('status', 'running')
+      .lte('claimed_at', stalledBefore)
+      .select('id');
     if (error) throw new Error(error.message);
+    manualReview += data?.length ?? 0;
   }
-
-  let automationLogsSettled = 0;
-  if (logIds.length) {
-    const { data: active, error: activeError } = await db
-      .from('automation_pending_executions')
-      .select('log_id')
-      .in('log_id', logIds)
-      .in('status', ['pending', 'running']);
-    if (activeError) throw new Error(activeError.message);
-    const activeLogIds = new Set((active ?? []).map((row) => String(row.log_id)));
-    const settledIds = logIds.filter((id) => !activeLogIds.has(id));
-    if (settledIds.length) {
-      const { error } = await db
-        .from('automation_logs')
-        .update({ status: 'success', error_message: null })
-        .in('id', settledIds)
-        .eq('status', 'partial');
-      if (error) throw new Error(error.message);
-      automationLogsSettled = settledIds.length;
-    }
-  }
+  const settled = await db.rpc('settle_orphan_automation_logs', {
+    p_before: partialBefore,
+  });
+  if (settled.error) throw new Error(settled.error.message);
 
   return {
-    automationPendingReset: automationIds.length,
-    flowPendingReset: flowIds.length,
-    automationLogsSettled,
+    automationPendingReset,
+    flowPendingReset: 0,
+    automationLogsSettled: Number(settled.data ?? 0),
+    manualReview,
   };
 }

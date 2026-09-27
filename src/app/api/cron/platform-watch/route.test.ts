@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const m = vi.hoisted(() => ({
-  previous: '', readError: false, saveError: false, won: true,
+  previous: '', history:{} as Record<string,string>, readError: false, saveError: false, won: true,
   healthError: false, confirmationError: false,
   latest: 'error', completed: 'error',
   saved: [] as Array<{ fingerprint: string }>,
@@ -31,7 +31,7 @@ vi.mock('@/lib/automations/admin-client', () => ({
       const result = () => {
         if (table === 'platform_watch_state') return writing
           ? { data: m.won ? [{ id: true }] : [], error: m.saveError ? { message: 'write timeout' } : null }
-          : { data: { fingerprint: m.previous }, error: m.readError ? { message: 'read timeout' } : null };
+          : { data: { fingerprint: m.previous, alert_history:m.history }, error: m.readError ? { message: 'read timeout' } : null };
         if (table === 'cron_runs') return {
           data: [{ status: m.completed, started_at: new Date().toISOString() },
             { status: m.completed, started_at: new Date(Date.now() - 60_000).toISOString() }],
@@ -61,7 +61,7 @@ describe('platform incident continuity', () => {
     vi.clearAllMocks();
     Object.assign(m, { previous: incident, readError: false, saveError: false,
       won: true, healthError: false, confirmationError: false,
-      latest: 'error', completed: 'error', saved: [] });
+      latest: 'error', completed: 'error', saved: [], history:{} });
     m.collect.mockResolvedValue(new Map());
     m.providers.mockResolvedValue({ proveedores: [] });
     m.send.mockResolvedValue({ ok: true });
@@ -153,5 +153,15 @@ describe('platform incident continuity', () => {
     await GET(request());
     expect(m.send).not.toHaveBeenCalled();
     expect(m.saved[1].fingerprint).toBe('');
+  });
+  it('does not reannounce the same transient job failure after a short recovery',async()=>{
+    m.previous='';m.history={[incident]:new Date(Date.now()-3600000).toISOString()};
+    await GET(request());expect(m.send).not.toHaveBeenCalled();
+    expect(m.saved[0].fingerprint).toContain(incident);
+  });
+  it('keeps missing shipment labels in logistics, not platform-outage WhatsApps',async()=>{
+    m.previous='';m.latest='ok';
+    m.collect.mockResolvedValue(new Map(['a','b','c'].map(id=>[id,[{kind:'tracking_missing',count:10}]])));
+    await GET(request());expect(m.send).not.toHaveBeenCalled();
   });
 });

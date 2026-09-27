@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { assertCronAuth } from '@/lib/auth/cron';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { ensureTikTokCommentWebhook } from '@/lib/channels/tiktok_comment/webhook-subscribe';
-import { withCronRun } from '@/lib/cron/heartbeat';
+import { withCronRun, withCronPayload } from '@/lib/cron/heartbeat';
 import { healStalledWork } from '@/lib/health/self-heal';
 
 /**
@@ -22,7 +22,10 @@ async function cronHandler(request: Request) {
   // TikTok no expone una renovación fiable por webhook. Esta función es
   // idempotente y tiene su propio límite de frecuencia para no castigar la API.
   const tiktokWebhook = await ensureTikTokCommentWebhook();
-  return NextResponse.json({ ok: true, work, tiktokWebhook });
+  return withCronPayload(NextResponse.json({ ok: true, work, tiktokWebhook }), {
+    work,
+    tiktokWebhook,
+  });
 }
 
 export const GET = withCronRun('self-heal', cronHandler);
