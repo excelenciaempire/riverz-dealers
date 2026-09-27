@@ -1,17 +1,35 @@
 import type { Namespace } from './types';
 
 export const affiliates = {
+  adminAssign: {
+    es: 'Registrar referido por llamada',
+    en: 'Record call referral',
+  },
+  adminPartner: { es: 'Afiliado aprobado', en: 'Approved affiliate' },
+  adminWorkspace: { es: 'Cuenta del cliente', en: 'Customer account' },
+  adminCallNote: { es: 'Referencia de la llamada', en: 'Call reference' },
+  adminAssignTerms: {
+    es: 'Registra la atribución antes de cobrar. Aplica a pagos posteriores; no modifica atribuciones existentes.',
+    en: 'Record attribution before collecting payment. Applies to subsequent payments; existing attributions cannot be changed.',
+  },
+  adminAssigned: { es: 'Referido registrado', en: 'Referral recorded' },
+  adminAssignError: {
+    es: 'No se pudo atribuir: verifica que el afiliado esté activo, que no sea su propia cuenta y que el cliente no tenga otra atribución.',
+    en: 'Could not assign: check that the affiliate is active, this is not their own account, and the customer has no existing attribution.',
+  },
+  adminSelect: { es: 'Seleccionar…', en: 'Select…' },
+
   approvalSubject: {
     es: 'Tu afiliación de Riverz fue aprobada',
     en: 'Your Riverz affiliate application was approved',
   },
   approvalBody: {
-    es: 'Ya puedes compartir tu enlace personal. Recibes el 35% recurrente de las suscripciones atribuidas a tu enlace mientras sigan activas.',
-    en: 'You can now share your personal link. Earn a recurring 35% on subscriptions attributed to your link for as long as they remain active.',
+    es: 'Tu afiliación está activa. Preséntanos al negocio por correo a info@riverzai.com e indica tu código. Nuestro equipo realiza la llamada y registra la atribución antes del pago. Recibes el 35% recurrente de sus mensualidades pagadas.',
+    en: 'Your affiliation is active. Introduce the business by email to info@riverzai.com and include your code. Our team handles the sales call and records attribution before payment. You earn a recurring 35% of paid subscriptions.',
   },
   approvalTerms: {
-    es: 'La atribución dura 30 días. Las comisiones se validan durante 30 días antes de quedar disponibles para pago.',
-    en: 'Attribution lasts 30 days. Commissions are validated for 30 days before becoming payable.',
+    es: 'No necesitas un enlace de compra. Las comisiones se validan durante 30 días antes de quedar disponibles para pago.',
+    en: 'You do not need a purchase link. Commissions are validated for 30 days before becoming payable.',
   },
   adminCommissionBase: { es: '{rate}% de {amount}', en: '{rate}% of {amount}' },
   adminClawback: {
@@ -32,8 +50,8 @@ export const affiliates = {
   heroTitle: { es: 'Recomienda Riverz.', en: 'Recommend Riverz.' },
   heroTitleAccent: { es: 'Cobra cada mes.', en: 'Get paid every month.' },
   heroBody: {
-    es: 'Recibe el 35% de cada mensualidad pagada por los clientes que refieras. No es un bono de una sola vez: la comisión se repite mientras la cuenta siga activa.',
-    en: 'Receive 35% of every subscription payment made by customers you refer. It is not a one-time bonus: the commission repeats while the account remains active.',
+    es: 'Tú nos presentas al negocio. Nosotros hacemos la llamada y cerramos la venta. Recibes el 35% de cada mensualidad pagada por tu referido mientras siga siendo cliente.',
+    en: 'You introduce the business. We handle the call and close the sale. You receive 35% of every subscription payment from your referral for as long as they remain a customer.',
   },
   heroCta: { es: 'Solicitar acceso', en: 'Apply now' },
   heroSecondary: { es: 'Ver cómo funciona', en: 'See how it works' },
@@ -70,18 +88,18 @@ export const affiliates = {
   },
   howEyebrow: { es: 'Cómo funciona', en: 'How it works' },
   howTitle: {
-    es: 'Un enlace. Comisiones recurrentes.',
-    en: 'One link. Recurring commissions.',
+    es: 'Tú recomiendas. Nosotros cerramos.',
+    en: 'You refer. We close.',
   },
   stepOneTitle: { es: 'Solicita acceso', en: 'Apply' },
   stepOneBody: {
     es: 'Cuéntanos quién es tu audiencia y cómo presentarías Riverz.',
     en: 'Tell us about your audience and how you would introduce Riverz.',
   },
-  stepTwoTitle: { es: 'Comparte tu enlace', en: 'Share your link' },
+  stepTwoTitle: { es: 'Presenta al negocio', en: 'Introduce the business' },
   stepTwoBody: {
-    es: 'Al aprobarte, recibes un enlace único con atribución durante 30 días.',
-    en: 'Once approved, you receive a unique link with 30-day attribution.',
+    es: 'Una vez aprobado, envía la presentación a info@riverzai.com con tu código. Nuestro equipo hace la llamada y registra al cliente a tu nombre antes del pago.',
+    en: 'Once approved, email the introduction to info@riverzai.com with your code. Our team handles the call and attributes the customer to you before payment.',
   },
   stepThreeTitle: { es: 'Cobra cada mes', en: 'Earn every month' },
   stepThreeBody: {
@@ -94,8 +112,8 @@ export const affiliates = {
     en: '35% recurring commission',
   },
   includedTwo: {
-    es: 'Enlace personal con atribución de 30 días',
-    en: 'Personal link with 30-day attribution',
+    es: 'Atribución registrada por nuestro equipo',
+    en: 'Attribution recorded by our team',
   },
   includedThree: {
     es: 'Registro de cada factura pagada',
@@ -177,8 +195,8 @@ export const affiliates = {
     en: 'What counts as a referral?',
   },
   faqTwoA: {
-    es: 'Una cuenta nueva que llega por tu enlace, se registra dentro de 30 días y luego paga una suscripción de Riverz.',
-    en: 'A new account that arrives through your link, signs up within 30 days, and later pays for a Riverz subscription.',
+    es: 'Un negocio nuevo que nos presentas y que el equipo registra a tu nombre antes de su primer pago. Riverz cierra por llamada: no necesita comprar desde un enlace. No se permiten autorreferidos ni cambiar un cliente ya atribuido.',
+    en: 'A new business you introduce that our team attributes to you before its first payment. Riverz closes sales by call: no purchase link is required. Self-referrals and reassigning an already attributed customer are not allowed.',
   },
   faqThreeQ: {
     es: '¿Cuándo se paga la comisión?',
@@ -210,7 +228,7 @@ export const affiliates = {
   adminApplications: { es: 'Solicitudes', en: 'Applications' },
   adminCommissions: { es: 'Comisiones', en: 'Commissions' },
   adminReferrals: { es: 'Referidos', en: 'Referrals' },
-  adminCode: { es: 'Enlace', en: 'Link' },
+  adminCode: { es: 'Código de afiliado', en: 'Affiliate code' },
   adminNoRows: { es: 'Todavía no hay datos.', en: 'No data yet.' },
   adminAvailable: { es: 'Disponible', en: 'Available' },
   adminOnHold: { es: 'En validación', en: 'On hold' },

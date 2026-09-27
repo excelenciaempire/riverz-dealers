@@ -8,6 +8,16 @@ export const COMMISSION_HOLD_DAYS = 30;
 
 const CODE_RE = /^[A-Z0-9]{8}$/;
 
+export function paymentFollowsCallAttribution(
+  paidAt: number,
+  attributedAt: string
+): boolean {
+  return (
+    Number.isFinite(paidAt) &&
+    paidAt >= Math.ceil(Date.parse(attributedAt) / 1000)
+  );
+}
+
 export function normalizeAffiliateCode(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const code = value.trim().toUpperCase();
@@ -279,7 +289,7 @@ export async function applyAffiliateStripeEvent(
   const { data: referral, error: referralError } = await db
     .from('affiliate_referrals')
     .select(
-      'id, affiliate_id, first_paid_at, affiliate_partners!inner(commission_bps, status)'
+      'id, affiliate_id, first_paid_at, attributed_at, attribution_source, affiliate_partners!inner(commission_bps, status)'
     )
     .eq('workspace_id', workspaceId)
     .maybeSingle();
@@ -290,6 +300,8 @@ export async function applyAffiliateStripeEvent(
     id: string;
     affiliate_id: string;
     first_paid_at: string | null;
+    attributed_at: string;
+    attribution_source: string;
     affiliate_partners:
       | { commission_bps: number; status: string }
       | Array<{ commission_bps: number; status: string }>;
@@ -298,6 +310,15 @@ export async function applyAffiliateStripeEvent(
     ? joined.affiliate_partners[0]
     : joined.affiliate_partners;
   if (!partner || partner.status !== 'active') return null;
+  // A manual assignment does not retroactively reward historical payments.
+  if (
+    joined.attribution_source === 'call' &&
+    !paymentFollowsCallAttribution(
+      invoice.status_transitions?.paid_at ?? event.created,
+      joined.attributed_at
+    )
+  )
+    return null;
   const commissionCents = commissionAmountCents(
     grossCents,
     partner.commission_bps

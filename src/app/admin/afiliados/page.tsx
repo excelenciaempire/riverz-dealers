@@ -44,13 +44,26 @@ type Commission = {
   earned_at: string;
   stripe_invoice_id: string;
 };
-type Data = { partners: Partner[]; commissions: Commission[]; now: string };
+type Data = {
+  partners: Partner[];
+  commissions: Commission[];
+  now: string;
+  workspaces: { id: string; name: string }[];
+  referrals: {
+    id: string;
+    affiliate_id: string;
+    workspace_id: string | null;
+    attributed_at: string;
+    attribution_note: string | null;
+  }[];
+};
 
 export default function AdminAffiliatesPage() {
   const t = useT();
   const fmt = useFormat();
   const fetchWithCsrf = useFetchWithCsrf();
-  const [tab, setTab] = useState<'applications' | 'commissions'>(
+  const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<'applications' | 'commissions' | 'referrals'>(
     'applications'
   );
   const { data, loading, error, reload, live } = useAdminData<Data>(
@@ -58,16 +71,26 @@ export default function AdminAffiliatesPage() {
   );
 
   async function update(body: Record<string, string | number>) {
-    const response = await fetchWithCsrf('/api/admin/affiliates', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
+    setSaving(true);
+    try {
+      const response = await fetchWithCsrf('/api/admin/affiliates', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        toast.error(result?.error ?? t('affiliates.adminSaveError'));
+        return false;
+      }
+      reload();
+      return true;
+    } catch {
       toast.error(t('affiliates.adminSaveError'));
-      return;
+      return false;
+    } finally {
+      setSaving(false);
     }
-    reload();
   }
 
   if (loading && !data) return <Loading forma="table" />;
@@ -90,11 +113,114 @@ export default function AdminAffiliatesPage() {
         onChange={setTab}
         options={[
           { value: 'applications', label: t('affiliates.adminApplications') },
+          { value: 'referrals', label: t('affiliates.adminReferrals') },
           { value: 'commissions', label: t('affiliates.adminCommissions') },
         ]}
       />
       <Panel>
-        {tab === 'applications' ? (
+        {tab === 'referrals' ? (
+          <div className="space-y-6">
+            <form
+              className="grid gap-4"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                const form = event.currentTarget;
+                const fields = new FormData(form);
+                const ok = await update({
+                  kind: 'referral',
+                  id: String(fields.get('affiliate')),
+                  workspaceId: String(fields.get('workspace')),
+                  note: String(fields.get('note')),
+                });
+                if (ok) {
+                  form.reset();
+                  toast.success(t('affiliates.adminAssigned'));
+                }
+              }}
+            >
+              <h2 className="font-medium">{t('affiliates.adminAssign')}</h2>
+              <p className="text-muted-foreground text-sm">
+                {t('affiliates.adminAssignTerms')}
+              </p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="grid gap-2 text-sm">
+                  {t('affiliates.adminPartner')}
+                  <select
+                    name="affiliate"
+                    required
+                    defaultValue=""
+                    className="border-border bg-background rounded-md border p-2"
+                  >
+                    <option value="" disabled>
+                      {t('affiliates.adminSelect')}
+                    </option>
+                    {data.partners
+                      .filter((p) => p.status === 'active')
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} · {p.referral_code}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm">
+                  {t('affiliates.adminWorkspace')}
+                  <select
+                    name="workspace"
+                    required
+                    defaultValue=""
+                    className="border-border bg-background rounded-md border p-2"
+                  >
+                    <option value="" disabled>
+                      {t('affiliates.adminSelect')}
+                    </option>
+                    {data.workspaces
+                      .filter(
+                        (w) =>
+                          !data.referrals.some((r) => r.workspace_id === w.id)
+                      )
+                      .map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.name} · {w.id.slice(0, 8)}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              </div>
+              <label className="grid gap-2 text-sm">
+                {t('affiliates.adminCallNote')}
+                <textarea
+                  name="note"
+                  required
+                  minLength={5}
+                  maxLength={1000}
+                  rows={2}
+                  className="border-border rounded-md border p-2"
+                />
+              </label>
+              <button
+                disabled={saving}
+                className="bg-primary text-primary-foreground justify-self-start rounded-md px-4 py-2 text-sm disabled:opacity-50"
+              >
+                {t('affiliates.adminAssign')}
+              </button>
+            </form>
+            <div className="divide-border divide-y">
+              {data.referrals.map((r) => (
+                <article key={r.id} className="space-y-1 py-4 text-sm">
+                  <p className="font-medium">
+                    {partnersById.get(r.affiliate_id)?.name ?? '—'} ·{' '}
+                    {data.workspaces.find((w) => w.id === r.workspace_id)
+                      ?.name ?? '—'}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {fmt.date(r.attributed_at)} · {r.attribution_note}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </div>
+        ) : tab === 'applications' ? (
           data.partners.length ? (
             <div className="divide-border divide-y">
               {data.partners.map((partner) => (
@@ -138,12 +264,12 @@ export default function AdminAffiliatesPage() {
                         className="hover:text-foreground inline-flex items-center gap-1"
                         onClick={() => {
                           void navigator.clipboard.writeText(
-                            `https://riverz.co/afiliados/${partner.referral_code}`
+                            partner.referral_code
                           );
                           toast.success(t('admin.mejorasCopiado'));
                         }}
                       >
-                        <Copy className="size-3" /> riverz.co/afiliados/
+                        <Copy className="size-3" /> {t('affiliates.adminCode')}:{' '}
                         {partner.referral_code}
                       </button>
                     </div>

@@ -27,7 +27,6 @@ import { Scene } from './scene';
 import { Oferta } from './oferta';
 import { Operator } from './operator';
 import { Pricing } from './pricing';
-import { Faq } from './faq';
 import type { PublicPricing } from './pricing-tiers';
 import './editorial.css';
 
@@ -103,8 +102,7 @@ export function LandingV4(pricing: PublicPricing) {
         <Comparison />
         <Channels />
         <Confianza />
-        <Pricing {...pricing} />
-        <Faq />
+        <Pricing {...pricing} withFaq />
         <Cta />
       </main>
 

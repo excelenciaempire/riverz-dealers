@@ -10,6 +10,7 @@ import {
 } from '@/lib/billing/first-month-offer';
 import { Rise } from './bits';
 import type { PublicPricing } from './pricing-tiers';
+import { Faq } from './faq';
 
 const INCLUDED = [
   'pricingIncludedAgents',
@@ -21,7 +22,10 @@ const INCLUDED = [
 ] as const;
 
 // Con saldo, el consumo de IA se paga aparte: los agentes siguen incluidos.
-const BALANCE_INCLUDED = ['pricingBalanceAgents', ...INCLUDED.slice(1)] as const;
+const BALANCE_INCLUDED = [
+  'pricingBalanceAgents',
+  ...INCLUDED.slice(1),
+] as const;
 
 const CONTACT_PRICE_FORMAT: Intl.NumberFormatOptions = {
   minimumFractionDigits: 2,
@@ -51,38 +55,45 @@ function VolumeLabel({
 }
 
 /** Abre en el plan con saldo; doble clic en el título alterna con los planes por contactos. */
-export function Pricing({ tiers, balanceMonthly }: PublicPricing) {
+export function Pricing({
+  tiers,
+  balanceMonthly,
+  withFaq = false,
+}: PublicPricing & { withFaq?: boolean }) {
   const t = useT();
   const [contactPlans, setContactPlans] = useState(false);
 
   return (
-    <section
-      id="precios"
-      className="sn-pricing-shell sn-full scroll-mt-24 px-5 py-16 lg:py-24"
-    >
-      <div className="mx-auto max-w-6xl">
-        <Rise>
-          <h2 className="sn-display mx-auto max-w-[14ch] text-center">
-            <button
-              type="button"
-              onDoubleClick={() => setContactPlans((on) => !on)}
-              aria-pressed={contactPlans}
-              className="sn-pricing-switch"
-            >
-              {t('landingV4.pricingTitle')}
-            </button>
-          </h2>
-        </Rise>
+    <>
+      <section
+        id="precios"
+        className="sn-pricing-shell sn-full scroll-mt-24 px-5 py-16 lg:py-24"
+      >
+        <div className="mx-auto max-w-6xl">
+          <Rise>
+            <h2 className="sn-display mx-auto max-w-[14ch] text-center">
+              <button
+                type="button"
+                onDoubleClick={() => setContactPlans((on) => !on)}
+                aria-pressed={contactPlans}
+                className="sn-pricing-switch"
+              >
+                {t('landingV4.pricingTitle')}
+              </button>
+            </h2>
+          </Rise>
 
-        <Rise delay={90} className="mt-10 lg:mt-14">
-          <PricingCard
-            tiers={tiers}
-            balanceMonthly={balanceMonthly}
-            balancePlan={!contactPlans}
-          />
-        </Rise>
-      </div>
-    </section>
+          <Rise delay={90} className="mt-10 lg:mt-14">
+            <PricingCard
+              tiers={tiers}
+              balanceMonthly={balanceMonthly}
+              balancePlan={!contactPlans}
+            />
+          </Rise>
+        </div>
+      </section>
+      {withFaq && <Faq balancePlan={!contactPlans} />}
+    </>
   );
 }
 
@@ -211,7 +222,7 @@ export function PricingCard({
             {t(
               balancePlan
                 ? 'landingV4.pricingBalanceIncluded'
-                : 'landingV4.pricingEverythingIncluded',
+                : 'landingV4.pricingEverythingIncluded'
             )}
           </p>
           <ul className="mt-6 divide-y divide-[var(--sn-line)]">
@@ -221,17 +232,12 @@ export function PricingCard({
                 className="flex items-start gap-3 py-3.5 text-[15px] leading-5 first:pt-0"
               >
                 <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--sn-sand)]">
-                  <Check
-                    className="size-3"
-                    strokeWidth={2.5}
-                    aria-hidden
-                  />
+                  <Check className="size-3" strokeWidth={2.5} aria-hidden />
                 </span>
                 <span>{t(`landingV4.${key}`)}</span>
               </li>
             ))}
           </ul>
-
         </div>
       </div>
     </div>
@@ -252,7 +258,7 @@ function PlanPrice({
   // Sin cupo de contactos no hay precio por contacto que mostrar.
   const contactMath = (total: number) =>
     contacts !== null && (
-      <p className="mt-3 text-sm tabular-nums text-[var(--sn-ink-2)]">
+      <p className="mt-3 text-sm text-[var(--sn-ink-2)] tabular-nums">
         {t('landingV4.pricingPerContactMath', {
           total: fmt.number(total),
           contacts: fmt.number(contacts),

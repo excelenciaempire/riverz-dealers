@@ -12,12 +12,36 @@ vi.mock('@/hooks/use-locale', () => ({
 }));
 
 import { Pricing, PricingCard } from './pricing';
+import { Faq } from './faq';
 import { PRICING_TIERS } from './pricing-tiers';
 
 describe.each(['es', 'en'] as const)('pricing in %s', (locale) => {
   const t = (key: string, vars?: TVars) =>
     translate(locale, `landingV4.${key}`, vars);
   const money = (value: number) => formatMoney(value, locale, 'USD');
+  it('renders only the FAQ answers for the selected pricing model', () => {
+    current.locale = locale;
+    for (const balancePlan of [true, false, true]) {
+      const html = renderToStaticMarkup(<Faq balancePlan={balancePlan} />);
+      expect(html).toContain(
+        t(balancePlan ? 'faqBalanceIncludedAnswer' : 'faqIncludedAnswer')
+      );
+      expect(html).not.toContain(
+        t(balancePlan ? 'faqIncludedAnswer' : 'faqBalanceIncludedAnswer')
+      );
+      expect(html).toContain(
+        t(balancePlan ? 'faqBalanceCountingQuestion' : 'faqCountingQuestion')
+      );
+      expect(html).not.toContain(
+        t(balancePlan ? 'faqGrowthAnswer' : 'faqBalanceGrowthAnswer')
+      );
+      expect(html).not.toContain('landingV4.');
+    }
+    const page = renderToStaticMarkup(
+      <Pricing tiers={PRICING_TIERS} balanceMonthly={399} withFaq />
+    );
+    expect(page).toContain(t('faqBalanceIncludedAnswer'));
+  });
   const perContact = (value: number) =>
     formatNumber(value, locale, {
       minimumFractionDigits: 2,
@@ -27,13 +51,13 @@ describe.each(['es', 'en'] as const)('pricing in %s', (locale) => {
   it('opens on the balance plan, with the title as the switch', () => {
     current.locale = locale;
     const html = renderToStaticMarkup(
-      <Pricing tiers={PRICING_TIERS} balanceMonthly={399} />,
+      <Pricing tiers={PRICING_TIERS} balanceMonthly={399} />
     );
 
     expect(html).toMatch(
       new RegExp(
-        `<h2[^>]*><button[^>]*aria-pressed="false"[^>]*>${t('pricingTitle')}</button></h2>`,
-      ),
+        `<h2[^>]*><button[^>]*aria-pressed="false"[^>]*>${t('pricingTitle')}</button></h2>`
+      )
     );
     expect(html).not.toContain('type="range"');
     expect(html).toContain(t('pricingBalancePlus'));
@@ -46,7 +70,7 @@ describe.each(['es', 'en'] as const)('pricing in %s', (locale) => {
         tiers={PRICING_TIERS}
         balanceMonthly={399}
         balancePlan={false}
-      />,
+      />
     );
 
     expect(html).toContain('type="range"');
@@ -57,7 +81,7 @@ describe.each(['es', 'en'] as const)('pricing in %s', (locale) => {
         total: '259',
         contacts: '500',
         amount: perContact(0.518),
-      }),
+      })
     );
     expect(html).toContain(t('pricingEverythingIncluded'));
     expect(html).toContain(t('pricingIncludedAgents'));
@@ -67,12 +91,12 @@ describe.each(['es', 'en'] as const)('pricing in %s', (locale) => {
   it('shows a single plan plus the balance the customer tops up', () => {
     current.locale = locale;
     const html = renderToStaticMarkup(
-      <PricingCard tiers={PRICING_TIERS} balanceMonthly={399} balancePlan />,
+      <PricingCard tiers={PRICING_TIERS} balanceMonthly={399} balancePlan />
     );
 
     expect(html).not.toContain('type="range"');
     expect(html).toContain(
-      `<mark class="sn-mark">${t('pricingBalanceUnlimited')}</mark>`,
+      `<mark class="sn-mark">${t('pricingBalanceUnlimited')}</mark>`
     );
     expect(html).toContain(money(259));
     expect(html).toContain(money(399));
@@ -91,7 +115,7 @@ describe.each(['es', 'en'] as const)('pricing in %s', (locale) => {
 it('prices the balance plan from the plan Checkout charges', () => {
   current.locale = 'en';
   const html = renderToStaticMarkup(
-    <PricingCard tiers={PRICING_TIERS} balanceMonthly={449} balancePlan />,
+    <PricingCard tiers={PRICING_TIERS} balanceMonthly={449} balancePlan />
   );
 
   expect(html).toContain('$291');

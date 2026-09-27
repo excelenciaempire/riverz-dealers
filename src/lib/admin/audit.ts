@@ -93,6 +93,7 @@ export type AdminAction =
   | 'view.conversation_content'
   | 'view.billing'
   | 'view.affiliates'
+  | 'create.affiliate_referral'
   | 'update.affiliate_partner'
   | 'update.affiliate_commission'
   // El saldo de cada proveedor. Es una lectura cara —le pregunta a seis APIs

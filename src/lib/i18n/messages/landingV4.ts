@@ -41,7 +41,10 @@ import type { Namespace } from './types';
  * prometer aumentos que no se puedan atribuir por cuenta.
  */
 export const landingV4 = {
-  compareTitle: { es: 'La diferencia está en todo lo que resuelve.', en: 'The difference is in everything it handles.' },
+  compareTitle: {
+    es: 'La diferencia está en todo lo que resuelve.',
+    en: 'The difference is in everything it handles.',
+  },
   compareIntro: {
     es: 'Canales, tienda, campañas y llamadas conectados. Nosotros lo configuramos y ajustamos contigo.',
     en: 'Channels, store, campaigns, and calls connected. We set it up and refine it with you.',
@@ -91,17 +94,38 @@ export const landingV4 = {
     en: 'Coverage varies by platform',
   },
   compare6Topic: { es: 'Campañas', en: 'Campaigns' },
-  compare6Riverz: { es: 'Segmentos y envíos configurados', en: 'Segments and sends set up' },
+  compare6Riverz: {
+    es: 'Segmentos y envíos configurados',
+    en: 'Segments and sends set up',
+  },
   compare6Others: { es: 'Disponibles según plan', en: 'Available by plan' },
   compare7Topic: { es: 'Llamadas con IA', en: 'AI calls' },
-  compare7Riverz: { es: 'Agente con el contexto del chat', en: 'Agent with chat context' },
-  compare7Others: { es: 'Voz según canal y plan', en: 'Voice varies by channel and plan' },
+  compare7Riverz: {
+    es: 'Agente con el contexto del chat',
+    en: 'Agent with chat context',
+  },
+  compare7Others: {
+    es: 'Voz según canal y plan',
+    en: 'Voice varies by channel and plan',
+  },
   compare8Topic: { es: 'Control de acciones', en: 'Action controls' },
-  compare8Riverz: { es: 'Aprobaciones con contexto', en: 'Context-aware approvals' },
-  compare8Others: { es: 'Controles según herramienta', en: 'Controls vary by tool' },
+  compare8Riverz: {
+    es: 'Aprobaciones con contexto',
+    en: 'Context-aware approvals',
+  },
+  compare8Others: {
+    es: 'Controles según herramienta',
+    en: 'Controls vary by tool',
+  },
   compare9Topic: { es: 'Resultados', en: 'Results' },
-  compare9Riverz: { es: 'Ventas atribuidas a conversaciones', en: 'Sales attributed to conversations' },
-  compare9Others: { es: 'Analítica según plataforma', en: 'Analytics vary by platform' },
+  compare9Riverz: {
+    es: 'Ventas atribuidas a conversaciones',
+    en: 'Sales attributed to conversations',
+  },
+  compare9Others: {
+    es: 'Analítica según plataforma',
+    en: 'Analytics vary by platform',
+  },
   leadSubmit: { es: 'Hablemos', en: 'Let’s talk' },
   leadDone: {
     es: 'Gracias. Recibimos tu solicitud.',
@@ -640,14 +664,20 @@ export const landingV4 = {
     en: 'Results and attributed sales',
   },
   // Plan con saldo: aparece al tocar el título «Planes».
-  pricingBalanceContacts: { es: 'Contactos {unlimited}', en: '{unlimited} contacts' },
+  pricingBalanceContacts: {
+    es: 'Contactos {unlimited}',
+    en: '{unlimited} contacts',
+  },
   pricingBalanceUnlimited: { es: 'ilimitados', en: 'Unlimited' },
   pricingBalancePlus: { es: '+ tu saldo', en: '+ your balance' },
   pricingBalanceTerms: {
     es: 'El consumo de IA se descuenta del saldo que recargas.',
     en: 'AI usage is deducted from the balance you top up.',
   },
-  pricingBalanceIncluded: { es: 'Incluido en el plan:', en: 'Included in the plan:' },
+  pricingBalanceIncluded: {
+    es: 'Incluido en el plan:',
+    en: 'Included in the plan:',
+  },
   pricingBalanceAgents: { es: 'Todos los agentes', en: 'All agents' },
   roiTitle: {
     es: 'Calcula el retorno posible',
@@ -699,6 +729,26 @@ export const landingV4 = {
     en: 'The order increase is an adjustable assumption. This estimate excludes external charges and time savings, and does not guarantee results.',
   },
   faqTitle: { es: 'Preguntas frecuentes', en: 'Frequently asked questions' },
+  faqBalanceIncludedAnswer: {
+    es: 'La mensualidad incluye los agentes, ventas, recuperación, atención, automatizaciones e integraciones disponibles, con contactos ilimitados. El consumo de IA se paga aparte con el saldo que recargas.',
+    en: 'The subscription includes agents, sales, recovery, support, automations, and available integrations, with unlimited contacts. AI usage is paid separately from the balance you top up.',
+  },
+  faqBalanceFirstMonthAnswer: {
+    es: 'La instalación y configuración son gratis. Al aprobarlas, pagas el primer mes con {percent} % de descuento; desde el segundo, la mensualidad normal que aparece arriba. Además, recargas saldo para el consumo de IA. El descuento no aplica a las recargas. No hay permanencia.',
+    en: 'Setup and configuration are free. Once approved, your first month is {percent}% off; from month two, you pay the regular subscription shown above. You also top up a balance for AI usage. The discount does not apply to top-ups. There is no lock-in.',
+  },
+  faqBalanceCountingQuestion: {
+    es: '¿Cómo funcionan los contactos ilimitados y el saldo?',
+    en: 'How do unlimited contacts and the balance work?',
+  },
+  faqBalanceCountingAnswer: {
+    es: 'Este plan no tiene un cupo mensual de contactos. La mensualidad da acceso a la plataforma y el consumo de IA se descuenta del saldo que recargas: contactos ilimitados no significa consumo de IA ilimitado.',
+    en: 'This plan has no monthly contact allowance. The subscription gives you platform access, and AI usage is deducted from your prepaid balance: unlimited contacts does not mean unlimited AI usage.',
+  },
+  faqBalanceGrowthAnswer: {
+    es: 'No necesitas subir de rango por atender más contactos. La mensualidad se mantiene; si aumenta el uso de IA, necesitarás más saldo para cubrir ese consumo.',
+    en: 'You do not need to move to a higher tier to serve more contacts. The subscription stays the same; if AI usage increases, you will need more balance to cover it.',
+  },
   // Cada respuesta afirma sólo lo que el producto hace hoy. La seguridad viene
   // de decirlo sin rodeos, no de prometer lo que no se puede mostrar.
   faqIncludedQuestion: {
@@ -858,22 +908,40 @@ export const landingV4 = {
     es: 'Déjanos tu correo. Revisamos tus canales, las tareas que quieres delegar y el plan que necesitas. Una conversación, sin compromiso.',
     en: 'Leave your email. We’ll review your channels, the work you want to delegate, and the plan you need. A conversation, with no commitment.',
   },
-  chatCreativeLabel: { es: 'Ejemplo de funcionamiento', en: 'Illustrative workflow' },
+  chatCreativeLabel: {
+    es: 'Ejemplo de funcionamiento',
+    en: 'Illustrative workflow',
+  },
   chatCreativeTyping: { es: 'Preparando respuesta', en: 'Preparing a reply' },
   chatCreativeCustomer: { es: 'Cliente', en: 'Customer' },
   chatCreativeTeam: { es: 'Tu equipo', en: 'Your team' },
   chatCreativeStock: { es: 'Stock verificado', en: 'Stock checked' },
   chatCreativeShipping: { es: 'Envío consultado', en: 'Shipping checked' },
   chatCreativeBuy: { es: 'Sí, quiero pedirlo.', en: 'Yes, I’d like to order.' },
-  chatCreativeAddress: { es: 'Necesito cambiar la dirección.', en: 'I need to change the address.' },
-  chatCreativeWait: { es: 'Lo reviso con el equipo.', en: 'I’ll check with the team.' },
-  chatCreativeApproved: { es: 'Listo. Actualizamos tu dirección.', en: 'Done. Your address is updated.' },
+  chatCreativeAddress: {
+    es: 'Necesito cambiar la dirección.',
+    en: 'I need to change the address.',
+  },
+  chatCreativeWait: {
+    es: 'Lo reviso con el equipo.',
+    en: 'I’ll check with the team.',
+  },
+  chatCreativeApproved: {
+    es: 'Listo. Actualizamos tu dirección.',
+    en: 'Done. Your address is updated.',
+  },
   chatCreativePaid: { es: 'Ya hice el pago.', en: 'I’ve made the payment.' },
-  chatCreativeConfirmed: { es: 'Pago confirmado. Tu pedido está listo.', en: 'Payment confirmed. Your order is ready.' },
+  chatCreativeConfirmed: {
+    es: 'Pago confirmado. Tu pedido está listo.',
+    en: 'Payment confirmed. Your order is ready.',
+  },
   chatCreativeOrder: { es: 'Pedido confirmado', en: 'Order confirmed' },
   chatCreativeUnit: { es: '1 unidad', en: '1 item' },
   chatCreativeCase: { es: '¿Dónde está mi pedido?', en: 'Where is my order?' },
-  chatCreativeTracking: { es: 'Ya va en camino. Aquí puedes seguirlo.', en: 'It’s on its way. Track it here.' },
+  chatCreativeTracking: {
+    es: 'Ya va en camino. Aquí puedes seguirlo.',
+    en: 'It’s on its way. Track it here.',
+  },
   chatCreativeThread: { es: 'Ver conversación', en: 'View conversation' },
   chatCreativeResolved: { es: 'Resuelto', en: 'Resolved' },
   chatCreativeReview: { es: 'Necesita revisión', en: 'Needs review' },
