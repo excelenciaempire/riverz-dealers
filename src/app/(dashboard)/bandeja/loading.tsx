@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/dashboard/skeleton'
  */
 export default function Loading() {
   return (
-    <div className="-m-4 flex h-[calc(100dvh-3.5rem)] overflow-hidden sm:-m-6 lg:-m-8 lg:h-dvh">
+    <div className="-m-4 flex h-[calc(100%_+_2rem)] min-h-0 overflow-hidden sm:-m-6 sm:h-[calc(100%_+_3rem)] lg:-m-8 lg:h-[calc(100%_+_4rem)]">
       <div className="hidden w-80 shrink-0 flex-col gap-3 border-r border-border p-4 sm:flex">
         <Skeleton className="h-9 w-full" />
         {Array.from({ length: 8 }, (_, i) => (

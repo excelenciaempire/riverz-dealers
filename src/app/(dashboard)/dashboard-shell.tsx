@@ -105,7 +105,7 @@ function DashboardShellInner({
     // the URL bar grows/shrinks the visible area and 100vh ignores that,
     // clipping the app's bottom under the browser chrome. dvh tracks the
     // real visible height; identical to 100vh on desktop.
-    <div className="flex h-dvh overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-background supports-[height:100dvh]:h-dvh">
       <NavProgress />
       <Sidebar
         open={sidebarOpen}
@@ -113,13 +113,13 @@ function DashboardShellInner({
         collapsed={collapsed}
         onToggleCollapsed={toggleCollapsed}
       />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <Header onOpenSidebar={openSidebar} />
         {/* El aviso de cobro va debajo del encabezado y arriba del contenido:
             se ve siempre, en cualquier pantalla, y no tapa nada. */}
         {aviso}
         {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
       <SinSaldoDialog />
       <StoreClaimGuard />

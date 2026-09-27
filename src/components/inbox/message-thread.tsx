@@ -1502,7 +1502,7 @@ export function MessageThread({
   const messageGroups = groupMessagesByDate(messages, tz);
 
   return (
-    <div ref={attachmentDropZoneRef} className={cn("relative flex min-w-0 flex-1 flex-col", DOODLE_BG_CLASSES)}>
+    <div ref={attachmentDropZoneRef} className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden", DOODLE_BG_CLASSES)}>
       {/* Header — solid bg-card sits on top of the doodle so the
           name/avatar/dropdowns stay legible. */}
       <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-3 py-3 sm:px-4">

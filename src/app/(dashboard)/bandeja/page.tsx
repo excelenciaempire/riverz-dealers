@@ -865,8 +865,12 @@ export default function InboxPage() {
     [inboxTab, channelFilter, activeConversation, handleCloseConversation],
   );
 
+  // La altura la aporta el `main` del dashboard, que ya descuenta el header
+  // móvil y cualquier aviso superior. Se suma sólo su padding, que las
+  // márgenes negativas sacan visualmente; usar 100dvh aquí sumaba el aviso una
+  // segunda vez y empujaba el compositor bajo el viewport.
   return (
-    <div className="-m-4 flex h-[calc(100dvh-3.5rem)] flex-col overflow-hidden sm:-m-6 lg:-m-8 lg:h-dvh">
+    <div className="-m-4 flex h-[calc(100%_+_2rem)] min-h-0 flex-col overflow-hidden sm:-m-6 sm:h-[calc(100%_+_3rem)] lg:-m-8 lg:h-[calc(100%_+_4rem)]">
       {hasAnyConnection === false && (
         <Link
           href="/integraciones"
@@ -881,7 +885,7 @@ export default function InboxPage() {
         </Link>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left panel: Conversation list.
             Hidden on mobile when a conversation is selected so the
             thread can occupy the full width. Always visible on lg+. */}
@@ -1005,7 +1009,7 @@ export default function InboxPage() {
             // enlace largo estiraba el panel más allá de la pantalla y la
             // burbuja quedaba cortada por la derecha, con el encabezado
             // también fuera de vista.
-            "flex h-full min-w-0 flex-1 lg:flex",
+            "flex h-full min-h-0 min-w-0 flex-1 lg:flex",
             hasActiveConv ? "flex" : "hidden lg:flex",
           )}
         >
