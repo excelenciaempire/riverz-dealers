@@ -959,6 +959,10 @@ export const settings = {
     es: 'Preguntas de tus publicaciones y mensajes post-venta.',
     en: 'Questions on your listings and post-sale messages.',
   },
+  mercadolibreRefreshTokenMissing: {
+    es: 'Mercado Libre no entregó acceso renovable. Revisa que la aplicación tenga Acceso offline y vuelve a conectar.',
+    en: 'Mercado Libre did not issue renewable access. Check that the app has Offline access enabled, then reconnect.',
+  },
   tiktokCardDescription: {
     es: 'Comentarios de tus videos de TikTok.',
     en: 'Comments on your TikTok videos.',

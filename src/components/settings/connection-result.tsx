@@ -73,5 +73,6 @@ function connectionErrorDetail(
   if (detail === 'zoho_authorization_expired') return t('settings.zohoAuthorizationExpired');
   if (detail === 'zoho_token_exchange_failed') return t('settings.zohoTokenExchangeFailed');
   if (detail === 'mailbox_address_unavailable') return t('settings.mailboxAddressUnavailable');
+  if (detail === 'mercadolibre_refresh_token_missing') return t('settings.mercadolibreRefreshTokenMissing');
   return t('settings.connectResultErrorDetail');
 }

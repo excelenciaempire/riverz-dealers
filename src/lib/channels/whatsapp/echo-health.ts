@@ -20,6 +20,23 @@ import type { ChannelConnection } from "@/types";
 /** Código de la alarma en `config.health_sync_error`. Sin dependencias: lo usa la UI. */
 export const COEXISTENCE_ECHOES_MISSING = "coexistence_echoes_missing";
 
+/**
+ * Una alarma de una conexión anterior no aplica después de reconectar. El
+ * `connected_at` nuevo abre otra ventana y necesita evidencia nueva.
+ */
+export function hasCurrentCoexistenceEchoAlarm(
+  config: Record<string, unknown>,
+): boolean {
+  if (config.health_sync_error !== COEXISTENCE_ECHOES_MISSING) return false;
+  const alarmAt = Date.parse(String(config.echoes_missing_since ?? ""));
+  const connectedAt = Date.parse(String(config.connected_at ?? ""));
+  return (
+    !Number.isFinite(alarmAt) ||
+    !Number.isFinite(connectedAt) ||
+    alarmAt >= connectedAt
+  );
+}
+
 /** Más de estos mensajes de clientes sin un solo eco ya no es casualidad. */
 const MIN_CUSTOMER_MESSAGES = 5;
 
@@ -92,7 +109,11 @@ export async function checkCoexistenceEchoes(
 ): Promise<{ alarm: boolean; counts: EchoCounts | null; patch: Record<string, unknown> } | null> {
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
   if (cfg.coexistence !== true) return null;
-  const since = typeof cfg.echoes_missing_since === "string" ? cfg.echoes_missing_since : null;
+  const storedSince = typeof cfg.echoes_missing_since === "string" ? cfg.echoes_missing_since : null;
+  const connectedAt = Date.parse(String(cfg.connected_at ?? ""));
+  const since = storedSince && (!Number.isFinite(connectedAt) || Date.parse(storedSince) >= connectedAt)
+    ? storedSince
+    : null;
   const counts = await countCoexistenceEchoes(db, connection, nowMs);
   const alarm = counts ? nextEchoAlarm(Boolean(since), counts) : Boolean(since);
   return {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelConnection } from "@/types";
-import { checkCoexistenceEchoes, nextEchoAlarm } from "./echo-health";
+import { checkCoexistenceEchoes, hasCurrentCoexistenceEchoAlarm, nextEchoAlarm } from "./echo-health";
 
 describe("nextEchoAlarm", () => {
   it("se prende con más de cinco mensajes de clientes y ningún eco", () => {
@@ -88,7 +88,7 @@ describe("checkCoexistenceEchoes", () => {
   });
 
   it("conserva desde cuándo falta, y se limpia al llegar un eco", async () => {
-    const since = "2026-09-25T09:00:00.000Z";
+    const since = "2026-09-26T09:00:00.000Z";
     const quiet = fakeDb(() => ({ data: [], error: null }));
     expect(await checkCoexistenceEchoes(quiet.db, connection({ echoes_missing_since: since }), now)).toMatchObject({
       alarm: true,
@@ -105,8 +105,34 @@ describe("checkCoexistenceEchoes", () => {
     const broken = fakeDb(() => ({ data: null, error: { code: "57014" } }));
     expect(await checkCoexistenceEchoes(broken.db, connection({}), now)).toMatchObject({ alarm: false, counts: null });
     expect(
-      await checkCoexistenceEchoes(broken.db, connection({ echoes_missing_since: "2026-09-25T09:00:00.000Z" }), now),
+      await checkCoexistenceEchoes(broken.db, connection({ echoes_missing_since: "2026-09-26T09:00:00.000Z" }), now),
     ).toMatchObject({ alarm: true, counts: null });
     expect(await checkCoexistenceEchoes(broken.db, connection({ coexistence: false }), now)).toBeNull();
+  });
+
+  it("reinicia una alarma anterior cuando el número se reconectó", async () => {
+    const quiet = fakeDb(() => ({ data: [], error: null }));
+    expect(
+      await checkCoexistenceEchoes(
+        quiet.db,
+        connection({ echoes_missing_since: "2026-09-25T09:00:00.000Z" }),
+        now,
+      ),
+    ).toMatchObject({ alarm: false, patch: { echoes_missing_since: null } });
+  });
+});
+
+describe("hasCurrentCoexistenceEchoAlarm", () => {
+  it("ignora una alarma que pertenece a una conexión anterior", () => {
+    expect(hasCurrentCoexistenceEchoAlarm({
+      health_sync_error: "coexistence_echoes_missing",
+      echoes_missing_since: "2026-09-20T10:00:00.000Z",
+      connected_at: "2026-09-27T10:00:00.000Z",
+    })).toBe(false);
+    expect(hasCurrentCoexistenceEchoAlarm({
+      health_sync_error: "coexistence_echoes_missing",
+      echoes_missing_since: "2026-09-27T11:00:00.000Z",
+      connected_at: "2026-09-27T10:00:00.000Z",
+    })).toBe(true);
   });
 });

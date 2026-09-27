@@ -17,6 +17,7 @@ import {
   stripLeadingMentions,
 } from "@/lib/channels/display";
 import { formatPhoneDisplay } from "@/lib/whatsapp/phone-utils";
+import { actionableUnreadCount } from "@/lib/inbox/actionable-unread";
 import {
   MESSAGE_CHANNELS,
   COMMENT_CHANNELS,
@@ -573,6 +574,7 @@ const ConversationItem = memo(function ConversationItem({
   const contact = conversation.contact;
   const displayName = resolveDisplayName(conversation.channel, contact, t);
   const initials = displayName.charAt(0).toUpperCase();
+  const pendingUnread = actionableUnreadCount(conversation);
 
   const handleClick = useCallback(() => {
     if (selectMode) {
@@ -765,9 +767,9 @@ const ConversationItem = memo(function ConversationItem({
                 {t("inbox.needsHumanBadge")}
               </span>
             )}
-            {conversation.unread_count > 0 && (
+            {pendingUnread > 0 && (
               <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-                {conversation.unread_count}
+                {pendingUnread}
               </span>
             )}
             {needsReplyDot(conversation) && (

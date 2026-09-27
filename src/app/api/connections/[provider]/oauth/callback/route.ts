@@ -194,6 +194,14 @@ export async function GET(
       provider === 'zoho' ? 'zoho_token_exchange_failed' : 'no access_token in response'
     );
   }
+  // Mercado Libre documenta que todo canje de authorization_code entrega un
+  // refresh_token. Aceptar una respuesta sin él deja la cuenta viva sólo seis
+  // horas y luego reaparece el aviso de reconexión. No pisamos la conexión
+  // anterior con una autorización incompleta.
+  if (provider === 'mercadolibre' && !refreshToken) {
+    console.error('[oauth/mercadolibre] token exchange returned no refresh_token');
+    return redirectWithStatus(req, 'error', 'mercadolibre_refresh_token_missing');
+  }
 
   // Discover the connected account label/email so the connection card
   // shows something meaningful.

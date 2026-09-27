@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Conversation } from "@/types";
+import { actionableUnreadCount } from "@/lib/inbox/actionable-unread";
 
 /**
  * Count of conversations with at least one unread inbound message for
@@ -28,14 +29,14 @@ export function useTotalUnread(): number {
     (async () => {
       const { data, error } = await supabase
         .from("conversations")
-        .select("id, unread_count")
+        .select("id, unread_count, last_sender_type")
         .is("deleted_at", null);
       if (cancelled || error || !data) return;
 
       const map = new Map<string, number>();
       let sum = 0;
-      for (const row of data as { id: string; unread_count: number }[]) {
-        const n = row.unread_count ?? 0;
+      for (const row of data as Array<Pick<Conversation, "id" | "unread_count" | "last_sender_type">>) {
+        const n = actionableUnreadCount(row);
         map.set(row.id, n);
         if (n > 0) sum += 1;
       }
@@ -58,7 +59,7 @@ export function useTotalUnread(): number {
             // Soft-delete (migración 085): si la conversación fue borrada de la
             // bandeja, sale del conteo aunque tuviera mensajes sin leer.
             if (row.deleted_at) map.delete(row.id);
-            else map.set(row.id, row.unread_count ?? 0);
+            else map.set(row.id, actionableUnreadCount(row));
           }
           // Recompute — cheap, conversations per user stay small.
           let sum = 0;

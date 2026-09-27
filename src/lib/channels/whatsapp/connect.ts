@@ -65,6 +65,16 @@ function buildLabel(args: UpsertWhatsAppArgs): string {
     : `WhatsApp ${args.phoneNumberId}`;
 }
 
+/** Una reconexión comprobada abre una ventana de salud nueva. */
+export function clearRecoveredWhatsAppWarnings(
+  config: Record<string, unknown>,
+): Record<string, unknown> {
+  const current = { ...config };
+  delete current.health_sync_error;
+  delete current.echoes_missing_since;
+  return current;
+}
+
 export async function upsertSingleWhatsAppConnection(
   admin: SupabaseClient,
   args: UpsertWhatsAppArgs,
@@ -90,9 +100,10 @@ export async function upsertSingleWhatsAppConnection(
 
   const label = buildLabel(args);
   // Keep metadata across reconnects only for the same WhatsApp account.
-  const previous = existing.find((r) =>
+  const previousStored = existing.find((r) =>
     r.external_account_id === args.phoneNumberId && r.config?.waba_id === args.wabaId
   )?.config ?? {};
+  const previous = clearRecoveredWhatsAppWarnings(previousStored);
   let businessId: string | undefined;
   try {
     const url = new URL(`https://graph.facebook.com/v25.0/${args.wabaId}`);

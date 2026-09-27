@@ -32,6 +32,7 @@ import { Plug2, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useT, useLocale } from "@/hooks/use-locale";
 import { localizePath, canonicalizePath } from "@/lib/i18n/routes";
+import { actionableUnreadCount } from "@/lib/inbox/actionable-unread";
 
 // Preferencia local de la pestaña/modo de bandeja (Mensajes / Comentarios /
 // Unificar). Persiste entre recargas por navegador — es UI, no dato de cuenta.
@@ -718,8 +719,9 @@ export default function InboxPage() {
   const unreadByChannel: Partial<Record<Channel | "all", number>> = { all: 0 };
   const tabCounts = { messages: 0, comments: 0 };
   for (const c of conversations) {
-    // Guard against stale/negative unread_count drifting the badges.
-    const unread = Math.max(0, c.unread_count ?? 0);
+    // Una conversación ya respondida no sigue pendiente aunque conserve el
+    // contador histórico hasta que alguien abra el hilo.
+    const unread = actionableUnreadCount(c);
     unreadByChannel[c.channel] = (unreadByChannel[c.channel] ?? 0) + unread;
     if (COMMENT_CHANNELS.includes(c.channel)) tabCounts.comments += unread;
     else if (MESSAGE_CHANNELS.includes(c.channel)) tabCounts.messages += unread;
