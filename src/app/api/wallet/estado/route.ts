@@ -6,7 +6,7 @@ import { leerSuscripcion, usaSaldo } from '@/lib/billing/plan';
 import { stripeDisponible } from '@/lib/billing/stripe';
 import { createClient } from '@/lib/supabase/server';
 import { costosReales } from '@/lib/wallet/costos';
-import { rangoDe, resumen } from '@/lib/wallet/movimientos';
+import { rangoDe, summarizeMovements, movimientosDelPeriodo } from '@/lib/wallet/movimientos';
 import { SUGERIDOS_CENTAVOS } from '@/lib/wallet/recarga';
 import { leerBilletera } from '@/lib/wallet/saldo';
 import { listarTarifas } from '@/lib/wallet/tarifas';
@@ -42,14 +42,15 @@ export async function GET(request: Request) {
     url.searchParams.get('hasta')
   );
   const workspace=await admin.from('workspaces').select('timezone').eq('id',workspaceId).single();
+  const movements = await movimientosDelPeriodo(admin, workspaceId, rango);
 
   const [billetera, datos, tarifas, sus, costos, activity] = await Promise.all([
     leerBilletera(admin, workspaceId),
-    resumen(admin, workspaceId, rango, workspace.data?.timezone || 'UTC'),
+    Promise.resolve(summarizeMovements(movements, rango, workspace.data?.timezone || 'UTC')),
     listarTarifas(admin),
     leerSuscripcion(admin, workspaceId),
-    costosReales(admin, workspaceId),
-    walletActivity(admin,workspaceId,rango),
+    costosReales(admin, workspaceId, movements),
+    walletActivity(admin, workspaceId, rango, movements),
   ]);
 
   // La cuenta de cortesía no gasta saldo: la puerta la deja pasar siempre. Sin
@@ -84,7 +85,7 @@ export async function GET(request: Request) {
         ultimoError: billetera.autoUltimoError,
       },
       resumen: datos,
-      activity,
+      billedActivity: activity,
       tarifas: tarifas
         .filter((t) => t.activo && t.concepto!=='comision_stripe')
         .map((t) => ({

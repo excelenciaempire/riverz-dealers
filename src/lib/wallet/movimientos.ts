@@ -38,6 +38,13 @@ interface FilaCruda {
   detalle: Record<string, unknown> | null
 }
 
+export type MovimientoResumen = Pick<FilaCruda, 'tipo' | 'concepto' | 'centavos' | 'cantidad' | 'creado_en'> &
+  Partial<Pick<FilaCruda, 'id' | 'referencia_tipo' | 'referencia_id' | 'detalle'>>;
+
+export function esConsumoCobrado(f: MovimientoResumen): boolean {
+  return f.tipo === 'consumo' && f.concepto !== 'comision_stripe' && Number(f.centavos) < 0;
+}
+
 const COLUMNAS =
   'id, creado_en, tipo, concepto, centavos, saldo_despues_centavos, cantidad, unidad, referencia_tipo, referencia_id, detalle'
 
@@ -129,11 +136,17 @@ export async function resumen(
   rango: Rango,
   timezone = 'UTC',
 ): Promise<Resumen> {
-  const filas: Array<{tipo:string;concepto:string;centavos:number;cantidad:number|null;creado_en:string}> = []
+  return summarizeMovements(await movimientosDelPeriodo(db, workspaceId, rango), rango, timezone)
+}
+
+/** Shared snapshot for spend, activity and measured prices. Zero-charge test
+ * and courtesy records remain in the audit ledger but not merchant usage. */
+export async function movimientosDelPeriodo(db: SupabaseClient, workspaceId: string, rango: Rango): Promise<MovimientoResumen[]> {
+  const filas: MovimientoResumen[] = []
   for (let offset=0;;offset+=1000) {
    const { data, error } = await db
     .from('wallet_movimientos')
-    .select('tipo, concepto, centavos, cantidad, creado_en')
+    .select('id, tipo, concepto, centavos, cantidad, creado_en, referencia_tipo, referencia_id, detalle')
     .eq('workspace_id', workspaceId)
     .gte('creado_en', rango.desde)
     .lte('creado_en', rango.hasta)
@@ -144,20 +157,23 @@ export async function resumen(
    if (!data || data.length<1000) break
    if(offset>=99000)throw new Error('wallet_summary_range_too_large')
   }
-  return summarizeMovements(filas,rango,timezone)
+  return filas.filter(f => Number(f.centavos) !== 0)
 }
 
-export function summarizeMovements(filas: Array<{tipo:string;concepto:string;centavos:number;cantidad:number|null;creado_en:string}>,rango:Rango,timezone='UTC'):Resumen {
+export function summarizeMovements(filas: MovimientoResumen[],rango:Rango,timezone='UTC'):Resumen {
 
   const conceptos = new Map<string, PorConcepto>()
   const dias = new Map<string, PorDia>()
   let cargado = 0
   let gastado = 0
   let ajustes = 0
+  let movimientos = 0
   const dateFormat=new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'})
 
   for (const f of filas) {
     const c = Number(f.centavos ?? 0)
+    if (!c) continue
+    movimientos++
     const parts=dateFormat.formatToParts(new Date(f.creado_en))
     const part=(key:string)=>parts.find(p=>p.type===key)?.value
     const dia = `${part('year')}-${part('month')}-${part('day')}`
@@ -165,7 +181,7 @@ export function summarizeMovements(filas: Array<{tipo:string;concepto:string;cen
     if (f.tipo==='recarga' && c>0) {
       cargado += c
       d.cargadoCentavos += c
-    } else if (f.tipo==='consumo' && f.concepto!=='comision_stripe' && c<0) {
+    } else if (esConsumoCobrado(f)) {
       gastado += -c
       d.gastadoCentavos += -c
       const acc =
@@ -192,14 +208,14 @@ export function summarizeMovements(filas: Array<{tipo:string;concepto:string;cen
     cargadoCentavos: cargado,
     gastadoCentavos: gastado,
     ajustesCentavos: ajustes,
-    movimientos: filas.length,
+    movimientos,
     porConcepto: [...conceptos.values()]
       .map((c) => ({
         ...c,
         porUnidadCentavos: c.cantidad > 0 ? c.centavos / c.cantidad : null,
       }))
       .sort((a, b) => b.centavos - a.centavos),
-    porDia: [...dias.values()].sort((a, b) => a.dia.localeCompare(b.dia)),
+    porDia: [...dias.values()].filter(d => d.gastadoCentavos > 0 || d.cargadoCentavos > 0).sort((a, b) => a.dia.localeCompare(b.dia)),
   }
 }
 

@@ -13,6 +13,7 @@ import {movementContext,movementTokens} from '@/lib/wallet/movement-context';
 import {useTimezone} from '@/hooks/use-timezone';
 import {daysAgoStart} from '@/lib/dashboard/date-utils';
 import {fromZonedTime} from 'date-fns-tz';
+import type { BilledActivity } from '@/lib/wallet/activity';
 import { ChevronDown, CreditCard, Loader2, Plus, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -40,7 +41,7 @@ interface Tarifa {
 }
 
 interface Estado {
-  activity:{contacts:number;automaticContacts:number;sent:number;automated:number;byChannel:Array<{channel:string;contacts:number;automaticContacts:number;sent:number;automated:number;failed:number}>};
+  billedActivity?: BilledActivity;
   reservadoCentavos?: number;
   saldoCentavos: number;
   moneda: string;
@@ -749,15 +750,15 @@ export function WalletPanel() {
       </div>
 
       {/* ── El detalle ──────────────────────────────────────────────── */}
-      {e.activity&&<section className="border-border bg-card rounded-xl border p-5">
+      {e.billedActivity&&<section className="border-border bg-card rounded-xl border p-5">
         <h3 className="text-sm font-semibold">{t('settings.walletActivity')}</h3>
         <p className="text-muted-foreground mt-1 text-xs">{t('settings.walletActivityNote')}</p>
         <div className="overflow-x-auto mt-4"><table className="w-full text-sm">
           <thead className="text-muted-foreground"><tr><th className="text-left py-2">{t('settings.walletActivityChannel')}</th>
-            <th className="text-right px-3">{t('settings.walletActivityContacts')}</th><th className="text-right px-3">{t('settings.walletActivityAuto')}</th><th className="text-right">{t('settings.walletActivitySent')}</th></tr></thead>
-          <tbody>{e.activity.byChannel.map(c=><tr key={c.channel} className="border-t border-border"><td className="py-3">{channelName(c.channel)}</td>
-            <td className="text-right px-3 tabular-nums">{fmt.number(c.automaticContacts)}</td><td className="text-right px-3 tabular-nums">{fmt.number(c.automated)}</td><td className="text-right tabular-nums">{fmt.number(c.sent)}</td></tr>)}</tbody>
-          <tfoot className="font-semibold border-t border-border"><tr><td className="py-3">{t('settings.walletActivityTotal')}</td><td className="text-right px-3">{fmt.number(e.activity.automaticContacts)}</td><td className="text-right px-3">{fmt.number(e.activity.automated)}</td><td className="text-right">{fmt.number(e.activity.sent)}</td></tr></tfoot>
+            <th className="text-right px-3">{t('settings.walletActivityContacts')}</th><th className="text-right px-3">{t('settings.walletActivityCharges')}</th><th className="text-right">{t('settings.walletActivityCharged')}</th></tr></thead>
+          <tbody>{e.billedActivity.byChannel.map(c=><tr key={c.channel} className="border-t border-border"><td className="py-3">{channelName(c.channel)}</td>
+            <td className="text-right px-3 tabular-nums">{fmt.number(c.contacts)}</td><td className="text-right px-3 tabular-nums">{fmt.number(c.charges)}</td><td className="text-right tabular-nums">{fmt.currency(c.chargedCentavos / 100, e.moneda.toUpperCase())}</td></tr>)}</tbody>
+          <tfoot className="font-semibold border-t border-border"><tr><td className="py-3">{t('settings.walletActivityTotal')}</td><td className="text-right px-3">{fmt.number(e.billedActivity.contacts)}</td><td className="text-right px-3">{fmt.number(e.billedActivity.charges)}</td><td className="text-right">{fmt.currency(e.billedActivity.chargedCentavos / 100, e.moneda.toUpperCase())}</td></tr></tfoot>
         </table></div>
       </section>}
       <details

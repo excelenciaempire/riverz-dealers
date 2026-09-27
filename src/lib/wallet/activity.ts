@@ -1,38 +1,58 @@
-import type {SupabaseClient} from '@supabase/supabase-js';
-import type {Rango} from './movimientos';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { esConsumoCobrado, movimientosDelPeriodo, type MovimientoResumen, type Rango } from './movimientos';
 
-interface ActivityMessage {
-  id:string;conversation_id:string;sender_type:string;origin:string|null;status:string;content_text:string|null;
-  conversations:{channel:string;contact_id:string|null};
+export interface BilledActivity {
+  contacts: number;
+  charges: number;
+  chargedCentavos: number;
+  byChannel: Array<{ channel: string; contacts: number; charges: number; chargedCentavos: number }>;
 }
-export function summarizeActivity(rows:ActivityMessage[]){
-  const all=new Set<string>(),automatic=new Set<string>();
-  const channels=new Map<string,{contacts:Set<string>;automaticContacts:Set<string>;sent:number;automated:number;failed:number}>();
-  for(const m of rows){
-    if(!['agent','bot'].includes(m.sender_type)||/replied to (an|your) ad|respondió a (un|tu) anuncio/i.test(m.content_text??''))continue;
-    const ch=m.conversations.channel;
-    const group=channels.get(ch)??{contacts:new Set<string>(),automaticContacts:new Set<string>(),sent:0,automated:0,failed:0};
-    channels.set(ch,group);
-    if(m.status==='failed'){group.failed++;continue;}
-    if(!['sent','delivered','read'].includes(m.status))continue;
-    const contact=m.conversations.contact_id;
-    group.sent++;if(contact){group.contacts.add(contact);all.add(contact);}
-    if(m.sender_type==='bot'||['ai_agent','comment_ai','automation','order_update','voice_agent'].includes(m.origin??'')){
-      group.automated++;if(contact){group.automaticContacts.add(contact);automatic.add(contact);}
+type Conversation = { id: string; channel: string; contact_id: string | null };
+const text = (value: unknown) => typeof value === 'string' && value ? value : null;
+function conversationId(row: MovimientoResumen): string | null {
+  return text(row.detalle?.conversacion) ?? text(row.detalle?.conversationId) ?? text(row.detalle?.conversation_id) ??
+    (['conversation', 'conversacion'].includes(row.referencia_tipo ?? '') ? row.referencia_id ?? null : null);
+}
+
+/** A billed request isn't necessarily a sent message. Never infer delivery or
+ * include an entire conversation merely because one request was paid. */
+export function summarizeActivity(rows: MovimientoResumen[], conversations: Conversation[] = []): BilledActivity {
+  const contacts = new Set<string>();
+  const lookup = new Map(conversations.map(c => [c.id, c]));
+  const channels = new Map<string, { contacts: Set<string>; charges: number; chargedCentavos: number }>();
+  for (const row of rows.filter(esConsumoCobrado)) {
+    const conversation = lookup.get(conversationId(row) ?? '');
+    const channel = conversation?.channel ?? text(row.detalle?.canal) ?? text(row.detalle?.channel) ?? 'unattributed';
+    const group = channels.get(channel) ?? { contacts: new Set<string>(), charges: 0, chargedCentavos: 0 };
+    channels.set(channel, group);
+    group.charges++;
+    group.chargedCentavos += -Number(row.centavos);
+    if (conversation?.contact_id) {
+      contacts.add(conversation.contact_id);
+      group.contacts.add(conversation.contact_id);
     }
   }
-  const byChannel=[...channels].map(([channel,c])=>({channel,contacts:c.contacts.size,automaticContacts:c.automaticContacts.size,sent:c.sent,automated:c.automated,failed:c.failed})).sort((a,b)=>b.sent-a.sent);
-  return {contacts:all.size,automaticContacts:automatic.size,sent:byChannel.reduce((n,c)=>n+c.sent,0),automated:byChannel.reduce((n,c)=>n+c.automated,0),byChannel};
+  const byChannel = [...channels].map(([channel, g]) => ({ channel, contacts: g.contacts.size, charges: g.charges, chargedCentavos: g.chargedCentavos }))
+    .sort((a, b) => b.chargedCentavos - a.chargedCentavos);
+  return { contacts: contacts.size, charges: byChannel.reduce((n, c) => n + c.charges, 0), chargedCentavos: byChannel.reduce((n, c) => n + c.chargedCentavos, 0), byChannel };
 }
-export async function walletActivity(db:SupabaseClient,workspaceId:string,range:Rango){
-  const rows:ActivityMessage[]=[];
-  for(let offset=0;;offset+=1000){
-    const r=await db.from('messages').select('id,conversation_id,sender_type,origin,status,content_text,conversations!inner(channel,contact_id,workspace_id)')
-      .eq('conversations.workspace_id',workspaceId).in('sender_type',['agent','bot']).gte('created_at',range.desde).lte('created_at',range.hasta)
-      .order('created_at').order('id').range(offset,offset+999);
-    if(r.error)throw r.error;rows.push(...(r.data??[]) as unknown as ActivityMessage[]);
-    if((r.data?.length??0)<1000)break;
-    if(offset>=99000)throw new Error('wallet_activity_range_too_large');
+
+export async function walletActivity(db: SupabaseClient, workspaceId: string, range: Rango, snapshot?: MovimientoResumen[]): Promise<BilledActivity> {
+  const rows = (snapshot ?? await movimientosDelPeriodo(db, workspaceId, range)).filter(esConsumoCobrado).map(row => ({ ...row }));
+  const operationIds = [...new Set(rows.filter(r => r.referencia_tipo === 'provider_operation' && r.referencia_id).map(r => r.referencia_id!))];
+  const details = new Map<string, Record<string, unknown>>();
+  for (let i = 0; i < operationIds.length; i += 200) {
+    const result = await db.from('wallet_operaciones').select('id, detalle').eq('workspace_id', workspaceId).in('id', operationIds.slice(i, i + 200));
+    if (result.error) throw result.error;
+    for (const row of result.data ?? []) details.set(row.id, row.detalle ?? {});
   }
-  return summarizeActivity(rows);
+  for (const row of rows) row.detalle = { ...details.get(row.referencia_id ?? ''), ...row.detalle };
+  const ids = [...new Set(rows.map(conversationId).filter((id): id is string => !!id))];
+  const conversations: Conversation[] = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const result = await db.from('conversations').select('id, channel, contact_id').eq('workspace_id', workspaceId).in('id', ids.slice(i, i + 200));
+    if (result.error) throw result.error;
+    conversations.push(...(result.data ?? []) as Conversation[]);
+  }
+  return summarizeActivity(rows, conversations);
 }
