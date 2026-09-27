@@ -92,8 +92,14 @@ export function montosDeReglas(
 
 function quotedAmounts(text: string, includeBare: boolean): number[] {
   const matches: string[] = []
-  const explicit =
-    /(?:AR\$|US\$|\$|ARS|USD|COP|CLP|MXN|BRL|PEN|EUR)\s*\d[\d.,\s]*|\d[\d.,\s]*\s*(?:ARS|USD|COP|CLP|MXN|BRL|PEN|EUR|pesos?|d[oó]lares?|reales?|soles?)/gi
+  // Never consume a sentence boundary/newline plus the next quantity:
+  // "$49.990. 1 frasco" is 49990, not 49990.1. Only horizontal spaces
+  // separating exactly three digits are valid money grouping separators.
+  const amount = String.raw`\d+(?:[.,]\d+|[ \u00a0\u202f]\d{3}(?!\d))*`
+  const explicit = new RegExp(
+    String.raw`(?:AR\$|US\$|\$|ARS|USD|COP|CLP|MXN|BRL|PEN|EUR)\s*${amount}|${amount}\s*(?:ARS|USD|COP|CLP|MXN|BRL|PEN|EUR|pesos?|d[oó]lares?|reales?|soles?)\b`,
+    'gi',
+  )
   for (const match of text.matchAll(explicit)) matches.push(match[0])
 
   // En una respuesta a “¿Precio?” también se bloquean cifras desnudas como
