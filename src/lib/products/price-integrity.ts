@@ -103,6 +103,10 @@ function quotedAmounts(text: string, includeBare: boolean): number[] {
     // Consume el importe entero: buscar 3+ dígitos desde cualquier posición
     // interpretaba 99.900 como otro precio de 900, incluso ya autorizado.
     for (const match of text.matchAll(/(?<![\p{L}\p{N}%.,])\d+(?:[.,]\d+)*(?![\p{L}\p{N}%])/gu)) {
+      // Product measurements are not bare prices (e.g. 300 ml / 3000 ML).
+      // Explicit monetary amounts above still apply, even if followed by a unit.
+      const after = text.slice((match.index ?? 0) + match[0].length)
+      if (/^\s*(?:ml|mililitros?|milliliters?|litros?|liters?|kg|mg|gramos?|grams?|cm|mm)\b/i.test(after)) continue
       if (match[0].replace(/\D/g, '').length >= 3) matches.push(match[0])
     }
   }

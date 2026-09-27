@@ -901,6 +901,9 @@ function telefonoColombianoEnCampoPedido(value: unknown): string | undefined {
 }
 
 function instruccionNoEncontrado(usado: { numero?: string; phone?: string; email?: string }): string {
+  if (!usado.phone && !usado.email) {
+    return 'Falta verificar la identidad del comprador. NO inventes información del pedido ni afirmes que no existe o que no se encontró: un número o un nombre por sí solos no prueban pertenencia. Pide el correo o teléfono de compra por un canal que permita verificarlo; si ya aportó esos datos o el canal no los verifica, deriva al equipo conservando los datos recibidos, sin repetir preguntas.'
+  }
   const por = usado.phone
     ? 'ese teléfono'
     : usado.email
@@ -2296,7 +2299,7 @@ async function lookupLocalOrders(
     if (filtro) {
       q = q.or(filtro)
     } else {
-      const quien = [`contact_id.eq.${ctx.contactId}`]
+      const quien = ctx.contactId ? [`contact_id.eq.${ctx.contactId}`] : []
       if (email && /^[^\s,()"*]+@[^\s,()"*]+$/.test(email)) quien.push(`customer_email.ilike.${email}`)
       // Grueso en la base, fino abajo: los teléfonos se guardan en cualquier
       // formato, así que se traen los que terminan igual y se comparan enteros.
@@ -2304,6 +2307,7 @@ async function lookupLocalOrders(
         quien.push(`customer_phone.ilike.*${clave.slice(-4)}`)
         quien.push(`shipping_address->>phone.ilike.*${clave.slice(-4)}`)
       }
+      if (!quien.length) return JSON.stringify({ found: false, orders: [], instruction: instruccionNoEncontrado({ numero }) })
       q = q.or(quien.join(','))
     }
     data = (await q).data
@@ -2329,8 +2333,7 @@ async function lookupLocalOrders(
     return JSON.stringify({
       found: false,
       orders: [],
-      instruction:
-        'No se encontró ningún pedido de este cliente. NO inventes información del pedido (estado, tracking, fecha de envío). Dile que no lo encontraste y pídele el número de pedido.',
+      instruction: instruccionNoEncontrado({ numero, phone: identidad?.phone, email: identidad?.email }),
     })
   }
   return JSON.stringify({ found: true, orders })

@@ -115,6 +115,8 @@ export type Aviso = 'gracia' | 'sin_saldo' | 'sin_pagar' | null;
  * teléfono.
  */
 export interface Vistazo {
+  /** A verified subscription activation must refresh the persistent layout. */
+  sinPagar?: boolean;
   centavos: number;
   moneda: string;
   /** No gasta saldo y no se le muestra ninguno: no usa billetera o todavía no pagó. */
@@ -185,7 +187,7 @@ export async function estadoDeCobro(
     ]);
 
     const exenta = sus?.estado === 'cortesia' || !usaSaldo(sus);
-    const vistazo = vistazoDe(billetera, exenta);
+    const vistazo = { ...vistazoDe(billetera, exenta), sinPagar: sus?.estado === 'cortesia' };
 
     if (sus?.estado === 'cortesia') {
       return {

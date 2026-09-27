@@ -93,6 +93,17 @@ describe('la puerta de la IA', () => {
     expect(await estadoDeCobro(db, 'w1')).toMatchObject({ bloqueado: false, aviso: 'sin_pagar' })
   })
 
+  it('reveals recharge only after activation for balance-billed merchants', async () => {
+    estado.sus = sus({ estado: 'cortesia' })
+    expect((await estadoDeCobro(db, 'w1')).vistazo).toMatchObject({ exenta: true, sinPagar: true })
+    estado.sus = sus({ estado: 'activa', stripeSubscriptionId: 'sub_1' })
+    expect((await estadoDeCobro(db, 'w1')).vistazo).toMatchObject({ exenta: false, sinPagar: false })
+    for (const modeloCobro of ['oficial', 'byok'] as const) {
+      estado.sus = sus({ estado: 'activa', modeloCobro })
+      expect((await estadoDeCobro(db, 'w1')).vistazo).toMatchObject({ exenta: true, sinPagar: false })
+    }
+  })
+
   it('pagó: con saldo corre, sin saldo se frena', async () => {
     estado.sus = sus({ estado: 'activa', stripeSubscriptionId: 'sub_1' })
     estado.saldoCentavos = 5000

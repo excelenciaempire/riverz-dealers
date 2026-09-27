@@ -1,5 +1,5 @@
 import { avisarEscalada } from '@/lib/ai/aviso-escalada';
-import { shouldHideComment } from './comment-moderation-policy';
+import { shouldHideComment, keepObjectionPublic } from './comment-moderation-policy';
 import { aplicarDesenlace } from '@/lib/ai/desenlace';
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
@@ -29,7 +29,7 @@ import {
 } from '@/lib/products/price-integrity';
 import { limitByKey } from '@/lib/rate-limit';
 import type { BillingContext } from '@/lib/wallet/operacion';
-import { puedeUsarIa } from '@/lib/wallet/puerta';
+import { puedeUsarIa, puertaDeIa } from '@/lib/wallet/puerta';
 import { puedeAtenderContacto } from '@/lib/billing/contact-cap';
 import type {
   ChannelConnection,
@@ -899,7 +899,8 @@ async function decidirComentario(
   }
   // Sin saldo o con la suscripcion vencida, la IA no contesta comentarios
   // tampoco: es la misma clave de Riverz pagando la misma llamada al modelo.
-  if (!(await puedeUsarIa(db, opts.workspaceId))) return 'comment_sin_saldo';
+  const cobro = await puertaDeIa(db, opts.workspaceId);
+  if (!cobro.puede) return `comment_${cobro.motivo ?? 'sin_saldo'}`;
 
   // Instagram ↔ Messenger: mismo camino, distinta red. El comentario se
   // contesta por el DM de SU plataforma — un comentario de Facebook no se
@@ -1408,6 +1409,7 @@ async function decidirComentario(
   // raro de Graph) queda la respuesta pública, que sigue siendo una respuesta.
   const wantsDm =
     !opts.publicOnly &&
+    !keepObjectionPublic(opts.workspaceId, esCriticaPublica(engagement), Boolean(orderStatus)) &&
     decision.dm &&
     Boolean(opts.contact.external_id) &&
     Boolean(connection);

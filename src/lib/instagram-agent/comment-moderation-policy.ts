@@ -8,3 +8,8 @@ export function shouldHideComment(
     workspaceId === '234604a9-909b-4e50-952b-acde4a85593a' && criticism;
   return !answerObjection && (spam || criticism);
 }
+
+/** Revitaly handles public objections in-place; order cases still need privacy. */
+export function keepObjectionPublic(workspaceId: string, criticism: boolean, hasOrderQuestion: boolean): boolean {
+  return workspaceId === '234604a9-909b-4e50-952b-acde4a85593a' && criticism && !hasOrderQuestion;
+}

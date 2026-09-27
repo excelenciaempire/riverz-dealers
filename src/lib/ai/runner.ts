@@ -1,5 +1,5 @@
 import { replyWasSuperseded } from './reply-freshness';
-import { revitalyEmailRedirect } from './revitaly-channel-policy';
+import { revitalyEmailRedirect, revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-channel-policy';
 import type { OtherStoreContext } from '@/lib/ai/tools';
 import { untrustedContext } from './input-security';
 import { captureCustomerOrder, orderScreenshotMessageId, type OrderScreenshot } from './order-screenshot';
@@ -3487,7 +3487,7 @@ async function generateReply(
         64,
         Math.min(2048, Math.ceil((agent.max_response_chars || 500) / 2))
       ) + (reguladoPorEsfuerzo(routedModel) ? 4000 : 0),
-    system,
+    system: system + revitalyFeedbackBrief(agent.workspace_id, origen.inboundText),
     messages: claudeMessages,
     tools,
     shopify,
@@ -3564,7 +3564,9 @@ async function generateReply(
       model: opciones.model,
     };
   }
-  const trimmed = salida.texto;
+  const trimmed = ensureRevitalyIntroduction({ workspaceId: agent.workspace_id, channel: origen.channel,
+    language: agent.language, text: salida.texto,
+    hasPriorReply: Boolean(context.rollingSummary) || context.messages.some(m => m.role === 'assistant') });
 
   return {
     text: trimmed,

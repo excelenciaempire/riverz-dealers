@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { reglasATexto, type Regla } from './guidance';
+import { cargarReglas, MAX_REGLAS, reglasATexto, type Regla } from './guidance';
+
+it('loads reviewed rules beyond the former 25-rule cutoff', async () => {
+  const rows = Array.from({length:29},(_,i)=>regla({id:String(i),hacer:`Rule ${i}`}));
+  let limit=0;
+  const q={select:()=>q,eq:()=>q,order:()=>q,limit:(n:number)=>{limit=n;return q;},or:()=>q,
+    then:(resolve:(value:unknown)=>unknown)=>resolve({data:rows.slice(0,limit)})};
+  const result=await cargarReglas({from:()=>q} as never,'w1','a1');
+  expect(MAX_REGLAS).toBeGreaterThanOrEqual(29);
+  expect(result).toHaveLength(29);
+  expect(reglasATexto(result)).toContain('Rule 28');
+});
 
 const regla = (over: Partial<Regla>): Regla => ({
   id: 'r1',

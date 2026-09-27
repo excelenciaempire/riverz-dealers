@@ -90,6 +90,10 @@ describe('link de pago', () => {
       trial_period_days: 30,
     })
     expect(sesion.discounts).toBeUndefined()
+    expect(sesion.payment_method_collection).toBe('always')
+    expect(sesion.metadata).toEqual({ workspace_id: 'w1' })
+    expect(sesion.client_reference_id).toBe('w1')
+    expect(sesion.success_url).toContain('tab=billing')
     expect(mocks.retrieveCoupon).not.toHaveBeenCalled()
     expect(sesion.line_items[0].price_data.unit_amount).toBe(39900)
   })

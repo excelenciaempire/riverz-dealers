@@ -21,6 +21,10 @@ const product = {
 }
 
 describe('integridad de precios', () => {
+  it('does not classify product volumes as prices but still blocks invented currency', () => {
+    expect(unauthorizedQuotedPrices('300 ml: $49.990; 600 ML: $61.990; 900 ml; 3000 ML', [49990, 61990], { priceQuestion: true })).toEqual([])
+    expect(unauthorizedQuotedPrices('$900 ml; 300 ml y cuesta 990', [49990], { priceQuestion: true })).toEqual([900, 990])
+  })
   it.each(['99.900 COP', '$99,900', '99.900', '129.900 COP', '$1.299.900'])('no extrae fragmentos de %s', (text) => {
     expect(unauthorizedQuotedPrices(text, [99900, 129900, 1299900], { priceQuestion: true })).toEqual([])
   })

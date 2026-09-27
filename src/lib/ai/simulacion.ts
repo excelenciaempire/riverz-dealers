@@ -1,5 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
-import { revitalyEmailRedirect } from './revitaly-channel-policy';
+import { revitalyEmailRedirect, revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-channel-policy';
 import { instruccionDeTraspaso } from '@/lib/ai/escalada';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from '@/lib/ai/esfuerzo';
 import { untrustedContext } from '@/lib/ai/input-security';
@@ -269,7 +269,7 @@ export async function simularRespuesta(
           reasoningEffort: 'high' as const,
           max_tokens: 4000 + Math.max(64, Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2))),
         }),
-    system,
+    system: system + revitalyFeedbackBrief(a.workspace_id, input.message),
     messages: [...input.historial, { role: 'user' as const, content: input.message }],
     tools,
     shopify,
@@ -314,7 +314,8 @@ export async function simularRespuesta(
       transferDiscount: shopify?.config?.transfer_discount_amount,
       handoffContext: automationContext?.retention_handoff ? null : automationContext,
     });
-    text = salida.texto;
+    text = ensureRevitalyIntroduction({ workspaceId: a.workspace_id, channel: input.simulatedChannel,
+      language: a.language, text: salida.texto, hasPriorReply: input.historial.some(m => m.role === 'assistant') });
   } catch (err) {
     const motivo = err instanceof Error ? err.message : String(err);
     const tipo = motivo.startsWith('price_integrity:')

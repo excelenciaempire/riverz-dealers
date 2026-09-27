@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { Vistazo } from "@/lib/wallet/puerta";
 
 /**
@@ -54,6 +54,8 @@ export function SaldoProvider({
 }) {
   const [saldo, setSaldo] = useState<Vistazo | null>(inicial);
   const pathname = usePathname();
+  const router = useRouter();
+  const sinPagar = useRef(inicial?.sinPagar === true);
   // El valor del servidor ya cuenta como una lectura: sin esto, la primera
   // navegación —que suele ocurrir a los pocos segundos— pediría de nuevo algo
   // que se acaba de leer.
@@ -67,7 +69,11 @@ export function SaldoProvider({
     try {
       const r = await fetch("/api/wallet/vistazo", { cache: "no-store" });
       if (r.ok) {
-        setSaldo((await r.json()) as Vistazo);
+        const siguiente = (await r.json()) as Vistazo;
+        const activada = sinPagar.current && siguiente.sinPagar === false;
+        sinPagar.current = siguiente.sinPagar === true;
+        setSaldo(siguiente);
+        if (activada) router.refresh();
         ultima.current = Date.now();
       }
     } catch {
@@ -76,7 +82,17 @@ export function SaldoProvider({
     } finally {
       enVuelo.current = false;
     }
-  }, []);
+  }, [router]);
+
+  useEffect(() => {
+    if (!saldo?.sinPagar) return;
+    // The checkout may be completed on another device. Keep the unpaid screen
+    // current without requiring a logout, but never poll a hidden tab.
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void leer(true);
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [saldo?.sinPagar, leer]);
 
   useEffect(() => {
     void leer(false);

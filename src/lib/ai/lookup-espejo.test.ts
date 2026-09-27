@@ -92,6 +92,8 @@ describe('lookup_order en el chat web', () => {
     // vacía: es lo único que evita que "found:false" se parafrasee como
     // "tu pedido está en camino".
     expect(salida.instruction).toContain('NO inventes')
+    expect(salida.instruction).toContain('Falta verificar la identidad')
+    expect(salida.instruction).toContain('ni afirmes que no existe')
   })
 })
 
@@ -147,6 +149,15 @@ describe('lookup_order distingue los datos del cliente', () => {
     expect(url).toContain('query=email:cliente@example.com')
     expect(salida.searched_by).toBe('email')
     expect(salida.instruction).toContain('ese correo')
+  })
+
+  it('a simulation without a contact id searches by email without an invalid UUID filter', async () => {
+    const local = baseCon([{order_number:'#1673', customer_email:'buyer@example.com'}])
+    local.contactId = ''
+    const result = JSON.parse(await runTool('lookup_order', {customer_email:'buyer@example.com'}, null, null, local as never))
+    expect(result.found).toBe(true)
+    expect(local.usados.join(',')).toContain('customer_email.ilike.buyer@example.com')
+    expect(local.usados.join(',')).not.toContain('contact_id.eq.')
   })
 
   it('no toma como prueba un teléfono declarado en el chat web anónimo', async () => {

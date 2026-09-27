@@ -13,7 +13,7 @@ import { SupportAccessPanel } from '@/components/settings/support-access';
 import { McpPanel } from '@/components/settings/mcp-panel';
 import { BillingPanel } from '@/components/settings/billing-panel';
 import { WalletPanel } from '@/components/settings/wallet-panel';
-import { useEffect, useState } from 'react';
+import { useSaldo } from '@/hooks/use-saldo';
 
 /**
  * Ajustes — sólo cosas que NO son integraciones. Canales y apps externas
@@ -31,20 +31,8 @@ export default function SettingsPage() {
   const router = useLocalizedRouter();
   const searchParams = useSearchParams();
   const t = useT();
-  const [walletVisible, setWalletVisible] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    void fetch('/api/wallet/vistazo', { cache: 'no-store' })
-      .then(async (res) => (res.ok ? ((await res.json()) as { exenta?: boolean }) : null))
-      .then((data) => {
-        if (active) setWalletVisible(data?.exenta === false);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { saldo } = useSaldo();
+  const walletVisible = saldo?.exenta === false;
 
   const queryTab = searchParams.get('tab');
   const requestedTab: TabValue = isTabValue(queryTab) ? queryTab : 'profile';

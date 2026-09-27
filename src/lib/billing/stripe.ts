@@ -18,6 +18,7 @@ import Stripe from 'stripe'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { leerSuscripcion, listarPlanes, type ModeloCobro, type Plan, type Suscripcion } from './plan'
 import { costoAmpliacionCentavos } from './upgrade-policy'
+import { prepareSubscriptionWallet } from './subscription-wallet'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
@@ -180,6 +181,9 @@ export async function urlDeCheckout(
   const sesion = await stripe().checkout.sessions.create({
     mode: 'subscription',
     customer,
+    payment_method_collection: 'always',
+    client_reference_id: workspaceId,
+    metadata: { workspace_id: workspaceId },
     // Que el checkout hable el idioma del comercio y no el del navegador de
     // quien lo abrió: es la cuenta la que paga, no el navegador.
     locale,
@@ -197,7 +201,7 @@ export async function urlDeCheckout(
       ...(sinCargo ? { trial_period_days: FREE_FIRST_MONTH_DAYS } : {}),
     },
     ...(coupon ? { discounts: [{ coupon }] } : {}),
-    success_url: volverA('/ajustes?facturacion=lista'),
+    success_url: volverA('/ajustes?tab=billing&facturacion=lista'),
     cancel_url: volverA('/ajustes?facturacion=cancelada'),
   })
   if (!sesion.url) throw new Error('Stripe no devolvió una URL de pago.')
@@ -429,10 +433,6 @@ async function darLaBienvenida(
   db: SupabaseClient,
   workspaceId: string,
 ): Promise<void> {
-  await db
-    .from('wallet_accounts')
-    .upsert({ workspace_id: workspaceId }, { onConflict: 'workspace_id' })
-
   const [{ destinosDeAviso, avisarATodos }, { enviarCorreo }] = await Promise.all([
     import('@/lib/avisos/destinos'),
     import('@/lib/admin/correo'),
@@ -536,15 +536,30 @@ export async function aplicarEvento(
     const workspaceId = await aplicarAmpliacionPagada(db, evento.data.object as Stripe.Invoice)
     return workspaceId ? `${workspaceId}: capacidad ampliada` : `ignorado: ${tipo}`
   }
-  if (
+  let sub: Stripe.Subscription;
+  if (tipo === 'checkout.session.completed' || tipo === 'checkout.session.async_payment_succeeded') {
+    const session = evento.data.object as Stripe.Checkout.Session;
+    if (session.mode !== 'subscription' || session.status !== 'complete' || !session.subscription)
+      return `ignorado: ${tipo}`;
+    const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
+    // Read the authoritative subscription, not a return-URL flag or the
+    // checkout amount (a valid first-month trial can charge zero today).
+    sub = await stripe().subscriptions.retrieve(subscriptionId);
+    const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id;
+    const subCustomer = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+    if (!customerId || customerId !== subCustomer ||
+      (session.metadata?.workspace_id && session.metadata.workspace_id !== sub.metadata?.workspace_id))
+      throw new Error('checkout_subscription_account_mismatch');
+  } else if (
     tipo !== 'customer.subscription.created' &&
     tipo !== 'customer.subscription.updated' &&
     tipo !== 'customer.subscription.deleted'
   ) {
     return `ignorado: ${tipo}`
+  } else {
+    sub = evento.data.object as Stripe.Subscription;
   }
 
-  const sub = evento.data.object as Stripe.Subscription
   const workspaceId = sub.metadata?.workspace_id
   if (!workspaceId) return 'sin workspace_id en la suscripción'
 
@@ -559,6 +574,8 @@ export async function aplicarEvento(
 
   const estado =
     tipo === 'customer.subscription.deleted' ? 'cancelada' : estadoDe(sub.status)
+
+  if (estado === 'activa') await prepareSubscriptionWallet(db, stripe(), workspaceId, sub);
 
   // El reloj de la gracia.
   //

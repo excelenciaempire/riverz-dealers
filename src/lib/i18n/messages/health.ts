@@ -317,6 +317,8 @@ export const health: Namespace = {
     en: "Comments is switched off",
   },
   skip_comment_sin_saldo: { es: "sin saldo", en: "out of balance" },
+  skip_comment_sin_pagar: { es: "pago pendiente de activación", en: "activation payment pending" },
+  skip_comment_suscripcion_vencida: { es: "suscripción vencida", en: "subscription overdue" },
   skip_comment_sin_destinatario: {
     es: "no se puede escribir a quien comentó",
     en: "the commenter is not reachable",

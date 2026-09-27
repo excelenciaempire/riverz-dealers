@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { useT } from '@/hooks/use-locale';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { cn } from '@/lib/utils';
+import { useSaldo } from '@/hooks/use-saldo';
 
 /**
  * El plan de la cuenta, y lo que va del período.
@@ -74,6 +75,7 @@ const plata = (centavos: number, moneda: string) =>
 
 export function BillingPanel() {
   const t = useT();
+  const { saldo } = useSaldo();
   const fetchWithCsrf = useFetchWithCsrf();
   const [e, setE] = useState<Estado | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -86,6 +88,10 @@ export function BillingPanel() {
     const res = await fetch('/api/billing/estado', { cache: 'no-store' });
     if (res.ok) setE((await res.json()) as Estado);
   }, []);
+
+  useEffect(() => {
+    if (e?.estado === 'cortesia' && saldo?.sinPagar === false) void recargar();
+  }, [e?.estado, saldo?.sinPagar, recargar]);
 
   const cotizar = useCallback(async (planId: string) => {
     if (!planId) return;

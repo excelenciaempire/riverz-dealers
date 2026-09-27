@@ -3,6 +3,8 @@ import { decrypt } from './encryption';
 import { withAppsecretProofBody } from './meta-graph';
 import { pistaDeModeracion } from './meta-errors';
 import { findMessageByExternalId } from './message-lookup';
+import { supabaseAdmin } from './admin-client';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
 
@@ -29,6 +31,9 @@ export async function setCommentHidden(
    *  Riverz o lo ocultamos nosotros" no se puede contestar. */
   motivo: string | null = null,
 ): Promise<boolean> {
+  // This helper is the AI path, not the inbox's manual moderation endpoint.
+  // Recheck at the side-effect boundary, including work queued before payment expired.
+  if (!(await puedeUsarIa(supabaseAdmin(), connection.workspace_id))) return false;
   const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
   const enc = String(secrets.access_token ?? '');
   if (!enc || !commentId) return false;
