@@ -143,7 +143,17 @@ export async function GET() {
     { id: 'carrito', escenario: 'shopify_abandoned_checkout', pago: null, oferta: null, pedido: { producto: base, currency, pago: 'tarjeta', cliente } },
     { id: 'rechazado', escenario: 'payment_rejected', pago: null, oferta: null, pedido: { producto: base, currency, pago: 'tarjeta', cliente } },
     { id: 'despachado', escenario: 'shopify_order_fulfilled', pago: null, oferta: null, pedido: { producto: base, currency, pago: 'tarjeta', cliente, guia: '360003112209570' } },
-    { id: 'entregado', escenario: 'shopify_order_delivered', pago: null, oferta: null, pedido: { producto: base, currency, pago: 'tarjeta', cliente } },
+    ...(ofertas.length ? ofertas : [null]).map((o) => ({
+      id: `entregado-${o ? Number(o.units) : 1}`,
+      escenario: 'shopify_order_delivered' as const,
+      pago: null,
+      oferta: o && typeof o.label === 'string' ? o.label : null,
+      pedido: {
+        producto: o ? { ...base, price: String(Number(o.total)), quantity: Number(o.units),
+          oferta: typeof o.label === 'string' ? o.label : null } : base,
+        currency, pago: 'tarjeta' as const, cliente,
+      },
+    })),
     { id: 'cancelado', escenario: 'shopify_order_cancelled', pago: null, oferta: null, pedido: { producto: base, currency, pago: 'tarjeta', cliente } },
   ];
 
@@ -164,12 +174,12 @@ export async function GET() {
     // Lo que arranca días después de la compra (el seguimiento y la recompra)
     // va en su propia columna, después del despacho: el tablero se lee en el
     // orden en que le pasan las cosas al cliente.
-    const agrupar = (id: string, filtro: (a: AutomacionSimulada) => boolean): Columna[] => {
-      if (!pagadas.length) return [];
-      const variantes = pagadas.map((c) => ({ oferta: c.oferta ?? '', automatizaciones: c.automatizaciones.filter(filtro) }));
+    const agrupar = (id: string, filtro: (a: AutomacionSimulada) => boolean, situaciones = pagadas): Columna[] => {
+      if (!situaciones.length) return [];
+      const variantes = situaciones.map((c) => ({ oferta: c.oferta ?? '', automatizaciones: c.automatizaciones.filter(filtro) }));
       return [
         {
-          ...pagadas[0],
+          ...situaciones[0],
           id,
           oferta: null,
           automatizaciones: variantes[0].automatizaciones,
@@ -186,7 +196,7 @@ export async function GET() {
       ...porId('contraentrega'),
       ...porId('despachado'),
       ...agrupar('recompra', empiezaDiasDespues),
-      ...porId('entregado'),
+      ...agrupar('entregado', () => true, simuladas.filter((c) => c.id.startsWith('entregado-'))),
       ...porId('cancelado'),
       // Una situación en la que no sale nada no aporta a la reunión.
     ].filter((c) => c.automatizaciones.length > 0 || (c.ofertas ?? []).some((o) => o.automatizaciones.length > 0));

@@ -51,6 +51,8 @@ import {
 import { recentlyContacted } from '@/lib/outreach/cooldown'
 import { shouldStopRunOnInbound } from './inbound-stop'
 import { nextReminderTime } from './reminder-hours'
+import { retentionStockReply } from './retention-reply'
+import { anchoredWait, templatePastDeadline, paymentStartedAt } from './payment-deadline'
 import { retentionProductVars } from './retention-product'
 import { settledLogStatus } from './log-status'
 import { confirmedOrderLogId } from './order-confirmation'
@@ -229,6 +231,24 @@ export async function cancelPendingAutomationsOnInbound(input: {
   for (const row of target) {
     const cfg = stops.get(String(row.automation_id)) ?? {}
     const context = (row.context as AutomationContext) ?? {}
+    const stockReply = cfg.retention_ai_managed === true
+      ? retentionStockReply(input.messageText, context.vars ?? {}, new Date()) : null
+    if (stockReply) {
+      const cursor = await db.from('automation_steps').select('parent_step_id,branch,position')
+        .eq('automation_id', row.automation_id).eq('id', stockReply.cursor).maybeSingle()
+      if (cursor.error) throw new Error(cursor.error.message)
+      if (cursor.data) {
+        const moved = await db.from('automation_pending_executions').update({
+          context: { ...context, vars: stockReply.vars },
+          parent_step_id: cursor.data.parent_step_id, branch: cursor.data.branch,
+          next_step_position: cursor.data.position,
+          run_at: nextReminderTime(stockReply.runAt, cfg).toISOString(),
+        }).eq('id', row.id).eq('workspace_id', input.workspaceId)
+          .eq('contact_id', input.contactId).eq('status', 'pending').select('id')
+        if (moved.error) throw new Error(moved.error.message)
+        if (moved.data?.length) continue
+      }
+    }
     const nextContext = cfg.retention_ai_managed === true
       ? { ...context, vars: { ...context.vars, retention_pause_token: crypto.randomUUID() } } : context
     const result = await db.from('automation_pending_executions').update({ status: 'done', context: nextContext })
@@ -694,6 +714,10 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
     if (step.step_type === 'wait') {
       const cfg = step.step_config as WaitStepConfig
       const ms = waitMs(cfg)
+      const defaultAt = new Date(Date.now() + ms)
+      const dueAt = cfg.from_trigger_hours
+        ? anchoredWait(cfg, paymentStartedAt(args.context.vars, await windowStart(db, 'since_trigger', args.logId)), defaultAt)
+        : defaultAt
       // `user_id` es NOT NULL en esta tabla (a diferencia de automation_logs,
       // que la 053 dejó nullable). Sin este campo el INSERT se caía en
       // silencio: el paso quedaba anotado como "esperando N minutos", nadie
@@ -714,7 +738,7 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
           branch: args.branch,
           next_step_position: step.position + 1,
           context: args.context,
-          run_at: nextReminderTime(new Date(Date.now() + ms), args.automation.trigger_config ?? {}).toISOString(),
+          run_at: nextReminderTime(dueAt, args.automation.trigger_config ?? {}).toISOString(),
           status: 'pending',
         })
       if (enqueueErr) {
@@ -852,6 +876,11 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
         continue
       }
 
+      if (step.step_type === 'send_template' && (step.step_config as SendTemplateStepConfig).expires_after_hours &&
+          templatePastDeadline(step.step_config as SendTemplateStepConfig, paymentStartedAt(args.context.vars, await windowStart(db, 'since_trigger', args.logId)), Date.now())) {
+        results.push({ step_id: step.id, step_type: step.step_type, status: 'skipped', detail: 'payment reminder deadline passed' })
+        continue
+      }
       const detail = await runStep(step, args)
       results.push({
         step_id: step.id,

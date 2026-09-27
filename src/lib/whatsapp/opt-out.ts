@@ -46,7 +46,13 @@ function matchesAny(text: string, words: string[]): boolean {
 }
 
 export function isOptOutKeyword(text: string): boolean {
-  return matchesAny(text, OPT_OUT_KEYWORDS)
+  return ['NO MAS RECORDATORIOS', 'STOP REMINDERS'].includes(normalize(text)) || matchesAny(text, OPT_OUT_KEYWORDS)
+}
+
+/** A declined recovery button is not the same as an arbitrary “no thanks” in chat. */
+export function isRecoveryOptOutButton(workspaceId: string, text: string, messageType: string): boolean {
+  return workspaceId === '234604a9-909b-4e50-952b-acde4a85593a' &&
+    messageType === 'button' && normalize(text) === 'NO GRACIAS'
 }
 
 export function isOptInKeyword(text: string): boolean {

@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
-import { isOptInKeyword, isOptOutKeyword } from './opt-out'
+import { isOptInKeyword, isOptOutKeyword, isRecoveryOptOutButton } from './opt-out'
+
+it('honors reminder opt-outs, without treating ordinary refusals as unsubscribes', () => {
+  expect(isOptOutKeyword('No más recordatorios')).toBe(true)
+  expect(isOptOutKeyword('Stop reminders')).toBe(true)
+  expect(isOptOutKeyword('No, gracias')).toBe(false)
+  const ws='234604a9-909b-4e50-952b-acde4a85593a'
+  expect(isRecoveryOptOutButton(ws,'No, gracias','button')).toBe(true)
+  expect(isRecoveryOptOutButton(ws,'No, gracias','text')).toBe(false)
+  expect(isRecoveryOptOutButton('another','No, gracias','button')).toBe(false)
+})
 
 describe('opt-out — el incidente', () => {
   it('no toma "Alta" dentro de una queja como pedido de alta', () => {

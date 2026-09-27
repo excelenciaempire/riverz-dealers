@@ -1,4 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { revitalyEmailRedirect } from './revitaly-channel-policy';
 import { instruccionDeTraspaso } from '@/lib/ai/escalada';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from '@/lib/ai/esfuerzo';
 import { untrustedContext } from '@/lib/ai/input-security';
@@ -106,6 +107,8 @@ export async function simularRespuesta(
     nombreCliente?: string | null;
   }
 ): Promise<RespuestaSimulada> {
+  const redirect = revitalyEmailRedirect(a.workspace_id, input.simulatedChannel, a.language);
+  if (redirect) return { reply: redirect, chunks: [redirect], herramientas: [], usage: {input_tokens:0,output_tokens:0,iterations:0} };
   const resolvedKey = await resolveAnthropicKey(admin, {
     workspaceId: a.workspace_id,
     agentKeyEncrypted: a.api_key_encrypted,

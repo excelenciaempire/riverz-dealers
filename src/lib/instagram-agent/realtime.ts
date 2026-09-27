@@ -1,4 +1,5 @@
 import { avisarEscalada } from '@/lib/ai/aviso-escalada';
+import { shouldHideComment } from './comment-moderation-policy';
 import { aplicarDesenlace } from '@/lib/ai/desenlace';
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
@@ -1044,7 +1045,7 @@ async function decidirComentario(
     // distingue el veredicto de la pregunta: quien pregunta por la aprobación
     // de ANMAT está evaluando comprar y recibe respuesta.
     const esCritica = esCriticaPublica(engagement);
-    if (s.spam || esCritica) {
+    if (shouldHideComment(opts.workspaceId, s.spam, esCritica)) {
       // Ocultarlo es una llamada de Meta: en TikTok se deja pasar sin
       // contestar, que es lo que importa.
       if (!isTikTok) {

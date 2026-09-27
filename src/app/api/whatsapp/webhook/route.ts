@@ -6,6 +6,7 @@ import { normalizePhone, phonesMatch } from '@/lib/whatsapp/phone-utils'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import {
   isOptOutKeyword,
+  isRecoveryOptOutButton,
   isOptInKeyword,
   markOptedOut,
   markOptedIn,
@@ -1019,7 +1020,7 @@ async function processMessage(
   const contactWorkspaceId = (contactRecord as { workspace_id?: string | null })
     .workspace_id ?? null
   if (inboundTextRaw && contactWorkspaceId) {
-    if (isOptOutKeyword(inboundTextRaw)) {
+    if (isOptOutKeyword(inboundTextRaw) || isRecoveryOptOutButton(contactWorkspaceId, inboundTextRaw, message.type)) {
       await markOptedOut(
         supabaseAdmin(),
         contactWorkspaceId,

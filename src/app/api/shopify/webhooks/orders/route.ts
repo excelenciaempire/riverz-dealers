@@ -357,6 +357,7 @@ export async function POST(request: Request) {
       shop_domain: shopDomain,
       order_id: String(order.id ?? ''),
       order_name: String(order.name ?? ''),
+      order_created_at: String(order.created_at ?? ''),
       financial_status: String(order.financial_status ?? ''),
       fulfillment_status: String(order.fulfillment_status ?? ''),
       shipment_status: shipmentStatus,

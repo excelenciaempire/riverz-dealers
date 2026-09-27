@@ -903,6 +903,8 @@ export interface SendMessageStepConfig {
 
 export interface SendTemplateStepConfig {
   template_name: string;
+  /** Skip this reminder after the trigger's payment window expires. */
+  expires_after_hours?: number;
   /** Captura el rastreo oficial, lo valida con visión y lo usa como header. */
   tracking_evidence?: boolean;
   /** Order confirmation: separate item rows and exact Shopify variant photos. */
@@ -967,6 +969,8 @@ export interface UpdateContactFieldStepConfig {
 export interface WaitStepConfig {
   amount: number;
   unit: 'seconds' | 'minutes' | 'hours' | 'days';
+  /** Optional absolute trigger-relative deadline, before applying quiet hours. */
+  from_trigger_hours?: number;
 }
 
 export interface SetContextStepConfig {

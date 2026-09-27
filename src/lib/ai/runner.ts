@@ -1,4 +1,5 @@
 import { replyWasSuperseded } from './reply-freshness';
+import { revitalyEmailRedirect } from './revitaly-channel-policy';
 import type { OtherStoreContext } from '@/lib/ai/tools';
 import { untrustedContext } from './input-security';
 import { captureCustomerOrder, orderScreenshotMessageId, type OrderScreenshot } from './order-screenshot';
@@ -3194,6 +3195,9 @@ async function generateReply(
   priceIntegrity: { priceQuestion: boolean; priceVerified: boolean },
   recoveryContext: Record<string, unknown> | null
 ): Promise<ReplyResult> {
+  const redirect = revitalyEmailRedirect(agent.workspace_id, origen.channel, agent.language);
+  // The normal runner still applies billing, opt-out, freshness and approval gates.
+  if (redirect) return { text: redirect, promptTokens: 0, completionTokens: 0, herramientas: [] };
   if (agent.provider !== 'anthropic') {
     throw new Error(`Provider ${agent.provider} not implemented`);
   }
