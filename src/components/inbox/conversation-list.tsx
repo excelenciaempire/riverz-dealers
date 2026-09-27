@@ -344,7 +344,13 @@ export function ConversationList({
   const parentRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: filtered.length,
-    getScrollElement: () => parentRef.current,
+    // On mobile the whole list pane becomes `display:none` while a thread is
+    // open. Handing that zero-size element to ResizeObserver can create a
+    // measure → notify → render loop on a direct deep-link load.
+    getScrollElement: () => {
+      const element = parentRef.current;
+      return element?.offsetParent === null ? null : element;
+    },
     // Matches `px-3 py-3` + `h-10` avatar row in `ConversationItem`. The
     // virtualizer measures real rows after first paint, so a slight
     // miss here just costs a re-flow on mount.
@@ -357,6 +363,9 @@ export function ConversationList({
   // 300 entries down wouldn't auto-scroll because that row isn't mounted.
   useEffect(() => {
     if (!activeConversationId || filtered.length === 0) return;
+    // The active row only needs scrolling when the list is actually visible.
+    // Below `lg` the pane is hidden in favour of the thread.
+    if (parentRef.current?.offsetParent === null) return;
     const i = filtered.findIndex((c) => c.id === activeConversationId);
     if (i >= 0) rowVirtualizer.scrollToIndex(i, { align: "auto" });
   }, [activeConversationId, filtered, rowVirtualizer]);
