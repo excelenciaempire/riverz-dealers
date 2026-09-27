@@ -729,33 +729,21 @@ export const landingV4 = {
     en: 'The order increase is an adjustable assumption. This estimate excludes external charges and time savings, and does not guarantee results.',
   },
   faqTitle: { es: 'Preguntas frecuentes', en: 'Frequently asked questions' },
-  faqBalanceBudgetQuestion: {
-    es: 'Además de la mensualidad, ¿cuánto voy a gastar en saldo?',
-    en: 'Besides the subscription, how much will I spend on balance?',
+  faqAdditionalCostQuestion: {
+    es: '¿Cuánto pagaré además de la mensualidad?',
+    en: 'How much will I pay beyond the subscription?',
   },
-  faqMetaChargesQuestion: {
-    es: '¿También debo pagar los mensajes de WhatsApp a Meta?',
-    en: 'Do I also need to pay Meta for WhatsApp messages?',
+  faqAdditionalCostAnswer: {
+    es: 'El consumo de IA está incluido en tu plan por contactos. Si usas WhatsApp, los mensajes sujetos a cobro por Meta se pagan aparte, según el país y el tipo de mensaje. La meta es que ese costo sea pequeño frente a las ventas que ayuda a generar: cuando más conversaciones se convierten en pedidos, el gasto puede crecer junto con una facturación mayor. En la llamada estimamos tu presupuesto y lo ponemos en contexto con tus ventas.',
+    en: 'AI usage is included in your contact-based plan. If you use WhatsApp, billable Meta messages are paid separately, based on the country and message type. The goal is for that cost to be small compared with the sales it helps generate: as more conversations become orders, spending can grow alongside higher revenue. During our call, we estimate your budget and put it in context with your sales.',
   },
-  faqMetaChargesAnswer: {
-    es: 'Sí. Si usas WhatsApp, debes contemplar los cargos de Meta por los mensajes entregados que estén sujetos a cobro. Son adicionales a la mensualidad de Riverz y no están incluidos en el saldo de IA ni en los planes por contactos. El importe depende del país del destinatario, la categoría del mensaje y las condiciones vigentes de Meta; no todos los mensajes generan un cargo. En la llamada también revisamos este costo para tu negocio.',
-    en: 'Yes. If you use WhatsApp, you must budget for Meta charges on delivered messages that are billable. These are additional to your Riverz subscription and are not included in your AI balance or contact-based plans. The amount depends on the recipient’s country, the message category, and Meta’s current terms; not every message incurs a charge. We also review this cost for your business during the call.',
+  faqBalanceAdditionalCostAnswer: {
+    es: 'Además de la mensualidad, pagas el consumo de IA con tu saldo y, si usas WhatsApp, los mensajes sujetos a cobro por Meta van aparte. La meta es que ambos costos sean pequeños frente a las ventas que ayudan a generar: cuando más conversaciones se convierten en pedidos, el consumo puede crecer junto con una facturación mayor. En la llamada estimamos cuánto necesitaría tu tienda y lo ponemos en contexto con tus ventas y tu margen.',
+    en: 'Beyond the subscription, you pay for AI usage from your balance and, if you use WhatsApp, billable Meta messages are charged separately. The goal is for both costs to be small compared with the sales they help generate: as more conversations become orders, usage can grow alongside higher revenue. During our call, we estimate what your store would need and put it in context with your sales and profit margin.',
   },
   faqMetaRatesLink: {
     es: 'Consultar tarifas de Meta',
     en: 'View Meta pricing',
-  },
-  faqUsageReturnQuestion: {
-    es: '¿Cómo se compara este gasto con las ventas de mi tienda?',
-    en: 'How does this cost compare with my store’s sales?',
-  },
-  faqUsageReturnAnswer: {
-    es: 'Buscamos que el costo de IA y Meta sea una pequeña parte de las ventas que ayudan a generar. Si más conversaciones terminan en pedidos, tu consumo puede crecer junto con tu facturación: estás atendiendo más oportunidades de venta. Lo importante es comparar el costo total con las ventas y el margen que dejan, no mirar el saldo de forma aislada. Más mensajes por sí solos no garantizan más ventas; revisamos los resultados para ajustar.',
-    en: 'We aim for AI and Meta costs to be a small part of the sales they help generate. When more conversations turn into orders, usage can grow alongside revenue: you are handling more sales opportunities. What matters is comparing the total cost with sales and the margin they generate, rather than looking at balance alone. More messages alone do not guarantee more sales; we review results and adjust.',
-  },
-  faqBalanceBudgetAnswer: {
-    es: 'No hay un monto mensual fijo. Depende de cuántas respuestas envíe la IA, su extensión y las llamadas o tareas que actives. En la llamada estimamos contigo un presupuesto según tu operación. Puedes empezar con una recarga de US$10 y revisar el consumo real en el panel; no significa que alcance para todo el mes. Tú eliges cuánto recargar y si activas recargas automáticas. La comisión de procesamiento del pago también se descuenta del saldo.',
-    en: 'There is no fixed monthly amount. It depends on how many replies AI sends, their length, and the calls or tasks you enable. During the call, we estimate a budget for your business together. You can start with a US$10 top-up and check actual usage in your dashboard; this does not mean it will last the entire month. You choose how much to top up and whether to enable automatic top-ups. Payment processing fees are also deducted from your balance.',
   },
   faqBalanceIncludedAnswer: {
     es: 'La mensualidad incluye los agentes, ventas, recuperación, atención, automatizaciones e integraciones disponibles, con contactos ilimitados. El consumo de IA se paga aparte con el saldo que recargas.',

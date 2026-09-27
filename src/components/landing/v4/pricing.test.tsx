@@ -23,20 +23,25 @@ describe.each(['es', 'en'] as const)('pricing in %s', (locale) => {
     current.locale = locale;
     for (const balancePlan of [true, false, true]) {
       const html = renderToStaticMarkup(<Faq balancePlan={balancePlan} />);
-      expect(html).toContain(t('faqMetaChargesQuestion'));
-      expect(html).toContain(t('faqMetaChargesAnswer'));
-      expect(html).toContain(t('faqUsageReturnQuestion'));
-      expect(html).toContain(t('faqUsageReturnAnswer'));
+      expect(html.split(t('faqAdditionalCostQuestion'))).toHaveLength(2);
+      expect(html.match(/<details/g)).toHaveLength(10);
       expect(html).toContain(
         'https://whatsappbusiness.com/products/platform-pricing/'
       );
-      if (balancePlan) {
-        expect(html).toContain(t('faqBalanceBudgetQuestion'));
-        expect(html).toContain(t('faqBalanceBudgetAnswer'));
-      } else {
-        expect(html).not.toContain(t('faqBalanceBudgetQuestion'));
-        expect(html).not.toContain(t('faqBalanceBudgetAnswer'));
-      }
+      expect(html).toContain(
+        t(
+          balancePlan
+            ? 'faqBalanceAdditionalCostAnswer'
+            : 'faqAdditionalCostAnswer'
+        )
+      );
+      expect(html).not.toContain(
+        t(
+          balancePlan
+            ? 'faqAdditionalCostAnswer'
+            : 'faqBalanceAdditionalCostAnswer'
+        )
+      );
       expect(html).toContain(
         t(balancePlan ? 'faqBalanceIncludedAnswer' : 'faqIncludedAnswer')
       );

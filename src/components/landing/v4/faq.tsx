@@ -9,9 +9,7 @@ const QUESTIONS = [
   ['faqIncludedQuestion', 'faqIncludedAnswer'],
   ['faqSetupQuestion', 'faqSetupAnswer'],
   ['faqFirstMonthQuestion', 'faqFirstMonthAnswer'],
-  ['faqBalanceBudgetQuestion', 'faqBalanceBudgetAnswer'],
-  ['faqMetaChargesQuestion', 'faqMetaChargesAnswer'],
-  ['faqUsageReturnQuestion', 'faqUsageReturnAnswer'],
+  ['faqAdditionalCostQuestion', 'faqAdditionalCostAnswer'],
   ['faqCountingQuestion', 'faqCountingAnswer'],
   ['faqGrowthQuestion', 'faqGrowthAnswer'],
   ['faqMistakesQuestion', 'faqMistakesAnswer'],
@@ -21,6 +19,7 @@ const QUESTIONS = [
 ] as const;
 
 const BALANCE_OVERRIDES: Record<string, string> = {
+  faqAdditionalCostAnswer: 'faqBalanceAdditionalCostAnswer',
   faqIncludedAnswer: 'faqBalanceIncludedAnswer',
   faqFirstMonthAnswer: 'faqBalanceFirstMonthAnswer',
   faqCountingQuestion: 'faqBalanceCountingQuestion',
@@ -46,9 +45,7 @@ export function Faq({ balancePlan = true }: { balancePlan?: boolean }) {
         className="mt-8 max-w-4xl border-t"
         style={{ borderColor: 'var(--sn-line)' }}
       >
-        {QUESTIONS.filter(
-          ([question]) => balancePlan || question !== 'faqBalanceBudgetQuestion'
-        ).map(([question, answer]) => (
+        {QUESTIONS.map(([question, answer]) => (
           <details
             key={question}
             className="group border-b py-5 sm:py-6"
@@ -65,7 +62,7 @@ export function Faq({ balancePlan = true }: { balancePlan?: boolean }) {
               {t(key(answer), {
                 percent: FIRST_MONTH_DISCOUNT_PERCENT,
               })}
-              {question === 'faqMetaChargesQuestion' && (
+              {question === 'faqAdditionalCostQuestion' && (
                 <>
                   {' '}
                   <a
