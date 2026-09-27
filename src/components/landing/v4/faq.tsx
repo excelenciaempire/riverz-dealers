@@ -9,6 +9,7 @@ const QUESTIONS = [
   ['faqIncludedQuestion', 'faqIncludedAnswer'],
   ['faqSetupQuestion', 'faqSetupAnswer'],
   ['faqFirstMonthQuestion', 'faqFirstMonthAnswer'],
+  ['faqBalanceBudgetQuestion', 'faqBalanceBudgetAnswer'],
   ['faqCountingQuestion', 'faqCountingAnswer'],
   ['faqGrowthQuestion', 'faqGrowthAnswer'],
   ['faqMistakesQuestion', 'faqMistakesAnswer'],
@@ -43,7 +44,9 @@ export function Faq({ balancePlan = true }: { balancePlan?: boolean }) {
         className="mt-8 max-w-4xl border-t"
         style={{ borderColor: 'var(--sn-line)' }}
       >
-        {QUESTIONS.map(([question, answer]) => (
+        {QUESTIONS.filter(
+          ([question]) => balancePlan || question !== 'faqBalanceBudgetQuestion'
+        ).map(([question, answer]) => (
           <details
             key={question}
             className="group border-b py-5 sm:py-6"
