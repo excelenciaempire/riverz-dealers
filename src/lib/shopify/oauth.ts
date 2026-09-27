@@ -104,12 +104,17 @@ export function shopifyScopes(
   identity: 'public' | 'legacy' = 'public'
 ): string {
   const configured = process.env.SHOPIFY_SCOPES;
-  const base = configured
+  const configuredScopes = configured
     ? configured
         .split(',')
         .map((scope) => scope.trim())
         .filter(Boolean)
-    : PUBLIC_SCOPES;
+    : [];
+  // El valor de Render nació como una lista completa y quedó congelado. Al
+  // agregar capacidades en código, ese override silenciosamente quitaba los
+  // permisos nuevos (por ejemplo read_draft_orders). El entorno puede sumar
+  // scopes, pero no restar los que el producto necesita.
+  const base = Array.from(new Set([...PUBLIC_SCOPES, ...configuredScopes]));
   const publicOnly = base.filter(
     (scope) => !LEGACY_ONLY_SCOPES.includes(scope)
   );

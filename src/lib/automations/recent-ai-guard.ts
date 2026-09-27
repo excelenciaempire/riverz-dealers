@@ -250,18 +250,19 @@ async function hayAlguienAtendiendo(contactId: string): Promise<string | null> {
   try {
     const desde = new Date(Date.now() - VENTANA_ATENDIDA_MS).toISOString()
 
-    const { data: hilos } = await db
+    const { data: hilos, error: hilosError } = await db
       .from('conversations')
-      .select('id, needs_human_at, assigned_to')
+      .select('id, needs_human_at, assigned_agent_id')
       .eq('contact_id', contactId)
       .is('deleted_at', null)
       .gte('last_message_at', desde)
+    if (hilosError) throw hilosError
     const abiertos = (hilos ?? []) as Array<{
       id: string
       needs_human_at: string | null
-      assigned_to: string | null
+      assigned_agent_id: string | null
     }>
-    if (abiertos.some((c) => c.needs_human_at || c.assigned_to)) {
+    if (abiertos.some((c) => c.needs_human_at || c.assigned_agent_id)) {
       return 'caso en manos de una persona'
     }
     if (abiertos.length === 0) return null

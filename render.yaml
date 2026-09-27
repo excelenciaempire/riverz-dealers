@@ -106,7 +106,7 @@ services:
       - key: SHOPIFY_API_VERSION
         value: '2025-10'
       - key: SHOPIFY_SCOPES
-        value: 'read_orders,read_checkouts,read_customers,read_products'
+        value: 'read_orders,write_orders,read_checkouts,read_customers,write_customers,read_products,read_fulfillments,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders,read_price_rules,write_price_rules,write_discounts,read_order_edits,write_order_edits,read_draft_orders'
       # Sentry — observabilidad de errores en producción.
       - key: SENTRY_DSN
         sync: false

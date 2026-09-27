@@ -25,7 +25,7 @@ export interface AdminConversationRow {
   status: string | null;
   /** Si la IA está habilitada en ESTE hilo. */
   ai_enabled: boolean;
-  assigned_to: string | null;
+  assigned_agent_id: string | null;
   needs_human: boolean;
   messages_count: number;
   created_at: string;
@@ -41,7 +41,7 @@ export interface AdminConversationFilters {
 }
 
 const COLUMNAS =
-  'id, workspace_id, channel, status, ai_enabled, assigned_to, needs_human, created_at, last_message_at';
+  'id, workspace_id, channel, status, ai_enabled, assigned_agent_id, needs_human_reason, created_at, last_message_at';
 
 export async function listConversations(
   f: AdminConversationFilters,
@@ -64,10 +64,11 @@ export async function listConversations(
   const { data, count, error } = await q;
   if (error) throw new Error(`[admin/conversations] ${error.message}`);
 
-  const filas = (data ?? []) as Omit<
-    AdminConversationRow,
-    'workspace_name' | 'messages_count'
-  >[];
+  const filas = (data ?? []) as Array<
+    Omit<AdminConversationRow, 'workspace_name' | 'messages_count' | 'needs_human'> & {
+      needs_human_reason: string | null;
+    }
+  >;
 
   // Los nombres de comercio y el conteo de mensajes van en dos consultas más y
   // no en un join por fila: con trescientas conversaciones, un join por fila son
@@ -77,7 +78,7 @@ export async function listConversations(
   const conteos = new Map<string, number>();
   if (filas.length > 0) {
     assertMetadataOnly('messages', 'conversation_id');
-    const { data: msgs } = await db
+    const { data: msgs, error: messagesError } = await db
       .from('messages')
       .select('conversation_id')
       .in(
@@ -85,6 +86,7 @@ export async function listConversations(
         filas.map((r) => r.id),
       )
       .limit(50_000);
+    if (messagesError) throw new Error(`[admin/conversations] ${messagesError.message}`);
     for (const m of (msgs ?? []) as { conversation_id: string }[]) {
       conteos.set(m.conversation_id, (conteos.get(m.conversation_id) ?? 0) + 1);
     }
@@ -92,7 +94,15 @@ export async function listConversations(
 
   return {
     rows: filas.map((r) => ({
-      ...r,
+      id: r.id,
+      workspace_id: r.workspace_id,
+      channel: r.channel,
+      status: r.status,
+      ai_enabled: r.ai_enabled,
+      assigned_agent_id: r.assigned_agent_id,
+      needs_human: r.needs_human_reason !== null,
+      created_at: r.created_at,
+      last_message_at: r.last_message_at,
       workspace_name: nombres.get(r.workspace_id) ?? null,
       messages_count: conteos.get(r.id) ?? 0,
     })),

@@ -73,23 +73,27 @@ export function nextPageInfo(link: string | null): string | null {
  *  Exportado porque además de registrarlos al conectar hay que RECONCILIARLOS:
  *  la dirección queda congelada en Shopify y, si el dominio del servicio cambia,
  *  la tienda sigue entregando pedidos y carritos a un servidor muerto. */
-export const SHOPIFY_WEBHOOK_TOPICS: ReadonlyArray<{ topic: string; path: string }> = [
+export const SHOPIFY_WEBHOOK_TOPICS: ReadonlyArray<{
+  topic: string
+  path: string
+  scope?: string
+}> = [
   { topic: 'app_subscriptions/update', path: '/api/shopify/webhooks/app-subscriptions' },
-  { topic: 'checkouts/create', path: '/api/shopify/webhooks/checkouts' },
-  { topic: 'checkouts/update', path: '/api/shopify/webhooks/checkouts' },
+  { topic: 'checkouts/create', path: '/api/shopify/webhooks/checkouts', scope: 'read_checkouts' },
+  { topic: 'checkouts/update', path: '/api/shopify/webhooks/checkouts', scope: 'read_checkouts' },
   // Borradores: la otra mitad de "Pedidos abandonados". Caen en la misma tabla
   // que los carritos y salen por la misma plantilla — ver la ruta.
-  { topic: 'draft_orders/create', path: '/api/shopify/webhooks/draft-orders' },
-  { topic: 'draft_orders/update', path: '/api/shopify/webhooks/draft-orders' },
-  { topic: 'draft_orders/delete', path: '/api/shopify/webhooks/draft-orders' },
-  { topic: 'orders/create', path: '/api/shopify/webhooks/orders' },
-  { topic: 'orders/updated', path: '/api/shopify/webhooks/orders' },
-  { topic: 'customers/update', path: '/api/shopify/webhooks/customers' },
+  { topic: 'draft_orders/create', path: '/api/shopify/webhooks/draft-orders', scope: 'read_draft_orders' },
+  { topic: 'draft_orders/update', path: '/api/shopify/webhooks/draft-orders', scope: 'read_draft_orders' },
+  { topic: 'draft_orders/delete', path: '/api/shopify/webhooks/draft-orders', scope: 'read_draft_orders' },
+  { topic: 'orders/create', path: '/api/shopify/webhooks/orders', scope: 'read_orders' },
+  { topic: 'orders/updated', path: '/api/shopify/webhooks/orders', scope: 'read_orders' },
+  { topic: 'customers/update', path: '/api/shopify/webhooks/customers', scope: 'read_customers' },
   // El precio que cotiza el agente tiene que cambiar al mismo tiempo que la
   // tienda, no la próxima vez que alguien pulse “Sincronizar”.
-  { topic: 'products/create', path: '/api/shopify/webhooks/products' },
-  { topic: 'products/update', path: '/api/shopify/webhooks/products' },
-  { topic: 'products/delete', path: '/api/shopify/webhooks/products' },
+  { topic: 'products/create', path: '/api/shopify/webhooks/products', scope: 'read_products' },
+  { topic: 'products/update', path: '/api/shopify/webhooks/products', scope: 'read_products' },
+  { topic: 'products/delete', path: '/api/shopify/webhooks/products', scope: 'read_products' },
   { topic: 'app/uninstalled', path: '/api/shopify/webhooks/app-uninstalled' },
 ]
 
@@ -247,7 +251,7 @@ export class ShopifyAdminClient {
    * the "just fulfilled" transition.
    */
   async registerWebhooks(callbackBaseUrl: string): Promise<void> {
-    const topics = SHOPIFY_WEBHOOK_TOPICS
+    const topics = await this.availableWebhookTopics()
     for (const { topic, path } of topics) {
       try {
         await this.rest('/webhooks.json', {
@@ -281,6 +285,23 @@ export class ShopifyAdminClient {
   }
 
   /**
+   * Shopify responde 422 "Invalid topic" cuando el token no tiene el scope
+   * del tema. Las conexiones antiguas conservan exactamente los permisos que
+   * aprobó el comercio; reconciliar no puede convertir esa diferencia normal
+   * en una alarma cada quince minutos. Consultamos el token vivo y exigimos
+   * sólo los webhooks que realmente puede recibir.
+   */
+  async availableWebhookTopics(): Promise<typeof SHOPIFY_WEBHOOK_TOPICS> {
+    const data = await this.rest<{ access_scopes?: Array<{ handle?: string }> }>(
+      '/oauth/access_scopes.json',
+    )
+    const granted = new Set(
+      (data.access_scopes ?? []).map((scope) => scope.handle).filter(Boolean),
+    )
+    return SHOPIFY_WEBHOOK_TOPICS.filter((item) => !item.scope || granted.has(item.scope))
+  }
+
+  /**
    * Deja la tienda con EXACTAMENTE los webhooks de `SHOPIFY_WEBHOOK_TOPICS`
    * apuntando al dominio actual.
    *
@@ -295,6 +316,7 @@ export class ShopifyAdminClient {
     created: number
     kept: number
   }> {
+    const topics = await this.availableWebhookTopics()
     const ours = new Set(SHOPIFY_WEBHOOK_TOPICS.map((t) => t.path))
     const live = await this.listWebhooks()
     const base = callbackBaseUrl.replace(/\/+$/, '')
@@ -327,7 +349,7 @@ export class ShopifyAdminClient {
     }
 
     let created = 0
-    for (const { topic, path } of SHOPIFY_WEBHOOK_TOPICS) {
+    for (const { topic, path } of topics) {
       if (present.has(`${topic}\n${path}`)) continue
       try {
         await this.rest('/webhooks.json', {

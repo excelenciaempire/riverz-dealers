@@ -11,6 +11,16 @@ interface Call {
   body?: { webhook?: { topic?: string; address?: string } };
 }
 
+const ALL_SCOPES = Array.from(
+  new Set(SHOPIFY_WEBHOOK_TOPICS.flatMap((topic) => topic.scope ? [topic.scope] : [])),
+);
+
+function responseForGet(url: string, webhooks: Array<{ id: number; topic: string; address: string }>) {
+  return url.includes('/oauth/access_scopes.json')
+    ? { access_scopes: ALL_SCOPES.map((handle) => ({ handle })) }
+    : { webhooks };
+}
+
 /** Shopify de mentira: devuelve la lista dada y anota lo que se le hace. */
 function fakeShopify(webhooks: Array<{ id: number; topic: string; address: string }>) {
   const calls: Call[] = [];
@@ -26,7 +36,7 @@ function fakeShopify(webhooks: Array<{ id: number; topic: string; address: strin
       return {
         ok: true,
         status: 200,
-        json: async () => (method === "GET" ? { webhooks } : {}),
+        json: async () => (method === "GET" ? responseForGet(url, webhooks) : {}),
       } as unknown as Response;
     }),
   );
@@ -39,10 +49,10 @@ describe("ShopifyAdminClient.reconcileWebhooks", () => {
   it('does not report successful recovery when Shopify rejects a missing subscription', async () => {
     const live = SHOPIFY_WEBHOOK_TOPICS.filter(t => t.topic !== 'draft_orders/create')
       .map((t, i) => ({ id: i, topic: t.topic, address: `${NEW}${t.path}` }));
-    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: { method?: string }) =>
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: { method?: string }) =>
       init?.method === 'POST'
         ? new Response('{"errors":"missing access scope"}', { status: 422 })
-        : new Response(JSON.stringify({ webhooks: live }))));
+        : new Response(JSON.stringify(responseForGet(url, live)))));
     await expect(client().reconcileWebhooks(NEW)).rejects.toThrow('create draft_orders/create');
   });
 
@@ -51,14 +61,35 @@ describe("ShopifyAdminClient.reconcileWebhooks", () => {
       ...SHOPIFY_WEBHOOK_TOPICS.map((t, i) => ({ id: i, topic: t.topic, address: `${NEW}${t.path}` })),
       { id: 999, topic: 'orders/create', address: `${OLD}/api/shopify/webhooks/orders` },
     ];
-    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: { method?: string }) =>
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: { method?: string }) =>
       init?.method === 'DELETE'
         ? new Response('upstream unavailable', { status: 503 })
-        : new Response(JSON.stringify({ webhooks: live }))));
+        : new Response(JSON.stringify(responseForGet(url, live)))));
     await expect(client().reconcileWebhooks(NEW)).rejects.toThrow('delete orders/create');
   });
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('does not request webhook topics the live token was never granted', async () => {
+    const live = SHOPIFY_WEBHOOK_TOPICS
+      .filter((topic) => topic.scope !== 'read_draft_orders')
+      .map((topic, i) => ({ id: i, topic: topic.topic, address: `${NEW}${topic.path}` }));
+    const calls: Call[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
+      calls.push({ method: init?.method ?? 'GET', url, body: init?.body ? JSON.parse(init.body) : undefined });
+      if (url.includes('/oauth/access_scopes.json')) {
+        return new Response(JSON.stringify({
+          access_scopes: ALL_SCOPES.filter((scope) => scope !== 'read_draft_orders')
+            .map((handle) => ({ handle })),
+        }));
+      }
+      return new Response(JSON.stringify({ webhooks: live }));
+    }));
+
+    await expect(client().reconcileWebhooks(NEW)).resolves.toMatchObject({ created: 0 });
+    expect(calls.filter((call) => call.method === 'POST')
+      .some((call) => call.body?.webhook?.topic?.startsWith('draft_orders/'))).toBe(false);
   });
 
   // El caso real: la mudanza de dominio dejó los viejos vivos junto a los

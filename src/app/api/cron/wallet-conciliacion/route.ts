@@ -3,7 +3,7 @@ import {
   type ApifyRunReceipt,
 } from '@/lib/instagram-agent/apify-billing';
 import { resolveWorkspaceKeyConOrigen } from '@/lib/integrations/workspace-key';
-import { liquidar } from '@/lib/wallet/operacion';
+import { cancelar, liquidar } from '@/lib/wallet/operacion';
 import { NextResponse } from 'next/server';
 import { assertCronAuth } from '@/lib/auth/cron';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
@@ -31,6 +31,7 @@ async function handler(request: Request) {
     .limit(200);
   if (error) throw new Error('wallet_reconciliation_unavailable');
   let recovered = 0;
+  let released = 0;
   const unresolved = [];
   const paymentFailures: string[] = [];
   for (const op of pending ?? []) {
@@ -112,6 +113,29 @@ async function handler(request: Request) {
         /* Keep unknown outcomes reserved for review. */
       }
     }
+    // Sin identificador del proveedor no existe un recibo que consultar. Es
+    // el rastro de una llamada cuya respuesta se perdió antes de guardar el
+    // ID externo; mantenerla reservada para siempre no mejora la precisión y
+    // deja dinero del comercio bloqueado. Después de 24 h se libera a favor
+    // del comercio. Las operaciones que sí tienen runId/crawlId siguen bajo
+    // conciliación normal y nunca pasan por este camino.
+    const ageMs = Date.now() - new Date(op.created_at).getTime();
+    const hasReceipt =
+      typeof op.detalle?.runId === 'string' ||
+      typeof op.detalle?.crawlId === 'string';
+    if (!hasReceipt && ageMs >= 24 * 60 * 60 * 1000) {
+      try {
+        await cancelar(
+          { db, workspaceId: op.workspace_id, concepto: op.concepto },
+          op.id,
+        );
+        released++;
+        continue;
+      } catch {
+        // Conservarla para revisión si ni siquiera se puede liberar de forma
+        // transaccional; ése sí es un fallo real de conciliación.
+      }
+    }
     unresolved.push(op);
   }
   // Repair successful automatic payments independently of card retries or provider usage.
@@ -147,7 +171,7 @@ async function handler(request: Request) {
     }
   }
   return NextResponse.json(
-    { ok: !unresolved.length && !paymentFailures.length, pending: unresolved, paymentFailures, recovered },
+    { ok: !unresolved.length && !paymentFailures.length, pending: unresolved, paymentFailures, recovered, released },
     { status: unresolved.length || paymentFailures.length ? 207 : 200 }
   );
 }

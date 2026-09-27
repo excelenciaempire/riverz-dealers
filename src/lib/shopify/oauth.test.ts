@@ -4,10 +4,22 @@ import {
   exchangeCodeForToken,
   motivoDelRechazo,
   refreshShopifyToken,
+  shopifyScopes,
   ShopifyCredentialsError,
 } from './oauth'
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+})
+
+it('an environment override cannot remove product-required Shopify scopes', () => {
+  vi.stubEnv('SHOPIFY_SCOPES', 'read_orders')
+  const scopes = shopifyScopes().split(',')
+  expect(scopes).toContain('read_orders')
+  expect(scopes).toContain('read_draft_orders')
+  expect(scopes).toContain('write_order_edits')
+})
 
 function successfulTokenResponse() {
   return new Response(
