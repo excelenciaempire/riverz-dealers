@@ -25,6 +25,8 @@ describe.each(['es', 'en'] as const)('pricing in %s', (locale) => {
       const html = renderToStaticMarkup(<Faq balancePlan={balancePlan} />);
       expect(html).toContain(t('faqMetaChargesQuestion'));
       expect(html).toContain(t('faqMetaChargesAnswer'));
+      expect(html).toContain(t('faqUsageReturnQuestion'));
+      expect(html).toContain(t('faqUsageReturnAnswer'));
       expect(html).toContain(
         'https://whatsappbusiness.com/products/platform-pricing/'
       );

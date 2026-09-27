@@ -745,6 +745,14 @@ export const landingV4 = {
     es: 'Consultar tarifas de Meta',
     en: 'View Meta pricing',
   },
+  faqUsageReturnQuestion: {
+    es: '¿Cómo se compara este gasto con las ventas de mi tienda?',
+    en: 'How does this cost compare with my store’s sales?',
+  },
+  faqUsageReturnAnswer: {
+    es: 'Buscamos que el costo de IA y Meta sea una pequeña parte de las ventas que ayudan a generar. Si más conversaciones terminan en pedidos, tu consumo puede crecer junto con tu facturación: estás atendiendo más oportunidades de venta. Lo importante es comparar el costo total con las ventas y el margen que dejan, no mirar el saldo de forma aislada. Más mensajes por sí solos no garantizan más ventas; revisamos los resultados para ajustar.',
+    en: 'We aim for AI and Meta costs to be a small part of the sales they help generate. When more conversations turn into orders, usage can grow alongside revenue: you are handling more sales opportunities. What matters is comparing the total cost with sales and the margin they generate, rather than looking at balance alone. More messages alone do not guarantee more sales; we review results and adjust.',
+  },
   faqBalanceBudgetAnswer: {
     es: 'No hay un monto mensual fijo. Depende de cuántas respuestas envíe la IA, su extensión y las llamadas o tareas que actives. En la llamada estimamos contigo un presupuesto según tu operación. Puedes empezar con una recarga de US$10 y revisar el consumo real en el panel; no significa que alcance para todo el mes. Tú eliges cuánto recargar y si activas recargas automáticas. La comisión de procesamiento del pago también se descuenta del saldo.',
     en: 'There is no fixed monthly amount. It depends on how many replies AI sends, their length, and the calls or tasks you enable. During the call, we estimate a budget for your business together. You can start with a US$10 top-up and check actual usage in your dashboard; this does not mean it will last the entire month. You choose how much to top up and whether to enable automatic top-ups. Payment processing fees are also deducted from your balance.',
