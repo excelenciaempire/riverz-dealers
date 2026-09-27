@@ -56,6 +56,7 @@ import { anchoredWait, templatePastDeadline, paymentStartedAt } from './payment-
 import { retentionProductVars } from './retention-product'
 import { settledLogStatus } from './log-status'
 import { confirmedOrderLogId } from './order-confirmation'
+import {usesSessionTemplates, isNewSessionEvent, sessionRunId, sessionSendPlan, sessionTemplateText, claimTemplateDelivery, AwaitTemplateAvailability, StopSessionSequence} from './session-template'
 import { entryContext, matchesEventConfig, resolveEventEntry } from './event-entries'
 import type { ContactSegment } from '@/lib/segments/types'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
@@ -532,6 +533,9 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
   if (cfg.event_entries && !entry) return
   const confirmedOrderId = input.triggerType === 'shopify_order_confirmed' ? String(input.context?.vars?.order_id ?? '').trim() : ''
   if (input.triggerType === 'shopify_order_confirmed' && !confirmedOrderId) return
+  if (!isNewSessionEvent(cfg, input.triggerType, input.context?.vars ?? {})) return
+  const sessionLogId = usesSessionTemplates(cfg)
+    ? sessionRunId(automation.workspace_id, automation.id, input.triggerType, input.contactId ?? '', input.context?.vars ?? {}) : null
 
   // Belt-and-suspenders: migration 053 makes automation_logs.user_id
   // nullable so cron-dispatched runs don't blow up at INSERT, but
@@ -547,7 +551,7 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
     .from('automation_logs')
     .insert({
       automation_id: automation.id,
-      ...(confirmedOrderId ? { id: confirmedOrderLogId(automation.workspace_id, automation.id, confirmedOrderId) } : {}),
+      ...(sessionLogId ? {id:sessionLogId} : confirmedOrderId ? { id: confirmedOrderLogId(automation.workspace_id, automation.id, confirmedOrderId) } : {}),
       workspace_id: automation.workspace_id,
       user_id: ownerUserId,
       contact_id: input.contactId ?? null,
@@ -559,7 +563,7 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
     .single()
 
   if (logErr || !log) {
-    if (confirmedOrderId && logErr?.code === '23505') return
+    if ((confirmedOrderId || sessionLogId) && logErr?.code === '23505') return
     console.error('[automations] cannot create log:', logErr)
     return
   }
@@ -890,6 +894,30 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
       })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
+      if (err instanceof StopSessionSequence) {
+        results.push({step_id:step.id,step_type:step.step_type,status:'skipped',detail:msg})
+        await appendResults(args.logId,results,'success',null)
+        return
+      }
+      if (err instanceof AwaitTemplateAvailability) {
+        const waits = (args.context.vars?.session_template_waits ?? {}) as Record<string, string>
+        const since = waits[step.id] ?? new Date().toISOString()
+        if (Date.now() - Date.parse(since) >= 24 * 3_600_000) {
+          results.push({step_id:step.id,step_type:step.step_type,status:'skipped',detail:'session/template wait expired; sequence stopped without replay'})
+          await appendResults(args.logId,results,'success',null)
+          return
+        }
+        args.context.vars = {...args.context.vars,session_template_waits:{...waits,[step.id]:since}}
+        const queued = await db.from('automation_pending_executions').insert({
+          automation_id:args.automation.id,user_id:args.ownerUserId,workspace_id:args.automation.workspace_id,
+          contact_id:args.contactId,log_id:args.logId,parent_step_id:args.parentStepId,branch:args.branch,
+          next_step_position:step.position,context:args.context,run_at:new Date(Date.now()+5*60_000).toISOString(),status:'pending',
+        })
+        if(queued.error)throw queued.error
+        results.push({step_id:step.id,step_type:step.step_type,status:'success',detail:msg})
+        await appendResults(args.logId,results,'partial',null)
+        return
+      }
       results.push({
         step_id: step.id,
         step_type: step.step_type,
@@ -973,6 +1001,35 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         : configured
       if (!cfg.template_name) throw new Error('send_template needs template_name')
       const conversationId = await resolveConversationId(args)
+      const sessionFallback = usesSessionTemplates(args.automation.trigger_config)
+      const stopAfterInboundAt = sessionFallback && (args.automation.trigger_config as Record<string,unknown>)?.stop_on_inbound === true
+        ? await windowStart(db,'since_trigger',args.logId) : undefined
+      if(sessionFallback){
+        const order=String(args.context.vars?.order_id??'')
+        if(order){
+          const mirrored=await db.from('orders').select('status,financial_status,payment_reported_at').eq('workspace_id',args.automation.workspace_id).eq('shopify_order_id',order).limit(1).maybeSingle()
+          if(mirrored.error)throw mirrored.error
+          if(['cancelled','canceled','refunded'].includes(String(mirrored.data?.status))||['refunded','voided'].includes(String(mirrored.data?.financial_status)))throw new StopSessionSequence('order cancelled or refunded')
+          if(args.automation.trigger_type==='shopify_order_created'){
+            const conn=await getActiveShopifyConnection(db,args.automation.workspace_id)
+            const financial=conn?await fetchOrderFinancialStatus(conn,order):null
+            if(financial===null)throw new AwaitTemplateAvailability('waiting to verify current payment status')
+            if(financial!=='pending'||mirrored.data?.payment_reported_at)throw new StopSessionSequence('payment no longer pending')
+          }
+        }
+        if(['shopify_abandoned_checkout','payment_rejected'].includes(args.automation.trigger_type)){
+          const contact=await db.from('contacts').select('email,phone').eq('id',args.contactId).eq('workspace_id',args.automation.workspace_id).single()
+          if(contact.error)throw contact.error
+          const since=String(args.context.vars?.checkout_created_at??args.context.vars?.rejected_at??await windowStart(db,'since_trigger',args.logId))
+          const purchase=await consultarCompra(db,{workspaceId:args.automation.workspace_id,sinceIso:since,email:contact.data.email,phone:contact.data.phone})
+          if(purchase.estado==='sin_respuesta')throw new AwaitTemplateAvailability('waiting to verify purchase status')
+          if(purchase.estado==='compro')throw new StopSessionSequence('customer already purchased')
+          if(args.automation.trigger_type==='shopify_abandoned_checkout'&&await evaluateCondition({subject:'rejected_open',operand:'24h',value:'true'},args))throw new StopSessionSequence('payment recovery takes precedence over cart recovery')
+        }
+      }
+      // Check before assigning context, creating links or executing side effects.
+      if(sessionFallback) await sessionSendPlan(db,{workspaceId:args.automation.workspace_id,conversationId,
+        contactId:args.contactId,templateName:cfg.template_name,language:cfg.language??'es',stopAfterInboundAt})
 
       // Enriquecer el contexto con los datos del cliente para que las variables
       // "Correo/Teléfono/Nombre del cliente" se resuelvan en cualquier
@@ -1137,7 +1194,14 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         headerImageUrl = evidence.mediaUrl
         photoDetail = `tracking evidence: ${evidence.validation.shipmentStatus}`
       }
-      const { whatsapp_message_id } = await engineSendTemplate({
+      const delivery = sessionFallback ? await sessionSendPlan(db,{workspaceId:args.automation.workspace_id,conversationId,
+        contactId:args.contactId,templateName:cfg.template_name,language:cfg.language??'es',stopAfterInboundAt}) : null
+      if(sessionFallback&&!args.logId)throw new Error('session delivery requires a persistent execution')
+      const sessionText = delivery?.mode === 'session' ? sessionTemplateText(delivery.template,params,{buttonUrlParam,buttonUrlIndex}) : null
+      const claim = sessionFallback ? await claimTemplateDelivery(db,{workspaceId:args.automation.workspace_id,
+        conversationId,logId:args.logId!,stepId:step.id,templateName:cfg.template_name,automationName:args.automation.name}) : null
+      if(claim?.existingMessageId)return `already sent (${claim.existingMessageId}); no replay`
+      const sendArgs = {
         workspaceId: args.automation.workspace_id,
         conversationId,
         contactId: args.contactId,
@@ -1154,7 +1218,12 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         // paso para que no relaje la protección de ninguna otra automatización;
         // las bajas, los cupos y la ventana de Meta se siguen evaluando.
         cooldownHours: configured.cooldown_hours,
-      })
+        reservedMessageId:claim?.id,
+      }
+      const { whatsapp_message_id } = delivery?.mode==='session'
+        ? await engineSendText({...sendArgs,text:sessionText!,
+          sourceTemplateName:cfg.template_name,strictSessionWindow:true})
+        : await engineSendTemplate(sendArgs)
       if (!whatsapp_message_id) exigirQueHayaSalido()
       if (variant && configured.ab_test) {
         await recordExperimentExposure(db, {
@@ -1169,7 +1238,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
           whatsappMessageId: whatsapp_message_id,
         })
       }
-      return `template sent via Meta (${whatsapp_message_id})${variant ? ` [A/B ${variant.id.toUpperCase()}]` : ''}${photoDetail ? `; ${photoDetail}` : ''}`
+      return `${delivery?.mode==='session'?'session text':'template'} sent via Meta (${whatsapp_message_id})${variant ? ` [A/B ${variant.id.toUpperCase()}]` : ''}${photoDetail ? `; ${photoDetail}` : ''}`
     }
 
     case 'set_context': {

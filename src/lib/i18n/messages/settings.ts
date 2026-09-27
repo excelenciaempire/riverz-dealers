@@ -2,6 +2,18 @@ import type { Namespace } from './types';
 
 /** Settings page: tabs, appearance and the language picker. */
 export const settings = {
+  walletChargedOperations:{es:'{count} cargos de consumo',en:'{count} usage charges'},
+  walletActivity:{es:'Atención en el período',en:'Service activity in this period'},
+  walletActivityNote:{es:'Contactos registrados por canal. Una respuesta puede incluir varios mensajes; el costo no se calcula por burbuja.',en:'Contact records by channel. One reply may contain several messages; cost is not calculated per bubble.'},
+  walletActivityChannel:{es:'Canal',en:'Channel'},
+  walletActivityContacts:{es:'Contactos con respuesta automática',en:'Contacts with automated replies'},
+  walletActivityAuto:{es:'Mensajes automáticos',en:'Automated messages'},
+  walletActivitySent:{es:'Total enviado',en:'Total sent'},
+  walletActivityTotal:{es:'Total',en:'Total'},
+  walletActivityOther:{es:'Otro canal',en:'Other channel'},
+  walletActivityFbComments:{es:'Comentarios de Facebook',en:'Facebook comments'},
+  walletActivityIgComments:{es:'Comentarios de Instagram',en:'Instagram comments'},
+  walletActivityWeb:{es:'Chat web',en:'Web chat'},
   walletPurposeReply:{es:'Respuesta al cliente',en:'Customer reply'},
   walletPurposeRewrite:{es:'Revisión de una respuesta',en:'Reply revision'},
   walletPurposeClosure:{es:'Comprobar si el cliente necesita respuesta',en:'Check whether the customer needs a reply'},

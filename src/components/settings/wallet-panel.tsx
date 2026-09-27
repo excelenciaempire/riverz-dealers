@@ -40,6 +40,7 @@ interface Tarifa {
 }
 
 interface Estado {
+  activity:{contacts:number;automaticContacts:number;sent:number;automated:number;byChannel:Array<{channel:string;contacts:number;automaticContacts:number;sent:number;automated:number;failed:number}>};
   reservadoCentavos?: number;
   saldoCentavos: number;
   moneda: string;
@@ -119,6 +120,9 @@ export function WalletPanel() {
   const { locale } = useLocale();
   const fmt = useFormat();
   const tz=useTimezone();
+  const channelName=(channel:string)=>channel==='fb_comment'?t('settings.walletActivityFbComments'):
+    channel==='ig_comment'?t('settings.walletActivityIgComments'):channel==='webchat'?t('settings.walletActivityWeb'):
+    ({whatsapp:'WhatsApp',gmail:'Gmail',outlook:'Outlook / Hotmail',zoho:'Zoho',instagram:'Instagram',messenger:'Messenger',mercadolibre:'Mercado Libre',telegram:'Telegram',sms:'SMS',tiktok:'TikTok'} as Record<string,string>)[channel]??t('settings.walletActivityOther');
   const fetchWithCsrf = useFetchWithCsrf();
 
   const [dias, setDias] = useState<number | null>(30);
@@ -728,6 +732,7 @@ export function WalletPanel() {
                           {plata(c.centavos)} · {pct}%
                         </span>
                       </div>
+                      <p className="text-xs text-muted-foreground mt-1">{t('settings.walletChargedOperations',{count:c.movimientos})}</p>
                       <div className="bg-muted mt-1 h-1.5 w-full overflow-hidden rounded-full">
                         <div
                           className="bg-primary h-full rounded-full"
@@ -744,6 +749,17 @@ export function WalletPanel() {
       </div>
 
       {/* ── El detalle ──────────────────────────────────────────────── */}
+      {e.activity&&<section className="border-border bg-card rounded-xl border p-5">
+        <h3 className="text-sm font-semibold">{t('settings.walletActivity')}</h3>
+        <p className="text-muted-foreground mt-1 text-xs">{t('settings.walletActivityNote')}</p>
+        <div className="overflow-x-auto mt-4"><table className="w-full text-sm">
+          <thead className="text-muted-foreground"><tr><th className="text-left py-2">{t('settings.walletActivityChannel')}</th>
+            <th className="text-right px-3">{t('settings.walletActivityContacts')}</th><th className="text-right px-3">{t('settings.walletActivityAuto')}</th><th className="text-right">{t('settings.walletActivitySent')}</th></tr></thead>
+          <tbody>{e.activity.byChannel.map(c=><tr key={c.channel} className="border-t border-border"><td className="py-3">{channelName(c.channel)}</td>
+            <td className="text-right px-3 tabular-nums">{fmt.number(c.automaticContacts)}</td><td className="text-right px-3 tabular-nums">{fmt.number(c.automated)}</td><td className="text-right tabular-nums">{fmt.number(c.sent)}</td></tr>)}</tbody>
+          <tfoot className="font-semibold border-t border-border"><tr><td className="py-3">{t('settings.walletActivityTotal')}</td><td className="text-right px-3">{fmt.number(e.activity.automaticContacts)}</td><td className="text-right px-3">{fmt.number(e.activity.automated)}</td><td className="text-right">{fmt.number(e.activity.sent)}</td></tr></tfoot>
+        </table></div>
+      </section>}
       <details
         className="group border-border bg-card rounded-xl border"
         open={movimientosAbiertos}

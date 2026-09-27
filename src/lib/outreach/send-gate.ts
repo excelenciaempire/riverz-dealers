@@ -51,6 +51,7 @@ export interface SendGateInput {
   cooldownHours?: number
   /** Cuántos destinatarios suma esta llamada al cupo de la WABA. */
   recipients?: number
+  excludeMessageIds?: string[]
   /** Non-Meta channels retain opt-out/cooldown without a WhatsApp window. */
   channel?: import('@/types').Channel
 }
@@ -91,6 +92,7 @@ export async function checkSendGate(input: SendGateInput): Promise<SendGateVerdi
       workspaceId: input.workspaceId,
       contactId: input.contactId,
       withinHours: horas,
+      excludeMessageIds:input.excludeMessageIds,
     })
     if (hit.blocked) {
       return {

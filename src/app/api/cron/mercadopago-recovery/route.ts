@@ -456,6 +456,7 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
             // Lo lee la condición 'compró después del rechazo' al evaluarse,
             // que es después de la espera del flujo.
             rejected_at: r.rejected_at,
+            payment_id: r.id,
           },
         },
       })

@@ -417,6 +417,7 @@ export const admin = {
     es: 'Drena pasos de espera de automatizaciones',
     en: 'Drains automation wait steps',
   },
+  cronAutomationTemplates: {es:'Sincroniza la aprobación de plantillas sin repetir envíos',en:'Syncs template approvals without replaying deliveries'},
   cronFlowsRetries: {
     es: 'Reintenta ejecuciones de flujo fallidas',
     en: 'Retries failed flow runs',

@@ -15,6 +15,7 @@ import type { Locale } from '@/lib/i18n/config'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AutomationActivationState, AutomationTriggerType } from '@/types'
 import { loadStepsTree } from './steps-tree'
+import {usesSessionTemplates,canUseSessionTemplate} from './session-template'
 import {
   validateStepsForActivation,
   validateTriggerForActivation,
@@ -117,6 +118,7 @@ export async function activationIssuesById(
   if (!fila) throw new Error('esa automatización no existe en esta cuenta')
 
   const steps = (await loadStepsTree(fila.id)) as unknown as StepLike[]
+  const sessionFallback=usesSessionTemplates(fila.trigger_config)
   const issues = activationIssues({
     triggerType: fila.trigger_type,
     triggerConfig: fila.trigger_config,
@@ -137,14 +139,17 @@ export async function activationIssuesById(
   // revisaba el log. La aprobación de Meta es una dependencia real de la
   // activación, no una sugerencia de la tarjeta.
   const nombres = new Set<string>()
+  const required = new Set<string>()
   const walk = (items: StepLike[]) => items.forEach((step) => {
     if (step.step_type === 'send_template') {
       const name = String(step.step_config?.template_name ?? '').trim()
       if (name) nombres.add(name)
+      if(name)required.add(`${name}:${String(step.step_config.language??'es')}`)
       const variants = (step.step_config?.ab_test as { variants?: Array<{ template_name?: string }> } | undefined)?.variants ?? []
       for (const variant of variants) {
         const variantName = String(variant.template_name ?? '').trim()
         if (variantName) nombres.add(variantName)
+        if(variantName)required.add(`${variantName}:${String((variant as {language?:string}).language??step.step_config.language??'es')}`)
       }
     }
     if (step.branches) {
@@ -154,17 +159,18 @@ export async function activationIssuesById(
   })
   walk(steps)
   if (nombres.size > 0) {
-    const { data: templates } = await db
+    const { data: templates, error: templateError } = await db
       .from('message_templates')
-      .select('name, status, meta_status')
+      .select('name, language, status, meta_status, body_text, header_type')
       .eq('workspace_id', workspaceId)
       .in('name', [...nombres])
+    if(templateError)throw templateError
     const approved = new Set(
       (templates ?? [])
-        .filter(isTemplateReady)
-        .map((t) => String(t.name)),
+        .filter(t=>isTemplateReady(t)||(sessionFallback&&canUseSessionTemplate(t)))
+        .map((t) => `${t.name}:${t.language}`),
     )
-    if ([...nombres].some((name) => !approved.has(name))) {
+    if ([...required].some((name) => !approved.has(name))) {
       issues.push({
         path: 'steps',
         message: 'all templates must be approved by Meta before activation',
@@ -192,9 +198,9 @@ export async function activationIssuesById(
       issues.push(issueWhatsappUnavailable())
     } else {
       const blockers = health.health_blockers ?? []
-      if (blockers.some((blocker) => blocker.code === 141006)) {
+      if (blockers.some((blocker) => blocker.code === 141006) && !(sessionFallback&&(templates??[]).every(canUseSessionTemplate))) {
         issues.push(issueWhatsappPayment())
-      } else if (String(health.health_can_send ?? '').toUpperCase() === 'BLOCKED') {
+      } else if (String(health.health_can_send ?? '').toUpperCase() === 'BLOCKED' && !(sessionFallback&&blockers.length>0&&blockers.every(b=>b.code===141006))) {
         issues.push(issueWhatsappUnavailable())
       }
     }

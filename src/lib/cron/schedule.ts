@@ -54,6 +54,7 @@ export type ScheduledJob = {
 export const DEFAULT_TIMEOUT_MS = 180_000;
 
 export const SCHEDULED_JOBS: ScheduledJob[] = [
+  {name:'automation-templates',path:'/api/cron/automation-templates',schedule:'*/5 * * * *',whatKey:'admin.cronAutomationTemplates',retryOnFailure:true},
   { name: 'voice-numbers', path: '/api/cron/voice-numbers', schedule: '*/5 * * * *', whatKey: 'admin.cronVoiceNumbers' },
   {
     name: 'wallet-conciliacion',

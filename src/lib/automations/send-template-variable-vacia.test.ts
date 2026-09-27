@@ -21,7 +21,10 @@ vi.mock('./admin-client', () => ({ supabaseAdmin: () => ({ from: (table: string)
     then: (resolve: any, reject: any) => Promise.resolve().then(() => {
       const rows = state.tables[table]
       if (!rows) throw Error(`Unexpected table ${table}`)
-      if (operation === 'insert') rows.push({ id: `new-${rows.length}`, ...payload })
+      if (operation === 'insert') {
+        if (payload.id && rows.some(r=>r.id===payload.id)) return {data:null,error:{code:'23505'}}
+        rows.push({ id: `new-${rows.length}`, ...payload })
+      }
       const found = rows.filter(r => filters.every(f => f(r)))
       if (operation === 'update') found.forEach(r => Object.assign(r, payload))
       return { data: single ? found[0] ?? null : found, error: null, count: count ? found.length : null }
@@ -34,7 +37,8 @@ vi.mock('./template-ab-attribution', () => ({ assignedTemplateVariant: async () 
 vi.mock('./riverzoficial-template-context', () => ({ requireRiverzoficialTemplateItems: async () => undefined }))
 vi.mock('./riverzoficial-context-gate', () => ({ riverzFlowSkipReason: async () => null }))
 const sendTemplate = vi.hoisted(() => vi.fn(async () => ({ whatsapp_message_id: 'wamid.1' })))
-vi.mock('./meta-send', () => ({ engineSendText: vi.fn(), engineSendTemplate: sendTemplate }))
+const sendText = vi.hoisted(() => vi.fn(async () => ({ whatsapp_message_id: 'wamid.text' })))
+vi.mock('./meta-send', () => ({ engineSendText: sendText, engineSendTemplate: sendTemplate }))
 
 import { resumePendingExecution } from './engine'
 
@@ -49,6 +53,7 @@ const pendingCon = (vars: Record<string, string>) => ({
 
 beforeEach(() => {
   sendTemplate.mockClear()
+  sendText.mockClear()
   state.tables = {
     automations: [{ id: 'a', workspace_id: 'w', name: 'Rasmiaw · Envío', trigger_type: 'shopify_order_fulfilled', is_active: true, activation_state: 'active', trigger_config: { handoff_ai_agent_id: 'agente' } }],
     automation_pending_executions: [{ ...pendingCon({}), status: 'running', run_at: '2026-09-17T15:00:00Z' }],
@@ -58,6 +63,52 @@ beforeEach(() => {
     conversations: [{ id: 'conv', workspace_id: 'w', contact_id: 'c', channel: 'whatsapp', deleted_at: null, assigned_ai_agent_id: null }],
     message_templates: [{ workspace_id: 'w', name: 'rasmiaw_envio_tracking', language: 'es', buttons: null }],
   }
+})
+
+describe('native session-template execution',()=>{
+  beforeEach(()=>{
+    state.tables.automations[0].trigger_config.session_template_fallback=true
+    state.tables.automation_logs[0].created_at=new Date().toISOString()
+    Object.assign(state.tables.message_templates[0],{status:'Pending',meta_status:'PENDING',body_text:'Guía {{1}}',header_type:null})
+    state.tables.channel_connections=[{workspace_id:'w',channel:'whatsapp',status:'connected',health_can_send:'OK',health_blockers:[]}]
+    state.tables.messages=[{id:'inbound',conversation_id:'conv',sender_type:'customer',created_at:new Date(Date.now()-3600000).toISOString()}]
+  })
+  it('uses the configured copy with no template send or second engine',async()=>{
+    await resumePendingExecution(pendingCon({tracking_number:'RA123'}))
+    expect(sendText).toHaveBeenCalledOnce()
+    expect(sendText).toHaveBeenCalledWith(expect.objectContaining({text:'Guía RA123',strictSessionWindow:true,sourceTemplateName:'rasmiaw_envio_tracking'}))
+    expect(sendTemplate).not.toHaveBeenCalled()
+    expect(state.tables.messages.filter(r=>r.origin==='automation')).toHaveLength(1)
+  })
+  it('waits on the same step when the window is closed without reserving a message',async()=>{
+    state.tables.messages[0].created_at=new Date(Date.now()-25*3600000).toISOString()
+    await resumePendingExecution(pendingCon({tracking_number:'RA123'}))
+    expect(sendText).not.toHaveBeenCalled();expect(sendTemplate).not.toHaveBeenCalled()
+    expect(state.tables.automation_pending_executions.some(r=>r.status==='pending'&&r.next_step_position===0&&r.log_id==='log')).toBe(true)
+    expect(state.tables.messages).toHaveLength(1)
+  })
+  it('an approval cannot resend a previously delivered session message',async()=>{
+    await resumePendingExecution(pendingCon({tracking_number:'RA123'}))
+    Object.assign(state.tables.messages.find(r=>r.origin==='automation'),{message_id:'wamid.text',status:'sent'})
+    Object.assign(state.tables.message_templates[0],{status:'Approved',meta_status:'APPROVED'})
+    await resumePendingExecution(pendingCon({tracking_number:'RA123'}))
+    expect(sendText).toHaveBeenCalledOnce();expect(sendTemplate).not.toHaveBeenCalled()
+  })
+  it('stops for a human handoff and never bypasses a mixed account block',async()=>{
+    state.tables.conversations[0].needs_human_reason='refund'
+    await resumePendingExecution(pendingCon({tracking_number:'RA123'}))
+    expect(sendText).not.toHaveBeenCalled()
+    state.tables.conversations[0].needs_human_reason=null
+    Object.assign(state.tables.channel_connections[0],{health_can_send:'BLOCKED',health_blockers:[{code:141006},{code:368}]})
+    await resumePendingExecution(pendingCon({tracking_number:'RA123'}))
+    expect(sendText).not.toHaveBeenCalled();expect(state.tables.automation_logs[0].status).toBe('failed')
+  })
+  it('leaves a customer reply to Natalia, without a second automatic message',async()=>{
+    state.tables.automations[0].trigger_config.stop_on_inbound=true
+    state.tables.automation_logs[0].created_at=new Date(Date.now()-7200000).toISOString()
+    await resumePendingExecution(pendingCon({tracking_number:'RA123'}))
+    expect(sendText).not.toHaveBeenCalled();expect(sendTemplate).not.toHaveBeenCalled()
+  })
 })
 
 describe('send_template con una variable vacía', () => {

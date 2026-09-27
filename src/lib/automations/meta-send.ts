@@ -19,6 +19,7 @@ import { resolveTemplateButtons } from '@/lib/whatsapp/template-buttons'
 import { checkSendGate, type SendReason } from '@/lib/outreach/send-gate'
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes'
 import { supabaseAdmin } from './admin-client'
+import {serviceWindowOpen} from './session-template'
 
 // ------------------------------------------------------------
 // Automation-side Meta sender.
@@ -53,6 +54,9 @@ interface SendTextArgs extends OriginArgs {
   conversationId: string
   contactId: string
   text: string
+  reservedMessageId?: string
+  sourceTemplateName?: string
+  strictSessionWindow?: boolean
 }
 
 interface SendImageArgs extends OriginArgs {
@@ -99,7 +103,24 @@ type SendInput =
   | (SendTemplateArgs & { kind: 'template' })
 
 async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: string }> {
+  try {
+    return await sendViaMetaOnce(input)
+  } catch (error) {
+    if (input.reservedMessageId) {
+      // Retain the durable claim even when delivery is uncertain: never replay it.
+      await supabaseAdmin().from('messages').update({status:'failed',error_code:'automation_delivery_review',
+        error_reason:error instanceof Error?error.message:String(error)})
+        .eq('id',input.reservedMessageId).eq('conversation_id',input.conversationId).eq('status','sending')
+    }
+    throw error
+  }
+}
+
+async function sendViaMetaOnce(input: SendInput): Promise<{ whatsapp_message_id: string }> {
   const db = supabaseAdmin()
+  const recordFailure = (row:Record<string,unknown>) => input.reservedMessageId
+    ? db.from('messages').update(row).eq('id',input.reservedMessageId).eq('conversation_id',input.conversationId)
+    : db.from('messages').insert(row)
 
   // Scope the contact lookup to the automation's workspace. The engine uses
   // the service-role client (bypassing RLS), and the public
@@ -143,11 +164,12 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     kind: input.kind === 'image' ? 'text' : input.kind,
     reason: input.reason ?? 'transaccional',
     cooldownHours: input.cooldownHours,
+    excludeMessageIds:input.reservedMessageId?[input.reservedMessageId]:undefined,
   })
   if (!verdict.allow) {
     // Queda escrito con nombre propio: el comercio ve "no salió porque pidió
     // la baja" en vez de un hueco en el registro.
-    await db.from('messages').insert({
+    await recordFailure({
       conversation_id: input.conversationId,
       sender_type: 'bot',
       content_type: input.kind === 'template' ? 'template' : input.kind,
@@ -200,7 +222,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
           .eq('error_code', META_MARKETING_LIMIT_CODE)
           .gt('created_at', new Date(Date.now() - 24 * 3_600_000).toISOString())
         if ((count ?? 0) > 0) {
-          await db.from('messages').insert({
+          await recordFailure({
             conversation_id: input.conversationId,
             sender_type: 'bot',
             content_type: 'template',
@@ -216,7 +238,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       }
     }
     if (isMarketing && isUsPhone(sanitized)) {
-      await db.from('messages').insert({
+      await recordFailure({
         conversation_id: input.conversationId,
         sender_type: 'bot',
         content_type: 'template',
@@ -271,6 +293,11 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       : null
 
   const sendOnce = async (phone: string): Promise<MetaSendResult> => {
+    if(input.kind==='text'&&input.strictSessionWindow){
+      const inbound=await db.from('messages').select('created_at').eq('conversation_id',input.conversationId)
+        .eq('sender_type','customer').is('deleted_at',null).order('created_at',{ascending:false}).limit(1).maybeSingle()
+      if(inbound.error||!serviceWindowOpen(inbound.data?.created_at))throw new Error('WhatsApp service window unavailable or closed')
+    }
     if (input.kind === 'template') {
       return sendTemplateMessage({
         phoneNumberId,
@@ -303,7 +330,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   // Permanent errors (bad template, invalid recipient) and network
   // timeouts (where the send may have landed) throw on the first try.
   const attempt = async (phone: string): Promise<MetaSendResult> => {
-    const MAX = 3
+    const MAX = input.reservedMessageId ? 1 : 3
     for (let i = 1; i <= MAX; i++) {
       try {
         return await sendOnce(phone)
@@ -358,7 +385,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   // no había texto que renderizar. Reconstruimos el body desde message_templates
   // + los params posicionales que ya tenemos a mano.
   const content_type = input.kind === 'template' ? (input.headerImageUrl ? 'image' : 'template') : input.kind
-  const template_name = input.kind === 'template' ? input.templateName : null
+  const template_name = input.kind === 'template' ? input.templateName : input.kind==='text' ? input.sourceTemplateName??null : null
   let content_text: string | null = input.kind === 'text' ? textoPreparado : null
   // Botones resueltos de la plantilla, para que la bandeja los muestre con el
   // enlace real (no el placeholder {{1}}). Sin esto la burbuja mostraba el
@@ -405,7 +432,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       // revisión de calidad" en vez de un 'sent' mudo.
       held_for_quality: sendResult.messageStatus === 'held_for_quality_assessment',
     }
-  const persistMessage = input.kind !== 'text' && input.reservedMessageId
+  const persistMessage = input.reservedMessageId
     ? db.from('messages').update(messageRow).eq('id', input.reservedMessageId).eq('conversation_id', input.conversationId)
     : db.from('messages').insert(messageRow)
   const { data: inserted, error: msgErr } = await persistMessage

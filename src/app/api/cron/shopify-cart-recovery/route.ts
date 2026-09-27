@@ -165,6 +165,7 @@ async function cronHandler(request: Request) {
       workspace_id: string
       shop_domain: string
       checkout_id: string
+      created_at: string
       customer_email: string | null
       customer_phone: string
       customer_name: string | null
@@ -308,6 +309,7 @@ async function cronHandler(request: Request) {
         currency: r.currency ?? '',
         customer_name: r.customer_name ?? '',
         checkout_token: r.checkout_id,
+        checkout_created_at: r.created_at,
       }
       await runAutomationsForTrigger({
         workspaceId: r.workspace_id,
