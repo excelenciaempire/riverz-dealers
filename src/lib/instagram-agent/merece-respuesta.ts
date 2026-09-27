@@ -239,6 +239,11 @@ export function esCriticaPublica(texto: string): boolean {
 
 export function mereceRespuesta(texto: string): MotivoRespuesta | null {
   const t = normalizar(texto);
+  // Consultas comerciales elípticas: no necesitan signos ni ocho caracteres.
+  // Coincidencia completa para no convertir elogios o acusaciones en preguntas.
+  if (/^[¿?\s]*(?:(?:es|son|is it|are they)\s+)?(?:original(?:es)?|aut[ée]ntic[oa]s?|authentic|genuine|precio|price|tallas?|sizes?|stock|env[ií]os?|shipping|garant[ií]a|warranty)[?¿!.\s]*$/i.test(t)) {
+    return 'pregunta';
+  }
   // Un comentario de tres letras no es nada de esto.
   if (t.length < 8) return null;
   // Lo legal gana sobre todo lo demás: es lo que peor se puede contestar.

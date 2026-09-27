@@ -114,6 +114,17 @@ describe('simularComentario — el mismo camino que Comentarios en vivo', () => 
     expect((await comentar('Jajaja mirá esto')).barrera?.tipo).toBe('comment_sin_intencion')
   })
 
+  it('responde Original en Facebook aunque el clasificador le dé intención baja', async () => {
+    s.clasificacion = { spam: false, score: 'low', sentiment: 'neutral' }
+    s.respuesta = '¿Quieres saber si son originales de la marca?'
+    s.ajustes.replyMode = 'public_dm'
+    const r = await comentar('Original', 'fb_comment')
+    expect(r.barrera).toBeNull()
+    expect(s.simulada).toHaveBeenCalled()
+    expect(r.publico).toBeTruthy()
+    expect(r.privado).toBeTruthy()
+  })
+
   it('en "si hace falta" publica una línea y manda el resto por privado', async () => {
     const r = await comentar('¿Cuánto sale el de 4 meses?')
     expect(r.barrera).toBeNull()

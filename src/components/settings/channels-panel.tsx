@@ -27,7 +27,6 @@ import {
   isMetaAccessWarning,
   isMetaAssetAccessWarning,
 } from '@/lib/channels/meta-auth';
-import { hasCurrentCoexistenceEchoAlarm } from '@/lib/channels/whatsapp/echo-health';
 import { ShopifyCard } from '@/components/settings/shopify-card';
 import { StoreCard } from '@/components/settings/store-card';
 import { MercadoPagoCard } from '@/components/settings/mercadopago-card';
@@ -537,14 +536,6 @@ export function ChannelsPanel() {
                     const metaAccessWarning = conns.some((connection) =>
                       isMetaAccessWarning(connection.last_error)
                     );
-                    // Coexistencia: los clientes escriben y no entra ninguna
-                    // respuesta enviada desde el teléfono del comercio. Es un
-                    // aviso, y cede ante cualquier error de la conexión.
-                    const echoesWarning =
-                      !metaAssetAccessWarning &&
-                      !metaAccessWarning &&
-                      primary.status !== 'error' &&
-                      hasCurrentCoexistenceEchoAlarm(primary.config ?? {});
                     const errText = metaAssetAccessWarning
                       ? t('settings.metaAssetAccessNeedsRenewal', {
                           account:
@@ -556,9 +547,7 @@ export function ChannelsPanel() {
                         ? t('settings.metaAccessNeedsRefresh')
                         : primary.status === 'error'
                           ? lastError
-                          : echoesWarning
-                            ? t('settings.whatsappEchoesMissing')
-                            : null;
+                          : null;
                     return (
                       <li
                         key={primary.id}
@@ -591,7 +580,7 @@ export function ChannelsPanel() {
                           <p
                             className={cn(
                               'mt-1 pl-6 text-[10px] leading-snug',
-                              metaAccessWarning || echoesWarning
+                              metaAccessWarning
                                 ? 'text-amber-700 dark:text-amber-300'
                                 : 'text-red-600 dark:text-red-400'
                             )}

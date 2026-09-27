@@ -3,6 +3,14 @@ import { afirmaLoQueNoSabe, esCriticaPublica, mereceRespuesta } from './merece-r
 import { recortarSalida as recortar } from '@/lib/ai/salida'
 
 describe('mereceRespuesta', () => {
+  it('atiende consultas comerciales breves aunque no tengan signos', () => {
+    for (const texto of ['Original', 'Originales?', 'Son originales', 'Auténticos', 'Genuine?', 'Are they authentic', 'Talla', 'Stock', 'Envío']) {
+      expect(mereceRespuesta(texto)).toBe('pregunta')
+    }
+    for (const texto of ['Qué original tu anuncio', '😍', '@maria mira', 'Hola', 'jajaja']) {
+      expect(mereceRespuesta(texto)).toBeNull()
+    }
+  })
   it('atiende las críticas que quedaron sin respuesta el 2026-08-28', () => {
     // Los seis comentarios reales de ese día bajo el mismo post. Ninguno
     // quiere comprar, así que el filtro "solo compradores" los descartaba.

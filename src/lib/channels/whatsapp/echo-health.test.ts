@@ -1,19 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelConnection } from "@/types";
-import { checkCoexistenceEchoes, hasCurrentCoexistenceEchoAlarm, nextEchoAlarm } from "./echo-health";
-
-describe("nextEchoAlarm", () => {
-  it("se prende con más de cinco mensajes de clientes y ningún eco", () => {
-    expect(nextEchoAlarm(false, { customers: 6, echoes: 0 })).toBe(true);
-    expect(nextEchoAlarm(false, { customers: 5, echoes: 0 })).toBe(false);
-  });
-
-  it("se apaga sólo cuando aparece un eco; un día tranquilo no la apaga", () => {
-    expect(nextEchoAlarm(true, { customers: 6, echoes: 1 })).toBe(false);
-    expect(nextEchoAlarm(true, { customers: 0, echoes: 0 })).toBe(true);
-  });
-});
+import { checkCoexistenceEchoes } from "./echo-health";
 
 interface Call {
   ops: Array<[string, unknown[]]>;
@@ -71,9 +59,9 @@ describe("checkCoexistenceEchoes", () => {
     const out = await checkCoexistenceEchoes(db, connection({}), now);
 
     expect(out).toEqual({
-      alarm: true,
+      alarm: false,
       counts: { customers: 6, echoes: 0 },
-      patch: { echoes_missing_since: new Date(now).toISOString() },
+      patch: { echoes_missing_since: null },
     });
     for (const call of calls) {
       expect(has(call, "eq", "conversations.workspace_id", "ws-1")).toBe(true);
@@ -87,12 +75,12 @@ describe("checkCoexistenceEchoes", () => {
     expect(echo && has(echo, "like", "message_id", "wamid%")).toBe(true);
   });
 
-  it("conserva desde cuándo falta, y se limpia al llegar un eco", async () => {
+  it("limpia la alarma heredada haya o no ecos: el silencio no prueba un fallo", async () => {
     const since = "2026-09-26T09:00:00.000Z";
     const quiet = fakeDb(() => ({ data: [], error: null }));
     expect(await checkCoexistenceEchoes(quiet.db, connection({ echoes_missing_since: since }), now)).toMatchObject({
-      alarm: true,
-      patch: { echoes_missing_since: since },
+      alarm: false,
+      patch: { echoes_missing_since: null },
     });
     const echoed = fakeDb((call) => ({ data: isEchoQuery(call) ? [{ id: "e" }] : [], error: null }));
     expect(await checkCoexistenceEchoes(echoed.db, connection({ echoes_missing_since: since }), now)).toMatchObject({
@@ -101,12 +89,12 @@ describe("checkCoexistenceEchoes", () => {
     });
   });
 
-  it("una lectura fallida deja la alarma como estaba; sin coexistencia no aplica", async () => {
+  it("una lectura fallida no demuestra un fallo de entrega; sin coexistencia no aplica", async () => {
     const broken = fakeDb(() => ({ data: null, error: { code: "57014" } }));
     expect(await checkCoexistenceEchoes(broken.db, connection({}), now)).toMatchObject({ alarm: false, counts: null });
     expect(
       await checkCoexistenceEchoes(broken.db, connection({ echoes_missing_since: "2026-09-26T09:00:00.000Z" }), now),
-    ).toMatchObject({ alarm: true, counts: null });
+    ).toMatchObject({ alarm: false, counts: null });
     expect(await checkCoexistenceEchoes(broken.db, connection({ coexistence: false }), now)).toBeNull();
   });
 
@@ -119,20 +107,5 @@ describe("checkCoexistenceEchoes", () => {
         now,
       ),
     ).toMatchObject({ alarm: false, patch: { echoes_missing_since: null } });
-  });
-});
-
-describe("hasCurrentCoexistenceEchoAlarm", () => {
-  it("ignora una alarma que pertenece a una conexión anterior", () => {
-    expect(hasCurrentCoexistenceEchoAlarm({
-      health_sync_error: "coexistence_echoes_missing",
-      echoes_missing_since: "2026-09-20T10:00:00.000Z",
-      connected_at: "2026-09-27T10:00:00.000Z",
-    })).toBe(false);
-    expect(hasCurrentCoexistenceEchoAlarm({
-      health_sync_error: "coexistence_echoes_missing",
-      echoes_missing_since: "2026-09-27T11:00:00.000Z",
-      connected_at: "2026-09-27T10:00:00.000Z",
-    })).toBe(true);
   });
 });

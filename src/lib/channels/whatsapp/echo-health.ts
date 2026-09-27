@@ -12,32 +12,15 @@ import type { ChannelConnection } from "@/types";
  * que se conectó el único número en coexistencia no llegó un solo eco, aunque
  * los clientes recibían respuestas desde el teléfono.
  *
- * Por eso se mide lo que sí se puede ver: más de cinco mensajes de clientes en
- * 24 horas (desde la conexión) sin un solo eco. La alarma queda en
- * `config.health_sync_error` y se apaga cuando aparece un eco.
+ * El conteo es diagnóstico, no prueba de un fallo: el comercio puede atender
+ * sólo desde Riverz o no haber enviado nada desde el teléfono. No se genera
+ * una alarma ni se exige reconectar a partir de ausencia de ecos.
  */
 
 /** Código de la alarma en `config.health_sync_error`. Sin dependencias: lo usa la UI. */
 export const COEXISTENCE_ECHOES_MISSING = "coexistence_echoes_missing";
 
-/**
- * Una alarma de una conexión anterior no aplica después de reconectar. El
- * `connected_at` nuevo abre otra ventana y necesita evidencia nueva.
- */
-export function hasCurrentCoexistenceEchoAlarm(
-  config: Record<string, unknown>,
-): boolean {
-  if (config.health_sync_error !== COEXISTENCE_ECHOES_MISSING) return false;
-  const alarmAt = Date.parse(String(config.echoes_missing_since ?? ""));
-  const connectedAt = Date.parse(String(config.connected_at ?? ""));
-  return (
-    !Number.isFinite(alarmAt) ||
-    !Number.isFinite(connectedAt) ||
-    alarmAt >= connectedAt
-  );
-}
-
-/** Más de estos mensajes de clientes sin un solo eco ya no es casualidad. */
+/** Límite de muestra del diagnóstico; no es un umbral de fallo. */
 const MIN_CUSTOMER_MESSAGES = 5;
 
 const WINDOW_MS = 24 * 60 * 60_000;
@@ -47,16 +30,6 @@ export interface EchoCounts {
   customers: number;
   /** Ecos del teléfono del comercio en la ventana (0 o 1). */
   echoes: number;
-}
-
-/**
- * ¿Sigue prendida la alarma? Se prende con tráfico y ningún eco, y se apaga
- * sólo cuando aparece uno: un día tranquilo no prueba que el problema se fue.
- */
-export function nextEchoAlarm(previous: boolean, counts: EchoCounts): boolean {
-  if (counts.echoes > 0) return false;
-  if (counts.customers > MIN_CUSTOMER_MESSAGES) return true;
-  return previous;
 }
 
 /**
@@ -98,9 +71,9 @@ export async function countCoexistenceEchoes(
 }
 
 /**
- * La alarma de una conexión y el parche de config que la conserva. Null si la
- * conexión no es de coexistencia. Si la lectura falla, la alarma queda como
- * estaba: un error de base no la apaga ni la prende.
+ * Diagnóstico de actividad y limpieza de las alarmas antiguas basadas en
+ * silencio. Null si la conexión no es de coexistencia. Una lectura fallida
+ * devuelve counts=null, nunca una afirmación de que se perdieron mensajes.
  */
 export async function checkCoexistenceEchoes(
   db: SupabaseClient,
@@ -109,17 +82,10 @@ export async function checkCoexistenceEchoes(
 ): Promise<{ alarm: boolean; counts: EchoCounts | null; patch: Record<string, unknown> } | null> {
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
   if (cfg.coexistence !== true) return null;
-  const storedSince = typeof cfg.echoes_missing_since === "string" ? cfg.echoes_missing_since : null;
-  const connectedAt = Date.parse(String(cfg.connected_at ?? ""));
-  const since = storedSince && (!Number.isFinite(connectedAt) || Date.parse(storedSince) >= connectedAt)
-    ? storedSince
-    : null;
   const counts = await countCoexistenceEchoes(db, connection, nowMs);
-  const alarm = counts ? nextEchoAlarm(Boolean(since), counts) : Boolean(since);
   return {
-    alarm,
+    alarm: false,
     counts,
-    // Desde cuándo falta: sobrevive a otros errores que ocupen health_sync_error.
-    patch: { echoes_missing_since: alarm ? (since ?? new Date(nowMs).toISOString()) : null },
+    patch: { echoes_missing_since: null },
   };
 }

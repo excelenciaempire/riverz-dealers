@@ -25,8 +25,8 @@ import { createClient } from '@/lib/supabase/server';
  *   ig_order_attributions — el dinero, filtrado a source='comment_to_dm'.
  *
  * RLS acota al workspace del usuario; `workspace_id` afina cuando pertenece a
- * más de uno. Todo es mejor-esfuerzo: una cifra que no carga vale 0, nunca
- * rompe la página.
+ * más de uno. Si falla la lectura, el cliente conserva el último dato válido
+ * y reintenta sin presentar ceros como actividad confirmada.
  */
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -77,9 +77,14 @@ export async function GET(request: Request) {
     ),
   ]);
 
+  // Un fallo de lectura no es cero actividad. El cliente conserva el último
+  // dato válido y reintenta en la próxima actualización.
+  if (dmsSent.error || aiPublic.error || rulePublic.error) {
+    return NextResponse.json({ error: 'comment_stats_unavailable' }, { status: 503 });
+  }
   return NextResponse.json({
     dms_sent: dmsSent.count ?? 0,
     public_replies: (aiPublic.count ?? 0) + (rulePublic.count ?? 0),
     days,
-  });
+  }, { headers: { 'Cache-Control': 'no-store' } });
 }

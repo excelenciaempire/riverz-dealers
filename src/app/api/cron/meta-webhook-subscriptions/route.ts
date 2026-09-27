@@ -254,10 +254,8 @@ async function cronHandler(request: Request) {
         healthRefreshed = true;
         healthCanSend = health.canSendMessage;
       }
-      // Coexistencia: si los clientes escriben y no llega un solo eco del
-      // teléfono del comercio, sus respuestas no están entrando a Riverz aunque
-      // la suscripción diga que sí (echo-health.ts). Queda como alarma de la
-      // conexión, detrás de una suscripción caída, que es la causa más grave.
+      // Actividad de coexistencia, sólo diagnóstica: ningún eco puede significar
+      // que el comercio atiende desde Riverz. La suscripción se verifica aparte.
       const echoes = await checkCoexistenceEchoes(admin, c);
       if (echoes?.alarm) echoAlarms.push({ id: c.id, counts: echoes.counts });
       waResults.push({

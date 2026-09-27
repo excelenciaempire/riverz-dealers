@@ -1585,12 +1585,29 @@ function useCommentStats(workspaceId?: string | null): CommentStats | null {
   const [stats, setStats] = useState<CommentStats | null>(null);
   useEffect(() => {
     let cancelled = false;
-    const qs = workspaceId ? `?workspace_id=${workspaceId}` : '';
-    getJson<CommentStats>(`/api/comments/stats${qs}`).then((json) => {
-      if (!cancelled && json) setStats(json);
-    });
+    let pending = false;
+    setStats(null);
+    if (!workspaceId) return;
+    const qs = `?workspace_id=${encodeURIComponent(workspaceId)}`;
+    const refresh = async () => {
+      if (pending || document.visibilityState === 'hidden') return;
+      pending = true;
+      try {
+        const json = await getJson<CommentStats>(`/api/comments/stats${qs}`);
+        if (!cancelled && json) setStats(json);
+      } finally {
+        pending = false;
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 15_000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
     };
   }, [workspaceId]);
   return stats;
