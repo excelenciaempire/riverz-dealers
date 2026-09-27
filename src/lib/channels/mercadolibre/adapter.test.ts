@@ -20,8 +20,21 @@ vi.mock("../admin-client", () => ({
 }));
 
 import { encrypt } from "../encryption";
-import { buildPackEvents, claimAttachmentName, getFreshMLToken, nextPackOffset } from "./adapter";
+import { buildPackEvents, claimAttachmentName, getFreshMLToken, nextPackOffset, handlesMLNotification } from "./adapter";
 import { MlRateLimitError } from "./rate-limit";
+
+describe('notification topics', () => {
+  it('retains messages, orders, shipments, questions and claims', () => {
+    for (const topic of ['questions', 'marketplace_questions', 'messages', 'messages.created', 'marketplace_messages', 'orders_v2', 'shipments', 'post_purchase', 'post_purchase.claims']) {
+      expect(handlesMLNotification(topic)).toBe(true);
+    }
+  });
+  it('does not require a token for deliberately ignored notifications', () => {
+    for (const topic of ['payments', 'items', 'user_products', 'stock-locations', 'public_candidates']) {
+      expect(handlesMLNotification(topic)).toBe(false);
+    }
+  });
+});
 
 describe("claimAttachmentName", () => {
   it("accepts the current file_name response from Mercado Libre", () => {

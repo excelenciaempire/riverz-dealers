@@ -299,12 +299,26 @@ async function stopReordersForOrderEvent(db: ReturnType<typeof supabaseAdmin>, w
   }
 }
 
-async function cancelPendingByTrigger(
+export async function cancelPendingByTrigger(
   db: ReturnType<typeof supabaseAdmin>, workspaceId: string, contactId: string, triggerType: string,
 ): Promise<void> {
-  const { data: automations } = await db.from('automations').select('id').eq('workspace_id', workspaceId).eq('trigger_type', triggerType)
+  const { data: automations, error } = await db.from('automations').select('id').eq('workspace_id', workspaceId).eq('trigger_type', triggerType)
+  if (error) throw new Error(error.message)
   const ids = (automations ?? []).map((a) => a.id)
-  if (ids.length) await db.from('automation_pending_executions').update({ status: 'done' }).eq('workspace_id', workspaceId).eq('contact_id', contactId).eq('status', 'pending').in('automation_id', ids)
+  if (!ids.length) return
+  const cancelled = await db.from('automation_pending_executions').update({ status: 'done' })
+    .eq('workspace_id', workspaceId).eq('contact_id', contactId).eq('status', 'pending')
+    .in('automation_id', ids).select('id,log_id')
+  if (cancelled.error) throw new Error(cancelled.error.message)
+  // A purchase intentionally ends cart reminders. Record that terminal
+  // outcome so the orphan reconciler cannot mislabel it as an interruption.
+  for (const row of cancelled.data ?? []) {
+    if (!row.log_id) continue
+    await appendResults(String(row.log_id), [{
+      step_id: String(row.id), step_type: 'wait', status: 'skipped',
+      detail: 'cancelled by purchase',
+    }], 'success', null)
+  }
 }
 
 /**

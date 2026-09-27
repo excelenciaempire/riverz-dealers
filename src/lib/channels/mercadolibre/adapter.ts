@@ -29,6 +29,11 @@ import { isMlRateLimit, throwIfRateLimited } from "./rate-limit";
 const ML = "https://api.mercadolibre.com";
 const log = getLogger("channels.mercadolibre");
 
+export function handlesMLNotification(topic: string): boolean {
+  return ['questions', 'marketplace_questions', 'marketplace_messages', 'orders_v2', 'shipments', 'post_purchase'].includes(topic)
+    || topic.startsWith('messages') || topic.startsWith('post_purchase.claims');
+}
+
 /**
  * Mercado Libre documenta dos nombres distintos para el mismo campo según la
  * versión del recurso de reclamos: `filename` y `file_name`. Aceptamos ambos
@@ -263,6 +268,14 @@ export const mercadoLibreAdapter: ChannelAdapter = {
   async parseWebhook(ctx: ParsedWebhookContext, connection: ChannelConnection): Promise<InboundEvent[]> {
     const n = ctx.payload as MlNotification | null;
     if (!n?.resource || !n.topic) return [];
+    // Unsupported topics need no token. Previously a broken token turned even
+    // deliberately ignored notifications into recovery incidents.
+    if (!handlesMLNotification(n.topic)) {
+      log.info("mercadolibre notification ignored — topic not handled", {
+        topic: n.topic, connectionId: connection.id,
+      });
+      return [];
+    }
     const cfg = (connection.config ?? {}) as Record<string, unknown>;
     const sellerId = String(cfg.seller_id ?? "");
 
@@ -379,7 +392,7 @@ export const mercadoLibreAdapter: ChannelAdapter = {
     // sincronizador, que ya sabe normalizar un pedido de ML y traer el envío
     // que le cuelga. El webhook sólo adelanta el reloj: sin él el cambio
     // llegaría en la próxima corrida del cron, hasta 15 minutos después.
-    if (n.topic === "orders_v2" || n.topic === "shipments" || n.topic?.startsWith("post_purchase.claims")) {
+    if (n.topic === "orders_v2" || n.topic === "shipments" || n.topic === "post_purchase" || n.topic?.startsWith("post_purchase.claims")) {
       // Import perezoso: orders.ts importa este módulo para el token, así que
       // hacerlo arriba cerraría el ciclo.
       const { syncAllMercadoLibreOrders } = await import("./orders");

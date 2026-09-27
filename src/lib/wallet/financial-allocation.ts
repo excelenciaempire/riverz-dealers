@@ -45,7 +45,7 @@ export function allocateFinancialReceipt(
     throw new Error('wallet_invalid_financial_receipt');
   }
   const seen = new Set<string>();
-  let attributed = 0n;
+  let attributed = BigInt(0);
   for (const share of shares) {
     if (!share.id || !share.workspaceId || seen.has(share.id) ||
         !cents(share.basisCents) || !cents(share.collectedCents)) {
@@ -67,13 +67,13 @@ export function allocateFinancialReceipt(
   });
   // Round the merchant subtotal DOWN. The unassigned fraction belongs to
   // Riverz. Distribute remaining whole cents deterministically inside it.
-  const target = fee * eligible.reduce((n, s) => n + BigInt(s.basisCents), 0n) / denominator;
-  let remainder = target - pool.reduce((n, p) => n + p.allocated, 0n);
+  const target = fee * eligible.reduce((n, s) => n + BigInt(s.basisCents), BigInt(0)) / denominator;
+  let remainder = target - pool.reduce((n, p) => n + p.allocated, BigInt(0));
   pool.sort((a, b) => a.remainder === b.remainder
     ? (a.share.id < b.share.id ? -1 : a.share.id > b.share.id ? 1 : 0)
     : a.remainder > b.remainder ? -1 : 1);
   for (const part of pool) {
-    if (remainder > 0n) { part.allocated++; remainder--; }
+    if (remainder > BigInt(0)) { part.allocated++; remainder--; }
   }
   const allocations = pool.map(({ share, allocated }) => ({
     receiptId: receipt.id,

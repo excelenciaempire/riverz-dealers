@@ -41,7 +41,7 @@ describe('receipt-backed financial allocations', () => {
     }
   });
   it('rejects an unverified currency or date', () => {
-    expect(() => allocateFinancialReceipt({ ...receipt, currency: 'eur' } as FinancialReceipt, [], activated)).toThrow();
+    expect(() => allocateFinancialReceipt({ ...receipt, currency: 'eur' } as unknown as FinancialReceipt, [], activated)).toThrow();
     expect(() => allocateFinancialReceipt(receipt, [], 'invalid')).toThrow();
   });
   it('preserves exact integer amounts without floating-point multiplication', () => {

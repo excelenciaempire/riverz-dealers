@@ -30,7 +30,8 @@ vi.mock('./admin-client', () => ({ supabaseAdmin: () => ({ from: (table: string)
 vi.mock('@/lib/workspaces/owner', () => ({ resolveWorkspaceOwnerUserId: async () => 'owner' }))
 vi.mock('./meta-send', () => ({ engineSendText: vi.fn(), engineSendTemplate: vi.fn() }))
 
-import { resumePendingExecution } from './engine'
+import { cancelPendingByTrigger, resumePendingExecution } from './engine'
+import { supabaseAdmin } from './admin-client'
 
 const pending = { id: 'pending', automation_id: 'a', workspace_id: 'w', contact_id: 'c', log_id: 'log',
   parent_step_id: null, branch: null, next_step_position: 0, context: { vars: { selected: 'yes' } } }
@@ -46,6 +47,26 @@ beforeEach(() => {
 })
 
 describe('real engine continuation', () => {
+  it('settles a cart reminder cancelled by purchase without sending or replaying', async () => {
+    Object.assign(state.tables.automations[0], { trigger_type: 'shopify_abandoned_checkout' })
+    Object.assign(state.tables.automation_pending_executions[0], { status: 'pending' })
+    await cancelPendingByTrigger(supabaseAdmin(), 'w', 'c', 'shopify_abandoned_checkout')
+    expect(state.tables.automation_pending_executions[0].status).toBe('done')
+    expect(state.tables.automation_logs[0]).toMatchObject({ status: 'success', steps_executed: [
+      { status: 'skipped', detail: 'cancelled by purchase' },
+    ] })
+    expect(state.reads).not.toContain('automation_steps')
+  })
+  it('does not cancel a running reminder or overwrite a previous failure', async () => {
+    Object.assign(state.tables.automations[0], { trigger_type: 'shopify_abandoned_checkout' })
+    await cancelPendingByTrigger(supabaseAdmin(), 'w', 'c', 'shopify_abandoned_checkout')
+    expect(state.tables.automation_pending_executions[0].status).toBe('running')
+    expect(state.tables.automation_logs[0].status).toBe('partial')
+    Object.assign(state.tables.automation_pending_executions[0], { status: 'pending' })
+    state.tables.automation_logs[0].status = 'failed'
+    await cancelPendingByTrigger(supabaseAdmin(), 'w', 'c', 'shopify_abandoned_checkout')
+    expect(state.tables.automation_logs[0].status).toBe('failed')
+  })
   it.each([{ is_active: false }, { activation_state: 'draft' }, { deleted_at: '2026-09-14' }])(
     'releases a claimed wait without executing or changing its date when unavailable: %j', async patch => {
       Object.assign(state.tables.automations[0], patch)
