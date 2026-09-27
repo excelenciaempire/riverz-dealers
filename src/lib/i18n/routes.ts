@@ -1,4 +1,4 @@
-import type { Locale } from "./config";
+import type { Locale } from './config';
 
 /**
  * Localized URLs.
@@ -24,45 +24,46 @@ import type { Locale } from "./config";
 /** Canonical (Spanish, = folder) first segment → English slug. */
 export const ROUTE_SLUGS_EN: Record<string, string> = {
   // dashboard
-  operacion: "operation",
-  logistica: "logistics",
-  panel: "dashboard",
-  bandeja: "inbox",
-  contactos: "contacts",
-  asistente: "ai",
-  menus: "flows",
+  operacion: 'operation',
+  logistica: 'logistics',
+  panel: 'dashboard',
+  bandeja: 'inbox',
+  contactos: 'contacts',
+  asistente: 'ai',
+  menus: 'flows',
   // Llamadas: era el ÚNICO ítem del menú principal sin slug en inglés, así que
   // un usuario en inglés navegaba de /inbox a /voz y la URL cambiaba de idioma
   // sola. Cubre también /voz/campanas, que traduce por el primer segmento.
-  voz: "calls",
-  "chat-web": "web-chat",
-  campanas: "broadcasts",
-  automatizaciones: "automations",
-  plantillas: "templates",
-  "agente-instagram": "instagram-agent",
-  comentarios: "comments",
-  productos: "products",
-  pedidos: "orders",
-  devoluciones: "returns",
-  aprobaciones: "approvals",
-  metricas: "metrics",
-  integraciones: "integrations",
-  ajustes: "settings",
+  voz: 'calls',
+  'chat-web': 'web-chat',
+  campanas: 'broadcasts',
+  automatizaciones: 'automations',
+  plantillas: 'templates',
+  'agente-instagram': 'instagram-agent',
+  comentarios: 'comments',
+  productos: 'products',
+  pedidos: 'orders',
+  devoluciones: 'returns',
+  aprobaciones: 'approvals',
+  metricas: 'metrics',
+  integraciones: 'integrations',
+  ajustes: 'settings',
   // auth
-  ingresar: "login",
-  crear: "create",
-  "recuperar-clave": "forgot-password",
-  "nueva-clave": "new-password",
-  "verificar-email": "verify-email",
-  invitacion: "invite",
+  ingresar: 'login',
+  crear: 'create',
+  'recuperar-clave': 'forgot-password',
+  'nueva-clave': 'new-password',
+  'verificar-email': 'verify-email',
+  invitacion: 'invite',
   // public / legal
-  privacidad: "privacy",
-  terminos: "terms",
-  "eliminar-datos": "data-deletion",
-  soporte: "support",
-  calculadora: "calculator",
+  privacidad: 'privacy',
+  terminos: 'terms',
+  'eliminar-datos': 'data-deletion',
+  soporte: 'support',
+  calculadora: 'calculator',
+  afiliados: 'affiliates',
   // El link de "Probar como cliente" que se comparte sin sesión.
-  probar: "try",
+  probar: 'try',
 };
 
 /**
@@ -76,14 +77,14 @@ export const ROUTE_SLUGS_EN: Record<string, string> = {
 export const ROUTE_ALIASES: Record<string, string> = {
   // Enlaces repartidos antes de que las URLs públicas quedaran como
   // `/crear` (español) y `/create` (inglés).
-  registro: "crear",
-  signup: "crear",
+  registro: 'crear',
+  signup: 'crear',
 };
 
 /** Slug en inglés (o alias) → canonical (Spanish) first segment. */
 export const ROUTE_SLUGS_CANONICAL: Record<string, string> = {
   ...Object.fromEntries(
-    Object.entries(ROUTE_SLUGS_EN).map(([canonical, en]) => [en, canonical]),
+    Object.entries(ROUTE_SLUGS_EN).map(([canonical, en]) => [en, canonical])
   ),
   ...ROUTE_ALIASES,
 };
@@ -92,12 +93,12 @@ export const ROUTE_SLUGS_CANONICAL: Record<string, string> = {
 function parse(path: string): { first: string; rest: string; tail: string } {
   // Separate any ?query or #hash so we never translate inside it.
   const tailMatch = path.match(/[?#].*$/);
-  const tail = tailMatch ? tailMatch[0] : "";
+  const tail = tailMatch ? tailMatch[0] : '';
   const pathname = tail ? path.slice(0, -tail.length) : path;
-  const clean = pathname.replace(/^\//, "");
-  const slash = clean.indexOf("/");
+  const clean = pathname.replace(/^\//, '');
+  const slash = clean.indexOf('/');
   const first = slash === -1 ? clean : clean.slice(0, slash);
-  const rest = slash === -1 ? "" : clean.slice(slash); // keeps its leading "/"
+  const rest = slash === -1 ? '' : clean.slice(slash); // keeps its leading "/"
   return { first, rest, tail };
 }
 
@@ -108,7 +109,7 @@ function parse(path: string): { first: string; rest: string; tail: string } {
  * through untouched.
  */
 export function localizePath(path: string, locale: Locale): string {
-  if (locale !== "en" || typeof path !== "string" || !path.startsWith("/"))
+  if (locale !== 'en' || typeof path !== 'string' || !path.startsWith('/'))
     return path;
   const { first, rest, tail } = parse(path);
   const en = ROUTE_SLUGS_EN[first];
@@ -123,7 +124,7 @@ export function localizePath(path: string, locale: Locale): string {
  * which language the browser URL is in.
  */
 export function canonicalizePath(path: string): string {
-  if (typeof path !== "string" || !path.startsWith("/")) return path;
+  if (typeof path !== 'string' || !path.startsWith('/')) return path;
   const { first, rest, tail } = parse(path);
   const canonical = ROUTE_SLUGS_CANONICAL[first];
   if (!canonical) return path;

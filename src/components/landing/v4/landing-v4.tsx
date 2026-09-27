@@ -2,7 +2,19 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight, Check, PhoneCall, Settings2, Sparkles, ShoppingBag, ShoppingCart, MessagesSquare, Megaphone, ShieldCheck, ChartNoAxesCombined } from 'lucide-react';
+import {
+  ArrowRight,
+  Check,
+  PhoneCall,
+  Settings2,
+  Sparkles,
+  ShoppingBag,
+  ShoppingCart,
+  MessagesSquare,
+  Megaphone,
+  ShieldCheck,
+  ChartNoAxesCombined,
+} from 'lucide-react';
 import { ChannelLogo } from '@/components/inbox/channel-logo';
 import { useLocale, useT } from '@/hooks/use-locale';
 import { localizePath } from '@/lib/i18n/routes';
@@ -249,7 +261,9 @@ function Pillars() {
       <div className="relative mx-auto max-w-6xl px-5">
         <div className="sn-team-grid">
           <div>
-            <h2 className="sn-h2 max-w-[17ch]">{t('landingV4.pillarsTitle')}</h2>
+            <h2 className="sn-h2 max-w-[17ch]">
+              {t('landingV4.pillarsTitle')}
+            </h2>
             <p className="sn-body mt-5 max-w-[38ch]">
               {t('landingV4.pillarsLead')}
             </p>
@@ -286,7 +300,17 @@ function Capabilities() {
 
 function Comparison() {
   const t = useT();
-  const icons = [Settings2, Sparkles, ShoppingBag, ShoppingCart, MessagesSquare, Megaphone, PhoneCall, ShieldCheck, ChartNoAxesCombined];
+  const icons = [
+    Settings2,
+    Sparkles,
+    ShoppingBag,
+    ShoppingCart,
+    MessagesSquare,
+    Megaphone,
+    PhoneCall,
+    ShieldCheck,
+    ChartNoAxesCombined,
+  ];
   return (
     <section
       id="instalacion"
@@ -294,13 +318,17 @@ function Comparison() {
     >
       <div className="sn-comparison">
         <Rise>
-          <h2 className="sn-h2 sn-compare-title">{t('landingV4.compareTitle')}</h2>
+          <h2 className="sn-h2 sn-compare-title">
+            {t('landingV4.compareTitle')}
+          </h2>
           <p className="sn-compare-intro">{t('landingV4.compareIntro')}</p>
         </Rise>
         <Rise delay={80}>
           <div className="sn-compare-wrap mt-10">
             <table className="sn-compare-table" role="table">
-              <caption className="sr-only">{t('landingV4.compareTitle')}</caption>
+              <caption className="sr-only">
+                {t('landingV4.compareTitle')}
+              </caption>
               <colgroup>
                 <col className="sn-compare-criterion" />
                 <col className="sn-compare-answer" />
@@ -308,36 +336,79 @@ function Comparison() {
               </colgroup>
               <thead>
                 <tr role="row">
-                  <th scope="col" className="sn-compare-corner" role="columnheader">
-                    <span className="sr-only">{t('landingV4.compareCriterion')}</span>
+                  <th
+                    scope="col"
+                    className="sn-compare-corner"
+                    role="columnheader"
+                  >
+                    <span className="sr-only">
+                      {t('landingV4.compareCriterion')}
+                    </span>
                   </th>
                   <th scope="col" id="compare-riverz" role="columnheader">
                     <span className="sn-compare-brand" aria-label="Riverz">
-                      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-                        <rect width="32" height="32" rx="8" fill="var(--sn-ink)" />
-                        <path d="M11.5 7V25M11.5 12.5C13 8.8 16.5 7.6 21.5 8.6" stroke="var(--sn-accent)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                      <svg
+                        width="32"
+                        height="32"
+                        viewBox="0 0 32 32"
+                        fill="none"
+                        aria-hidden="true"
+                      >
+                        <rect
+                          width="32"
+                          height="32"
+                          rx="8"
+                          fill="var(--sn-ink)"
+                        />
+                        <path
+                          d="M11.5 7V25M11.5 12.5C13 8.8 16.5 7.6 21.5 8.6"
+                          stroke="var(--sn-accent)"
+                          strokeWidth="4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
                       </svg>
                       <span>riverz</span>
                     </span>
                   </th>
-                  <th scope="col" id="compare-others" role="columnheader">{t('landingV4.compareOthers')}</th>
+                  <th scope="col" id="compare-others" role="columnheader">
+                    {t('landingV4.compareOthers')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {icons.map((Icon, index) => {
                   const row = index + 1;
                   return (
-                  <tr key={row} role="row">
-                    <th scope="row" id={`compare-topic-${row}`} role="rowheader">
-                      <span className="sn-compare-topic"><Icon size={18} aria-hidden="true" />{t(`landingV4.compare${row}Topic`)}</span>
-                    </th>
-                    <td headers={`compare-topic-${row} compare-riverz`} role="cell">
-                      <span className="sn-compare-value"><span className="sn-compare-check" aria-hidden="true"><Check size={14} strokeWidth={2.5} /></span><span>{t(`landingV4.compare${row}Riverz`)}</span></span>
-                    </td>
-                    <td headers={`compare-topic-${row} compare-others`} role="cell">
-                      {t(`landingV4.compare${row}Others`)}
-                    </td>
-                  </tr>
+                    <tr key={row} role="row">
+                      <th
+                        scope="row"
+                        id={`compare-topic-${row}`}
+                        role="rowheader"
+                      >
+                        <span className="sn-compare-topic">
+                          <Icon size={18} aria-hidden="true" />
+                          {t(`landingV4.compare${row}Topic`)}
+                        </span>
+                      </th>
+                      <td
+                        headers={`compare-topic-${row} compare-riverz`}
+                        role="cell"
+                      >
+                        <span className="sn-compare-value">
+                          <span className="sn-compare-check" aria-hidden="true">
+                            <Check size={14} strokeWidth={2.5} />
+                          </span>
+                          <span>{t(`landingV4.compare${row}Riverz`)}</span>
+                        </span>
+                      </td>
+                      <td
+                        headers={`compare-topic-${row} compare-others`}
+                        role="cell"
+                      >
+                        {t(`landingV4.compare${row}Others`)}
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -586,6 +657,12 @@ function Footer({ locale }: { locale: Locale }) {
           </a>
         </div>
         <div className="sn-label flex flex-wrap gap-x-7 gap-y-2">
+          <Link
+            href={localizePath('/afiliados', locale)}
+            className="hover:opacity-70"
+          >
+            {t('affiliates.footerProgram')}
+          </Link>
           <Link
             href={localizePath('/terminos', locale)}
             className="hover:opacity-70"
