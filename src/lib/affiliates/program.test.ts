@@ -5,11 +5,25 @@ import {
   commissionAmountCents,
   commissionableGross,
   normalizeAffiliateCode,
+  paymentFollowsCallAttribution,
   proportionalRefund,
   reconcileAffiliateInvoice,
 } from './program';
 
 describe('affiliate program', () => {
+  it('does not retroactively commission payments made before call attribution', () => {
+    const attribution = '2026-09-27T12:00:00.100Z';
+    const second = Date.parse('2026-09-27T12:00:00Z') / 1000;
+    expect(paymentFollowsCallAttribution(second - 3600, attribution)).toBe(
+      false
+    );
+    expect(paymentFollowsCallAttribution(second, attribution)).toBe(false);
+    expect(paymentFollowsCallAttribution(second + 1, attribution)).toBe(true);
+    expect(
+      paymentFollowsCallAttribution(second + 30 * 86400, attribution)
+    ).toBe(true);
+    expect(paymentFollowsCallAttribution(second, 'invalid')).toBe(false);
+  });
   it('calculates the recurring 35% in integer cents', () => {
     expect(commissionAmountCents(10_000)).toBe(3_500);
     expect(commissionAmountCents(2_999)).toBe(1_050);
@@ -71,12 +85,10 @@ describe('affiliate program', () => {
     const query = {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      maybeSingle: vi
-        .fn()
-        .mockResolvedValue({
-          data: { id: 'commission', gross_cents: 10000 },
-          error: null,
-        }),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { id: 'commission', gross_cents: 10000 },
+        error: null,
+      }),
     };
     const db = {
       from: vi.fn().mockReturnValue(query),

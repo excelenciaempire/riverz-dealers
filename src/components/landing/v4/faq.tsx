@@ -17,8 +17,18 @@ const QUESTIONS = [
   ['faqCommitmentQuestion', 'faqCommitmentAnswer'],
 ] as const;
 
-export function Faq() {
+const BALANCE_OVERRIDES: Record<string, string> = {
+  faqIncludedAnswer: 'faqBalanceIncludedAnswer',
+  faqFirstMonthAnswer: 'faqBalanceFirstMonthAnswer',
+  faqCountingQuestion: 'faqBalanceCountingQuestion',
+  faqCountingAnswer: 'faqBalanceCountingAnswer',
+  faqGrowthAnswer: 'faqBalanceGrowthAnswer',
+};
+
+export function Faq({ balancePlan = true }: { balancePlan?: boolean }) {
   const t = useT();
+  const key = (name: string) =>
+    `landingV4.${balancePlan ? (BALANCE_OVERRIDES[name] ?? name) : name}`;
 
   return (
     <section
@@ -40,14 +50,14 @@ export function Faq() {
             style={{ borderColor: 'var(--sn-line)' }}
           >
             <summary className="flex cursor-pointer list-none items-start justify-between gap-4 text-[17px] leading-snug font-medium marker:hidden sm:text-[19px] [&::-webkit-details-marker]:hidden">
-              <span>{t(`landingV4.${question}`)}</span>
+              <span>{t(key(question))}</span>
               <Plus
                 aria-hidden
                 className="mt-0.5 size-5 shrink-0 transition-transform group-open:rotate-45"
               />
             </summary>
             <p className="sn-body max-w-[65ch] pt-4 pb-1 !text-[16px]">
-              {t(`landingV4.${answer}`, {
+              {t(key(answer), {
                 percent: FIRST_MONTH_DISCOUNT_PERCENT,
               })}
             </p>

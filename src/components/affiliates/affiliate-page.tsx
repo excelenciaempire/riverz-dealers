@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import {
   ArrowRight,
   Check,
-  Link2,
+  PhoneCall,
   Repeat2,
   Send,
   WalletCards,
@@ -102,7 +102,7 @@ export function AffiliatePage() {
           <div className="aff-steps mt-12">
             {[
               [Send, 'affiliates.stepOneTitle', 'affiliates.stepOneBody'],
-              [Link2, 'affiliates.stepTwoTitle', 'affiliates.stepTwoBody'],
+              [PhoneCall, 'affiliates.stepTwoTitle', 'affiliates.stepTwoBody'],
               [
                 Repeat2,
                 'affiliates.stepThreeTitle',

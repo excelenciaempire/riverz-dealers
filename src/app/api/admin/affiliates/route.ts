@@ -33,7 +33,7 @@ async function sendApprovalEmail(partner: {
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return;
-  const link = `https://riverz.co/afiliados/${partner.referral_code}`;
+  const code = escapeHtml(partner.referral_code);
   const locale = partner.locale === 'en' ? 'en' : 'es';
   try {
     const response = await fetch('https://api.resend.com/emails', {
@@ -49,7 +49,7 @@ async function sendApprovalEmail(partner: {
           'Riverz <cuentas@riverz.co>',
         to: [partner.email],
         subject: translate(locale, 'affiliates.approvalSubject'),
-        html: `<h2>${translate(locale, 'affiliates.approvalSubject')}</h2><p>${escapeHtml(partner.name)},</p><p>${translate(locale, 'affiliates.approvalBody')}</p><p><a href="${link}">${link}</a></p><p>${translate(locale, 'affiliates.approvalTerms')}</p>`,
+        html: `<h2>${translate(locale, 'affiliates.approvalSubject')}</h2><p>${escapeHtml(partner.name)},</p><p>${translate(locale, 'affiliates.approvalBody')}</p><p>${translate(locale, 'affiliates.adminCode')}: <strong>${code}</strong></p><p>${translate(locale, 'affiliates.approvalTerms')}</p>`,
       }),
     });
     if (!response.ok) {
@@ -66,22 +66,32 @@ async function sendApprovalEmail(partner: {
 export async function GET(request: Request) {
   return adminGet(request, { action: 'view.affiliates' }, async () => {
     const db = supabaseAdmin();
-    const [partnersResult, referralsResult, commissionsResult] =
-      await Promise.all([
-        db
-          .from('affiliate_partners')
-          .select('*')
-          .order('created_at', { ascending: false }),
-        db
-          .from('affiliate_referrals')
-          .select('id, affiliate_id, status, workspace_id, attributed_at'),
-        db
-          .from('affiliate_commissions')
-          .select('*')
-          .order('earned_at', { ascending: false }),
-      ]);
+    const [
+      partnersResult,
+      referralsResult,
+      commissionsResult,
+      workspacesResult,
+    ] = await Promise.all([
+      db
+        .from('affiliate_partners')
+        .select('*')
+        .order('created_at', { ascending: false }),
+      db
+        .from('affiliate_referrals')
+        .select(
+          'id, affiliate_id, status, workspace_id, attributed_at, attribution_source, attribution_note'
+        ),
+      db
+        .from('affiliate_commissions')
+        .select('*')
+        .order('earned_at', { ascending: false }),
+      db.from('workspaces').select('id, name').order('name'),
+    ]);
     const error =
-      partnersResult.error ?? referralsResult.error ?? commissionsResult.error;
+      partnersResult.error ??
+      referralsResult.error ??
+      commissionsResult.error ??
+      workspacesResult.error;
     if (error) throw new Error(error.message);
 
     const referrals = referralsResult.data ?? [];
@@ -94,7 +104,13 @@ export async function GET(request: Request) {
         (row) => row.affiliate_id === partner.id && row.status === 'paying'
       ).length,
     }));
-    return { partners, referrals, commissions, now: new Date().toISOString() };
+    return {
+      partners,
+      referrals,
+      commissions,
+      workspaces: workspacesResult.data ?? [],
+      now: new Date().toISOString(),
+    };
   });
 }
 
@@ -106,7 +122,9 @@ export async function PATCH(request: Request) {
   const awaitedLocale = await getLocale();
   const t = (key: string) => translate(awaitedLocale, key);
   const body = (await request.json().catch(() => null)) as {
-    kind?: 'partner' | 'commission';
+    kind?: 'partner' | 'commission' | 'referral';
+    workspaceId?: string;
+    note?: string;
     id?: string;
     status?: 'active' | 'rejected' | 'paused';
     expectedCents?: number;
@@ -119,6 +137,44 @@ export async function PATCH(request: Request) {
   }
 
   const db = supabaseAdmin();
+  if (body.kind === 'referral') {
+    const uuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (
+      !uuid.test(body.id) ||
+      typeof body.workspaceId !== 'string' ||
+      !uuid.test(body.workspaceId) ||
+      typeof body.note !== 'string' ||
+      body.note.trim().length < 5 ||
+      body.note.length > 1000
+    ) {
+      return NextResponse.json(
+        { error: t('affiliates.adminAssignError') },
+        { status: 400 }
+      );
+    }
+    const { data, error } = await db.rpc('assign_affiliate_call_referral', {
+      p_affiliate_id: body.id,
+      p_workspace_id: body.workspaceId,
+      p_note: body.note,
+    });
+    if (error || !data)
+      return NextResponse.json(
+        { error: t('affiliates.adminAssignError') },
+        { status: 409 }
+      );
+    await recordAdminAction(gate.actor, request, {
+      action: 'create.affiliate_referral',
+      targetType: 'affiliate_referral',
+      targetId: data,
+      meta: {
+        affiliate_id: body.id,
+        workspace_id: body.workspaceId,
+        source: 'call',
+      },
+    });
+    return NextResponse.json({ ok: true });
+  }
   if (
     body.kind === 'partner' &&
     ['active', 'rejected', 'paused'].includes(body.status ?? '')
