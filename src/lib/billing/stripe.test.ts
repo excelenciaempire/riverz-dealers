@@ -5,6 +5,7 @@ import type { Suscripcion } from './plan'
 const mocks = vi.hoisted(() => ({
   createSession: vi.fn(),
   retrieveCoupon: vi.fn(),
+  attachAffiliateWorkspace: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('stripe', () => ({
@@ -14,6 +15,7 @@ vi.mock('stripe', () => ({
   },
 }))
 vi.mock('@/lib/i18n/cuenta', () => ({ localeDeCuenta: async () => 'es' }))
+vi.mock('@/lib/affiliates/program', () => ({ attachAffiliateWorkspace: mocks.attachAffiliateWorkspace }))
 
 import { lineItemsDeSuscripcion, urlDeCheckout } from './stripe'
 
@@ -84,6 +86,7 @@ describe('link de pago', () => {
   it('no cobra el primer mes ya pagado: 30 días de prueba y después la mensualidad completa', async () => {
     const url = await urlDeCheckout(db, 'w1', saldo, quien, { primerMesSinCargo: true })
     expect(url).toBe('https://checkout.stripe.com/c/pay/cs_test_1')
+    expect(mocks.attachAffiliateWorkspace).toHaveBeenCalledWith(db, 'w1')
     const sesion = mocks.createSession.mock.calls[0][0]
     expect(sesion.subscription_data).toEqual({
       metadata: { workspace_id: 'w1' },
