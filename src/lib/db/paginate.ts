@@ -30,6 +30,9 @@ const MAX_PAGINAS = 50
  */
 interface Filtrable {
   eq(col: string, val: unknown): Filtrable
+  gte(col: string, val: unknown): Filtrable
+  lt(col: string, val: unknown): Filtrable
+  is(col: string, val: null | boolean): Filtrable
   in(col: string, vals: readonly unknown[]): Filtrable
   order(col: string, opts: { ascending: boolean }): Filtrable
   range(desde: number, hasta: number): PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>

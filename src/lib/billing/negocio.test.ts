@@ -1,6 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { leerNegocio } from './negocio'
+import { estadoDePago, leerNegocio } from './negocio'
+import { aSuscripcion } from './plan'
+
+afterEach(() => vi.restoreAllMocks())
 
 const planDeSaldo = {
   id: 'p-saldo', slug: 'saldo-ilimitado', nombre: 'Contactos ilimitados con saldo', activo: true,
@@ -18,7 +21,7 @@ function suscripcion(workspace_id: string, fila: Record<string, unknown>) {
   }
 }
 
-function base(fallarWorkspaces = false, suscripciones: unknown[] = []) {
+function base(fallarWorkspaces = false, suscripciones: unknown[] = [], extras: Record<string, unknown[]> = {}) {
   const rows: Record<string, unknown[]> = {
     workspace_subscriptions: suscripciones,
     workspaces: [
@@ -30,12 +33,14 @@ function base(fallarWorkspaces = false, suscripciones: unknown[] = []) {
     wallet_accounts: [],
     wallet_movimientos: [],
     ai_agents: [{ workspace_id: 'w2' }],
+    ...extras,
   }
   const from = vi.fn((table: string) => {
     const result = { data: rows[table] ?? [], error: table === 'workspaces' && fallarWorkspaces ? new Error('DB unavailable') : null }
     const q = {
       select: () => q, is: () => q, gte: () => q, lt: () => q,
-      limit: () => q, in: () => q, not: () => q,
+      limit: () => q, in: () => q, not: () => q, order: () => q,
+      range: (from: number, to: number) => Promise.resolve({ ...result, data: result.data.slice(from, to + 1) }),
       then: (resolve: (value: typeof result) => unknown) => Promise.resolve(result).then(resolve),
     }
     return q
@@ -45,6 +50,16 @@ function base(fallarWorkspaces = false, suscripciones: unknown[] = []) {
 
 describe('cuentas de Negocio', () => {
   const periodo = { desde: new Date('2026-09-01'), hasta: new Date('2026-10-01') }
+
+  it('no cuenta una prueba vencida como una prueba activa', () => {
+    const actual = aSuscripcion(suscripcion('w1', {
+      estado: 'prueba', prueba_hasta: '2026-09-08T00:00:00Z',
+    }) as Parameters<typeof aSuscripcion>[0])
+    expect(estadoDePago(actual, Date.parse('2026-09-07T23:59:59Z'))).toBe('en_prueba')
+    expect(estadoDePago(actual, Date.parse('2026-09-08T00:00:00Z'))).toBe('sin_pagar')
+    expect(estadoDePago(actual, Date.parse('2026-09-27T00:00:00Z'))).toBe('sin_pagar')
+    expect(estadoDePago({ ...actual, pruebaHasta: null })).toBe('sin_pagar')
+  })
 
   it('muestra los workspaces nuevos aun sin fila de suscripción', async () => {
     const { db } = base()
@@ -91,6 +106,7 @@ describe('cuentas de Negocio', () => {
   })
 
   it('la cuenta que no pagó su link figura sin pagar, tenga o no mensualidad', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-27T00:00:00Z'))
     const { db } = base(false, [
       suscripcion('w1', { estado: 'cortesia', precio_centavos_override: 0 }),
       suscripcion('w2', { estado: 'prueba', prueba_hasta: '2026-09-30T00:00:00.000Z' }),
@@ -104,5 +120,20 @@ describe('cuentas de Negocio', () => {
   it('no oculta cuentas silenciosamente cuando falla su lectura', async () => {
     const { db } = base(true)
     await expect(leerNegocio(db, periodo)).rejects.toThrow('DB unavailable')
+  })
+
+  it('suma todas las páginas y no presenta ajustes ni comisiones como consumo', async () => {
+    const { db } = base(false, [], {
+      wallet_movimientos: [
+        ...Array.from({ length: 1005 }, () => ({ workspace_id: 'w1', tipo: 'consumo', concepto: 'ia_respuesta', centavos: -2, costo_centavos: 1 })),
+        { workspace_id: 'w1', tipo: 'ajuste', concepto: 'ajuste', centavos: -500, costo_centavos: 0 },
+        { workspace_id: 'w1', tipo: 'consumo', concepto: 'comision_stripe', centavos: -25, costo_centavos: 25 },
+        { workspace_id: 'w1', tipo: 'recarga', centavos: 3000, costo_centavos: 0 },
+      ],
+      billing_usage_daily: Array.from({ length: 1005 }, () => ({ workspace_id: 'w1', conversaciones: 1, costo_usd: 1 })),
+    })
+    const negocio = await leerNegocio(db, periodo)
+    expect(negocio).toMatchObject({ gastadoCentavos: 2010, costoBilleteraCentavos: 1005, cargadoCentavos: 3000, costoUsd: 1005 })
+    expect(negocio.cuentas.find(c => c.workspaceId === 'w1')?.conversaciones).toBe(1005)
   })
 })

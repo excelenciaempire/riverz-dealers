@@ -13,6 +13,7 @@
  * mirar.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { selectAll } from '@/lib/db/paginate'
 import {
   aSuscripcion,
   type EstadoSuscripcion,
@@ -42,12 +43,13 @@ export type EstadoDePago =
   | 'cancelado'
   | 'sin_mensualidad'
 
-export function estadoDePago(s: Suscripcion | undefined): EstadoDePago {
+export function estadoDePago(s: Suscripcion | undefined, now = Date.now()): EstadoDePago {
   if (!s) return 'sin_configurar'
   if (s.estado === 'vencida') return 'fallido'
   if (s.estado === 'cancelada') return 'cancelado'
   if (s.estado === 'cortesia') return 'sin_pagar'
-  if (s.estado === 'prueba') return 'en_prueba'
+  if (s.estado === 'prueba')
+    return s.pruebaHasta && Date.parse(s.pruebaHasta) > now ? 'en_prueba' : 'sin_pagar'
   if (s.stripeSubscriptionId && s.estado === 'activa') return 'al_dia'
   if (s.precioAcuerdoCentavos <= 0) return 'sin_mensualidad'
   return 'sin_pagar'
@@ -153,22 +155,21 @@ export async function leerNegocio(
                        excedente_centavos, stripe_price_id, stripe_price_excedente_id, orden )`,
     ),
     db.from('workspaces').select('id, name, owner_id').is('deleted_at', null),
-    db
-      .from('billing_usage_daily')
-      .select('workspace_id, conversaciones, costo_usd')
-      .gte('dia', dia(periodo.desde))
-      .lt('dia', dia(periodo.hasta)),
+    selectAll(db, 'billing_usage_daily', q => q
+      .gte('dia', dia(periodo.desde)).lt('dia', dia(periodo.hasta))
+      .order('workspace_id', { ascending: true }), {
+      select: 'workspace_id, conversaciones, costo_usd', orderBy: 'dia', strict: true,
+    }).then(data => ({ data, error: null })),
     db.from('wallet_accounts').select('workspace_id, saldo_centavos, bloquear_sin_saldo, cobrar_a_costo'),
     // El libro del período, crudo. Se suma acá y no con un `group by` en SQL
     // porque son los movimientos de un puñado de cuentas en un rango, y una
     // vista nueva por cada corte que quiera mirar el dueño no escala como
     // trabajo aunque escale como consulta.
-    db
-      .from('wallet_movimientos')
-      .select('workspace_id, tipo, centavos, costo_centavos')
+    selectAll(db, 'wallet_movimientos', q => q
       .gte('creado_en', periodo.desde.toISOString())
-      .lt('creado_en', periodo.hasta.toISOString())
-      .limit(100_000),
+      .lt('creado_en', periodo.hasta.toISOString()), {
+      select: 'workspace_id, tipo, concepto, centavos, costo_centavos', strict: true,
+    }).then(data => ({ data, error: null })),
     // Sólo si existe; la clave nunca sale de la base.
     db.from('ai_agents').select('workspace_id').not('api_key_encrypted', 'is', null),
   ])
@@ -224,6 +225,7 @@ export async function leerNegocio(
   for (const m of (movimientosRes.data ?? []) as {
     workspace_id: string
     tipo: string
+    concepto: string
     centavos: number
     costo_centavos: number
   }[]) {
@@ -232,7 +234,7 @@ export async function leerNegocio(
     // Sólo la recarga es ingreso. El bono es saldo regalado y contarlo como
     // plata que entró sería facturarse a uno mismo.
     if (m.tipo === 'recarga') a.cargado += c
-    if (c < 0) {
+    if (m.tipo === 'consumo' && m.concepto !== 'comision_stripe' && c < 0) {
       a.gastado += -c
       a.costo += Number(m.costo_centavos ?? 0)
     }

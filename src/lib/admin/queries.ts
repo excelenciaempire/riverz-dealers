@@ -699,7 +699,7 @@ async function listCommerceConnections(): Promise<Omit<ChannelRow, 'workspace_na
     allConnectionMetadata(
       client,
       'workspace_integrations',
-      'id, workspace_id, provider, external_account_id, expires_at, created_at, updated_at',
+      'id, workspace_id, provider, external_account_id, expires_at, is_active, created_at, updated_at',
     ),
     // Dropi (entrega contra reembolso) vive en su propia tabla, con
     // `workspace_id` de clave primaria y sin columna `id`. Faltaba: era la
@@ -756,6 +756,7 @@ async function listCommerceConnections(): Promise<Omit<ChannelRow, 'workspace_na
       provider: string;
       external_account_id: string | null;
       expires_at: string | null;
+      is_active: boolean;
       created_at: string | null;
     }>).map((i) => ({
       ...vacio,
@@ -765,7 +766,8 @@ async function listCommerceConnections(): Promise<Omit<ChannelRow, 'workspace_na
       // Un token vencido es una conexión rota aunque la fila diga otra cosa: es
       // lo que hace que dejen de entrar los pagos rechazados de Mercado Pago.
       status:
-        i.expires_at && Date.parse(i.expires_at) < Date.now() ? 'expired' : 'connected',
+        i.is_active === false ? 'disconnected' :
+          i.expires_at && Date.parse(i.expires_at) <= Date.now() ? 'expired' : 'connected',
       external_account_id: i.external_account_id,
       created_at: i.created_at,
     })),
@@ -845,33 +847,30 @@ export async function getCronHealth(): Promise<CronRow[]> {
 
 export async function getOpsStatus(): Promise<OpsStatus> {
   const client = db();
-  const crons = await getCronHealth();
-
-  const [{ count: unprocessed }, failingRes] = await Promise.all([
-    client
-      .from('webhook_events_raw')
-      .select('id', { count: 'exact', head: true })
-      .is('processed_at', null),
-    safeSelect(
+  const columns = 'id, provider, received_at, attempts, last_error';
+  assertMetadataOnly('webhook_events_raw', columns);
+  const [crons, pending] = await Promise.all([
+    getCronHealth(),
+    selectAll<OpsStatus['webhooks']['failing'][number]>(
       client,
       'webhook_events_raw',
-      'id, provider, received_at, attempts, last_error',
-    )
-      .is('processed_at', null)
-      .order('received_at', { ascending: false })
-      .limit(50),
+      q => q.is('processed_at', null),
+      { select: columns, strict: true },
+    ),
   ]);
 
-  const failing = (failingRes.data ?? []) as unknown as OpsStatus['webhooks']['failing'];
+  const failing = [...pending]
+    .sort((a, b) => Date.parse(b.received_at) - Date.parse(a.received_at))
+    .slice(0, 50);
   const byProvider = new Map<string, number>();
-  for (const w of failing) {
+  for (const w of pending) {
     byProvider.set(w.provider, (byProvider.get(w.provider) ?? 0) + 1);
   }
 
   return {
     crons,
     webhooks: {
-      unprocessed: unprocessed ?? 0,
+      unprocessed: pending.length,
       failing,
       byProvider: [...byProvider.entries()].map(([provider, n]) => ({
         provider,

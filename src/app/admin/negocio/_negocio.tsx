@@ -859,7 +859,8 @@ function FormularioCuenta({
   const [f, setF] = useState({
     modelo: cuenta.modeloCobro,
     plan_id: "",
-    precio: "",
+    // Cambiar el nombre/plan no debe borrar una mensualidad pactada (incluido 0).
+    precio: cuenta.tieneSuscripcion ? String(cuenta.precioAcuerdoCentavos / 100) : "",
     incluidas: "",
   });
   const oficial = f.modelo === "oficial";
@@ -906,7 +907,7 @@ function FormularioCuenta({
       // Saldo y BYOK llevan su plan. Una cuenta que ya está en ese sistema
       // conserva el suyo: cambiarlo mueve su cobro, y eso se elige a propósito.
       plan_id: modelo !== "oficial" && cuenta.modeloCobro !== modelo ? planPropio(planes, modelo)?.id ?? "" : "",
-      precio: "",
+      precio: f.precio,
       incluidas: "",
     });
 
