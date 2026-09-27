@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { adminLegacyRedirect, adminRewrite, isAdminHost } from './host';
+import { adminLegacyRedirect, adminRewrite, isAdminHost, isAdminInternalPath } from './host';
 import {
   ADMIN_SECTION_LIST,
   ADMIN_SLUGS_RETIRADOS,
@@ -18,6 +18,12 @@ describe('host del panel', () => {
     expect(isAdminHost('riverz.co')).toBe(false);
     expect(isAdminHost('www.riverz.co')).toBe(false);
     expect(isAdminHost(null)).toBe(false);
+  });
+
+  it('mantiene los enlaces internos detrás del unlock y no del login del producto', () => {
+    expect(isAdminInternalPath('admin.riverz.co', '/admin/comercios/abc')).toBe(true);
+    expect(isAdminInternalPath('admin.riverz.co', '/comercios/abc')).toBe(false);
+    expect(isAdminInternalPath('riverz.co', '/admin/comercios/abc')).toBe(false);
   });
 
   it('la raíz es el panel', () => {

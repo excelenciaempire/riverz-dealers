@@ -31,6 +31,19 @@ export function isAdminHost(host: string | null | undefined): boolean {
   return clean === adminHost();
 }
 
+/**
+ * Las rutas internas que generan los componentes del panel conservan el
+ * prefijo /admin. En el subdominio siguen siendo panel: no pueden caer en la
+ * puerta de sesión del producto, porque su autorización es el unlock propio.
+ */
+export function isAdminInternalPath(
+  host: string | null | undefined,
+  pathname: string,
+): boolean {
+  return isAdminHost(host) &&
+    (pathname === '/admin' || pathname.startsWith('/admin/'));
+}
+
 /** ¿Ya cortamos /admin en el dominio principal? */
 export function subdomainOnly(): boolean {
   return process.env.ADMIN_SUBDOMAIN_ONLY === '1';

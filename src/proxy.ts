@@ -5,7 +5,7 @@ import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, isLocale, type Locale } from '@/l
 import { detectLocaleWithIp } from '@/lib/i18n/detect'
 import { canonicalizePath, localizePath } from '@/lib/i18n/routes'
 import { signupsOpenForInstall } from '@/lib/auth/signups'
-import { adminLegacyRedirect, adminRewrite, isAdminHost, subdomainOnly } from '@/lib/admin/host'
+import { adminLegacyRedirect, adminRewrite, isAdminHost, isAdminInternalPath, subdomainOnly } from '@/lib/admin/host'
 import { docsHost, docsRedirect, docsRewrite, isDocsHost } from '@/lib/docs/host'
 
 // Per-request CSP nonce. Next.js 16 reads the `'nonce-…'` value out of
@@ -351,7 +351,11 @@ export async function proxy(request: NextRequest) {
     '/ajustes',
     '/admin',
   ]
-  if (!user && protectedPaths.some(path => canonicalPath.startsWith(path))) {
+  if (
+    !user &&
+    !isAdminInternalPath(host, request.nextUrl.pathname) &&
+    protectedPaths.some(path => canonicalPath.startsWith(path))
+  ) {
     return redirectTo('/ingresar')
   }
 
