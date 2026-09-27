@@ -351,9 +351,9 @@ export function ConversationList({
       const element = parentRef.current;
       return element?.offsetParent === null ? null : element;
     },
-    // Matches `px-3 py-3` + `h-10` avatar row in `ConversationItem`. The
-    // virtualizer measures real rows after first paint, so a slight
-    // miss here just costs a re-flow on mount.
+    // Matches the fixed `px-3 py-3` + `h-10` row in `ConversationItem`.
+    // Keeping rows fixed avoids a ResizeObserver feedback loop when the
+    // mobile list is hidden as the deep-linked thread opens.
     estimateSize: () => 64,
     overscan: 5,
   });
@@ -451,7 +451,6 @@ export function ConversationList({
                 <div
                   key={conv.id}
                   data-index={vRow.index}
-                  ref={rowVirtualizer.measureElement}
                   style={{
                     position: "absolute",
                     top: 0,
