@@ -12,7 +12,7 @@
  * Acá está el cálculo, y lo llaman los dos.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { fetchRecentOrdersOtherPlatform } from '@/lib/commerce/recent-orders';
+import { fetchRecentOrdersOtherPlatform, pedidosDeMercadoLibre } from '@/lib/commerce/recent-orders';
 import { translate } from '@/lib/i18n/translate';
 import type { Locale } from '@/lib/i18n/config';
 import {
@@ -223,11 +223,11 @@ export async function leerAtribucion(
   // Sin Shopify, el comercio puede tener Tiendanube o WooCommerce. Antes esta
   // pantalla contestaba "conectá Shopify" a alguien que SÍ tenía su tienda
   // conectada, y sus ventas no aparecían en ninguna métrica.
-  const otraTienda = conn
-    ? null
-    : await fetchRecentOrdersOtherPlatform(admin, workspaceId, sinceIso).catch(
-        () => null,
-      );
+  let otraTienda: Awaited<ReturnType<typeof fetchRecentOrdersOtherPlatform>> = null;
+  if (!conn) {
+    try { otraTienda = await fetchRecentOrdersOtherPlatform(admin, workspaceId, sinceIso); }
+    catch { return {...emptyResponse(days), error:'store_fetch_failed'}; }
+  }
   if (!conn && !otraTienda) {
     return { ...emptyResponse(days), not_connected: true };
   }
@@ -249,6 +249,14 @@ export async function leerAtribucion(
       : ((
           await fetchRecentOrdersOtherPlatform(admin, workspaceId, prevSinceIso)
         )?.orders ?? []);
+    // A connected web store does not replace marketplace sales. ML-only
+    // stores already returned these rows above; never add them twice.
+    if (conn || (otraTienda && otraTienda.platform !== 'mercadolibre')) {
+      const marketplace = await pedidosDeMercadoLibre(admin, workspaceId, prevSinceIso);
+      const ids = new Set(crudas.map(order=>String(order.id)));
+      if(marketplace.some(order=>ids.has(String(order.id))))throw new Error('cross_platform_order_id_collision');
+      crudas.push(...marketplace);
+    }
     // Un pedido cancelado o devuelto existe, pero no es plata.
     const all = crudas.filter(esVentaReal);
     orders = all.filter((o) => {
@@ -305,16 +313,17 @@ export async function leerAtribucion(
   const phones = Array.from(
     new Set(orders.map((o) => normPhone(o.phone)).filter((x): x is string => !!x)),
   );
-  const { data: contactsByEmail } = await admin
+  const { data: contactsByEmail, error: emailError } = await admin
     .from('contacts')
     .select('id, name, email, phone')
     .eq('workspace_id', workspaceId)
     .in('email', emails.length > 0 ? emails : ['__none__']);
-  const { data: contactsByPhone } = await admin
+  const { data: contactsByPhone, error: phoneError } = await admin
     .from('contacts')
     .select('id, name, email, phone')
     .eq('workspace_id', workspaceId)
     .in('phone', phones.length > 0 ? phones : ['__none__']);
+  if(emailError || phoneError) return {...emptyResponse(days), error:'attribution_identity_unavailable'};
 
   // Cómo se llama cada contacto, para el detalle. Sin esto el renglón dice un
   // uuid, que no le sirve a nadie para reconocer al comprador.

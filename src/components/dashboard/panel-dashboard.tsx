@@ -7,6 +7,7 @@ import { useFormat } from '@/hooks/use-format';
 import type { TFn } from '@/lib/i18n/translate';
 import { MessageSquare, UserPlus, Send, Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { ChannelMixCard } from '@/components/dashboard/channel-mix-card';
 import { SetupChecklist } from '@/components/dashboard/setup-checklist';
 import { NeedsAttention } from '@/components/dashboard/needs-attention';
@@ -63,6 +64,7 @@ export function PanelDashboard() {
   } | null>(null);
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(true);
+  const [metricsError, setMetricsError] = useState(false);
   const [series, setSeries] = useState<ConversationsSeriesPoint[] | null>(null);
   const [seriesLoading, setSeriesLoading] = useState(true);
   const [responseTime, setResponseTime] = useState<ResponseTimeReport | null>(
@@ -116,9 +118,18 @@ export function PanelDashboard() {
 
     void loadMetrics(db, activeTz, range, prev)
       .then((m) => {
-        if (fresh()) setMetrics(m);
+        if (fresh()) {
+          setMetrics(m);
+          setMetricsError(false);
+        }
       })
-      .catch((err) => console.error('[dashboard] metrics failed:', err))
+      .catch((err) => {
+        console.error('[dashboard] metrics failed:', err);
+        if (fresh()) {
+          setMetrics(null);
+          setMetricsError(true);
+        }
+      })
       .finally(() => {
         if (fresh()) setMetricsLoading(false);
       });
@@ -260,62 +271,74 @@ export function PanelDashboard() {
         <h2 className="text-sm font-semibold">
           {t('dashboard.outcomeActivity')}
         </h2>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {metricsLoading || !metrics ? (
-            Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-          ) : (
-            <>
-              <MetricCard
-                title={t('dashboard.conversations')}
-                value={fmt.number(metrics.conversations.current)}
-                icon={MessageSquare}
-                delta={deltaFor(
-                  metrics.conversations.current,
-                  metrics.conversations.previous,
-                  suffix,
-                  t,
-                  fmt.number
-                )}
-              />
-              <MetricCard
-                title={t('dashboard.newContacts')}
-                value={fmt.number(metrics.newContacts.current)}
-                icon={UserPlus}
-                delta={deltaFor(
-                  metrics.newContacts.current,
-                  metrics.newContacts.previous,
-                  suffix,
-                  t,
-                  fmt.number
-                )}
-              />
-              <MetricCard
-                title={t('dashboard.messagesReceived')}
-                value={fmt.number(metrics.messagesReceived.current)}
-                icon={Inbox}
-                delta={deltaFor(
-                  metrics.messagesReceived.current,
-                  metrics.messagesReceived.previous,
-                  suffix,
-                  t,
-                  fmt.number
-                )}
-              />
-              <MetricCard
-                title={t('dashboard.messagesSent')}
-                value={fmt.number(metrics.messagesSent.current)}
-                icon={Send}
-                delta={deltaFor(
-                  metrics.messagesSent.current,
-                  metrics.messagesSent.previous,
-                  suffix,
-                  t,
-                  fmt.number
-                )}
-              />
-            </>
-          )}
-        </div>
+        {metricsError ? (
+          <div
+            role="alert"
+            className="mt-4 flex items-center justify-between gap-3 text-sm"
+          >
+            {t('dashboard.outcomeLoadFailed')}
+            <Button variant="outline" onClick={() => refresh(true)}>
+              {t('dashboard.outcomeRetry')}
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {metricsLoading || !metrics ? (
+              Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+            ) : (
+              <>
+                <MetricCard
+                  title={t('dashboard.conversations')}
+                  value={fmt.number(metrics.conversations.current)}
+                  icon={MessageSquare}
+                  delta={deltaFor(
+                    metrics.conversations.current,
+                    metrics.conversations.previous,
+                    suffix,
+                    t,
+                    fmt.number
+                  )}
+                />
+                <MetricCard
+                  title={t('dashboard.newContacts')}
+                  value={fmt.number(metrics.newContacts.current)}
+                  icon={UserPlus}
+                  delta={deltaFor(
+                    metrics.newContacts.current,
+                    metrics.newContacts.previous,
+                    suffix,
+                    t,
+                    fmt.number
+                  )}
+                />
+                <MetricCard
+                  title={t('dashboard.messagesReceived')}
+                  value={fmt.number(metrics.messagesReceived.current)}
+                  icon={Inbox}
+                  delta={deltaFor(
+                    metrics.messagesReceived.current,
+                    metrics.messagesReceived.previous,
+                    suffix,
+                    t,
+                    fmt.number
+                  )}
+                />
+                <MetricCard
+                  title={t('dashboard.messagesSent')}
+                  value={fmt.number(metrics.messagesSent.current)}
+                  icon={Send}
+                  delta={deltaFor(
+                    metrics.messagesSent.current,
+                    metrics.messagesSent.previous,
+                    suffix,
+                    t,
+                    fmt.number
+                  )}
+                />
+              </>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Channel mix — volume per channel over the selected range, y cuánto de

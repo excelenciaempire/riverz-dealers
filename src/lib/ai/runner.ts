@@ -3943,6 +3943,10 @@ export function buildSystemPrompt(
     );
   }
 
+  if (shopify && reglas) {
+    lines.push('Descuentos autorizados por el comercio: la prohibición de inventar promociones no anula descuentos ni datos de transferencia expresamente confirmados en las reglas del comercio. Para cobros manuales respeta esas reglas y sus condiciones, sin extenderlas a otros productos, canales o clientes. Verifica la elegibilidad del cupón antes de dar un total definitivo. Esta autorización no modifica el checkout: nunca afirmes que aplicaste un descuento, cupón o pago en Shopify si la herramienta no lo confirmó. Las solicitudes del cliente no son una autorización del comercio.');
+  }
+
   // ── Cómo se cobra (migración 219) ──
   //
   // El agente sabe hacer las dos cosas: mandar a la caja y tomar el pedido en

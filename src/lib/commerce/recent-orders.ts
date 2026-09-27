@@ -33,20 +33,27 @@ export interface TiendaReciente {
  * comercio que vende sólo en ML veía el panel entero en cero — ni sus ventas
  * ni las de Riverz—, que es la peor forma de no aparecer: sin error, sin aviso.
  */
-async function pedidosDeMercadoLibre(
+export async function pedidosDeMercadoLibre(
   db: SupabaseClient,
   workspaceId: string,
   sinceIso: string,
 ): Promise<ShopifyOrder[]> {
-  const { data } = await db
+  const data: PedidoEspejo[] = []
+  for(let offset=0;;offset+=1000){
+  const page = await db
     .from('orders')
     .select(
-      'shopify_order_id, order_number, total_price, currency, created_at, customer_email, customer_phone, status, created_by, conversation_id',
+      'shopify_order_id, order_number, total_price, currency, created_at, customer_email, customer_phone, status, financial_status',
     )
     .eq('workspace_id', workspaceId)
     .eq('channel', 'mercadolibre')
     .gte('created_at', sinceIso)
-    .limit(2000)
+    .order('created_at').order('id').range(offset,offset+999)
+  if(page.error)throw page.error
+  data.push(...(page.data??[]) as PedidoEspejo[])
+  if((page.data?.length??0)<1000)break
+  if(offset>=99000)throw new Error('marketplace_order_range_too_large')
+  }
 
   return ((data ?? []) as PedidoEspejo[]).map((p) => ({
     id: Number(p.shopify_order_id) || 0,
@@ -65,7 +72,7 @@ async function pedidosDeMercadoLibre(
       phone: p.customer_phone ?? null,
     },
     cancelled_at: p.status === 'cancelled' ? p.created_at : null,
-    financial_status: p.status === 'cancelled' ? 'refunded' : p.status === 'paid' ? 'paid' : 'pending',
+    financial_status: p.status === 'cancelled' ? 'refunded' : p.financial_status ?? (p.status === 'paid' ? 'paid' : 'pending'),
   }))
 }
 
@@ -78,6 +85,7 @@ interface PedidoEspejo {
   customer_email: string | null
   customer_phone: string | null
   status: string | null
+  financial_status?: string | null
 }
 
 /**

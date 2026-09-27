@@ -87,6 +87,7 @@ interface MsgQuery<T>
   gte(column: string, value: string): MsgQuery<T>
   lt(column: string, value: string): MsgQuery<T>
   range(from: number, to: number): MsgQuery<T>
+  order(column: string, options?: { ascending?: boolean }): MsgQuery<T>
 }
 
 /**
@@ -144,10 +145,6 @@ export async function loadMetrics(
     newContactsPrev,
     resolvedCur,
     resolvedPrev,
-    messagesSentCur,
-    messagesSentPrev,
-    messagesRecvCur,
-    messagesRecvPrev,
     connections,
     rangeRows,
     prevRows,
@@ -159,12 +156,6 @@ export async function loadMetrics(
     // on every unrelated edit.
     scoped(db.from('conversations').select('id', { count: 'exact', head: true }), scope).eq('status', 'closed').gte('closed_at', s).lt('closed_at', e),
     scoped(db.from('conversations').select('id', { count: 'exact', head: true }), scope).eq('status', 'closed').gte('closed_at', ps).lt('closed_at', pe),
-    // "Mensajes enviados" — anything we sent: agent (human) + bot (AI /
-    // automations / flows / broadcasts). Matches the series' outgoing branch.
-    messagesQuery(db, scope, 'id', true).neq('sender_type', 'customer').gte('created_at', s).lt('created_at', e),
-    messagesQuery(db, scope, 'id', true).neq('sender_type', 'customer').gte('created_at', ps).lt('created_at', pe),
-    messagesQuery(db, scope, 'id', true).eq('sender_type', 'customer').gte('created_at', s).lt('created_at', e),
-    messagesQuery(db, scope, 'id', true).eq('sender_type', 'customer').gte('created_at', ps).lt('created_at', pe),
     // Canales conectados del workspace: siembran la mezcla por canal para que
     // un canal sin tráfico en la ventana aparezca en 0 y no desaparezca de la
     // tarjeta (antes "no se mostraba WhatsApp" cuando el rango no lo incluía).
@@ -173,15 +164,25 @@ export async function loadMetrics(
       messagesQuery<MixRow>(db, scope, 'conversation_id, channel, sender_type')
         .gte('created_at', s)
         .lt('created_at', e)
+        .order('created_at').order('id')
         .range(from, to),
     ),
-    fetchAllRows<{ conversation_id?: string | null }>((from, to) =>
-      messagesQuery<{ conversation_id?: string | null }>(db, scope, 'conversation_id')
+    fetchAllRows<MixRow>((from, to) =>
+      messagesQuery<MixRow>(db, scope, 'conversation_id, sender_type')
         .gte('created_at', ps)
         .lt('created_at', pe)
+        .order('created_at').order('id')
         .range(from, to),
     ),
   ])
+
+  // A failed query is unavailable data, never a real zero. Message KPIs and
+  // channel volumes share one paginated snapshot instead of separate counts.
+  for (const result of [newContactsCur, newContactsPrev, resolvedCur, resolvedPrev, connections]) {
+    if (result.error) throw result.error
+  }
+  const received = (rows: MixRow[]) => rows.filter(row => row.sender_type === 'customer').length
+  const receivedCur = received(rangeRows), receivedPrev = received(prevRows)
 
   // Conversaciones DEL PERÍODO: las que tuvieron al menos un mensaje dentro del
   // rango. Antes esta tarjeta era una foto instantánea de "abiertas ahora", que
@@ -216,8 +217,8 @@ export async function loadMetrics(
     conversations: { current: convIds.size, previous: prevConvIds.size },
     newContacts: { current: newContactsCur.count ?? 0, previous: newContactsPrev.count ?? 0 },
     resolved: { current: resolvedCur.count ?? 0, previous: resolvedPrev.count ?? 0 },
-    messagesSent: { current: messagesSentCur.count ?? 0, previous: messagesSentPrev.count ?? 0 },
-    messagesReceived: { current: messagesRecvCur.count ?? 0, previous: messagesRecvPrev.count ?? 0 },
+    messagesSent: { current: rangeRows.length - receivedCur, previous: prevRows.length - receivedPrev },
+    messagesReceived: { current: receivedCur, previous: receivedPrev },
     channelMix,
   }
 }

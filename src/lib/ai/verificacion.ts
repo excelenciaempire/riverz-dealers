@@ -179,6 +179,13 @@ export function reglasDeSalidaPara(
     for (const o of ofertasComoTexto(p.allowed_offers)) ofertas.add(o);
   }
   for (const r of reglasDeLaCasa) {
+      // Merchant-approved manual-payment offers must reach the same verifier
+      // as catalog offers; otherwise it rewrites a valid transfer discount
+      // into "I cannot confirm that discount". Customer text never enters here.
+      if (r.clave === 'ofertas_pago_manual') {
+        ofertas.add(r.hacer);
+        continue;
+      }
     if (r.clave !== 'nunca') continue;
     // `sembrarReglasDelPliego` las guarda como "Nunca digas ni prometas esto: X".
     const texto = r.hacer.replace(/^nunca digas ni prometas esto:\s*/i, '').trim();

@@ -15,6 +15,7 @@ import type { AdminActor } from './guard';
  */
 
 export type AdminAction =
+  | 'update.admin_metric_schema'
   | 'reconcile.wallet_usage'
   | 'view.overview'
   | 'view.workspaces'
