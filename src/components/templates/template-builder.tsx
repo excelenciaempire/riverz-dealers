@@ -114,6 +114,7 @@ const URL_VARIABLE_KEYS: Record<ButtonUrlVariable, string> = {
   order_status: 'templates.linkVarOrderStatus',
   tracking: 'templates.linkVarTracking',
   product: 'templates.linkVarProduct',
+  payment: 'templates.linkVarPayment',
 };
 
 // URL primero: en comercio el enlace (carrito, pedido, tracking) es lo más

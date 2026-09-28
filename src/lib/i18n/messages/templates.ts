@@ -111,6 +111,7 @@ export const templates = {
   linkVarOrderStatus: { es: "Estado del pedido", en: "Order status" },
   linkVarTracking: { es: "Seguimiento del envío", en: "Shipment tracking" },
   linkVarProduct: { es: "Producto", en: "Product" },
+  linkVarPayment: { es: "Instrucciones de pago", en: "Payment instructions" },
 
   // ── Builder toasts / validation ──
   fixErrorsBeforeSending: {

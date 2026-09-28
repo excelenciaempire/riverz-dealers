@@ -58,7 +58,7 @@ import {
 import { formatRelative } from "@/lib/automations/trigger-meta"
 import { cn } from "@/lib/utils"
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf"
-import { useT } from "@/hooks/use-locale"
+import { useT, useLocale } from "@/hooks/use-locale"
 
 // String → Lucide icon component. Keeping the catalog import-free of
 // react means this map lives in the page that renders the gallery.
@@ -74,6 +74,7 @@ const ICON_BY_NAME: Record<TemplateIconName, typeof Zap> = {
 export default function AutomationsPage() {
   const router = useLocalizedRouter()
   const t = useT()
+  const { locale } = useLocale()
   const fetchWithCsrf = useFetchWithCsrf()
   const { workspace, loading: wsLoading } = useWorkspace()
   const connections = useActiveConnections()
@@ -82,13 +83,15 @@ export default function AutomationsPage() {
   const [pendingDelete, setPendingDelete] = useState<Automation | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  const allTemplates = useMemo(() => listTemplates(), [])
+  const allTemplates = useMemo(() => listTemplates(locale), [locale])
   // Contexto de pasarelas: decide qué recetas tienen sentido para este
   // comercio. Ver /api/automations/template-context.
   const [gatewayCtx, setGatewayCtx] = useState<{ mercadopago: boolean } | null>(null)
   useEffect(() => {
+    setGatewayCtx(null)
+    if (!workspace?.id) return
     let alive = true
-    fetch("/api/automations/template-context", { cache: "no-store" })
+    const refresh = () => fetch("/api/automations/template-context", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (alive && j) {
@@ -98,10 +101,13 @@ export default function AutomationsPage() {
       .catch(() => {
         /* sin contexto se cae al caso conservador de abajo */
       })
+    void refresh()
+    window.addEventListener('focus', refresh)
     return () => {
       alive = false
+      window.removeEventListener('focus', refresh)
     }
-  }, [])
+  }, [workspace?.id])
   const templates = useMemo(() => {
     // Mientras carga se ocultan las recetas con pasarela: aparecer y
     // desaparecer es peor que tardar un instante en aparecer.

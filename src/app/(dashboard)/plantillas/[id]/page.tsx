@@ -40,6 +40,7 @@ const URL_VARIABLE_KEYS: Record<ButtonUrlVariable, string> = {
   order_status: 'templates.linkVarOrderStatus',
   tracking: 'templates.linkVarTracking',
   product: 'templates.linkVarProduct',
+  payment: 'templates.linkVarPayment',
 };
 
 const STATUS_KEYS: Record<string, string> = {

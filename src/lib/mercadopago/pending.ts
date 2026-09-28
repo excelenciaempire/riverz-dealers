@@ -17,12 +17,16 @@ export function isActionablePending(payment: MpPayment, now = Date.now()): boole
 }
 
 export function paymentInstructionsUrl(payment: MpPayment): string | null {
-  const raw = payment.transaction_details?.external_resource_url
-  if (!raw) return null
-  try {
-    const url = new URL(raw)
-    return url.protocol === 'https:' && !url.username && !url.password ? url.toString() : null
-  } catch { return null }
+  // Pix publishes its original instructions here rather than external_resource_url.
+  for (const raw of [payment.transaction_details?.external_resource_url,
+    payment.point_of_interaction?.transaction_data?.ticket_url]) {
+    if (!raw) continue
+    try {
+      const url = new URL(raw)
+      if (url.protocol === 'https:' && !url.username && !url.password) return url.toString()
+    } catch { /* Try the other provider-supplied instructions field. */ }
+  }
+  return null
 }
 
 /** Exact email only; ambiguous emails and masked names never choose a recipient. */

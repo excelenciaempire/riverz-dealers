@@ -426,6 +426,11 @@ export const DATA_POINTS: DataPoint[] = [
     condition: { kind: 'var', varKey: 'payment_url' },
   },
   {
+    id: 'payment_method', labelKey: 'automations.dpMpPaymentMethod', group: 'order', valueKind: 'text',
+    triggers: ['payment_pending'], usableInConditions: true, templateVarKey: 'payment_method',
+    condition: { kind: 'var', varKey: 'payment_method' },
+  },
+  {
     id: 'payment_expiration', labelKey: 'automations.dpPaymentExpiration', group: 'order', valueKind: 'text',
     triggers: ['payment_pending'], usableInConditions: false, templateVarKey: 'payment_expiration',
     condition: { kind: 'var', varKey: 'payment_expiration' },
@@ -706,6 +711,9 @@ export function allTemplateDataPoints(): DataPoint[] {
 
 /** Valor de ejemplo realista por campo (para el `example` que Meta exige). */
 export const TEMPLATE_VAR_SAMPLES: Record<string, string> = {
+  payment_url: 'https://www.mercadopago.com/',
+  payment_expiration: '2026-09-30 18:00',
+  payment_method: 'efecty',
   customer_name: 'María',
   contact_first_name: 'María',
   contact_last_name: 'González',

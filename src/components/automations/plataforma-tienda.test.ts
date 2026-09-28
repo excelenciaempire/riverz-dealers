@@ -47,6 +47,9 @@ describe('triggerStorePlatform', () => {
   it('los activadores que no son de tienda no tienen plataforma', () => {
     expect(triggerStorePlatform('tag_added', {}, ['tiendanube'])).toBeNull()
     expect(triggerStorePlatform('payment_rejected', {}, ['shopify'])).toBeNull()
+    expect(triggerStorePlatform('payment_pending', {}, [])).toBeNull()
+    expect(triggerStorePlatform('payment_pending', {}, ['shopify'])).toBeNull()
+    expect(triggerStorePlatform('payment_pending', {}, ['woocommerce'])).toBeNull()
   })
 
   it('tolera config nula o sin platforms', () => {

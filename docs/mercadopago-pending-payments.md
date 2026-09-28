@@ -52,6 +52,33 @@ template and a final tag, and activate. Variables include buyer identity, total,
 currency, `payment_url` (the existing provider voucher/instructions) and
 `payment_expiration`. Riverz does not create a replacement charge.
 
+The editor exposes the absolute reminder hours and each message's optional
+send deadline. Changing a wait updates `from_trigger_hours`, not just the
+legacy relative delay. Provider expiry always remains authoritative.
+Template variables also expose `payment_method`; a dynamic URL button named
+**Instrucciones de pago / Payment instructions** resolves `payment_url` from
+that buyer's original voucher. The gallery follows the merchant's language,
+refreshes the gateway connection on focus and does not require Shopify.
+
+## Country coverage
+
+Detection does not filter by country, currency or `payment_method_id`. It uses
+Payments API `pending` plus `pending_waiting_payment` / `pending_waiting_transfer`
+and the provider types `ticket`, `atm`, `bank_transfer`. This covers Efecty/PSE,
+OXXO/SPEI, Rapipago/Pago Fácil, boleto/Pix, PagoEfectivo, Abitab/Redpagos and new
+methods with those contracts when available to the connected merchant.
+Card processing, review or challenges are not cash debts and never trigger
+this cash/transfer reminder. Local phone normalization uses the merchant's
+WhatsApp country; international buyer phones keep their own country code.
+Instructions read `transaction_details.external_resource_url`, or Pix's
+`point_of_interaction.transaction_data.ticket_url`, always HTTPS and never a
+new charge. Coverage tests are contract fixtures, not live purchases abroad.
+
+Provider references:
+- https://www.mercadopago.com.mx/developers/en/docs/sales-processing/payment-methods
+- https://www.mercadopago.com.co/developers/es/docs/checkout-bricks/payment-brick/payment-submission/other-payment-methods
+- https://www.mercadopago.com.br/developers/pt/docs/checkout-api-payments/integration-configuration/integrate-pix
+
 Apply migration 296 before deploying; the integration build gate verifies its
 tables. The migration adds deduplication metadata to existing Shopify
 pending-order recipes without changing their steps, templates or activation.

@@ -86,6 +86,7 @@ import { useActiveConnections } from '@/hooks/use-active-connections';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
+import { PaymentTimingField } from './payment-timing';
 import type { TFn } from '@/lib/i18n/translate';
 import { cn } from '@/lib/utils';
 import { BranchFan, HEAD_H, LINE, STEP_META } from './lienzo-piezas';
@@ -393,6 +394,9 @@ const DragContext = createContext<{
 /** Friendly sample values for the inline template preview (so {{n}} renders a
  *  realistic value instead of a placeholder once mapped to a data point). */
 const SAMPLE_BY_VAR: Record<string, string> = {
+  payment_url: 'https://www.mercadopago.com/',
+  payment_expiration: '2026-09-30 18:00',
+  payment_method: 'efecty',
   customer_name: 'María',
   order_name: '#1042',
   order_number: '1042',
@@ -2407,7 +2411,8 @@ function TriggerCard({
                 className="bg-muted text-foreground"
               />
             )}
-            {['payment_rejected', 'payment_pending'].includes(type) && <PaymentRejectedConfig />}
+            {type === 'payment_pending' && <p className="text-muted-foreground text-xs">{t('automations.mpPendingCoverage')}</p>}
+            {['payment_rejected', 'payment_pending'].includes(type) && <MercadoPagoConfig />}
           </div>
         )}
       </div>
@@ -2424,10 +2429,10 @@ function TriggerCard({
  */
 /**
  * Aviso de Mercado Pago sin conectar. El disparador no tiene nada mas que
- * configurar: la automatizacion corre desde que se instala, asi que no hay
+ * configurar: la automatizacion corre desde que se activa, asi que no hay
  * antiguedad que elegir, y la espera la pone el paso `Esperar` del flujo.
  */
-function PaymentRejectedConfig() {
+function MercadoPagoConfig() {
   const t = useT();
   const [mpConnected, setMpConnected] = useState<boolean | null>(null);
   useEffect(() => {
@@ -3777,6 +3782,9 @@ function StepEditor({
       };
       return (
         <>
+          {(trigger === 'payment_pending' || Number(cfg.expires_after_hours) > 0) && (
+            <PaymentTimingField config={cfg} onChange={set} deadline />
+          )}
           <div className="border-border bg-muted/30 mb-3 flex items-center justify-between rounded-md border px-3 py-2">
             <span className="text-foreground text-sm font-medium">
               {t('automations.abTest')}
@@ -4109,6 +4117,7 @@ function StepEditor({
         </>
       );
     case 'wait':
+      if (Number(cfg.from_trigger_hours) > 0) return <PaymentTimingField config={cfg} onChange={set} />;
       return (
         <div className="grid grid-cols-2 gap-2">
           <FieldBlock label={t('automations.amount')}>
@@ -4571,6 +4580,8 @@ function previewFor(
         t('automations.previewChooseTemplate')
       );
     case 'wait': {
+      if (Number(step.step_config.from_trigger_hours) > 0)
+        return t('automations.paymentReminderHourPreview', { n: Number(step.step_config.from_trigger_hours) });
       const amount = Number(step.step_config.amount ?? 0);
       const unit = String(step.step_config.unit ?? 'hours');
       const [one, many] = WAIT_UNIT_LABELS[unit] ?? ['', ''];

@@ -15,6 +15,36 @@ describe('Mercado Pago pending payments', () => {
   it('detects PSE waiting for the buyer to transfer', () => {
     expect(isActionablePending({ ...cash, payment_type_id: 'bank_transfer', status_detail: 'pending_waiting_transfer' })).toBe(true)
   })
+  it.each([
+    ['CO', 'efecty', 'ticket', 'pending_waiting_payment', 'COP'],
+    ['CO', 'pse', 'bank_transfer', 'pending_waiting_transfer', 'COP'],
+    ['MX', 'oxxo', 'ticket', 'pending_waiting_payment', 'MXN'],
+    ['MX', 'paycash', 'ticket', 'pending_waiting_payment', 'MXN'],
+    ['MX', 'spei', 'bank_transfer', 'pending_waiting_transfer', 'MXN'],
+    ['AR', 'rapipago', 'ticket', 'pending_waiting_payment', 'ARS'],
+    ['AR', 'pagofacil', 'ticket', 'pending_waiting_payment', 'ARS'],
+    ['BR', 'bolbradesco', 'ticket', 'pending_waiting_payment', 'BRL'],
+    ['BR', 'pix', 'bank_transfer', 'pending_waiting_transfer', 'BRL'],
+    ['PE', 'pagoefectivo_atm', 'atm', 'pending_waiting_payment', 'PEN'],
+    ['UY', 'abitab', 'ticket', 'pending_waiting_payment', 'UYU'],
+    ['UY', 'redpagos', 'ticket', 'pending_waiting_payment', 'UYU'],
+    ['CL', 'local_transfer', 'bank_transfer', 'pending_waiting_transfer', 'CLP'],
+    ['future', 'new_provider_method', 'ticket', 'pending_waiting_payment', 'COP'],
+  ])('recognizes %s / %s by provider state and type, not a country or method whitelist',
+    (_country, payment_method_id, payment_type_id, status_detail, currency_id) => {
+      const payment = { ...cash, payment_method_id, payment_type_id, status_detail, currency_id }
+      expect(isActionablePending(payment)).toBe(true)
+      expect(isActionablePending({ ...payment, status: 'approved' })).toBe(false)
+      expect(isActionablePending({ ...payment, date_of_expiration: '2020-01-01' })).toBe(false)
+    })
+  it('resolves the Pix ticket URL without inventing another payment', () => {
+    const pix: MpPayment = { ...cash, payment_method_id: 'pix', payment_type_id: 'bank_transfer',
+      status_detail: 'pending_waiting_transfer', point_of_interaction: {
+        transaction_data: { ticket_url: 'https://www.mercadopago.com.br/payments/123/ticket' } } }
+    expect(paymentInstructionsUrl(pix)).toBe('https://www.mercadopago.com.br/payments/123/ticket')
+    expect(paymentInstructionsUrl({ ...pix, point_of_interaction: {
+      transaction_data: { ticket_url: 'javascript:alert(1)' } } })).toBeNull()
+  })
   it.each(['approved','rejected','cancelled','refunded','in_process','authorized'])('never reminds status %s', status => {
     expect(isActionablePending({ ...cash, status })).toBe(false)
   })

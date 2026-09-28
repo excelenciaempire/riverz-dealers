@@ -20,6 +20,7 @@ export interface MpPayment {
   date_of_expiration?: string | null
   live_mode?: boolean
   transaction_details?: { external_resource_url?: string | null }
+  point_of_interaction?: { transaction_data?: { ticket_url?: string | null } | null }
   transaction_amount?: number
   currency_id?: string
   installments?: number

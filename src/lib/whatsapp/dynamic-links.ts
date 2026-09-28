@@ -11,18 +11,20 @@
  * cliente (editor + preview) como en el servidor (crear/enviar plantilla).
  */
 
-/** Qué link de Shopify representa un botón dinámico. El editor lo guarda en la
+/** Qué link representa un botón dinámico. El editor lo guarda en la
  *  plantilla; al enviar, el motor lo resuelve desde el contexto del disparador. */
 export type ButtonUrlVariable =
   | 'abandoned_checkout'
   | 'order_status'
   | 'tracking'
+  | 'payment'
   | 'product';
 
 export const BUTTON_URL_VARIABLES: ButtonUrlVariable[] = [
   'abandoned_checkout',
   'order_status',
   'tracking',
+  'payment',
   'product',
 ];
 
@@ -68,6 +70,7 @@ const VAR_KEYS: Record<ButtonUrlVariable, string[]> = {
   abandoned_checkout: ['checkout_url', 'abandoned_checkout_url'],
   order_status: ['order_status_url'],
   tracking: ['tracking_url', 'order_tracking_url'],
+  payment: ['payment_url'],
   product: ['product_url'],
 };
 
