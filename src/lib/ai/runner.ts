@@ -4,6 +4,10 @@ import { revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-ch
 import type { OtherStoreContext } from '@/lib/ai/tools';
 import { untrustedContext } from './input-security';
 import { captureCustomerOrder, orderScreenshotMessageId, type OrderScreenshot } from './order-screenshot';
+import {
+  aiTextMessageId,
+  claimAiReplyTurn,
+} from './reply-claim';
 import { appMediaUrl, MEDIA_BUCKET, signMediaPath, OUTBOUND_SIGNED_TTL_SECONDS } from '../channels/media-url';
 import {
   productOptionsMessageId,
@@ -390,6 +394,23 @@ export async function runAiAgent(
     if (skip) {
       await summarizeConversationIfNeeded(db, args.conversation, agent);
       await logReply(db, agent, args, { status: 'skipped', skip_reason: skip });
+      return;
+    }
+
+    // Reserva atómica por mensaje entrante. El mismo mensaje puede despertar
+    // dos procesos (webhook + poller, o webhook + "Responde la IA"). Sin esta
+    // barrera ambos llegaban al proveedor antes de que existiera una respuesta
+    // persistida y el cliente recibía el mismo texto dos veces.
+    const ownsTurn = await claimAiReplyTurn(db, {
+      workspaceId: args.workspaceId,
+      conversationId: args.conversation.id,
+      inboundMessageId: args.inboundMessage.id,
+      agentId: agent.id,
+    });
+    if (!ownsTurn) {
+      console.info(
+        `[ai] turno ya reservado para el mensaje ${args.inboundMessage.id}`,
+      );
       return;
     }
 
@@ -1439,17 +1460,18 @@ export async function runAiAgent(
       // Recheck every chunk: disconnecting while the model was composing (or
       // between two bubbles) must stop the remaining automatic sends.
       await assertStoredConnectionCanSend(db, outboundTarget.connection.id);
-      const sendResult = await adapter.sendText({
-        channel: args.channel,
-        connection: outboundTarget.connection,
-        conversation: args.conversation,
-        contact: args.contact,
-        text: chunk,
-        replyToExternalId: outboundTarget.replyToExternalId,
-      });
-      const { data: persistedMessage } = await db
+      // La burbuja se reserva ANTES del HTTP externo. Además de reforzar la
+      // reserva del turno, esto permite que el poller de Enviados reconcilie el
+      // eco de Outlook aunque llegue durante la llamada a Graph.
+      const id = aiTextMessageId(
+        args.conversation.id,
+        args.inboundMessage.id,
+        i,
+      );
+      const reserved = await db
         .from('messages')
         .insert({
+          id,
           conversation_id: args.conversation.id,
           channel: args.channel,
           sender_type: 'bot',
@@ -1462,16 +1484,39 @@ export async function runAiAgent(
                 ? 'comment'
                 : 'text',
           content_text: chunk,
-          message_id: sendResult.externalMessageId,
-          status: sendResult.status ?? 'sent',
+          message_id: null,
+          status: 'sending',
           // Quién habló, para que la bandeja lo diga sin adivinar (migración 143).
           origin: 'ai_agent',
           origin_name: agent.name ?? null,
-        })
-        .select()
-        .single();
-      const id = (persistedMessage as { id: string } | null)?.id;
-      if (id) insertedIds.push(id);
+        });
+      if (reserved.error?.code === '23505') continue;
+      if (reserved.error) throw reserved.error;
+      try {
+        const sendResult = await adapter.sendText({
+          channel: args.channel,
+          connection: outboundTarget.connection,
+          conversation: args.conversation,
+          contact: args.contact,
+          text: chunk,
+          replyToExternalId: outboundTarget.replyToExternalId,
+        });
+        const saved = await db
+          .from('messages')
+          .update({
+            message_id: sendResult.externalMessageId ?? null,
+            status: sendResult.status ?? 'sent',
+          })
+          .eq('id', id);
+        if (saved.error) throw saved.error;
+        insertedIds.push(id);
+      } catch (error) {
+        await db
+          .from('messages')
+          .update({ status: 'failed', error_reason: 'ai_text_send_failed' })
+          .eq('id', id);
+        throw error;
+      }
       // Inter-chunk pause: 700ms-1.2s para sensación natural. No se
       // aplica antes del último chunk.
       if (i < chunks.length - 1) {
@@ -4667,17 +4712,15 @@ async function sendDeterministicAgentReply(
   const outboundTarget = await resolveAiOutboundTarget(db, args);
   const adapter = getAdapter(args.channel);
   await assertStoredConnectionCanSend(db, outboundTarget.connection.id);
-  const sendResult = await adapter.sendText({
-    channel: args.channel,
-    connection: outboundTarget.connection,
-    conversation: args.conversation,
-    contact: args.contact,
-    text,
-    replyToExternalId: outboundTarget.replyToExternalId,
-  });
-  const { data: persistedMessage } = await db
+  const id = aiTextMessageId(
+    args.conversation.id,
+    args.inboundMessage.id,
+    'deterministic',
+  );
+  const reserved = await db
     .from('messages')
     .insert({
+      id,
       conversation_id: args.conversation.id,
       channel: args.channel,
       sender_type: 'bot',
@@ -4690,13 +4733,38 @@ async function sendDeterministicAgentReply(
             ? 'comment'
             : 'text',
       content_text: text,
-      message_id: sendResult.externalMessageId,
-      status: sendResult.status ?? 'sent',
+      message_id: null,
+      status: 'sending',
       origin: 'ai_agent',
       origin_name: agent.name ?? null,
-    })
-    .select('id')
-    .single();
+    });
+  if (reserved.error?.code === '23505') return id;
+  if (reserved.error) throw reserved.error;
+
+  try {
+    const sendResult = await adapter.sendText({
+      channel: args.channel,
+      connection: outboundTarget.connection,
+      conversation: args.conversation,
+      contact: args.contact,
+      text,
+      replyToExternalId: outboundTarget.replyToExternalId,
+    });
+    const saved = await db
+      .from('messages')
+      .update({
+        message_id: sendResult.externalMessageId ?? null,
+        status: sendResult.status ?? 'sent',
+      })
+      .eq('id', id);
+    if (saved.error) throw saved.error;
+  } catch (error) {
+    await db
+      .from('messages')
+      .update({ status: 'failed', error_reason: 'ai_text_send_failed' })
+      .eq('id', id);
+    throw error;
+  }
 
   await db
     .from('conversations')
@@ -4708,7 +4776,7 @@ async function sendDeterministicAgentReply(
     })
     .eq('id', args.conversation.id);
 
-  return (persistedMessage as { id?: string } | null)?.id ?? null;
+  return id;
 }
 
 async function logReply(

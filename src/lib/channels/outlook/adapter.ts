@@ -60,7 +60,7 @@ export const outlookAdapter: ChannelAdapter = {
       text: input.text,
       connection: input.connection,
     });
-    const enviado = await sendDraft(accessToken, draft.id, draft.internetMessageId);
+    const enviado = await sendOutlookDraft(accessToken, draft.id);
     return { externalMessageId: enviado, status: "sent" };
   },
 
@@ -112,7 +112,7 @@ export const outlookAdapter: ChannelAdapter = {
       const detail = await attachRes.text().catch(() => "");
       throw new Error(`[outlook] attach failed (${attachRes.status}): ${detail}`);
     }
-    const enviado = await sendDraft(accessToken, draft.id, draft.internetMessageId);
+    const enviado = await sendOutlookDraft(accessToken, draft.id);
     return { externalMessageId: enviado, status: "sent" };
   },
 
@@ -331,22 +331,18 @@ async function createDraft(
 }
 
 /**
- * Manda el borrador y devuelve el id DEFINITIVO del correo.
+ * Manda el borrador. El id definitivo lo completa el poller de Enviados.
  *
- * Por qué no alcanza con el del borrador: Graph puede reasignar el
- * `internetMessageId` al enviar. Guardando el del borrador, el recorrido de la
- * carpeta "Enviados" traía el mismo correo con OTRO id, no lo reconocía como
- * ya guardado —la conciliación de marcadores sólo actúa cuando `message_id`
- * está en null— y el hilo mostraba la misma respuesta dos veces.
- *
- * Al enviarse, el mensaje se mueve a Enviados y su id de Graph cambia, así que
- * se lo busca por `conversationId`. Si no se lo encuentra queda el del
- * borrador, que es lo que había antes: peor, pero no roto.
+ * Graph puede reasignar `internetMessageId` al mover el borrador a Enviados y
+ * la carpeta es eventualmente consistente. Consultar "el último enviado"
+ * inmediatamente después podía devolver otro correo (o el id viejo), dejando
+ * dos filas para un solo envío. Se conserva `message_id = null`; el poller
+ * reconcilia por conversación + texto con la fila ya reservada y escribe el id
+ * real cuando Microsoft lo publica.
  */
-async function sendDraft(
+export async function sendOutlookDraft(
   accessToken: string,
   draftId: string,
-  fallbackInternetMessageId?: string,
 ): Promise<string | undefined> {
   const sendRes = await fetch(
     `https://graph.microsoft.com/v1.0/me/messages/${draftId}/send`,
@@ -356,23 +352,7 @@ async function sendDraft(
     const detail = await sendRes.text().catch(() => "");
     throw new Error(`[outlook] send failed (${sendRes.status}): ${detail}`);
   }
-  try {
-    const u = new URL("https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages");
-    u.searchParams.set("$select", "internetMessageId");
-    u.searchParams.set("$top", "1");
-    u.searchParams.set("$orderby", "sentDateTime desc");
-    const r = await fetch(u.toString(), {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (r.ok) {
-      const j = (await r.json()) as { value?: Array<{ internetMessageId?: string }> };
-      const real = j.value?.[0]?.internetMessageId;
-      if (real) return real;
-    }
-  } catch {
-    /* mejor el del borrador que ninguno */
-  }
-  return fallbackInternetMessageId;
+  return undefined;
 }
 
 

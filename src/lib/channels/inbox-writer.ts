@@ -286,7 +286,7 @@ export async function ingestInboundEvent(
       .from("messages")
       .select("*")
       .eq("conversation_id", conversation.id)
-      .eq("sender_type", "agent")
+      .in("sender_type", ["agent", "bot"])
       .is("message_id", null)
       .eq("content_text", event.text)
       .in("status", ["failed", "sending", "sent"])
