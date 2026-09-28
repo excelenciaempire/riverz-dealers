@@ -1,4 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { esfuerzo } from '@/lib/ai/esfuerzo';
 import { ESTILO_HUMANO, humanizarTexto } from '@/lib/ai/estilo-humano';
 import { claveRechazada, resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { aiBudgetGuard } from '@/lib/ai/rate-limit';
@@ -40,7 +41,7 @@ const CONTEXT_MESSAGES = 6;
  * y a pedido —no está en el camino de ninguna respuesta automática—, así que
  * el modelo mejor sale casi gratis.
  */
-const MODEL = 'claude-sonnet-5';
+const MODEL = 'claude-sonnet-5-5';
 
 const SYSTEM = `Reescribes el mensaje que alguien de una tienda está por mandarle a un cliente por chat.
 Se lo devuelves como lo habría escrito esa misma persona con más tiempo: bien escrito, pero escrito por una persona.
@@ -247,6 +248,7 @@ export async function POST(request: Request): Promise<Response> {
         }).messages.create({
           model: MODEL,
           max_tokens: 1200,
+          ...esfuerzo(MODEL),
           system: SYSTEM,
           messages: [{ role: 'user', content: prompt }],
         });

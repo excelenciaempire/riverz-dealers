@@ -1,4 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { esfuerzo } from '@/lib/ai/esfuerzo';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 import type { AiAgent, AiResponseMode, AiTone } from '@/lib/ai/types';
@@ -408,8 +409,9 @@ export async function POST(request: Request) {
         origenDeLaClave: clave.source,
       });
       const completion = await client.messages.create({
-        model: 'claude-sonnet-5',
+        model: 'claude-sonnet-5-5',
         max_tokens: 2000,
+        ...esfuerzo('claude-sonnet-5-5'),
         system: metaSystem(locale),
         messages: [
           {
@@ -458,7 +460,7 @@ export async function POST(request: Request) {
     escalate_keywords: ['humano', 'agente', 'reembolso'],
     escalate_after_messages: 0,
     provider: 'anthropic',
-    model: 'claude-sonnet-5',
+    model: 'claude-sonnet-5-5',
     scope: 'workspace',
     product_scope: 'all',
     priority: 0,

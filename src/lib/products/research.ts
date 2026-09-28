@@ -33,7 +33,7 @@ export interface ResearchProduct {
 }
 
 /** The Anthropic model + budget the research pass uses. */
-export const RESEARCH_MODEL = 'claude-sonnet-5'
+export const RESEARCH_MODEL = 'claude-sonnet-5-5'
 export const RESEARCH_MAX_TOKENS = 2000
 
 /** Concatenate what we know about a product for the prompt. */

@@ -1,4 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { esfuerzo } from '@/lib/ai/esfuerzo';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
@@ -115,13 +116,11 @@ export async function POST(request: Request) {
       .join('\n');
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-5',
+      model: 'claude-sonnet-5-5',
       max_tokens: 1024,
       // Quick copy task — no thinking, lowest effort. The system prompt forbids
-      // reasoning leaking into the visible response (a 4.8 quirk when thinking
-      // is disabled).
-      thinking: { type: 'disabled' },
-      output_config: { effort: 'low' },
+      // reasoning leaking into the visible response.
+      ...esfuerzo('claude-sonnet-5-5'),
       system: [
         {
           type: 'text',

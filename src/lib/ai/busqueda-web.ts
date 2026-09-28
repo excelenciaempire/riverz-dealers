@@ -45,7 +45,7 @@ const MAX_BUSQUEDAS = 3
  * mandó a un modelo que no lo aceptaba: una capacidad nueva no puede apagar
  * agentes que venían andando.
  */
-const MODELOS_CON_FILTRADO = /^claude-(opus-(5|4-8|4-7|4-6)|sonnet-(5|4-6)|fable-5|mythos-5)/
+const MODELOS_CON_FILTRADO = /^claude-(opus-(5|4-8|4-7|4-6)|sonnet-(5-5|5|4-6)|fable-5|mythos-5)/
 
 export function soportaFiltradoDinamico(model: string): boolean {
   return MODELOS_CON_FILTRADO.test((model ?? '').trim())

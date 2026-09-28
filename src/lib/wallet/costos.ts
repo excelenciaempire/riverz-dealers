@@ -84,7 +84,7 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     cobro: 'por_uso',
   },
   {
-    // ~2,5 ¢ con el modelo por defecto desde 2026-09-17 (Sonnet 5 con caché
+    // ~2,5 ¢ con el modelo por defecto desde 2026-09-17 (Sonnet con caché
     // de una hora); con Opus 5 y caché de cinco minutos eran 6,05 ¢ medidos
     // en producción (2026-08-30), y con Haiku 1,44. Es sólo la semilla: en
     // cuanto la cuenta tiene historia se le muestra SU costo medido.

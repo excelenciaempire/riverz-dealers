@@ -110,6 +110,20 @@ describe('metered Anthropic HTTP boundary', () => {
     expect(transport).toHaveBeenCalledTimes(1);
     expect(rpc).not.toHaveBeenCalled();
   });
+  it('upgrades an old Sonnet model even with an agent-owned key', async () => {
+    const { ctx } = setup(true, 'agent'),
+      transport = vi.fn().mockResolvedValue(Response.json({}));
+    await meteredAnthropicFetch(ctx, transport)(
+      'https://api.anthropic.com/v1/messages',
+      {
+        headers: { 'content-length': '10' },
+        body: JSON.stringify({ ...params, model: 'claude-sonnet-4-5' }),
+      }
+    );
+    const request = transport.mock.calls[0][1];
+    expect(JSON.parse(String(request.body)).model).toBe('claude-sonnet-5-5');
+    expect(new Headers(request.headers).has('content-length')).toBe(false);
+  });
   it('releases a definitely rejected request', async () => {
     const { ctx, rpc } = setup(),
       transport = vi

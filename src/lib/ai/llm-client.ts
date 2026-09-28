@@ -31,8 +31,8 @@ export type LlmTier = 'triage' | 'premium';
 
 /** Sonnet is the quality baseline for every Anthropic task. */
 const ANTHROPIC_MODELS: Record<LlmTier, string> = {
-  triage: 'claude-sonnet-5',
-  premium: 'claude-sonnet-5',
+  triage: 'claude-sonnet-5-5',
+  premium: 'claude-sonnet-5-5',
 };
 
 interface OpenAICompatProvider {

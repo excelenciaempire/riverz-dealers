@@ -1,5 +1,6 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { ESTILO_HUMANO } from '@/lib/ai/estilo-humano';
+import { esfuerzo } from '@/lib/ai/esfuerzo';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 import { csrfGuard } from '@/lib/csrf';
@@ -33,7 +34,7 @@ import { NextResponse } from 'next/server';
  *     contexto, y conexiones para que entienda el grafo.
  *   - `history`: turnos previos del chat (opcional) para continuidad.
  *
- * La IA responde via Anthropic tool-use (forzado con `tool_choice`)
+ * La IA responde via Anthropic tool-use estricto
  * con un objeto `{reply, patches[]}` que el cliente aplica al estado
  * local — la persistencia real ocurre cuando el usuario pulsa Guardar
  * (idéntico al flujo de cualquier otra edición manual).
@@ -121,7 +122,7 @@ export async function POST(
     );
   }
 
-  // ── Llamada a Claude con tool-use forzado ──
+  // ── Llamada a Claude con tool-use estricto ──
   const client = getAnthropic(resolved.key, {
     db: supabaseAdmin(),
     workspaceId,
@@ -147,8 +148,9 @@ export async function POST(
   let response: Anthropic.Message;
   try {
     response = await client.messages.create({
-      model: 'claude-sonnet-5',
+      model: 'claude-sonnet-5-5',
       max_tokens: 2048,
+      ...esfuerzo('claude-sonnet-5-5'),
       system,
       messages,
       tools: [
@@ -157,9 +159,10 @@ export async function POST(
           description:
             'Responde al usuario y devuelve la lista de cambios a aplicar al flujo (puede estar vacía si el usuario solo hizo una pregunta).',
           input_schema: ASSIST_TOOL_SCHEMA,
+          strict: true,
         },
       ],
-      tool_choice: { type: 'tool', name: ASSIST_TOOL_NAME },
+      tool_choice: { type: 'auto' },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Anthropic API failed';
@@ -168,8 +171,8 @@ export async function POST(
 
   // A la billetera, a lo que costó.
 
-  // El tool_choice forzado garantiza que viene un tool_use; si no,
-  // algo cambió en el lado de Anthropic y devolvemos error claro.
+  // El prompt pide la herramienta y el schema estricto garantiza su forma.
+  // Si el modelo responde en texto, devolvemos un error claro.
   const toolUse = response.content.find(
     (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
   );

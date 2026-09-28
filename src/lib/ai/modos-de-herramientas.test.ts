@@ -48,7 +48,7 @@ const nombres = (modo: 'conversacion' | 'borrador' | 'comentario') =>
     voiceCtx: null,
     topeDescuento: 0,
     modo,
-  }).map((t) => t.name);
+  }).map((t) => ('name' in t ? t.name : undefined));
 
 describe('los modos de construirHerramientas', () => {
   it('el borrador NO puede escribir en la tienda', () => {
@@ -86,7 +86,7 @@ describe('los modos de construirHerramientas', () => {
         otherStore: null,
         voiceCtx: null,
         topeDescuento: 0,
-      }).map((t) => t.name),
+      }).map((t) => ('name' in t ? t.name : undefined)),
     );
   });
 });

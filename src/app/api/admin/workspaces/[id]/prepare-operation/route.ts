@@ -53,7 +53,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       scope: 'workspace',
       product_scope: 'all',
       role: 'ventas',
-      model: 'claude-sonnet-5',
+      model: 'claude-sonnet-5-5',
     }).select('id').single();
     if (error || !created) return NextResponse.json({ error: 'draft_create_failed' }, { status: 500 });
     generatedAgentId = (created as { id: string }).id;

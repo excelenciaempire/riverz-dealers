@@ -12,7 +12,7 @@
  *
  * Uso:
  *   node --env-file=.env.local --import tsx scripts/eval-modelo/run.ts \
- *     --agent <agent_id> [--models claude-opus-5,claude-sonnet-5] [--limit 40] \
+ *     --agent <agent_id> [--models claude-opus-5,claude-sonnet-5-5] [--limit 40] \
  *     [--dataset scripts/eval-modelo/dataset.json] [--output scripts/eval-modelo/resultados.json]
  */
 import Anthropic from '@anthropic-ai/sdk';
@@ -39,7 +39,7 @@ import type { Channel, Contact } from '../../src/types';
 const arg = (name: string, def: string) =>
   process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : def;
 const agentId = arg('--agent', '');
-const models = arg('--models', 'claude-opus-5,claude-sonnet-5').split(',');
+const models = arg('--models', 'claude-opus-5,claude-sonnet-5-5').split(',');
 const limit = Number(arg('--limit', '40'));
 const datasetPath = arg('--dataset', 'scripts/eval-modelo/dataset.json');
 const output = arg('--output', 'scripts/eval-modelo/resultados.json');

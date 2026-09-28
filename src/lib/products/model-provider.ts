@@ -1,4 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { esfuerzo } from '@/lib/ai/esfuerzo';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import type { BillingContext } from '@/lib/wallet/operacion';
 import { RESEARCH_MAX_TOKENS, RESEARCH_MODEL } from './research';
@@ -16,6 +17,7 @@ export const anthropicModel =
     }).messages.create({
       model: RESEARCH_MODEL,
       max_tokens: RESEARCH_MAX_TOKENS,
+      ...esfuerzo(RESEARCH_MODEL),
       messages: [{ role: 'user', content: prompt }],
     });
     return response.content

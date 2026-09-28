@@ -7,6 +7,7 @@ const read = (path) => JSON.parse(readFileSync(resolve(root, path), 'utf8'));
 const recorded = read('scripts/eval-modelo/resultados.json');
 const verdict = read('scripts/eval-modelo/veredicto.json');
 const rates = {
+  'claude-sonnet-5-5': { input: 2, output: 10 },
   'claude-sonnet-5': { input: 2, output: 10 },
   'claude-opus-5': { input: 5, output: 25 },
 };

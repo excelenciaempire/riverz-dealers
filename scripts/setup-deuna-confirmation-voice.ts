@@ -28,7 +28,7 @@ async function main() {
     is_active: true, scope: 'channels', assigned_only: true, language: 'es', tone: 'friendly',
     persona: 'Eres Laura, asistente virtual de DeUNA Shop para revisar datos de pedidos existentes por teléfono. Español neutro de Colombia, una pregunta a la vez, sin presión. Tu procedimiento completo está en las instrucciones de llamada.',
     knowledge: 'DeUNA Shop vende en Colombia y el pedido se paga contraentrega. Shopify contiene pedidos y productos; Dropi requiere revisión logística humana. Confirmar datos no crea, modifica, despacha ni cancela pedidos. Nunca prometas cambios ni fechas sin verificar.',
-    provider: 'anthropic', model: 'claude-sonnet-4-5', context_messages: 30,
+    provider: 'anthropic', model: 'claude-sonnet-5-5', context_messages: 30,
     product_scope: 'all', followup_enabled: false, puede_crear_pedidos: false,
     permissions: { crear_pedidos: false, editar_pedido: false, crear_checkout: false, registrar_pago: false, escalar_llamada: false, enviar_proactivo: false },
     tools: { buscar_producto: 'auto', ver_producto: 'auto', lookup_order: 'auto', ver_contacto: 'auto', no_se_la_respuesta: 'auto', etiquetar_contacto: 'auto', gestionar_recompra: 'off', crear_pedido: 'off', crear_checkout: 'off', crear_link_de_pago: 'off', editar_pedido: 'off', cancelar_pedido: 'off', reembolsar: 'off', abrir_devolucion: 'off', registrar_pago: 'off', ofrecer_descuento: 'off', escalar_llamada: 'off', enviar_proactivo: 'off', buscar_en_internet: 'off', cerrar_conversacion: 'off' },

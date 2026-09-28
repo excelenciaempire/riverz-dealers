@@ -155,7 +155,7 @@ export async function POST(request: Request) {
           concepto: 'busqueda_web',
           origenDeLaClave: resolved.source,
         }),
-        model: agente.model || 'claude-sonnet-5',
+        model: agente.model || 'claude-sonnet-5-5',
         consulta,
         idioma: agente.language || undefined,
       });

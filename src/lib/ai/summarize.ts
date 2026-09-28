@@ -17,7 +17,7 @@
  * Los dos corren en background (fire-and-forget) y fallan en silencio
  * — nunca rompen el flujo de respuesta del runner.
  *
- * Modelo usado: Claude Sonnet 5, reutiliza la API key
+ * Modelo usado: Claude Sonnet 5.5, reutiliza la API key
  * del agente si la tiene, sino la global ANTHROPIC_API_KEY.
  */
 
@@ -26,11 +26,12 @@ import type { Contact, Conversation } from '@/types';
 import Anthropic from '@anthropic-ai/sdk';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
+import { esfuerzo } from './esfuerzo';
 import { resolveAnthropicKey, type KeySource } from './platform-key';
 import type { AiAgent } from './types';
 import { evidenceText, type EvidenceRow } from './conversation-evidence';
 
-const SUMMARY_MODEL = 'claude-sonnet-5';
+const SUMMARY_MODEL = 'claude-sonnet-5-5';
 
 /** Cantidad de mensajes "recientes" que NUNCA se resumen. El resumen
  *  cubre solamente lo MÁS VIEJO que esto. */
@@ -144,6 +145,7 @@ export async function summarizeConversationIfNeeded(
     const res = await client.messages.create({
       model: SUMMARY_MODEL,
       max_tokens: 400,
+      ...esfuerzo(SUMMARY_MODEL),
       system:
         'Sos un compresor de contexto. Devolvés un único párrafo en español de máximo 200 palabras, sin viñetas. Conserva los datos de audios e imágenes, qué pedido eligió, dudas sin resolver y correcciones posteriores a una confirmación. No conviertas un sí ambiguo, una captura ni un archivo sin interpretar en consentimiento. Distingue dichos del cliente de acciones efectivamente ejecutadas.',
       messages: [{ role: 'user', content: prompt }],
@@ -256,6 +258,7 @@ export async function summarizeContactIfNeeded(
     const res = await client.messages.create({
       model: SUMMARY_MODEL,
       max_tokens: 350,
+      ...esfuerzo(SUMMARY_MODEL),
       system:
         'Sos un compresor de memoria de cliente. Devolvés UN solo párrafo en español de máximo 150 palabras describiendo al cliente: nombre si se sabe, preferencias, alergias / restricciones, productos que le interesan, tono que usa (formal/casual), tipo de consultas frecuentes. Sin viñetas, sin saludos.',
       messages: [

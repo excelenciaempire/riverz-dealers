@@ -90,7 +90,7 @@ async function main() {
   const payload = {
     workspace_id: WORKSPACE_ID,
     name: 'Rasmiaw Guía Global',
-    model: 'claude-sonnet-5',
+    model: 'claude-sonnet-5-5',
     is_active: true,
     assigned_only: false,
     role: 'general',

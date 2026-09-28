@@ -27,7 +27,7 @@ export type OperatorEvent =
   /**
    * Razonamiento del modelo, cuando lo expone.
    *
-   * Medido contra la API: `claude-sonnet-5` con `thinking: adaptive` no manda
+   * Medido contra la API: `claude-sonnet-5-5` con `thinking: adaptive` no manda
    * bloques de pensamiento en ningún `display` —se probó `summarized`,
    * `omitted` y sin especificar, cero deltas en los tres—. Razona por dentro y
    * devuelve sólo texto. Lo que ve el comercio como "está pensando" es otra

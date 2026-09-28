@@ -150,6 +150,7 @@ export async function probarCapa(
 ): Promise<VoiceProbeResult> {
   const provider = (cfg[`${capa}_provider`] as string | null) || '';
   const model = (cfg[`${capa}_model`] as string | null) || '';
+  const anthropicModel = model || 'claude-sonnet-5-5';
   const baseUrl = (cfg[`${capa}_base_url`] as string | null) ?? null;
   // `getVoiceModelResolved` ya descifró lo que hubiera guardado; si no hay,
   // se cae a la env var igual que el worker.
@@ -176,8 +177,14 @@ export async function probarCapa(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: model || 'claude-sonnet-5',
+          model: anthropicModel,
           max_tokens: 5,
+          ...(anthropicModel === 'claude-sonnet-5-5'
+            ? {
+                thinking: { type: 'between_tools' },
+                output_config: { effort: 'low' },
+              }
+            : {}),
           messages: [{ role: 'user', content: 'ok' }],
         }),
       })) };

@@ -1,4 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { esfuerzo } from '@/lib/ai/esfuerzo';
 import { hayJev, preguntarJev, type RespuestaChoice } from '@/lib/ai/jev';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { puedeUsarIa } from '@/lib/wallet/puerta';
@@ -65,7 +66,7 @@ export async function classifyIntent(args: {
   const apiKey = resolved?.key;
   if (!apiKey) return null;
 
-  const model = row?.model || 'claude-sonnet-5';
+  const model = row?.model || 'claude-sonnet-5-5';
   const optionList = args.intents
     .map((i) => `- ${i.intent_key}: ${i.description}`)
     .join('\n');
@@ -81,6 +82,7 @@ export async function classifyIntent(args: {
     const response = await client.messages.create({
       model,
       max_tokens: 32,
+      ...esfuerzo(model),
       system:
         'Clasificás un mensaje del cliente en una de las categorías que se te dan. ' +
         'Responde SOLO con el intent_key exacto, sin explicación. ' +

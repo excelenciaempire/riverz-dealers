@@ -36,7 +36,7 @@ import { systemPrompt } from './prompt';
 /** Techo de vueltas. Un diagnóstico honesto se resuelve en tres o cuatro. */
 const MAX_ITERS = 6;
 const MAX_TOKENS = 4096;
-const MODEL = 'claude-sonnet-5';
+const MODEL = 'claude-sonnet-5-5';
 
 /**
  * Cuánto piensa antes de contestar.

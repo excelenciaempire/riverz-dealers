@@ -10,6 +10,7 @@
  * (only `has_*_key` booleans), while the worker view decrypts them.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { modeloAnthropicVigente } from '@/lib/ai/model-version';
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
 import {
   LAYER_FIELDS,
@@ -104,7 +105,7 @@ function defaultRow(): VoiceModelRow {
     stt_base_url: null,
     stt_api_key_encrypted: null,
     llm_provider: 'anthropic',
-    llm_model: 'claude-sonnet-5',
+    llm_model: 'claude-sonnet-5-5',
     llm_base_url: null,
     llm_api_key_encrypted: null,
     tts_provider: 'deepgram',
@@ -126,7 +127,11 @@ async function getRow(db: SupabaseClient): Promise<VoiceModelRow> {
     .eq('id', 1)
     .maybeSingle();
   if (!data) return defaultRow();
-  return { ...defaultRow(), ...(data as Partial<VoiceModelRow>) };
+  const row = { ...defaultRow(), ...(data as Partial<VoiceModelRow>) };
+  if (row.llm_provider === 'anthropic') {
+    row.llm_model = modeloAnthropicVigente(row.llm_model);
+  }
+  return row;
 }
 
 function safeDecrypt(v: string | null): string | null {

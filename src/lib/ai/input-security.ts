@@ -18,10 +18,18 @@ export function untrustedContext(source: string, text: string): string {
 
 /** Hosted tools are not permission to dispatch a same-named local function. */
 export function toolCallAllowed(
-  tools: readonly { name?: string; input_schema?: unknown }[],
+  tools: readonly unknown[],
   name: string,
   input: unknown,
 ): boolean {
-  return tools.some(t => t.name === name && t.input_schema != null)
+  return tools.some(
+    (tool) =>
+      typeof tool === 'object' &&
+      tool !== null &&
+      'name' in tool &&
+      tool.name === name &&
+      'input_schema' in tool &&
+      tool.input_schema != null,
+  )
     && input !== null && typeof input === 'object' && !Array.isArray(input);
 }

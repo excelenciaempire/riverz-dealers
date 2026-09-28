@@ -3,6 +3,7 @@ import { reservar, liquidar, cancelar } from '@/lib/wallet/operacion';
 import { rateFor } from '@/lib/admin/cost';
 import { inlineCountableMedia } from './countable-media';
 import { observePlatformCredit } from '@/lib/admin/provider-credit';
+import { modeloAnthropicVigente } from './model-version';
 
 type Usage = {
   input_tokens?: number;
@@ -48,9 +49,19 @@ export function meteredAnthropicFetch(
 ): typeof fetch {
   return async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
-    if (!/\/messages(?:\?|$)/.test(url) || ctx.origenDeLaClave === 'agent')
+    if (!/\/messages(?:\?|$)/.test(url))
       return transport(input, init);
     const body = JSON.parse(String(init?.body ?? '{}'));
+    const model = modeloAnthropicVigente(String(body.model ?? ''));
+    if (model !== body.model) {
+      body.model = model;
+      const headers = new Headers(
+        init?.headers ?? (input instanceof Request ? input.headers : undefined)
+      );
+      headers.delete('content-length');
+      init = { ...init, headers, body: JSON.stringify(body) };
+    }
+    if (ctx.origenDeLaClave === 'agent') return transport(input, init);
     const apiKey = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined)).get('x-api-key') ?? '';
     const rate = rateFor(body.model);
     if (body.service_tier && body.service_tier !== 'standard')

@@ -280,7 +280,7 @@ export async function simularRespuesta(
             (reguladoPorEsfuerzo(modeloComentario) ? 4000 : 0),
         }
       : {
-          model: orderConversationModel({ workspaceId: a.workspace_id, configuredModel: a.model || 'claude-sonnet-5', hasOrder: recoveryHasExistingOrder(automationContext), messages: [...input.historial, { content: input.message }] }),
+          model: orderConversationModel({ workspaceId: a.workspace_id, configuredModel: a.model || 'claude-sonnet-5-5', hasOrder: recoveryHasExistingOrder(automationContext), messages: [...input.historial, { content: input.message }] }),
           reasoningEffort: 'high' as const,
           max_tokens: 4000 + Math.max(64, Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2))),
         }),

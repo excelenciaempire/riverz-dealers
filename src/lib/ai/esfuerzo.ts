@@ -9,7 +9,7 @@
  *   claude-haiku-4-5 + output_config → «This model does not support the effort parameter.»
  *   claude-haiku-4-5 + adaptive      → «adaptive thinking is not supported on this model»
  *   claude-haiku-4-5 pelado          → OK
- *   claude-sonnet-5 / opus-4-8 / opus-5 con los dos → OK
+ *   claude-sonnet-5-5 / opus-4-8 / opus-5 con los dos → OK
  *
  * Costó caro. El Operador le pasaba esos dos parámetros a los ocho
  * especialistas del escalón `mecanico`, que corren en Haiku: los ocho morían
@@ -32,7 +32,9 @@ export function reguladoPorEsfuerzo(model: string): boolean {
  * Los parámetros de esfuerzo listos para desparramar en la llamada, o nada.
  *
  * `pensar` es el modo de razonamiento: `adaptive` deja que el modelo decida
- * cuánto piensa, `disabled` lo apaga para una tarea mecánica.
+ * cuánto piensa, `disabled` pide el mínimo para una tarea mecánica. Sonnet 5.5
+ * reemplazó `disabled` por `between_tools`; el resto de modelos conserva el
+ * valor anterior.
  */
 export function esfuerzo(
   model: string,
@@ -42,8 +44,14 @@ export function esfuerzo(
   } = {},
 ): Record<string, unknown> {
   if (!reguladoPorEsfuerzo(model)) return {}
+  const pensar = opciones.pensar ?? 'disabled'
   return {
-    thinking: { type: opciones.pensar ?? 'disabled' },
+    thinking: {
+      type:
+        pensar === 'disabled' && /claude-sonnet-5-5(?:-|$)/.test(model)
+          ? 'between_tools'
+          : pensar,
+    },
     output_config: { effort: opciones.effort ?? 'low' },
   }
 }
@@ -69,4 +77,4 @@ export function esfuerzo(
  * por agente. Se corre con esfuerzo BAJO, que es donde la diferencia de
  * precio se achica y la obediencia se mantiene.
  */
-export const MODELO_POR_DEFECTO = 'claude-sonnet-5'
+export const MODELO_POR_DEFECTO = 'claude-sonnet-5-5'

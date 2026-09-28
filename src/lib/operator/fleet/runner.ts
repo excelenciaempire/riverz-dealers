@@ -94,7 +94,7 @@ export function anthropicRunner(client: Anthropic): ModelRunner {
  * al schema, y para eso alcanza.
  */
 export const MODELOS = {
-  orquestador: { model: 'claude-sonnet-5', effort: 'medium' as const, maxTokens: 4096 },
-  constructor: { model: 'claude-sonnet-5', effort: 'medium' as const, maxTokens: 4096 },
-  mecanico: { model: 'claude-sonnet-5', effort: 'low' as const, maxTokens: 2048 },
+  orquestador: { model: 'claude-sonnet-5-5', effort: 'medium' as const, maxTokens: 4096 },
+  constructor: { model: 'claude-sonnet-5-5', effort: 'medium' as const, maxTokens: 4096 },
+  mecanico: { model: 'claude-sonnet-5-5', effort: 'low' as const, maxTokens: 2048 },
 }

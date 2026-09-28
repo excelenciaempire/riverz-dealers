@@ -1,4 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { esfuerzo } from '@/lib/ai/esfuerzo';
 import type { BillingContext } from '@/lib/wallet/operacion';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -55,7 +56,7 @@ function parseSegment(
  * Uses Sonnet (this runs per-contact on demand). Returns null on any
  * failure so the caller can degrade gracefully.
  */
-const MODELO = 'claude-sonnet-5';
+const MODELO = 'claude-sonnet-5-5';
 
 /** Lo que consumio la llamada, para que el llamador pueda cobrarla. */
 export interface UsoDelModelo {
@@ -95,10 +96,9 @@ export async function generateContactSegment(
   try {
     const client = getAnthropic(apiKey, input.billing);
     const res = await client.messages.create({
-      // Sin los parámetros de esfuerzo: Haiku los rechaza con 400 y esto
-      // llevaba meses contestando siempre que no se pudo.
       model: MODELO,
       max_tokens: 400,
+      ...esfuerzo(MODELO),
       system: [
         {
           type: 'text',

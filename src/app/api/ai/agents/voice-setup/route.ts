@@ -1,4 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { esfuerzo } from '@/lib/ai/esfuerzo';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 import { serverError } from '@/lib/api/errors';
@@ -83,8 +84,9 @@ Reglas: escribe los CUATRO objetivos, cortos y accionables, adaptados al negocio
       origenDeLaClave: resuelta?.source,
     });
     const resp = await client.messages.create({
-      model: 'claude-sonnet-5',
+      model: 'claude-sonnet-5-5',
       max_tokens: 700,
+      ...esfuerzo('claude-sonnet-5-5'),
       system,
       messages: [
         { role: 'user', content: body.description.trim().slice(0, 2000) },

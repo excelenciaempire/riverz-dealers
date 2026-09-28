@@ -7,7 +7,7 @@ import {
 } from './order-conversation-policy';
 import { evidenceText } from './conversation-evidence';
 
-const base = { workspaceId: DEUNA_WORKSPACE, configuredModel: 'claude-sonnet-5', hasOrder: true };
+const base = { workspaceId: DEUNA_WORKSPACE, configuredModel: 'claude-sonnet-5-5', hasOrder: true };
 describe('Efra: retain uncertainty across buttons, screenshots and audio', () => {
   it('routes correction after confirmation to reasoning, even if the latest reply is yes', () => {
     expect(orderConversationModel({ ...base, messages: [

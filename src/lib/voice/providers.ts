@@ -159,10 +159,9 @@ export const LLM_PROVIDERS: ProviderOption[] = [
     id: 'anthropic',
     label: 'Anthropic (Claude)',
     models: [
-      { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 (recomendado)' },
+      { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (recomendado)' },
       { id: 'claude-opus-5', label: 'Claude Opus 5 (máxima calidad)' },
       { id: 'claude-opus-4-8', label: 'Claude Opus 4.8' },
-      { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
       { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (rápido)' },
     ],
     envKeys: ['ANTHROPIC_API_KEY'],

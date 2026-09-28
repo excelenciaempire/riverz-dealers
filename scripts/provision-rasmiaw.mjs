@@ -190,7 +190,7 @@ async function main() {
   const agentPayload = {
     workspace_id: WORKSPACE_ID, name: 'Rasmiaw Recuperación', is_active: false, assigned_only: true,
     role: 'recuperacion', scope: 'channels', language: 'es', tone: 'friendly', reply_when_assigned: true, max_response_chars: 1200,
-    model: 'claude-sonnet-5',
+    model: 'claude-sonnet-5-5',
     persona: 'Recuperas compras asignadas con claridad y calidez. Confirmar conserva contra entrega. En un pedido ya creado, BENEFICIO o RECIBIR BENEFICIO solicita cambiar la forma de pago actual: presentas el menú de pago personalizado declarado por Rasmiaw sin generar cupón ni otro checkout. Escalas cuando elija Bold o Addi, envíe un comprobante o reporte un problema. Sólo generas cupón cuando una recuperación sin pedido existente lo autorizó. No inventas datos de pago.',
     permissions: { crear_checkout: true }, tools: { crear_checkout: 'auto', ofrecer_descuento: 'off', registrar_pago: 'off' },
     medios_pago: ['transferencia', 'link_de_pago'], created_by: ownerId,

@@ -43,7 +43,7 @@ import { MIN_DEBOUNCE_SECONDS } from './types';
 
 /** El borrador lo escribe Sonnet aunque el agente use otro modelo: ver la
  *  nota en la llamada. */
-const MODELO_BORRADOR = 'claude-sonnet-5';
+const MODELO_BORRADOR = 'claude-sonnet-5-5';
 
 /** Salto de línea, con nombre: estas listas se leen mejor así. */
 const SALTO = `
