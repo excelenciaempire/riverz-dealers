@@ -2,6 +2,13 @@ import type { Namespace } from './types';
 
 /** Panel de plataforma (riverz.co/admin) — solo equipo Riverz. */
 export const admin = {
+  providerAlertRemaining: { es: ' (quedan {value} {unit})', en: ' ({value} {unit} remaining)' },
+  providerAlertEmpty: { es: '· {name} SIN SALDO — revisar: {url}', en: '· {name} OUT OF CREDIT — check: {url}' },
+  providerAlertLow: { es: '· {name} con poco saldo{balance} — recargar: {url}', en: '· {name} low credit{balance} — top up: {url}' },
+  providerAlertQuota: { es: '· {name} alcanzó un límite de uso — revisar: {url}', en: '· {name} reached a usage limit — check: {url}' },
+  platformAlertTitle: { es: 'aviso de la plataforma', en: 'platform alert' },
+  platformAlertTestTitle: { es: 'Prueba de alertas', en: 'Alert test' },
+  platformAlertTestBody: { es: 'Riverz enviará a este WhatsApp los avisos de saldo bajo o agotado que pueda detectar. Este es un mensaje de prueba.', en: 'Riverz will send detectable low-credit and depleted-credit alerts to this WhatsApp. This is a test message.' },
   cronVoiceNumbers: { es: 'Activación y renovación de números por comercio', en: 'Merchant number activation and renewals' },
   concepto_numero_telefono: { es: 'Número telefónico', en: 'Phone number' },
   unlockUnconfigured: { es: 'El panel no tiene contraseña configurada.', en: 'The panel password has not been configured.' },

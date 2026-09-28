@@ -7,6 +7,7 @@ import { esfuerzo } from './esfuerzo';
 import { secureSystemPrompt } from './input-security';
 import { esCuentaByok } from './platform-key';
 import { redactModelSecrets } from '@/lib/security/model-secrets';
+import { observePlatformCredit } from '@/lib/admin/provider-credit';
 
 /**
  * Provider-agnostic text completion for the Instagram brain.
@@ -181,6 +182,7 @@ async function completeOpenAICompat(
     }),
     signal: AbortSignal.timeout(45_000),
   });
+  await observePlatformCredit(o.billing.db, p.name, p.apiKey, res);
   if (!res.ok) {
     if ([400, 401, 403, 404, 422, 429].includes(res.status))
       await cancelar(o.billing, id);

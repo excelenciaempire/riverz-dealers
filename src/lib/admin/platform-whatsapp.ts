@@ -213,7 +213,7 @@ export async function sendPlatformAlert(args: {
   title: string;
   /** El cuerpo. En texto libre va entero; en plantilla, como segundo parámetro. */
   body: string;
-}): Promise<{ ok: boolean; messageId?: string; error?: string }> {
+}): Promise<{ ok: boolean; messageId?: string; error?: string; errorCode?: number; httpStatus?: number }> {
   const plataforma = await platformWhatsApp();
   if (!plataforma) {
     return { ok: false, error: 'el WhatsApp de Riverz no está configurado' };
@@ -267,7 +267,12 @@ export async function sendPlatformAlert(args: {
     });
     return { ok: true, messageId: res.messageId ?? undefined };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'no se pudo avisar' };
+    const meta = err as { code?: unknown; status?: unknown } | null;
+    return {
+      ok: false, error: err instanceof Error ? err.message : 'no se pudo avisar',
+      ...(typeof meta?.code === 'number' ? { errorCode: meta.code } : {}),
+      ...(typeof meta?.status === 'number' ? { httpStatus: meta.status } : {}),
+    };
   }
 }
 

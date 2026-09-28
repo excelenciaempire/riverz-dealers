@@ -4,7 +4,7 @@ vi.mock('@/lib/channels/admin-client', () => ({ supabaseAdmin: () => ({ from: ()
   const q = { select: () => q, eq: () => q, maybeSingle: mocks.read }; return q;
 } }) }));
 vi.mock('@/lib/whatsapp/encryption', () => ({ decrypt: mocks.decrypt, encrypt: vi.fn() }));
-vi.mock('@/lib/ai/platform-key', () => ({ invalidatePlatformKeyCache: vi.fn() }));
+vi.mock('@/lib/ai/platform-key', () => ({ invalidatePlatformKeyCache: vi.fn(), platformAnthropicEnvKey: () => process.env.ANTHROPIC_API_KEY || null }));
 import { leerClaveAnthropicParaSonda, proveedorActivoEnAdmin } from './claves';
 beforeEach(() => {
   vi.clearAllMocks(); vi.stubEnv('ANTHROPIC_API_KEY', 'stale-env-key');

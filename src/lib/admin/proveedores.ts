@@ -30,6 +30,7 @@ import { leerSaldoDeStripe } from './stripe-saldo'
 import { leerEstadoDeClaves, leerClaveAnthropicParaSonda, type OrigenDeClave } from './claves'
 import { sondaJev } from '@/lib/ai/jev'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
+import { activeCreditState, creditFailure } from './provider-credit'
 
 export type EstadoProveedor =
   | 'ok'
@@ -381,7 +382,8 @@ async function sondaOpenAICompat(
     }
 
     if (r.status === 200) return { ...p, estado: 'ok' }
-    if (r.status === 402) return { ...p, estado: 'sin_saldo', detalleKey: 'admin.svcNoCredit' }
+    if (creditFailure(r.status, await r.clone().json().catch(() => null)))
+      return { ...p, estado: 'sin_saldo', detalleKey: 'admin.svcNoCredit' }
     if (r.status === 429) return { ...p, estado: 'bajo', detalleKey: 'admin.svcRateLimited' }
     return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
   } catch {
@@ -748,7 +750,7 @@ export async function leerProveedores(): Promise<EstadoDeProveedores> {
     leerEstadoDeClaves().catch(() => []),
   ])
 
-  const proveedores = sondas
+  let proveedores = sondas
     .filter((r): r is PromiseFulfilledResult<Proveedor> => r.status === 'fulfilled')
     .map((r) => r.value)
     .map((p) => {
@@ -761,6 +763,22 @@ export async function leerProveedores(): Promise<EstadoDeProveedores> {
       }
     })
 
+  // A free model catalog cannot prove that paid usage still has credit.
+  // Real platform calls record credit refusals; BYOK calls never do.
+  const signals = await supabaseAdmin().from('platform_provider_credit_signals')
+    .select('provider, key_digest, state')
+  const keys: Record<string, string | null | undefined> = {
+    anthropic: await leerClaveAnthropicParaSonda().catch(() => null),
+    gemini: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+    typesafe: process.env.TYPESAFE_API_KEY,
+  }
+  proveedores = proveedores.map((p) => {
+    if (p.estado !== 'desconocido' || !keys[p.id]) return p
+    if (signals.error) return { ...p, estado: 'error' as const, detalleKey: 'admin.svcNoAnswer' }
+    return activeCreditState(p.id, keys[p.id]!, signals.data ?? []) === 'sin_saldo'
+      ? { ...p, estado: 'sin_saldo' as const, detalleKey: 'admin.svcNoCredit' }
+      : p
+  })
   return {
     proveedores,
     fijos,

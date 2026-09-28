@@ -3,6 +3,7 @@ import { redactModelSecrets } from '@/lib/security/model-secrets';
 import { cancelar, liquidar, reservar } from '@/lib/wallet/operacion';
 import { puedeUsarIa } from '@/lib/wallet/puerta';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { observePlatformCredit } from '@/lib/admin/provider-credit';
 
 /**
  * JEV: EL QUE DECIDE, NO EL QUE ESCRIBE.
@@ -213,6 +214,7 @@ export async function preguntarJev<Q extends Record<string, Pregunta>>(
     return null;
   }
 
+  await observePlatformCredit(o.db, PROVEEDOR, key, res);
   if (!res.ok) {
     if ([400, 401, 403, 404, 413, 422, 429].includes(res.status)) {
       await cancelar(billing, reservaId).catch(() => undefined);

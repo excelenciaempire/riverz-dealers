@@ -2,6 +2,7 @@ import type { BillingContext } from '@/lib/wallet/operacion';
 import { reservar, liquidar, cancelar } from '@/lib/wallet/operacion';
 import { rateFor } from '@/lib/admin/cost';
 import { inlineCountableMedia } from './countable-media';
+import { observePlatformCredit } from '@/lib/admin/provider-credit';
 
 type Usage = {
   input_tokens?: number;
@@ -50,6 +51,7 @@ export function meteredAnthropicFetch(
     if (!/\/messages(?:\?|$)/.test(url) || ctx.origenDeLaClave === 'agent')
       return transport(input, init);
     const body = JSON.parse(String(init?.body ?? '{}'));
+    const apiKey = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined)).get('x-api-key') ?? '';
     const rate = rateFor(body.model);
     if (body.service_tier && body.service_tier !== 'standard')
       throw new Error('wallet_unsupported_service_tier');
@@ -72,8 +74,10 @@ export function meteredAnthropicFetch(
         }),
       }
     );
-    if (!count.ok)
+    if (!count.ok) {
+      await observePlatformCredit(ctx.db, 'anthropic', apiKey, count);
       throw new Error(`wallet_token_count_failed: ${count.status}`);
+    }
     const tokens = (await count.json()).input_tokens;
     if (
       !Number.isSafeInteger(tokens) ||
@@ -95,6 +99,7 @@ export function meteredAnthropicFetch(
     });
     // Network errors leave the reservation intact: the provider may have processed the request.
     const response = await transport(input, init);
+    await observePlatformCredit(ctx.db, 'anthropic', apiKey, response);
     if (!response.ok) {
       if ([400, 401, 403, 404, 413, 422, 429].includes(response.status))
         await cancelar(ctx, id);

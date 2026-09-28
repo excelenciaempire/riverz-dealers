@@ -1,6 +1,7 @@
 import type { BillingContext } from '@/lib/wallet/operacion';
 import { cancelar, liquidar, reservar } from '@/lib/wallet/operacion';
 import { parseBuffer } from 'music-metadata';
+import { observePlatformCredit } from '@/lib/admin/provider-credit';
 /**
  * Transcripción de audios y voice notes vía Whisper.
  *
@@ -195,6 +196,7 @@ export async function transcribeBuffer(
       // Un voice note son segundos; un video de un minuto tarda más de 10.
       signal: AbortSignal.timeout(opts.timeoutMs ?? 15000),
     });
+    await observePlatformCredit(opts.billing.db, provider.name, provider.apiKey, res);
     if (!res.ok) {
       if ([400, 401, 403, 413, 422, 429].includes(res.status))
         await cancelar(opts.billing, id);

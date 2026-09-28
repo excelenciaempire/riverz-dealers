@@ -8,10 +8,14 @@ import {
   isActionableCronFailure,
   needsCronFailureConfirmation,
 } from '@/lib/cron/recovery'
-import { platformTechnicalAlertRecipients, sendPlatformAlert } from '@/lib/admin/platform-whatsapp'
+import { platformTechnicalAlertRecipients, platformWhatsAppStatus, sendPlatformAlert } from '@/lib/admin/platform-whatsapp'
 import { leerProveedores } from '@/lib/admin/proveedores'
 import { getLogger } from '@/lib/log/logger'
 import {alertCandidates, rememberAlerts, type AlertHistory} from '@/lib/health/alert-history'
+import { deliverPlatformNotifications, type WatchState } from '@/lib/health/platform-notifications'
+import { providerAlert } from '@/lib/health/provider-alerts'
+import { translate } from '@/lib/i18n/translate'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 const log = getLogger('cron.platform-watch')
 
@@ -39,9 +43,6 @@ const log = getLogger('cron.platform-watch')
  * claves nuevas, el mensaje trae SÓLO esas: repetir lo que ya se dijo es la
  * forma más rápida de que se ignore.
  */
-
-/** Cuántas líneas entran en el mensaje antes de resumir. */
-const MAX_LINEAS = 8
 
 /**
  * A partir de cuántos comercios un mismo problema deja de ser de un comercio y
@@ -108,14 +109,21 @@ async function cronHandler(request: Request) {
   }
 
   const admin = supabaseAdmin()
+  const lease = await admin.rpc('claim_platform_watch_notifications')
+  if (lease.error) throw new Error(`platform_watch_state: ${lease.error.message}`)
+  const estadoRow = lease.data?.[0] as WatchState | undefined
+  if (!estadoRow) return NextResponse.json({ avisado: false, concurrent: true })
+  try {
+    return await inspectPlatformState(admin, estadoRow)
+  } finally {
+    const released = await admin.rpc('release_platform_watch_notifications', { p_lease: estadoRow.notification_lease_id })
+    if (released.error) log.warn('notification lease release failed')
+  }
+}
 
-  // An unreadable snapshot is not an empty incident list.
-  const { data: estadoRow, error: estadoError } = await admin
-    .from('platform_watch_state')
-    .select('fingerprint, alert_history, updated_at')
-    .eq('id', true)
-    .maybeSingle()
-  if (estadoError) throw new Error(`platform_watch_state: ${estadoError.message}`)
+async function inspectPlatformState(admin: SupabaseClient, estadoRow: WatchState) {
+  const [recipients, whatsapp] = await Promise.all([platformTechnicalAlertRecipients(), platformWhatsAppStatus()])
+  const locale = whatsapp.templateLanguage.startsWith('en') ? 'en' : 'es'
   const anterior = estadoRow?.fingerprint ?? ''
   const previas = new Set<string>(anterior ? anterior.split('|') : [])
   const history = (estadoRow?.alert_history ?? {}) as AlertHistory
@@ -330,25 +338,17 @@ async function cronHandler(request: Request) {
       })
     }
     for (const p of proveedores) {
-      if (p.estado === 'error') conservarPrefijo(`saldo:${p.id}`)
-      // Sólo los que se recargan: que Supabase no publique saldo no es una
-      // alarma, es que no tiene saldo que publicar.
-      if (!p.recargable) continue
-      if (p.estado !== 'sin_saldo' && p.estado !== 'bajo') continue
-      const cuanto =
-        p.saldo === null
-          ? ''
-          : ` (quedan ${p.saldo.toFixed(2)} ${p.unidad ?? ''})`.replace(/ +\)/, ')')
-      actuales.set(
-        `saldo:${p.id}`,
-        p.estado === 'sin_saldo'
-          ? `· ${p.nombre} SIN SALDO — recargar ya: ${p.url}`
-          : `· ${p.nombre} con poco saldo${cuanto} — recargar: ${p.url}`
-      )
+      if (p.estado === 'error') {
+        conservarPrefijo(`saldo:${p.id}`)
+        conservarPrefijo(`limite:${p.id}`)
+      }
+      const alert = providerAlert(p, locale)
+      if (alert) actuales.set(alert.key, alert.line)
     }
   } catch (err) {
     lecturasFallidas.push('provider_health')
     conservarPrefijo('saldo:')
+    conservarPrefijo('limite:')
     log.warn('no se pudo leer el saldo de los proveedores', {
       error: err instanceof Error ? err.message : String(err),
     })
@@ -373,95 +373,22 @@ async function cronHandler(request: Request) {
     ...(lecturasFallidas.length ? { error: lecturasFallidas.join(', ') } : {}),
   }, { status: lecturasFallidas.length ? 207 : 200 })
 
-  if (fingerprint === anterior) {
-    return respond({
-      problemas: actuales.size,
-      nuevos: 0,
-      avisado: false,
-    })
-  }
-
   const nuevas = alertCandidates([...actuales.keys()].filter((k) => !previas.has(k) && !pendientes.has(k)), history)
-
-  // Guardar SIEMPRE, aunque el aviso no salga: si no, un fallo de WhatsApp
-  // convierte el próximo tick en el mismo mensaje otra vez, cada 15 minutos.
-  const snapshot = {
-      id: true,
-      fingerprint,
-      alert_history: rememberAlerts(history, nuevas),
-      notified_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
-  // Compare-and-set prevents two overlapping monitors announcing the same change.
-  const saved = estadoRow
-    ? await admin.from('platform_watch_state').update(snapshot)
-      .eq('id', true).eq('fingerprint', anterior).select('id')
-    : await admin.from('platform_watch_state').insert(snapshot).select('id')
-  if (saved.error) throw new Error(`platform_watch_state: ${saved.error.message}`)
-  if (!saved.data?.length) return respond({ avisado: false, concurrent: true })
-
-  // Que desaparezca un problema también cambia la huella, y eso no se avisa.
-  if (nuevas.length === 0) {
-    return respond({
-      problemas: actuales.size,
-      nuevos: 0,
-      avisado: false,
-    })
-  }
-
-  // El emisor es el WhatsApp de Riverz; los destinatarios son exclusivamente
-  // de administración y viven con esa configuración. Render queda como
-  // respaldo hasta que se aplique la migración que habilita el panel.
-  const { phone: telefono, email: correo } = await platformTechnicalAlertRecipients()
-  if (!telefono && !correo) {
-    log.warn('hay novedades y no hay a quién avisarle', {
-      nuevos: nuevas.length,
-      falta: 'PLATFORM_ALERT_PHONE o PLATFORM_ALERT_EMAIL',
-    })
-    return respond({
-      problemas: actuales.size,
-      nuevos: nuevas.length,
-      avisado: false,
-    })
-  }
-
-  const lineas = nuevas.slice(0, MAX_LINEAS).map((k) => actuales.get(k)!)
-  if (nuevas.length > MAX_LINEAS) {
-    lineas.push(`· y ${nuevas.length - MAX_LINEAS} más`)
-  }
-
-  // Dos títulos y no uno: la plantilla de WhatsApp ya empieza con "Riverz ·",
-  // así que mandarle el prefijo llegaba como "Riverz · Riverz · algo nuevo se
-  // rompió". El correo no tiene ese encabezado y sí lo necesita en el asunto.
-  const tituloWhatsapp = 'algo nuevo se rompió'
-  const tituloCorreo = 'Riverz · algo nuevo se rompió'
-  const cuerpo = lineas.join('\n')
-  const via: string[] = []
-
-  // Por el helper compartido y no por `sendTextMessage` a secas: Meta sólo
-  // entrega texto libre dentro de las 24 h posteriores a que alguien nos
-  // escriba. Escrito con texto libre, este aviso andaba el día de la prueba y
-  // dejaba de salir en silencio al día siguiente — el peor modo de falla para
-  // algo cuya única función es avisar.
-  if (telefono) {
-    const enviado = await sendPlatformAlert({
-      to: telefono,
-      title: tituloWhatsapp,
-      body: cuerpo,
-    })
-    if (enviado.ok) via.push('whatsapp')
-    else log.warn('no se pudo avisar por whatsapp', { error: enviado.error })
-  }
-
-  // El correo NO es un plan B de segunda: es el que funciona sin tener un
-  // número de WhatsApp dado de alta, sin plantilla aprobada y sin ventana de
-  // 24 h. Los dos salen si los dos están configurados — un aviso duplicado
-  // molesta; uno que no sale, no se nota.
-  if (correo && (await avisarPorCorreo(correo, tituloCorreo, cuerpo))) via.push('correo')
-
-  if (via.length === 0) {
-    log.warn('había novedades y ningún aviso salió', { nuevos: nuevas.length })
-  }
+  const title = translate(locale, 'admin.platformAlertTitle')
+  const delivery = await deliverPlatformNotifications({
+    db: admin, state: estadoRow, fingerprint, history: rememberAlerts(history, nuevas),
+    newKeys: nuevas, lines: actuales, recipients,
+    whatsappTitle: title, emailTitle: `Riverz · ${title}`,
+    sendWhatsApp: async (to, title, body) => {
+      // Owner alerts must work outside the 24-hour conversation window.
+      if (!whatsapp.templateName) return false
+      const sent = await sendPlatformAlert({ to, title, body })
+      if (!sent.ok) log.warn('WhatsApp notification not accepted')
+      return sent.ok && Boolean(sent.messageId)
+    },
+    sendEmail: avisarPorCorreo,
+  })
+  if (delivery.pending) lecturasFallidas.push('platform_notification_pending')
 
   return respond({
     problemas: actuales.size,
@@ -469,8 +396,10 @@ async function cronHandler(request: Request) {
     cronsRotos: cronsRotos.length,
     masivos,
     comerciosConProblemas: porWorkspace.size,
-    avisado: via.length > 0,
-    via,
+    avisado: delivery.via.length > 0,
+    via: delivery.via,
+    notificacionesPendientes: delivery.pending,
+    whatsappPendientes: delivery.whatsappPending,
   })
 }
 
@@ -481,6 +410,7 @@ async function avisarPorCorreo(to: string, titulo: string, cuerpo: string): Prom
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
+      signal: AbortSignal.timeout(15_000),
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',

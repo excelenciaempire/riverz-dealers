@@ -13,6 +13,11 @@ import { decrypt } from '@/lib/whatsapp/encryption'
  */
 export type KeySource = 'agent' | 'platform' | 'env'
 
+/** Environment fallback remains owned by the central key resolver, including admin probes. */
+export function platformAnthropicEnvKey(): string | null {
+  return process.env.ANTHROPIC_API_KEY || null
+}
+
 export interface ResolvedKey {
   key: string
   source: KeySource

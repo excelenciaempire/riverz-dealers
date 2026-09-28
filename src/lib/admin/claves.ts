@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { decrypt, encrypt } from '@/lib/whatsapp/encryption'
-import { invalidatePlatformKeyCache } from '@/lib/ai/platform-key'
+import { invalidatePlatformKeyCache, platformAnthropicEnvKey } from '@/lib/ai/platform-key'
 import type { Concepto } from '@/lib/wallet/tarifas'
 
 /**
@@ -276,7 +276,7 @@ export async function leerClaveAnthropicParaSonda(): Promise<string | null> {
       // Match the engine's existing fallback on an unreadable encrypted key.
     }
   }
-  return process.env.ANTHROPIC_API_KEY || null
+  return platformAnthropicEnvKey()
 }
 
 /**

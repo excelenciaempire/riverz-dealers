@@ -13,6 +13,7 @@ vi.mock('@/lib/health/issues', () => ({ collectPlatformIssues: m.collect }));
 vi.mock('@/lib/admin/proveedores', () => ({ leerProveedores: m.providers }));
 vi.mock('@/lib/admin/platform-whatsapp', () => ({
   platformTechnicalAlertRecipients: async () => ({ phone: 'test', email: null }),
+  platformWhatsAppStatus: async () => ({ templateLanguage: 'es', templateName: 'riverz_aviso' }),
   sendPlatformAlert: m.send,
 }));
 vi.mock('@/lib/cron/schedule', () => ({
@@ -21,7 +22,10 @@ vi.mock('@/lib/cron/schedule', () => ({
 }));
 vi.mock('@/lib/automations/admin-client', () => ({
   supabaseAdmin: () => ({
-    rpc: async () => ({
+    rpc: async (name: string) => name === 'claim_platform_watch_notifications' ? {
+      data: m.won ? [{ fingerprint: m.previous, alert_history: m.history, pending_notifications: [], notification_lease_id: 'lease' }] : [],
+      error: m.readError ? { message: 'read timeout' } : null,
+    } : name === 'release_platform_watch_notifications' ? { data: null, error: null } : ({
       data: [{ name: 'instagram-external-enrich', status: m.latest }],
       error: m.healthError ? { message: 'timeout' } : null,
     }),
@@ -64,7 +68,7 @@ describe('platform incident continuity', () => {
       latest: 'error', completed: 'error', saved: [], history:{} });
     m.collect.mockResolvedValue(new Map());
     m.providers.mockResolvedValue({ proveedores: [] });
-    m.send.mockResolvedValue({ ok: true });
+    m.send.mockResolvedValue({ ok: true, messageId: 'wamid.test' });
   });
 
   it('does not forget or reannounce an incident when cron health is unreadable', async () => {
@@ -108,7 +112,7 @@ describe('platform incident continuity', () => {
     m.readError = false;
     m.previous = '';
     m.saveError = true;
-    await expect(GET(request())).rejects.toThrow('write timeout');
+    await expect(GET(request())).rejects.toThrow('platform_notification_snapshot_failed');
     expect(m.send).not.toHaveBeenCalled();
   });
 
