@@ -19,6 +19,20 @@ export interface WatchState {
   updated_at?: string;
 }
 
+function notificationBatches(keys: string[], line: (key: string) => string): string[][] {
+  const batches: string[][] = [];
+  let batch: string[] = [], length = 0;
+  for (const key of keys) {
+    const size = line(key).length + 3;
+    if (batch.length && (batch.length >= 8 || length + size > 700)) {
+      batches.push(batch); batch = []; length = 0;
+    }
+    batch.push(key); length += size;
+  }
+  if (batch.length) batches.push(batch);
+  return batches;
+}
+
 /** Persist the outbox before sending, and acknowledge each channel separately.
  * A successful email must never discard a failed WhatsApp notification. */
 export async function deliverPlatformNotifications(args: {
@@ -37,16 +51,16 @@ export async function deliverPlatformNotifications(args: {
 }) {
   const now = args.now ?? Date.now();
   const active = new Set(args.fingerprint.split('|'));
-  let pending = (args.state.pending_notifications ?? []).map((item) => ({
-    ...item, keys: item.keys.filter((key) => active.has(key)),
-  })).filter((item) => item.keys.length > 0);
+  let pending = (args.state.pending_notifications ?? []).flatMap((item) =>
+    notificationBatches(item.keys.filter((key) => active.has(key)), (key) => args.lines.get(key) ?? item.lines[key])
+      .map((keys, index) => ({ ...item, keys, id: index ? randomUUID() : item.id })));
   if (args.newKeys.length) {
     for (const channel of ['whatsapp', 'email'] as const) {
       if (channel === 'email' && !args.recipients.email) continue;
-      pending.push({
-        id: randomUUID(), channel, keys: args.newKeys,
+      for (const keys of notificationBatches(args.newKeys, (key) => args.lines.get(key)!)) pending.push({
+        id: randomUUID(), channel, keys,
         title: channel === 'whatsapp' ? args.whatsappTitle : args.emailTitle,
-        lines: Object.fromEntries(args.newKeys.map((key) => [key, args.lines.get(key)!])),
+        lines: Object.fromEntries(keys.map((key) => [key, args.lines.get(key)!])),
         attempts: 0, nextAttemptAt: new Date(now).toISOString(),
       });
     }
@@ -64,7 +78,7 @@ export async function deliverPlatformNotifications(args: {
   for (const item of pending.filter((value) => Date.parse(value.nextAttemptAt) <= now).slice(0, 8)) {
     const recipient = item.channel === 'whatsapp' ? args.recipients.phone : args.recipients.email;
     const lines = item.keys.map((key) => args.lines.get(key) ?? item.lines[key]);
-    const body = [...lines.slice(0, 8), ...(lines.length > 8 ? [`+${lines.length - 8}`] : [])].join('\n');
+    const body = lines.join('\n');
     let accepted = false;
     try {
       if (recipient) accepted = item.channel === 'whatsapp'

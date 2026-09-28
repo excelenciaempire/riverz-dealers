@@ -22,6 +22,8 @@ when the incident fingerprint has not changed. Recovered incidents cancel
 obsolete unsent warnings. A database lease prevents overlapping monitors;
 after a crash the lease expires in 10 minutes and the durable queue survives.
 WhatsApp alerts require the configured template, not the 24-hour text window.
+Compact batches include every incident; warnings beyond the eighth are not
+discarded behind a summary count.
 
 Delivery is at-least-once: if Meta accepts a message but the acknowledgement
 cannot be persisted, a later retry can duplicate an owner alert. It cannot

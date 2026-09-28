@@ -20,6 +20,17 @@ function setup() {
   return { args, writes, failWrite: () => { fail = true; } };
 }
 describe('durable owner notification delivery', () => {
+  it('sends every provider warning in compact batches instead of hiding the ninth incident', async () => {
+    const { args } = setup();
+    args.newKeys = Array.from({ length: 9 }, (_, index) => `saldo:provider${index}:bajo`);
+    args.fingerprint = args.newKeys.join('|');
+    args.lines = new Map(args.newKeys.map((value) => [value, `${value} ${'detail '.repeat(14)}`]));
+    expect((await deliverPlatformNotifications(args)).pending).toBe(0);
+    const bodies = args.sendWhatsApp.mock.calls.map((call) => call[2] as string);
+    expect(bodies.length).toBeGreaterThan(1);
+    for (const value of args.newKeys) expect(bodies.join('\n')).toContain(value);
+    expect(bodies.every((body) => body.length <= 700)).toBe(true);
+  });
   it('saves the outbox before any send and acknowledges both channels independently', async () => {
     const { args, writes } = setup();
     args.sendWhatsApp.mockImplementation(async () => { expect(writes[0].pending_notifications).toHaveLength(2); return true; });
