@@ -2,8 +2,6 @@
 
 import { LogoTarjeta } from '@/components/billing/logo-tarjeta';
 import { WalletTopupHistory } from './wallet-topup-history';
-import { WalletDisclosure } from './wallet-disclosure';
-import { WalletUsageBreakdown } from './wallet-usage-breakdown';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -165,7 +163,7 @@ export function WalletPanel() {
   const [movs, setMovs] = useState<Movimiento[] | null>(null);
   const [pagina, setPagina] = useState(0);
   const [hayMas, setHayMas] = useState(false);
-  const [movimientosAbiertos, setMovimientosAbiertos] = useState(false);
+  const [movimientosAbiertos, setMovimientosAbiertos] = useState(true);
   const [movsError, setMovsError] = useState(false);
   const [movsLoading, setMovsLoading] = useState(true);
   const [autoDeseado, setAutoDeseado] = useState<boolean | null>(null);
@@ -493,43 +491,193 @@ export function WalletPanel() {
         )}
       </section>
 
-      <div>
+      {/* ── Recarga automática ──────────────────────────────────────── */}
+      {e.puedeRecargar && (
+        <section className="border-border bg-card rounded-xl border p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-3">
+                <h3 className="text-foreground text-sm font-semibold">
+                  {t('settings.walletAutoTitle')}
+                </h3>
+                <Switch
+                  checked={autoVisible}
+                  disabled={yendo}
+                  aria-label={t('settings.walletAutoTitle')}
+                  onCheckedChange={(checked) => {
+                    setAutoDeseado(checked);
+                    if (checked) {
+                      if (!auto.tieneTarjeta) return;
+                      void guardarAuto({
+                        recargaCentavos: (Number(autoMonto) || 10) * 100,
+                        umbralCentavos: (Number(autoUmbral) || 1) * 100,
+                      }).finally(() => setAutoDeseado(null));
+                      return;
+                    }
+                    if (!autoActivo) {
+                      setAutoDeseado(null);
+                      return;
+                    }
+                    setAutoMonto(String((auto.recargaCentavos ?? 1000) / 100));
+                    setAutoUmbral(String((auto.umbralCentavos ?? 100) / 100));
+                    void guardarAuto({ apagar: true }).finally(() =>
+                      setAutoDeseado(null)
+                    );
+                  }}
+                />
+              </div>
+            </div>
+            {autoVisible && (
+              <div className="flex items-center gap-3">
+                {/* Cuál tarjeta quedó. "Hay una tarjeta" no le sirve a quien
+                  tiene tres: sin la marca y los últimos cuatro, ante la duda la
+                  cambia — o no la cambia porque no sabe si hace falta. */}
+                {auto.tieneTarjeta && auto.ultimos4 && (
+                  <span className="text-foreground flex items-center gap-2 text-sm">
+                    <LogoTarjeta marca={auto.marca} />
+                    <span className="tabular-nums">···· {auto.ultimos4}</span>
+                  </span>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={yendo}
+                  onClick={() => void irPorTarjeta()}
+                >
+                  <CreditCard className="size-4" />
+                  {auto.tieneTarjeta
+                    ? t('settings.walletCardChange')
+                    : t('settings.walletCardAdd')}
+                </Button>
+                {auto.tieneTarjeta && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={yendo}
+                    onClick={() => {
+                      if (confirm(t('settings.walletCardRemoveConfirm'))) {
+                        void guardarAuto({ borrarTarjeta: true });
+                      }
+                    }}
+                  >
+                    {t('settings.walletCardRemove')}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Sin tarjeta guardada no se ofrece configurar el disparo: sería
+              prometer un cobro que no se puede hacer. */}
+          {autoVisible && auto.tieneTarjeta && (
+            <div className="mt-4 flex flex-wrap items-end gap-2">
+              <label className="text-sm">
+                <span className="text-muted-foreground block">
+                  {t('settings.walletAutoAmount')}
+                </span>
+                <Input
+                  value={autoMonto}
+                  onChange={(ev) =>
+                    setAutoMonto(ev.target.value.replace(/[^\d]/g, ''))
+                  }
+                  placeholder={
+                    auto.recargaCentavos !== null
+                      ? String(auto.recargaCentavos / 100)
+                      : '10'
+                  }
+                  inputMode="numeric"
+                  className="mt-1 h-9 w-28"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="text-muted-foreground block">
+                  {t('settings.walletAutoThreshold')}
+                </span>
+                <Input
+                  value={autoUmbral}
+                  onChange={(ev) =>
+                    setAutoUmbral(ev.target.value.replace(/[^\d]/g, ''))
+                  }
+                  placeholder={
+                    auto.umbralCentavos !== null
+                      ? String(auto.umbralCentavos / 100)
+                      : '1'
+                  }
+                  inputMode="numeric"
+                  className="mt-1 h-9 w-28"
+                />
+              </label>
+              <Button
+                size="sm"
+                disabled={yendo || (!autoMonto && !autoUmbral)}
+                onClick={() =>
+                  void guardarAuto({
+                    recargaCentavos:
+                      (Number(autoMonto) || (auto.recargaCentavos ?? 0) / 100) *
+                      100,
+                    umbralCentavos:
+                      (Number(autoUmbral) || (auto.umbralCentavos ?? 0) / 100) *
+                      100,
+                  })
+                }
+              >
+                {t('settings.walletAutoSave')}
+              </Button>
+            </div>
+          )}
+          {autoVisible && autoActivo && (
+            <p className="text-muted-foreground mt-3 text-sm">
+              {t('settings.walletAutoOn', {
+                monto: plata(auto.recargaCentavos ?? 0),
+                umbral: plata(auto.umbralCentavos ?? 0),
+              })}
+            </p>
+          )}
+        </section>
+      )}
+
+      <WalletTopupHistory
+        currency={e.moneda}
+        timezone={tz}
+        revision={revision}
+      />
+
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
         {/* ── Uso en el período ───────────────────────────────────────── */}
         <section className="border-border bg-card rounded-xl border p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-foreground text-sm font-semibold">
               {t('settings.walletUsage')}
             </h3>
-            <label className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">
-                {t('settings.walletPeriod')}
-              </span>
-              <select
-                className="border-input bg-background rounded-lg border px-3 py-2"
-                value={dias ?? 'custom'}
-                onChange={(ev) => {
-                  setDias(
-                    ev.target.value === 'custom'
-                      ? null
-                      : Number(ev.target.value)
-                  );
+            <div className="flex flex-wrap items-center gap-2">
+              {DIAS.map((d) => (
+                <Button
+                  key={d}
+                  size="sm"
+                  variant={dias === d ? 'default' : 'outline'}
+                  onClick={() => {
+                    setDias(d);
+                    setPagina(0);
+                  }}
+                >
+                  {d === 0
+                    ? t('settings.walletToday')
+                    : d === -1
+                      ? t('settings.walletYesterday')
+                      : t('settings.walletLastDays', { n: d })}
+                </Button>
+              ))}
+              <Button
+                size="sm"
+                variant={dias === null ? 'default' : 'outline'}
+                onClick={() => {
+                  setDias(null);
                   setPagina(0);
                 }}
               >
-                {DIAS.map((d) => (
-                  <option key={d} value={d}>
-                    {d === 0
-                      ? t('settings.walletToday')
-                      : d === -1
-                        ? t('settings.walletYesterday')
-                        : t('settings.walletLastDays', { n: d })}
-                  </option>
-                ))}
-                <option value="custom">
-                  {t('settings.walletCustomRange')}
-                </option>
-              </select>
-            </label>
+                {t('settings.walletCustomRange')}
+              </Button>
+            </div>
           </div>
 
           {dias === null && (
@@ -584,11 +732,10 @@ export function WalletPanel() {
           )}
 
           {resumen.porDia.length > 1 && (
-            <details className="group/day mt-5">
-              <summary className="text-foreground flex cursor-pointer list-none items-center justify-between text-sm font-medium">
+            <div className="mt-6">
+              <h4 className="text-foreground text-sm font-medium">
                 {t('settings.walletByDay')}
-                <ChevronDown className="size-4 transition-transform group-open/day:rotate-180" />
-              </summary>
+              </h4>
               <div className="mt-3 flex h-28 items-end gap-1">
                 {resumen.porDia.map((d) => (
                   <div
@@ -599,7 +746,7 @@ export function WalletPanel() {
                     <div
                       className="bg-primary w-full rounded-t transition-colors"
                       style={{
-                        height: `${d.gastadoCentavos === 0 ? 0 : Math.max(2, (d.gastadoCentavos / maxDia) * 100)}%`,
+                        height: `${d.gastadoCentavos > 0 ? Math.max(2, (d.gastadoCentavos / maxDia) * 100) : 0}%`,
                       }}
                     />
                   </div>
@@ -615,273 +762,264 @@ export function WalletPanel() {
                   })}
                 </span>
               </div>
-            </details>
+            </div>
+          )}
+        </section>
+
+        {/* ── En qué se fue ───────────────────────────────────────────── */}
+        <section className="border-border bg-card rounded-xl border p-5">
+          <h3 className="text-foreground text-sm font-semibold">
+            {t('settings.walletByConcept')}
+          </h3>
+          {resumen.porConcepto.length === 0 ? (
+            <p className="text-muted-foreground mt-3 text-sm">
+              {t('settings.walletNoSpend')}
+            </p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {resumen.porConcepto.map((c) => {
+                const pct = Math.round(
+                  (c.centavos / Math.max(1, resumen.gastadoCentavos)) * 100
+                );
+                const activo = concepto === c.concepto;
+                return (
+                  <li key={c.concepto}>
+                    <button
+                      type="button"
+                      className="w-full text-left"
+                      onClick={() => {
+                        setConcepto(activo ? null : c.concepto);
+                        setPagina(0);
+                      }}
+                    >
+                      <div className="flex items-baseline justify-between gap-3 text-sm">
+                        <span
+                          className={cn(
+                            'truncate',
+                            activo
+                              ? 'text-foreground font-medium'
+                              : 'text-foreground'
+                          )}
+                        >
+                          {nombreConcepto(c.concepto)}
+                        </span>
+                        <span className="text-muted-foreground shrink-0 tabular-nums">
+                          {plata(c.centavos)} · {pct}%
+                        </span>
+                      </div>
+                      <p className="text-muted-foreground mt-1 text-xs">
+                        {t('settings.walletChargedOperations', {
+                          count: c.movimientos,
+                        })}
+                      </p>
+                      <div className="bg-muted mt-1 h-1.5 w-full overflow-hidden rounded-full">
+                        <div
+                          className="bg-primary h-full rounded-full"
+                          style={{ width: `${Math.max(2, pct)}%` }}
+                        />
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </section>
       </div>
 
-      <WalletUsageBreakdown
-        concepts={resumen.porConcepto}
-        activity={e.billedActivity}
-        currency={e.moneda}
-        timezone={tz}
-        name={nombreConcepto}
-        channelName={channelName}
-      />
-      {/* ── Recarga automática ──────────────────────────────────────── */}
-      {e.puedeRecargar && (
-        <WalletDisclosure
-          title={t('settings.walletAutoTitle')}
-          value={t(
-            autoActivo ? 'settings.walletEnabled' : 'settings.walletDisabled'
-          )}
-        >
-          <div className="p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-3">
-                  <h3 className="text-foreground text-sm font-semibold">
-                    {t('settings.walletAutoTitle')}
-                  </h3>
-                  <Switch
-                    checked={autoVisible}
-                    disabled={yendo}
-                    aria-label={t('settings.walletAutoTitle')}
-                    onCheckedChange={(checked) => {
-                      setAutoDeseado(checked);
-                      if (checked) {
-                        if (!auto.tieneTarjeta) return;
-                        void guardarAuto({
-                          recargaCentavos: (Number(autoMonto) || 10) * 100,
-                          umbralCentavos: (Number(autoUmbral) || 1) * 100,
-                        }).finally(() => setAutoDeseado(null));
-                        return;
-                      }
-                      if (!autoActivo) {
-                        setAutoDeseado(null);
-                        return;
-                      }
-                      setAutoMonto(
-                        String((auto.recargaCentavos ?? 1000) / 100)
-                      );
-                      setAutoUmbral(String((auto.umbralCentavos ?? 100) / 100));
-                      void guardarAuto({ apagar: true }).finally(() =>
-                        setAutoDeseado(null)
-                      );
-                    }}
-                  />
-                </div>
-              </div>
-              {autoVisible && (
-                <div className="flex items-center gap-3">
-                  {/* Cuál tarjeta quedó. "Hay una tarjeta" no le sirve a quien
-                  tiene tres: sin la marca y los últimos cuatro, ante la duda la
-                  cambia — o no la cambia porque no sabe si hace falta. */}
-                  {auto.tieneTarjeta && auto.ultimos4 && (
-                    <span className="text-foreground flex items-center gap-2 text-sm">
-                      <LogoTarjeta marca={auto.marca} />
-                      <span className="tabular-nums">···· {auto.ultimos4}</span>
-                    </span>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={yendo}
-                    onClick={() => void irPorTarjeta()}
-                  >
-                    <CreditCard className="size-4" />
-                    {auto.tieneTarjeta
-                      ? t('settings.walletCardChange')
-                      : t('settings.walletCardAdd')}
-                  </Button>
-                  {auto.tieneTarjeta && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={yendo}
-                      onClick={() => {
-                        if (confirm(t('settings.walletCardRemoveConfirm'))) {
-                          void guardarAuto({ borrarTarjeta: true });
-                        }
-                      }}
-                    >
-                      {t('settings.walletCardRemove')}
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Sin tarjeta guardada no se ofrece configurar el disparo: sería
-              prometer un cobro que no se puede hacer. */}
-            {autoVisible && auto.tieneTarjeta && (
-              <div className="mt-4 flex flex-wrap items-end gap-2">
-                <label className="text-sm">
-                  <span className="text-muted-foreground block">
-                    {t('settings.walletAutoAmount')}
-                  </span>
-                  <Input
-                    value={autoMonto}
-                    onChange={(ev) =>
-                      setAutoMonto(ev.target.value.replace(/[^\d]/g, ''))
-                    }
-                    placeholder={
-                      auto.recargaCentavos !== null
-                        ? String(auto.recargaCentavos / 100)
-                        : '10'
-                    }
-                    inputMode="numeric"
-                    className="mt-1 h-9 w-28"
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="text-muted-foreground block">
-                    {t('settings.walletAutoThreshold')}
-                  </span>
-                  <Input
-                    value={autoUmbral}
-                    onChange={(ev) =>
-                      setAutoUmbral(ev.target.value.replace(/[^\d]/g, ''))
-                    }
-                    placeholder={
-                      auto.umbralCentavos !== null
-                        ? String(auto.umbralCentavos / 100)
-                        : '1'
-                    }
-                    inputMode="numeric"
-                    className="mt-1 h-9 w-28"
-                  />
-                </label>
-                <Button
-                  size="sm"
-                  disabled={yendo || (!autoMonto && !autoUmbral)}
-                  onClick={() =>
-                    void guardarAuto({
-                      recargaCentavos:
-                        (Number(autoMonto) ||
-                          (auto.recargaCentavos ?? 0) / 100) * 100,
-                      umbralCentavos:
-                        (Number(autoUmbral) ||
-                          (auto.umbralCentavos ?? 0) / 100) * 100,
-                    })
-                  }
-                >
-                  {t('settings.walletAutoSave')}
-                </Button>
-              </div>
-            )}
-            {autoVisible && autoActivo && (
-              <p className="text-muted-foreground mt-3 text-sm">
-                {t('settings.walletAutoOn', {
-                  monto: plata(auto.recargaCentavos ?? 0),
-                  umbral: plata(auto.umbralCentavos ?? 0),
-                })}
-              </p>
-            )}
-          </div>
-        </WalletDisclosure>
-      )}
-
-      <WalletTopupHistory
-        currency={e.moneda}
-        timezone={tz}
-        revision={revision}
-      />
-
       {/* ── El detalle ──────────────────────────────────────────────── */}
       {e.serviceActivity && (
-        <WalletDisclosure title={t('settings.walletServiceTitle')}>
-          <div className="p-5">
-            <p className="text-muted-foreground mt-1 text-xs">
-              {t('settings.walletServiceNote')}
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {(
-                [
-                  ['walletServiceContacts', e.serviceActivity.contacts],
-                  ['walletServiceAiContacts', e.serviceActivity.aiContacts],
-                  ['walletActivitySent', e.serviceActivity.sent],
-                  ['walletServiceComments', e.serviceActivity.comments],
-                ] as const
-              ).map(([key, value]) => (
-                <div key={key} className="bg-muted/40 rounded-lg p-3">
-                  <p className="text-muted-foreground text-xs">
-                    {t(`settings.${key}`)}
-                  </p>
-                  <p className="mt-1 text-xl font-semibold tabular-nums">
-                    {fmt.number(value)}
-                  </p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-muted-foreground">
-                  <tr>
-                    <th className="py-2 text-left">
-                      {t('settings.walletActivityChannel')}
+        <section className="border-border bg-card rounded-xl border p-5">
+          <h3 className="text-sm font-semibold">
+            {t('settings.walletServiceTitle')}
+          </h3>
+          <p className="text-muted-foreground mt-1 text-xs">
+            {t('settings.walletServiceNote')}
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {(
+              [
+                ['walletServiceContacts', e.serviceActivity.contacts],
+                ['walletServiceAiContacts', e.serviceActivity.aiContacts],
+                ['walletActivitySent', e.serviceActivity.sent],
+                ['walletServiceComments', e.serviceActivity.comments],
+              ] as const
+            ).map(([key, value]) => (
+              <div key={key} className="bg-muted/40 rounded-lg p-3">
+                <p className="text-muted-foreground text-xs">
+                  {t(`settings.${key}`)}
+                </p>
+                <p className="mt-1 text-xl font-semibold tabular-nums">
+                  {fmt.number(value)}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-muted-foreground">
+                <tr>
+                  <th className="py-2 text-left">
+                    {t('settings.walletActivityChannel')}
+                  </th>
+                  {[
+                    'walletServiceContacts',
+                    'walletServiceAi',
+                    'walletServiceAutomations',
+                    'walletServiceHuman',
+                    'walletServiceOther',
+                    'walletActivitySent',
+                  ].map((key) => (
+                    <th key={key} className="px-3 text-right whitespace-nowrap">
+                      {t(`settings.${key}`)}
                     </th>
-                    {[
-                      'walletServiceContacts',
-                      'walletServiceAi',
-                      'walletServiceAutomations',
-                      'walletServiceHuman',
-                      'walletServiceOther',
-                      'walletActivitySent',
-                    ].map((key) => (
-                      <th
-                        key={key}
-                        className="px-3 text-right whitespace-nowrap"
-                      >
-                        {t(`settings.${key}`)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {e.serviceActivity.byChannel.map((c) => (
-                    <tr key={c.channel} className="border-border border-t">
-                      <td className="py-3 whitespace-nowrap">
-                        {channelName(c.channel)}
-                      </td>
-                      {[
-                        c.contacts,
-                        c.aiMessages,
-                        c.automated,
-                        c.human,
-                        c.other,
-                        c.sent,
-                      ].map((value, i) => (
-                        <td key={i} className="px-3 text-right tabular-nums">
-                          {fmt.number(value)}
-                        </td>
-                      ))}
-                    </tr>
                   ))}
-                </tbody>
-                <tfoot className="border-border border-t font-semibold">
-                  <tr>
-                    <td className="py-3">
-                      {t('settings.walletActivityTotal')}
+                </tr>
+              </thead>
+              <tbody>
+                {e.serviceActivity.byChannel.map((c) => (
+                  <tr key={c.channel} className="border-border border-t">
+                    <td className="py-3 whitespace-nowrap">
+                      {channelName(c.channel)}
                     </td>
                     {[
-                      e.serviceActivity.contacts,
-                      e.serviceActivity.aiMessages,
-                      e.serviceActivity.automated,
-                      e.serviceActivity.human,
-                      e.serviceActivity.other,
-                      e.serviceActivity.sent,
+                      c.contacts,
+                      c.aiMessages,
+                      c.automated,
+                      c.human,
+                      c.other,
+                      c.sent,
                     ].map((value, i) => (
                       <td key={i} className="px-3 text-right tabular-nums">
                         {fmt.number(value)}
                       </td>
                     ))}
                   </tr>
-                </tfoot>
-              </table>
-            </div>
+                ))}
+              </tbody>
+              <tfoot className="border-border border-t font-semibold">
+                <tr>
+                  <td className="py-3">{t('settings.walletActivityTotal')}</td>
+                  {[
+                    e.serviceActivity.contacts,
+                    e.serviceActivity.aiMessages,
+                    e.serviceActivity.automated,
+                    e.serviceActivity.human,
+                    e.serviceActivity.other,
+                    e.serviceActivity.sent,
+                  ].map((value, i) => (
+                    <td key={i} className="px-3 text-right tabular-nums">
+                      {fmt.number(value)}
+                    </td>
+                  ))}
+                </tr>
+              </tfoot>
+            </table>
           </div>
-        </WalletDisclosure>
+        </section>
+      )}
+      {e.billedActivity && (
+        <section className="border-border bg-card rounded-xl border p-5">
+          <h3 className="text-sm font-semibold">
+            {t('settings.walletActivity')}
+          </h3>
+          <p className="text-muted-foreground mt-1 text-xs">
+            {t('settings.walletActivityNote')}
+          </p>
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-muted-foreground">
+                <tr>
+                  <th className="py-2 text-left">
+                    {t('settings.walletActivityChannel')}
+                  </th>
+                  <th className="px-3 text-right">
+                    {t('settings.walletActivityContacts')}
+                  </th>
+                  <th className="px-3 text-right">
+                    {t('settings.walletActivityCharges')}
+                  </th>
+                  <th className="text-right">
+                    {t('settings.walletActivityCharged')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {e.billedActivity.byChannel
+                  .filter((c) => c.channel !== 'unattributed')
+                  .map((c) => (
+                    <tr key={c.channel} className="border-border border-t">
+                      <td className="py-3">{channelName(c.channel)}</td>
+                      <td className="px-3 text-right tabular-nums">
+                        {fmt.number(c.contacts)}
+                      </td>
+                      <td className="px-3 text-right tabular-nums">
+                        {fmt.number(c.charges)}
+                      </td>
+                      <td className="text-right tabular-nums">
+                        {fmt.currency(
+                          c.chargedCentavos / 100,
+                          e.moneda.toUpperCase()
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+              <tfoot className="border-border border-t font-semibold">
+                <tr>
+                  <td className="py-3">{t('settings.walletActivityTotal')}</td>
+                  <td className="px-3 text-right">
+                    {fmt.number(e.billedActivity.contacts)}
+                  </td>
+                  <td className="px-3 text-right">
+                    {fmt.number(e.billedActivity.charges)}
+                  </td>
+                  <td className="text-right">
+                    {fmt.currency(
+                      e.billedActivity.chargedCentavos / 100,
+                      e.moneda.toUpperCase()
+                    )}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          {e.billedActivity.unrecorded && (
+            <div className="bg-muted/40 mt-4 rounded-lg p-4">
+              <div className="flex flex-wrap justify-between gap-3 text-sm">
+                <h4 className="font-medium">
+                  {t('settings.walletHistoricalIncomplete')}
+                </h4>
+                <span className="tabular-nums">
+                  {plata(e.billedActivity.unrecorded.chargedCentavos)}
+                </span>
+              </div>
+              <p className="text-muted-foreground mt-1 text-xs">
+                {t('settings.walletHistoricalIncluded')}
+              </p>
+              <p className="text-muted-foreground mt-2 text-xs">
+                {t('settings.walletChargedOperations', {
+                  count: e.billedActivity.unrecorded.charges,
+                })}{' '}
+                ·{' '}
+                {fmt.date(e.billedActivity.unrecorded.firstAt, {
+                  timeZone: tz,
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}{' '}
+                –{' '}
+                {fmt.date(e.billedActivity.unrecorded.lastAt, {
+                  timeZone: tz,
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </p>
+            </div>
+          )}
+        </section>
       )}
       <details
         className="group border-border bg-card rounded-xl border"

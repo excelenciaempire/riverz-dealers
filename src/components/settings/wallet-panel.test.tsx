@@ -23,7 +23,7 @@ vi.mock('@/hooks/use-format', () => ({ useFormat: () => ({
   number: (value: number) => formatNumber(value, state.locale),
 }) }));
 
-it.each(['es', 'en'] as const)('renders a compact, reconciled wallet with named sources and dropdowns in %s', locale => {
+it.each(['es', 'en'] as const)('renders the restored wallet layout with accurate named sources in %s', locale => {
   state.locale = locale; state.index = 0;
   const count = { contacts: 1, aiContacts: 1, sent: 1, aiMessages: 1, automated: 0, human: 0, other: 0, comments: 1 };
   state.wallet = {
@@ -39,10 +39,10 @@ it.each(['es', 'en'] as const)('renders a compact, reconciled wallet with named 
   expect(html).toContain(locale === 'es' ? 'Comentarios de TikTok' : 'TikTok comments');
   expect(html).toContain(locale === 'es' ? 'IA de llamadas' : 'Call AI');
   expect(html).toContain(locale === 'es' ? '29,45' : '29.45');
-  expect(html).toContain('value="custom"');
-  expect(html.match(/<select/g)).toHaveLength(3);
+  expect(html).toContain(translate(locale, 'settings.walletCustomRange'));
+  expect(html.match(/<select/g)).toHaveLength(1);
   expect(html).not.toContain('llamada_ia</td>');
   expect(html).not.toContain('Sin canal identificado');
   expect(html).not.toContain('settings.');
-  expect(html).not.toMatch(/<details[^>]*\sopen/);
+  expect(html.match(/<details[^>]*\sopen/g)).toHaveLength(1);
 });
