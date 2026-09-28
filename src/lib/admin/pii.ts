@@ -25,6 +25,7 @@ export const FORBIDDEN_COLUMNS: Record<string, readonly string[]> = {
   billing_plans: [],
   workspace_subscriptions: [],
   billing_usage_daily: [],
+  wallet_operaciones: ['detalle'],
   conversations: ['last_message_text', 'ai_summary'],
   contacts: [
     'name',

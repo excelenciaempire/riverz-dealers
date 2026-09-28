@@ -294,6 +294,11 @@ export const admin = {
     en: 'unprocessed webhooks',
   },
   alertCrons: { es: 'trabajos con error', en: 'jobs with errors' },
+  alertWalletPending: { es: 'reservas pendientes de conciliación', en: 'reservations awaiting reconciliation' },
+  walletReconciliationWindow: {
+    es: 'Sin recibo, se liberan a favor del comercio al cumplir 24 h.',
+    en: 'Without a receipt, funds are released back to the merchant after 24 hours.',
+  },
   allClear: { es: 'Todo en orden', en: 'All clear' },
   chartActivity: { es: 'Actividad diaria', en: 'Daily activity' },
 

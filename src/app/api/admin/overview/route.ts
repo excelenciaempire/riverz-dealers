@@ -6,6 +6,8 @@ import {
 } from '@/lib/admin/queries';
 import { SCHEDULED_JOBS, isStale } from '@/lib/cron/schedule';
 import { schedulerStatus } from '@/lib/cron/scheduler';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { getPendingWalletReconciliation } from '@/lib/admin/wallet-pending';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,10 +38,11 @@ export async function GET(request: Request) {
     request,
     { action: 'view.overview', meta: { from: from.toISOString(), to: to.toISOString() } },
     async () => {
-      const [overview, series, crons] = await Promise.all([
+      const [overview, series, crons, wallet] = await Promise.all([
         getPlatformOverview(from, to),
         getActivitySeries(from, to),
         getCronHealth(),
+        getPendingWalletReconciliation(supabaseAdmin()),
       ]);
 
       const lastRun = new Map(crons.map((c) => [c.name, c]));
@@ -57,6 +60,7 @@ export async function GET(request: Request) {
           cronsBroken,
           schedulerAlive: beat.alive,
           schedulerLastTickAt: beat.lastTickAt,
+          walletPending: wallet.pending,
         },
         from: from.toISOString(),
         to: to.toISOString(),

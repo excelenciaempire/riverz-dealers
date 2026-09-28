@@ -15,6 +15,9 @@ function rowsByTable(tables: Record<string, unknown[]>, failure?: string) {
     const q = {
       select: vi.fn(() => q),
       is: vi.fn(() => q),
+      eq: vi.fn(() => q),
+      neq: vi.fn(() => q),
+      lt: vi.fn(() => q),
       order: vi.fn(() => q),
       in: vi.fn(async () => ({ data: rows, error: null })),
       range: vi.fn(async (from: number, to: number) => ({

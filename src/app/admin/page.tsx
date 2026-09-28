@@ -25,6 +25,7 @@ interface Payload {
     cronsBroken: number;
     schedulerAlive: boolean;
     schedulerLastTickAt: string | null;
+    walletPending?: number;
   };
 }
 
@@ -65,7 +66,7 @@ export default function AdminHomePage() {
   // sólo mira el estado de la última corrida — un trabajo que dejó de correr
   // deja su última fila en 'ok' y por ahí daba 0 con todo caído.
   const ops = data?.ops;
-  const alerts: { n: number; label: string; href: string }[] = o
+  const alerts: { n: number; label: string; href: string; warning?: boolean }[] = o
     ? [
         // Primero los comercios rotos: es lo único de esta lista que se
         // traduce, hoy, en un cliente que no recibió lo que esperaba.
@@ -77,6 +78,7 @@ export default function AdminHomePage() {
         { n: o.connections_error, label: t("admin.alertConnections"), href: "/admin/conexiones" },
         { n: o.webhooks_unprocessed, label: t("admin.alertWebhooks"), href: "/admin/operacion" },
         { n: ops?.cronsBroken ?? o.crons_error, label: t("admin.alertCrons"), href: "/admin/operacion" },
+        { n: ops?.walletPending ?? 0, label: t("admin.alertWalletPending"), href: "/admin/operacion#reservas", warning: true },
       ].filter((a) => a.n > 0)
     : [];
 
@@ -130,7 +132,7 @@ export default function AdminHomePage() {
                       href={a.href}
                       className="flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-muted/50"
                     >
-                      <span className="font-semibold tabular-nums text-red-600 dark:text-red-400">
+                      <span className={`font-semibold tabular-nums ${a.warning ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
                         {format.number(a.n)}
                       </span>
                       <span className="flex-1 text-foreground">{a.label}</span>

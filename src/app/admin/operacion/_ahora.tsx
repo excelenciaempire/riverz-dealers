@@ -180,6 +180,18 @@ export function Ahora() {
         />
       </div>
 
+      {data.wallet && data.wallet.pending > 0 && (
+        <div id="reservas">
+          <Panel title={t("admin.alertWalletPending")}>
+            <div className="flex items-center gap-3 px-4 py-3 text-sm">
+              <span className="font-semibold tabular-nums text-amber-600 dark:text-amber-400">{format.number(data.wallet.pending)}</span>
+              <span className="flex-1">{t("admin.walletReconciliationWindow")}</span>
+              <span className="tabular-nums">{format.currency(data.wallet.reservedCents / 100, "USD")}</span>
+            </div>
+          </Panel>
+        </div>
+      )}
+
       <Panel title={t("admin.opsCrons")}>
         <DataTable columns={columns} rows={jobs} rowKey={(j) => j.name} />
       </Panel>

@@ -6,6 +6,7 @@ import { getFeatureFlags, getWorkspaceOverrides } from './feature-flags';
 import { assertMetadataOnly } from './pii';
 import { selectAll } from '@/lib/db/paginate';
 import { workspaceWalletSummary } from './workspace-wallet';
+import { getPendingWalletReconciliation } from './wallet-pending';
 
 /**
  * Capa de lectura del panel de plataforma — la única del código que cruza
@@ -821,6 +822,7 @@ export interface CronRow {
 
 export interface OpsStatus {
   crons: CronRow[];
+  wallet: { pending: number; reservedCents: number };
   webhooks: {
     unprocessed: number;
     failing: Array<{
@@ -849,7 +851,7 @@ export async function getOpsStatus(): Promise<OpsStatus> {
   const client = db();
   const columns = 'id, provider, received_at, attempts, last_error';
   assertMetadataOnly('webhook_events_raw', columns);
-  const [crons, pending] = await Promise.all([
+  const [crons, pending, wallet] = await Promise.all([
     getCronHealth(),
     selectAll<OpsStatus['webhooks']['failing'][number]>(
       client,
@@ -857,6 +859,7 @@ export async function getOpsStatus(): Promise<OpsStatus> {
       q => q.is('processed_at', null),
       { select: columns, strict: true },
     ),
+    getPendingWalletReconciliation(client),
   ]);
 
   const failing = [...pending]
@@ -869,6 +872,7 @@ export async function getOpsStatus(): Promise<OpsStatus> {
 
   return {
     crons,
+    wallet,
     webhooks: {
       unprocessed: pending.length,
       failing,

@@ -30,6 +30,7 @@ const MAX_PAGINAS = 50
  */
 interface Filtrable {
   eq(col: string, val: unknown): Filtrable
+  neq(col: string, val: unknown): Filtrable
   gte(col: string, val: unknown): Filtrable
   lt(col: string, val: unknown): Filtrable
   is(col: string, val: null | boolean): Filtrable

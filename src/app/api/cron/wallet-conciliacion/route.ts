@@ -170,9 +170,18 @@ async function handler(request: Request) {
       }
     }
   }
+  // Waiting inside the documented 24h settlement window is not a broken
+  // reconciler. Keep these reservations visible in Admin as a separate
+  // warning. Provider receipt errors and failed overdue releases still fail.
+  const waiting = unresolved.filter(op => {
+    const ageMs = Date.now() - new Date(op.created_at).getTime();
+    return Number.isFinite(ageMs) && ageMs < 24 * 60 * 60 * 1000
+      && typeof op.detalle?.runId !== 'string' && typeof op.detalle?.crawlId !== 'string';
+  });
+  const failed = unresolved.length > waiting.length || paymentFailures.length > 0;
   return NextResponse.json(
-    { ok: !unresolved.length && !paymentFailures.length, pending: unresolved, paymentFailures, recovered, released },
-    { status: unresolved.length || paymentFailures.length ? 207 : 200 }
+    { ok: !failed, pending: unresolved, waiting: waiting.length, paymentFailures, recovered, released },
+    { status: failed ? 207 : 200 }
   );
 }
 export const GET = withCronRun('wallet-conciliacion', handler);
