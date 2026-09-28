@@ -1,4 +1,5 @@
 import { resolveHumanAttention } from '@/lib/inbox/human-attention';
+import { whatsappReactionActor } from './reaction-actor';
 import type {
   ChannelAdapter,
   InboundEvent,
@@ -700,16 +701,8 @@ async function handleWhatsappReaction(
     });
     if (!t) return; // el mensaje reaccionado aún no está ingerido
 
-    const { data: contact } = await db
-      .from("contacts")
-      .select("id")
-      .eq("workspace_id", connection.workspace_id)
-      .eq("channel", "whatsapp")
-      .eq("external_id", m.from)
-      .limit(1)
-      .maybeSingle();
-    const c = contact as { id: string } | null;
-    if (!c) return;
+    const actorId = await whatsappReactionActor(db, connection.workspace_id, t.conversation_id, m.from);
+    if (!actorId) return;
 
     if (!reaction.emoji) {
       await db
@@ -717,7 +710,7 @@ async function handleWhatsappReaction(
         .delete()
         .eq("message_id", t.id)
         .eq("actor_type", "customer")
-        .eq("actor_id", c.id);
+        .eq("actor_id", actorId);
       return;
     }
     await db.from("message_reactions").upsert(
@@ -725,7 +718,7 @@ async function handleWhatsappReaction(
         message_id: t.id,
         conversation_id: t.conversation_id,
         actor_type: "customer",
-        actor_id: c.id,
+        actor_id: actorId,
         emoji: reaction.emoji,
       },
       { onConflict: "message_id,actor_type,actor_id" },

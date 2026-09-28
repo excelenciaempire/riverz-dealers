@@ -116,6 +116,7 @@ export type AdminAction =
   | 'update.wallet_balance'
   | 'update.wallet_blocking'
   | 'update.wallet_rate'
+  | 'update.ops_reconciliation'
   | 'download.woocommerce_plugin';
 
 interface AuditEntry {

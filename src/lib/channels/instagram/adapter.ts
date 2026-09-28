@@ -256,7 +256,7 @@ export const instagramAdapter: ChannelAdapter = {
           // suscriba el campo funcione sin tocar nada más — hoy no llega
           // porque agregarlo a la suscripción puede tumbar los DM enteros
           // (ver la nota en meta-graph.ts).
-          const igLectura = m.read as { watermark?: number } | undefined;
+          const igLectura = m.read as { mid?: string; watermark?: number } | undefined;
           const igEntrega = m.delivery as { mids?: string[]; watermark?: number } | undefined;
           if (igLectura || igEntrega) {
             const recipient = m.recipient as { id?: string } | undefined;
@@ -266,7 +266,7 @@ export const instagramAdapter: ChannelAdapter = {
             if (contacto) {
               await anotarAcuseIg(connection, contacto, {
                 estado: igLectura ? "read" : "delivered",
-                mids: igEntrega?.mids,
+                mids: igLectura?.mid ? [igLectura.mid] : igEntrega?.mids,
                 watermarkMs: Number(igLectura?.watermark ?? igEntrega?.watermark ?? 0),
               });
             }
