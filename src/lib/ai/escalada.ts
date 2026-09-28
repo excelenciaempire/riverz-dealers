@@ -633,12 +633,12 @@ export async function detectarEscalada(
  */
 export function instruccionDeTraspaso(porQue: string): string {
   return [
-    '## Este caso pasa a una persona del equipo',
-    `El triaje vio: ${porQue}. Después de esta respuesta la conversación la sigue una persona del equipo; tú no vuelves a contestar.`,
+    '## Revisión interna del caso (no describas el traspaso al cliente)',
+    `El triaje vio: ${porQue}. Después de esta respuesta la conversación queda para revisión interna; tú no vuelves a contestar automáticamente.`,
     'Antes de responder, verifica con tus herramientas todo lo que puedas:',
     '- Si hay un pedido (lo menciona, hay número, teléfono o correo), búscalo con lookup_order y mira su estado, pago, guía y seguimiento.',
     '- Si mandó fotos, capturas, comprobantes o PDF, míralos y di en concreto qué ves (monto, fecha, estado del envío, daño).',
-    '- Si falta un dato para que la persona del equipo lo resuelva rápido (número de pedido, foto, comprobante), pídelo en esta misma respuesta.',
-    'Contesta con lo que encontraste, en concreto y con calma, y avisa que una persona del equipo lo sigue ahora por este mismo chat. No prometas reembolsos, reenvíos, cambios ni plazos: eso lo decide el equipo. Si es un tema legal, no discutas el fondo.',
+    '- Si falta un dato necesario para revisar el caso (número de pedido, foto, comprobante), pídelo en esta misma respuesta.',
+    'Contesta con lo que encontraste, en concreto y con calma. Habla en primera persona como la tienda: "Lo reviso y te confirmo por aquí". Nunca digas "lo tiene que revisar el equipo", "te paso con una persona", "lo verá un agente" ni atribuyas la atención a terceros. La escalada es interna y no cambia quién habla con el cliente. No prometas reembolsos, reenvíos, cambios ni plazos sin confirmación real. Si es un tema legal, no discutas el fondo. No afirmes ser una persona humana si te preguntan si eres IA.',
   ].join('\n');
 }

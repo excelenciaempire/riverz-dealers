@@ -3,6 +3,7 @@ import { instagramAdapter } from '@/lib/channels/instagram/adapter';
 import { assertStoredConnectionCanSend } from '@/lib/channels/send-guard';
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { addCommentContextToPrivateReply } from '@/lib/comments/private-reply-context';
+import { privateConversationAllowsCommentReply } from '@/lib/comments/private-attention';
 import {
   sendToSubscriber,
   type MarketingOptin,
@@ -261,6 +262,9 @@ export async function sendCampaignBatch(
     rows.map(async (r): Promise<Prepared> => {
       const contact = Array.isArray(r.contacts) ? r.contacts[0] : r.contacts;
       if (!contact?.external_id) return { id: r.id, contact: null, text: '' };
+      if (!await privateConversationAllowsCommentReply(db, { workspaceId: campaign.workspace_id,
+        externalId: contact.external_id, channel: 'instagram' }))
+        return { id: r.id, contact: null, text: '', skip: 'private_attention_owned' };
       const inbound = await latestInbound(db, contact.id).catch(() => ({
         text: null,
         at: null,
@@ -373,6 +377,12 @@ export async function sendCampaignBatch(
       continue;
     }
 
+    if (!await privateConversationAllowsCommentReply(db, { workspaceId: campaign.workspace_id,
+      externalId: p.contact.external_id, channel: 'instagram' })) {
+      await db.from('instagram_campaign_recipients').update({ status: 'skipped', error: 'private_attention_owned' })
+        .eq('id', p.id).eq('status', 'queued');
+      continue;
+    }
     // One private reply per comment across BOTH systems (comment-to-DM rules
     // and the campaign engine): claim the shared lock first. If the other path
     // already answered this comment, skip instead of letting Meta reject us.
@@ -470,6 +480,7 @@ export async function sendCampaignBatch(
         text: textoPreparado,
         dmMessageId: dmExternalId,
         commentText: p.commentId ? p.commentText : null,
+        sourceCommentExternalId: p.commentId,
         origin: 'ig_outreach',
         originName: campaign.plan?.campaign_name ?? null,
       });

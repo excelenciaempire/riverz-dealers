@@ -5,6 +5,14 @@ import type { Namespace } from "./types";
  * reactions, moderation, contact + Shopify panels, templates and search.
  */
 export const inbox = {
+  recoverMedia: { es: 'Recuperar archivo', en: 'Recover attachment' },
+  recoveringMedia: { es: 'Consultando archivo…', en: 'Checking attachment…' },
+  mediaStillUnavailable: { es: '{channel} no devolvió el archivo.', en: '{channel} did not return the attachment.' },
+  openChannelApp: { es: 'Abrir en la app', en: 'Open in app' },
+  sourcePostId: { es: 'Publicación {id}', en: 'Post {id}' },
+  openSourceComment: { es: 'Ver comentario de origen', en: 'View original comment' },
+  openSourcePost: { es: 'Ver publicación', en: 'View post' },
+  openPrivateReply: { es: 'Ver respuesta privada', en: 'View private reply' },
   templateButtonLink: { es: 'Enlace de «{button}»', en: 'Link for “{button}”' },
   templateLinkRequired: { es: 'Completa el enlace del botón.', en: 'Enter the button link.' },
   templateLinkInvalid: { es: 'Introduce un enlace completo válido.', en: 'Enter a valid full URL.' },

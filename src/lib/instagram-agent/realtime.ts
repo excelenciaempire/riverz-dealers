@@ -21,6 +21,7 @@ import type { OutboundText } from '@/lib/channels/types';
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { loadCommentConversation } from '@/lib/comments/hilo';
 import { addCommentContextToPrivateReply } from '@/lib/comments/private-reply-context';
+import { privateConversationAllowsCommentReply } from '@/lib/comments/private-attention';
 import {
   asksForPrice,
   asksForCurrentOffer,
@@ -545,6 +546,14 @@ export async function maybeInstantOutreach(
   // Auto mode. One private reply per comment across BOTH systems: claim the
   // shared lock first; if the comment-to-DM engine already replied, skip.
   if (opts.commentId) {
+    if (!await privateConversationAllowsCommentReply(db, {
+      workspaceId: opts.workspaceId, externalId: opts.contact.external_id,
+      channel: 'instagram',
+    })) {
+      await db.from('instagram_campaign_recipients').update({ status: 'skipped', error: 'private_attention_owned' })
+        .eq('id', recipientId).eq('status', 'queued');
+      return;
+    }
     const won = await claimCommentPrivateReply(
       db,
       opts.workspaceId,
@@ -660,6 +669,7 @@ export async function maybeInstantOutreach(
       text: textoPreparado,
       dmMessageId: dmRes?.externalMessageId ?? null,
       commentContactId: opts.commentId ? opts.contact.id : null,
+      sourceCommentExternalId: opts.commentId,
       origin: 'ig_outreach',
       originName: campaign.plan.campaign_name ?? null,
     });
@@ -917,6 +927,15 @@ async function decidirComentario(
     : ('instagram' as const);
   const adapter = isFacebook ? messengerAdapter : instagramAdapter;
 
+  const privateReplyAllowed = () => privateConversationAllowsCommentReply(db, {
+    workspaceId: opts.workspaceId, externalId: opts.contact.external_id!, channel: dmChannel,
+  });
+  // Comments have their own switch, but may not overwrite an existing
+  // escalated/private conversation with a sales reply from an older comment.
+  if (!isTikTok && !opts.publicOnly && !(await privateReplyAllowed())) {
+    return 'comment_asignado_a_persona';
+  }
+
   // La clave, como en todo el resto: la del agente, la de plataforma, y recién
   // después el entorno. Acá se leía SÓLO la variable de entorno, así que un
   // comercio cubierto por la clave de plataforma quedaba mudo en comentarios
@@ -1145,7 +1164,7 @@ async function decidirComentario(
     loadCustomerContext(db, opts.contact.id),
     // Y qué se dijeron ya bajo este post: una respuesta a nuestra respuesta no
     // es un primer contacto y no puede empezar saludando de cero.
-    loadCommentThread(db, opts.contact.id, opts.sourcePostId ?? null),
+    loadCommentThread(db, opts.contact.id, opts.sourcePostId ?? null, commentChannel),
     // El cerebro del producto del que habla: su conocimiento y sus barreras.
     loadProductBrain(db, opts.workspaceId, {
       text: [engagement, postBrief].filter(Boolean).join('\n'),
@@ -1420,6 +1439,11 @@ async function decidirComentario(
     decision.dm &&
     Boolean(opts.contact.external_id) &&
     Boolean(connection);
+  // Ownership may change during generation. Recheck immediately before any
+  // send; do not claim to have written privately when the DM is blocked.
+  if (!isTikTok && !opts.publicOnly && !(await privateReplyAllowed())) {
+    return 'comment_asignado_a_persona';
+  }
   const wonPrivateReply = wantsDm
     ? await claimCommentPrivateReply(
         db,
@@ -1476,6 +1500,7 @@ async function decidirComentario(
         commentContactId: willPublish ? null : opts.contact.id,
         // Para que el hilo privado no se abra con nuestro mensaje a secas.
         commentText: engagement,
+        sourceCommentExternalId: opts.commentId,
         // Comentarios se gobierna solo, así que la bandeja tiene que decirlo con
         // ese nombre: es el interruptor que el comercio apaga si no lo quiere.
         origin: 'comment_ai',

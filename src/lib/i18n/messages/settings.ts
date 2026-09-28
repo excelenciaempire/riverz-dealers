@@ -29,7 +29,7 @@ export const settings = {
   walletServiceHuman: { es: 'Mensajes manuales', en: 'Manual messages' },
   walletServiceOther: { es: 'Otros envíos', en: 'Other sends' },
   walletServiceComments: {
-    es: 'Comentarios respondidos',
+    es: 'Respuestas públicas a comentarios',
     en: 'Comment replies',
   },
   walletServicePanel: { es: 'Uso del panel', en: 'App usage' },

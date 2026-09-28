@@ -32,6 +32,7 @@ import {
 import { formatInTimeZone } from "date-fns-tz";
 import { useTimezone } from "@/hooks/use-timezone";
 import { useT } from "@/hooks/use-locale";
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { deliveryErrorKey } from "@/lib/whatsapp/delivery-errors";
 import {
   COMMENT_DELETED_TEXT,
@@ -208,12 +209,27 @@ function MediaUnavailable({ label }: { label: string }) {
  *  modo temporal de Instagram, una nota de voz de IG, un GIF, algo de una cuenta
  *  privada. Se dice explícito —y con el nombre del canal— para que el agente
  *  sepa que hay un mensaje real y lo abra ahí. */
-function UnsupportedMedia({ channel }: { channel: Message["channel"] }) {
+function UnsupportedMedia({ message }: { message: Message }) {
   const t = useT();
+    const fetchCsrf = useFetchWithCsrf();
+    const [state, setState] = useState<'idle' | 'loading' | 'unavailable' | 'recovered'>('idle');
+    const canRecover = message.channel === 'instagram' || message.channel === 'messenger';
+    const recover = async () => {
+      setState('loading');
+      try {
+        const r = await fetchCsrf('/api/messages/recover-media', { method: 'POST',
+          headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message_id: message.id }) });
+        const data = r.ok ? await r.json() : null;
+        setState(data?.recovered ? 'recovered' : 'unavailable');
+      } catch { setState('unavailable'); }
+    };
   return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
       <Mic className="h-4 w-4 shrink-0" />
-      <span>{t("inbox.unsupportedMedia", { channel: channelLabel(channel, t) })}</span>
+        <span>{t(state === 'unavailable' ? 'inbox.mediaStillUnavailable' : 'inbox.unsupportedMedia', { channel: channelLabel(message.channel, t) })}</span>
+        {canRecover && state === 'idle' && <button className="text-primary hover:underline" onClick={() => void recover()}>{t('inbox.recoverMedia')}</button>}
+        {state === 'loading' && <span>{t('inbox.recoveringMedia')}</span>}
+        {canRecover && <a className="hover:underline" target="_blank" rel="noopener noreferrer" href={message.channel === 'instagram' ? 'https://www.instagram.com/direct/inbox/' : 'https://business.facebook.com/latest/inbox/'}>{t('inbox.openChannelApp')}</a>}
     </div>
   );
 }
@@ -675,7 +691,7 @@ function MessageContent({
       // deja leer) va el rótulo — nunca una burbuja en blanco: en la bandeja
       // todo mensaje se ve.
       const body = message.content_text?.trim();
-      if (isUnsupportedMediaSnippet(body)) return <UnsupportedMedia channel={message.channel} />;
+      if (isUnsupportedMediaSnippet(body) || body === '[Archivo no disponible]') return <UnsupportedMedia message={message} />;
       const readable = body && !isUnsupportedSnippet(body);
       return (
         <div>
@@ -799,7 +815,7 @@ function MessageContent({
     }
 
     default: {
-      if (isUnsupportedMediaSnippet(message.content_text)) return <UnsupportedMedia channel={message.channel} />;
+      if (isUnsupportedMediaSnippet(message.content_text) || message.content_text === '[Archivo no disponible]') return <UnsupportedMedia message={message} />;
       // Acá caen, entre otros, los comentarios de Facebook/Instagram: dejar
       // el teléfono en un comentario es de lo más común para pedir precio.
       // El "@usuario" con el que IG/FB encabezan cada respuesta de un hilo no

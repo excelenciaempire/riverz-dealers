@@ -7,6 +7,7 @@ import type { ChannelConnection, MessageAttachment } from "@/types";
 import { isMetaCommentContextNotice } from "./meta-comment-context";
 import { MEDIA_UNAVAILABLE_LABEL, META_UNSUPPORTED_MEDIA_LABEL } from "./meta-attachments";
 import { isMetaRateLimitedResponse, MetaRateLimitError } from "./meta-rate-limit";
+import { repairStoredMetaMedia } from './repair-meta-media';
 
 const GRAPH = "https://graph.facebook.com/v22.0";
 /** Una página o mensaje de Graph no puede dejar un backfill colgado. */
@@ -227,6 +228,10 @@ async function ingestGraphMessage(args: ThreadSyncArgs, m: GraphMessage): Promis
     createIfMissing: args.createIfMissing,
     raw: { backfill: true },
   });
+  if (!guardado && parsed.media.length) {
+    return repairStoredMetaMedia(supabaseAdmin(), { workspaceId: args.connection.workspace_id,
+      channel: args.connection.channel, externalMessageId: m.id, media: parsed.media, text: parsed.text });
+  }
   return Boolean(guardado);
 }
 

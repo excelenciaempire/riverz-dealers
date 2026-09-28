@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { reconcileHumanAttention } from './reconcile-human-attention';
 
 interface Reply {
   id?: string;
@@ -50,6 +51,10 @@ export async function resolveHumanAttention(db: SupabaseClient, reply: Reply | n
       .lte('needs_human_at', reply.created_at)
       .lte('last_message_at', reply.created_at);
     if (error) console.error('[human-attention] clear failed', error.code);
+    // Legacy last_message_at may be stamped milliseconds after the reply.
+    // Reconcile against a full revision snapshot rather than widening the
+    // timestamp guard (which could hide a newer customer request).
+    await reconcileHumanAttention(db, reply.conversation_id);
   } catch { console.error('[human-attention] clear failed'); }
 }
 
@@ -64,17 +69,6 @@ export async function resolveHumanAttentionFromCustomerClosure(
       !Number.isFinite(Date.parse(reply.created_at))) return;
   try {
     if (!(await isLatestMessage(db, reply))) return;
-    const { error } = await db.from('conversations').update({
-      needs_human_reason: null,
-      needs_human_at: null,
-      needs_human_summary: null,
-      needs_human_visto_at: null,
-      needs_human_avisado_at: null,
-      updated_at: new Date().toISOString(),
-    })
-      .eq('id', reply.conversation_id)
-      .lte('needs_human_at', reply.created_at)
-      .lte('last_message_at', reply.created_at);
-    if (error) console.error('[human-attention] closure clear failed', error.code);
+    await reconcileHumanAttention(db, reply.conversation_id);
   } catch { console.error('[human-attention] closure clear failed'); }
 }

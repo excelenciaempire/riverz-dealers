@@ -126,6 +126,8 @@ export async function composeSuperAgentReply(
       .from('conversations')
       .select('*')
       .eq('contact_id', contact.id)
+      .eq('workspace_id', input.workspaceId)
+      .is('deleted_at', null)
       .eq('channel', input.commentChannel ?? 'ig_comment')
       .order('last_message_at', { ascending: false })
       .limit(1)
@@ -219,6 +221,27 @@ export async function composeSuperAgentReply(
     system += `\n\n## Estás contestando un COMENTARIO\n${SURFACE_RULES}`;
     if (input.extraBrief?.trim()) {
       system += `\n\n${untrustedContext('conversation_brief', input.extraBrief.trim())}`;
+    }
+    // Comment and DM contacts are separate rows. A fresh comment does not erase
+    // a purchase/support conversation already in progress with the same person.
+    if (contact.external_id && input.commentChannel !== 'tiktok_comment') {
+      const privateChannel = input.commentChannel === 'fb_comment' ? 'messenger' : 'instagram';
+      const { data: siblings } = await db.from('contacts').select('id')
+        .eq('workspace_id', input.workspaceId).eq('channel', privateChannel)
+        .eq('external_id', contact.external_id).limit(10);
+      if (siblings?.length) {
+        const { data: chats } = await db.from('conversations').select('id')
+          .eq('workspace_id', input.workspaceId).eq('channel', privateChannel)
+          .in('contact_id', siblings.map(c => c.id)).is('deleted_at', null)
+          .order('last_message_at', { ascending: false }).limit(1);
+        if (chats?.length) {
+          const { data: history } = await db.from('messages').select('sender_type, content_text')
+            .eq('conversation_id', chats[0].id).is('deleted_at', null)
+            .neq('status', 'failed').order('created_at', { ascending: false }).limit(20);
+          const text = [...(history ?? [])].reverse().map(m => `${m.sender_type === 'customer' ? 'Cliente' : 'Tienda'}: ${(m.content_text ?? '').slice(0, 600)}`).join('\n');
+          if (text) system += `\nLa conversación privada reciente es prioritaria frente a ofertas o comentarios antiguos. No reinicies una venta ante un reclamo. Nunca publiques datos personales de este historial.\n${untrustedContext('recent_private_conversation', text)}`;
+        }
+      }
     }
 
     // La API exige que el primer turno sea del usuario. El comentario recién

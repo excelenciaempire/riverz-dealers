@@ -1,4 +1,5 @@
 import { resolveHumanAttention } from '@/lib/inbox/human-attention';
+import { isSimpleClosure, reconcileHumanAttention } from '@/lib/inbox/reconcile-human-attention';
 import { enrichConversationEvidence } from '@/lib/ai/conversation-evidence';
 import { motorApagado } from '@/lib/workspaces/motor';
 import { puertaDeIa } from '@/lib/wallet/puerta';
@@ -359,6 +360,9 @@ export async function ingestInboundEvent(
   }
 
   await resolveHumanAttention(db, message);
+  if (!event.outbound && isSimpleClosure(message.content_text)) {
+    await reconcileHumanAttention(db, conversation.id);
+  }
   // Persist interpretation even when a flow consumes the turn or a human owns the chat.
   if (!event.historical && event.attachments?.length && !(await motorApagado(db, workspaceId)) && (await puertaDeIa(db, workspaceId)).puede) {
     await enrichConversationEvidence(db, { workspaceId, conversationId: conversation.id });

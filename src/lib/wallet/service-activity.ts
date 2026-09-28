@@ -21,6 +21,7 @@ export interface ServiceMessage {
   origin: string | null;
   status: string | null;
   channel: string | null;
+  message_id?: string | null;
   conversations: { channel: string; contact_id: string | null };
 }
 const empty = (): Counts => ({
@@ -54,6 +55,10 @@ export function summarizeServiceActivity(
       !['sent', 'delivered', 'read'].includes(m.status ?? '')
     )
       continue;
+    // A private reply is mirrored in the public thread for readability. That
+    // copy is not a second provider send and must not inflate sent/AI totals.
+    if (['ig_comment', 'fb_comment'].includes(m.channel ?? '') && m.message_id === null &&
+      ['comment_ai', 'ig_outreach'].includes(m.origin ?? '')) continue;
     seen.add(m.id);
     const channel = m.channel || m.conversations.channel;
     const group = groups.get(channel) ?? {
@@ -115,7 +120,7 @@ export async function serviceActivity(
     const result = await db
       .from('messages')
       .select(
-        'id, sender_type, origin, status, channel, conversations!inner(workspace_id, channel, contact_id)'
+        'id, sender_type, origin, status, channel, message_id, conversations!inner(workspace_id, channel, contact_id)'
       )
       .eq('conversations.workspace_id', workspaceId)
       .in('sender_type', ['bot', 'agent'])

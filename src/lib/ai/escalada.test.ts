@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { detectarEscalada, señalDura } from './escalada';
+import { detectarEscalada, señalDura, instruccionDeTraspaso } from './escalada';
 import { textoDelAviso } from './aviso-escalada';
+
+it('keeps escalation internal while owning customer service in first person', () => {
+  const instruction = instruccionDeTraspaso('El seguimiento no muestra estado');
+  expect(instruction).toContain('Lo reviso y te confirmo por aquí');
+  expect(instruction).toContain('no cambia quién habla con el cliente');
+  expect(instruction).toContain('No prometas reembolsos');
+  expect(instruction).not.toContain('avisa que una persona del equipo lo sigue');
+});
 
 describe('señalDura', () => {
   it('asks what to correct before escalating an existing order', async () => {

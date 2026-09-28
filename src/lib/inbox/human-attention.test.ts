@@ -104,7 +104,7 @@ describe('pending human attention', () => {
     await resolveHumanAttention(db as never, reply);
     expect(write.update).not.toHaveBeenCalled();
   });
-  it('clears a verified customer closure only while it is the latest turn', async () => {
+  it('does not clear a customer closure without resolution evidence', async () => {
     const closure = {
       id: 'close-1',
       conversation_id: 'efra',
@@ -114,9 +114,7 @@ describe('pending human attention', () => {
     };
     const { db, write } = database(closure);
     await resolveHumanAttentionFromCustomerClosure(db as never, closure);
-    expect(write.update).toHaveBeenCalledWith(
-      expect.objectContaining({ needs_human_reason: null })
-    );
+    expect(write.update).not.toHaveBeenCalled();
   });
   it('does not turn a successful send into a failed response if alert cleanup fails', async () => {
     const { db, write } = database();

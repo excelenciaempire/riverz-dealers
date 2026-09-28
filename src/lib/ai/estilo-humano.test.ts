@@ -1,7 +1,18 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ESTILO_HUMANO, humanizarTexto, tieneEstiloHumano } from './estilo-humano'
+import { ESTILO_HUMANO, estiloHumano, humanizarTexto, tieneEstiloHumano } from './estilo-humano'
+
+it('owns customer service without unverified promises in both languages', () => {
+  expect(estiloHumano('es')).toContain('Una escalada es interna');
+  expect(estiloHumano('es')).toContain('no afirmes ser humano');
+  expect(estiloHumano('en')).toContain('Escalation is internal');
+  expect(estiloHumano('en')).toContain('Do not promise unconfirmed');
+  expect(estiloHumano('es')).toContain('da sólo los datos del método elegido');
+  expect(estiloHumano('en')).toContain('provide only the chosen method details');
+  expect(estiloHumano('es')).toContain('Para Colombia usa tú');
+  expect(ESTILO_HUMANO).toContain('¿Cuál prefieres?');
+});
 
 /**
  * Lo que el cliente no tiene que ver nunca.

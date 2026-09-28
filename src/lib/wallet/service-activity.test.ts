@@ -51,6 +51,14 @@ it('never counts drafts, failed deliveries, customer messages or attempts as sen
 it('includes confirmed TikTok comment replies in the comment metric', () => {
   expect(summarizeServiceActivity([row('tiktok', { channel: 'tiktok_comment', origin: 'comment_ai' })])).toMatchObject({ sent: 1, comments: 1, aiMessages: 1 });
 });
+it('does not count a private comment reply twice through its public-thread mirror', () => {
+  const result = summarizeServiceActivity([
+    row('dm', { channel: 'instagram', origin: 'comment_ai', message_id: 'provider-dm' }),
+    row('mirror', { channel: 'ig_comment', origin: 'comment_ai', message_id: null }),
+    row('public', { channel: 'ig_comment', origin: 'comment_ai', message_id: 'provider-comment' }),
+  ]);
+  expect(result).toMatchObject({ sent: 2, aiMessages: 2, comments: 1 });
+});
 it('does not invent contacts when identity is missing', () => {
   expect(
     summarizeServiceActivity([

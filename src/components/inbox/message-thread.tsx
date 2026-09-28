@@ -39,6 +39,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MlKindBadge } from "@/components/inbox/ml-kind-badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./message-bubble";
+import { CommentSourceCard } from './comment-source';
+import type { CommentSource } from '@/lib/comments/provenance';
 import {feedbackGroupEnd} from '@/lib/ai/feedback-real';
 import type { OpinionIa } from "./opinion-ia";
 import { MessageActions } from "./message-actions";
@@ -251,6 +253,24 @@ export function MessageThread({
   // Lo que opina el equipo de cada respuesta automática de este hilo
   // (`/api/ai/feedback`): se convierte en mejoras del asistente.
   const [opinionesIa, setOpinionesIa] = useState<Record<string, OpinionIa>>({});
+  const [commentLinks, setCommentLinks] = useState<Record<string, CommentSource>>({});
+  const [privateLinks, setPrivateLinks] = useState<Record<string, { conversationId: string; createdAt: string }>>({});
+  const linkedMessageIds = messages.slice(-100).map(m => m.id).join(',');
+  useEffect(() => {
+    setCommentLinks({});
+    setPrivateLinks({});
+    if (!conversation?.id || !['instagram', 'messenger', 'ig_comment', 'fb_comment', 'tiktok_comment'].includes(conversation.channel)) return;
+    let alive = true;
+    const query = new URLSearchParams();
+    for (const id of linkedMessageIds.split(',').filter(Boolean)) query.append('message', id);
+    fetch(`/api/conversations/${conversation.id}/comment-links?${query}`, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null).then(data => {
+        if (!alive || !data) return;
+        setCommentLinks(Object.fromEntries((data.links ?? []).map((l: { messageId: string; source: CommentSource }) => [l.messageId, l.source])));
+        setPrivateLinks(Object.fromEntries((data.reverse ?? []).map((l: { messageId: string; conversationId: string; createdAt: string }) => [l.messageId, l])));
+      }).catch(() => {});
+    return () => { alive = false; };
+  }, [conversation?.id, conversation?.channel, linkedMessageIds]);
   useEffect(() => {
     const convId = conversation?.id;
     setOpinionesIa({});
@@ -1958,6 +1978,7 @@ export function MessageThread({
                         }}
                         onDelete={handleDeleteMessage}
                       >
+                        <CommentSourceCard source={commentLinks[msg.id]} privateReply={privateLinks[msg.id]} conversationId={msg.conversation_id} />
                         <MessageBubble
                           message={msg}
                           reply={reply}

@@ -30,9 +30,9 @@ import {
   soportaPresencia,
 } from '@/lib/channels/meta-presencia';
 import {
-  briefDePublicacionPorId,
   REGLAS_COMENTARIO_PUBLICO,
 } from '@/lib/channels/publicacion';
+import { commentBriefForTurn } from '@/lib/comments/provenance';
 import { getAdapter } from '@/lib/channels/registry';
 import {
   assertStoredConnectionCanSend,
@@ -346,7 +346,7 @@ export async function runAiAgent(
       args.channel === 'ig_comment' ||
       args.channel === 'fb_comment' ||
       args.channel === 'tiktok_comment'
-        ? await briefDePublicacionPorId(db, args.conversation.id).catch(
+        ? await commentBriefForTurn(db, args.workspaceId, args.conversation.id, args.inboundMessage.id).catch(
             () => null
           )
         : null;
@@ -1015,6 +1015,7 @@ export async function runAiAgent(
           conversationId: args.conversation.id,
           channel: args.channel,
           inboundText: args.inboundMessage.content_text ?? '',
+          inboundId: args.inboundMessage.id,
           traspaso: turnoDeTraspaso,
         },
         { priceQuestion, priceVerified },
@@ -3218,6 +3219,7 @@ async function generateReply(
     conversationId: string;
     channel: Channel;
     inboundText: string;
+    inboundId?: string;
     /** El triaje vio un problema: este turno verifica, contesta y pasa a una persona. */
     traspaso?: string | null;
   },
@@ -3270,13 +3272,17 @@ async function generateReply(
     origen.channel === 'fb_comment' ||
     origen.channel === 'tiktok_comment'
   ) {
-    const post = await briefDePublicacionPorId(db, origen.conversationId).catch(
+    const post = await commentBriefForTurn(db, agent.workspace_id, origen.conversationId, origen.inboundId).catch(
       () => null
     );
     if (post) extras.push(post);
     // Contestar en público tiene sus propias reglas, y son las mismas que sigue
     // una persona con el botón de generar respuesta.
     extras.push(REGLAS_COMENTARIO_PUBLICO);
+  }
+  if (origen.channel === 'instagram' || origen.channel === 'messenger') {
+    const source = await commentBriefForTurn(db, agent.workspace_id, origen.conversationId).catch(() => null);
+    if (source) extras.push(source);
   }
   if (origen.channel === 'webchat') {
     const nav = await contextoDeNavegacion(db, origen.conversationId).catch(

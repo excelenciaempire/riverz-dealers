@@ -367,6 +367,7 @@ export const messengerAdapter: ChannelAdapter = {
           externalContactId: sender.id,
           externalMessageId: message.mid,
           accessToken: getToken() || undefined,
+          recoverMissing: Boolean(message.is_unsupported),
         });
         // Click-to-Messenger ad context (the customer arrived from an ad). On
         // the messaging event as `referral` or nested under `postback.referral`.

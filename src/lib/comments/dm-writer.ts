@@ -184,6 +184,8 @@ export async function sendCommentDm(
     connection,
     text: textoPreparado,
     dmMessageId: dmExternalId,
+    sourceCommentMessageId: args.messageId,
+    commentText: message.content_text,
     // Refleja el mensaje también bajo el comentario: ahí es donde el equipo
     // está mirando cuando decide escribir.
     commentContactId: contact.id,

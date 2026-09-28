@@ -24,13 +24,15 @@ export async function loadCommentThread(
   db: SupabaseClient,
   contactId: string,
   postId: string | null,
+  channel: 'ig_comment' | 'fb_comment' | 'tiktok_comment' = 'ig_comment',
 ): Promise<CommentThread | null> {
   try {
     const q = db
       .from('conversations')
       .select('id, thread_external_id')
       .eq('contact_id', contactId)
-      .eq('channel', 'ig_comment')
+      .eq('channel', channel)
+      .is('deleted_at', null)
       .order('last_message_at', { ascending: false })
       .limit(5);
     const { data: convs } = await q;
@@ -44,6 +46,7 @@ export async function loadCommentThread(
       .from('messages')
       .select('sender_type, content_text, created_at')
       .eq('conversation_id', conv.id)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(10);
     const list = ((msgs ?? []) as Array<{
@@ -56,7 +59,7 @@ export async function loadCommentThread(
 
     const ourReplies = list.filter((m) => m.sender_type !== 'customer').length;
     const brief = [
-      'HILO DE ESTE POST (ya vienen hablando; continúa desde aquí, no saludes de cero ni repitas lo dicho):',
+      'HISTORIAL DE COMENTARIOS DE ESTA PERSONA (puede incluir otros posts). El contexto de la publicación recién recibida manda; no atribuyas todos estos mensajes al mismo post. Continúa su consulta actual, no reinicies una venta si ya compró:',
       ...list.map(
         (m) =>
           `${m.sender_type === 'customer' ? 'Ella' : 'Nosotros'}: ${(m.content_text ?? '')

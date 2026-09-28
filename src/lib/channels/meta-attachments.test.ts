@@ -4,13 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // queda cuando el adjunto no es un archivo bajable.
 const downloads: string[] = [];
 const tokens: Array<string | undefined> = [];
+const refetch = vi.hoisted(() => vi.fn(async () => null as string | null));
 vi.mock("./media-ingest", () => ({
+  refetchMetaAttachmentUrl: refetch,
   ingestMetaAttachment: vi.fn(async (opts: { attachmentUrl: string; accessToken?: string }) => {
     downloads.push(opts.attachmentUrl);
     tokens.push(opts.accessToken);
     if (opts.attachmentUrl.includes("fails")) return null;
     return {
-      publicUrl: `https://storage.test/${downloads.length}.bin`,
+      url: `https://storage.test/${downloads.length}.bin`,
       mediaType: "image",
       mediaMime: opts.attachmentUrl.includes("html") ? "text/html" : "image/jpeg",
       mediaSize: 10,
@@ -30,8 +32,27 @@ import {
 const BASE = { workspaceId: "ws", externalContactId: "psid-1", externalMessageId: "mid-1" };
 
 beforeEach(() => {
+  refetch.mockReset();
+  refetch.mockResolvedValue(null);
   downloads.length = 0;
   tokens.length = 0;
+});
+
+it('recovers an ordinary attachment without a webhook URL by exact mid', async () => {
+  refetch.mockResolvedValue('https://cdn.test/recovered.jpg');
+  const result = await ingestMetaAttachments({ ...BASE, accessToken: 'token', attachments: [{ type: 'image' }] });
+  expect(refetch).toHaveBeenCalledWith({ mid: BASE.externalMessageId, accessToken: 'token', attachmentIndex: 0 });
+  expect(result.media[0].url).toContain('storage.test');
+});
+
+it('retries an empty unsupported payload but never ephemeral content', async () => {
+  refetch.mockResolvedValue('https://cdn.test/recovered.jpg');
+  const recovered = await ingestMetaAttachments({ ...BASE, accessToken: 'token', recoverMissing: true });
+  expect(recovered.media).toHaveLength(1);
+  refetch.mockClear();
+  const ephemeral = await ingestMetaAttachments({ ...BASE, accessToken: 'token', recoverMissing: true, attachments: [{ type: 'ephemeral' }] });
+  expect(ephemeral.unsupported).toBe(true);
+  expect(refetch).not.toHaveBeenCalled();
 });
 
 describe("unwrapMetaLink", () => {

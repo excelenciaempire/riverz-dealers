@@ -1,5 +1,5 @@
 import type { MessageAttachment } from "@/types";
-import { ingestMetaAttachment } from "./media-ingest";
+import { ingestMetaAttachment, refetchMetaAttachmentUrl } from "./media-ingest";
 
 /**
  * Traductor único de `message.attachments` de Meta (Messenger + Instagram DM)
@@ -188,6 +188,8 @@ export async function ingestMetaAttachments(input: {
   /** Page token: sólo se usa para reintentar un asset del CDN de Meta que
    *  rechaza la descarga anónima (pasa con el audio de las notas de voz). */
   accessToken?: string;
+  /** Retry ordinary missing content by its exact provider message id. */
+  recoverMissing?: boolean;
 }): Promise<MetaAttachmentsResult> {
   const list = Array.isArray(input.attachments) ? input.attachments : [];
   const media: MessageAttachment[] = [];
@@ -270,7 +272,10 @@ export async function ingestMetaAttachments(input: {
     }
 
     if (MEDIA_TYPES.has(type)) {
-      if (url && (await download(url, hintFor(type)))) {
+      const resolvedUrl = url || await refetchMetaAttachmentUrl({
+        mid: input.externalMessageId, accessToken: input.accessToken, attachmentIndex: slot,
+      });
+      if (resolvedUrl && (await download(resolvedUrl, hintFor(type)))) {
         if (type === "story_mention") descriptions.push(STORY_MENTION_LABEL);
         continue;
       }
@@ -323,6 +328,13 @@ export async function ingestMetaAttachments(input: {
       continue;
     }
     descriptions.push(describeLink(title, link) || META_UNSUPPORTED_LABEL);
+  }
+
+  // An unsupported webhook is not proof that Graph also withholds an ordinary
+  // attachment. One bounded lookup, never for explicitly ephemeral content.
+  if (!list.length && input.recoverMissing && input.externalMessageId && input.accessToken) {
+    const fresh = await refetchMetaAttachmentUrl({ mid: input.externalMessageId, accessToken: input.accessToken });
+    if (fresh) await download(fresh);
   }
 
   return { media, descriptions, unsupported };

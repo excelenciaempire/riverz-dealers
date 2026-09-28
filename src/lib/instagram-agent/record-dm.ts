@@ -79,6 +79,8 @@ export async function recordProactiveDm(
      * comentario) y no había forma de relacionarlos mirando la bandeja.
      */
     commentText?: string | null;
+    sourceCommentMessageId?: string | null;
+    sourceCommentExternalId?: string | null;
     /**
      * Qué funcionalidad lo mandó (migración 143). Se sella en la fila para que
      * la bandeja lo diga: Comentarios, Prospección, una regla… Además sobrevive
@@ -96,6 +98,18 @@ export async function recordProactiveDm(
     const preview = input.text.slice(0, 200);
     const dmChannel = input.dmChannel ?? 'instagram';
     const commentChannel = input.commentChannel ?? 'ig_comment';
+    // Link to the exact comment, not the first post stored on the grouped thread.
+    let sourceCommentId: string | null = null;
+    if (input.sourceCommentMessageId || input.sourceCommentExternalId) {
+      let query = db.from('messages').select('id, conversations!inner(workspace_id)')
+        .eq('channel', commentChannel).eq('conversations.workspace_id', input.workspaceId)
+        .eq('sender_type', 'customer').is('deleted_at', null);
+      query = input.sourceCommentMessageId
+        ? query.eq('id', input.sourceCommentMessageId)
+        : query.eq('message_id', input.sourceCommentExternalId!);
+      const { data } = await query.limit(2);
+      if (data?.length === 1) sourceCommentId = data[0].id;
+    }
 
     // 1. Contacto CANÓNICO del lado DM (canal 'instagram', mismo IGSID que usará
     //    el eco). upsertContact es race-safe y hereda el nombre del comentario
@@ -161,6 +175,7 @@ export async function recordProactiveDm(
         // persona escribió debajo de una foto y parece un DM que mandó de la
         // nada. Así la bandeja dice de dónde salió esta conversación.
         origin: 'comment_inbound',
+        reply_to_message_id: sourceCommentId,
       });
     }
 
@@ -188,6 +203,7 @@ export async function recordProactiveDm(
         message_id: input.dmMessageId ?? null,
         origin: input.origin ?? null,
         origin_name: input.originName ?? null,
+        reply_to_message_id: sourceCommentId,
       });
       await db
         .from('conversations')

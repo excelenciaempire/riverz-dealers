@@ -386,6 +386,7 @@ export const instagramAdapter: ChannelAdapter = {
           externalContactId: sender.id,
           externalMessageId: message.mid,
           accessToken: getToken() || undefined,
+          recoverMissing: Boolean(message.is_unsupported),
         });
         // Click-to-Instagram ad context (the customer arrived from an ad).
         const igReferral =

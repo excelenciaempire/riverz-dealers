@@ -16,7 +16,7 @@ import {
   type InboxSearchState,
 } from "@/components/inbox/search-box";
 import { MlSubFilter, type MlKindFilter } from "@/components/inbox/ml-subfilter";
-import { mediaPreviewToken, mlThreadKind } from "@/lib/channels/display";
+import { mlThreadKind } from "@/lib/channels/display";
 import {
   InboxTabs,
   type InboxTab,
@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { useT, useLocale } from "@/hooks/use-locale";
 import { localizePath, canonicalizePath } from "@/lib/i18n/routes";
 import { actionableUnreadCount } from "@/lib/inbox/actionable-unread";
+import { latestPreviewMessage, mergeLiveConversation, previewFromMessage } from "@/lib/inbox/live-preview";
 
 // Preferencia local de la pestaña/modo de bandeja (Mensajes / Comentarios /
 // Unificar). Persiste entre recargas por navegador — es UI, no dato de cuenta.
@@ -289,6 +290,7 @@ export default function InboxPage() {
             );
             return [...withoutOptimistic, newMsg];
           });
+          setActiveConversation(current => current ? previewFromMessage(current, newMsg) : current);
         }
 
         // Update conversation list preview. We need to know *synchronously*
@@ -301,19 +303,15 @@ export default function InboxPage() {
             prev.map((c) =>
               c.id === newMsg.conversation_id
                 ? {
-                    ...c,
+                    ...previewFromMessage(c, newMsg),
                     // Un mensaje que es sólo un archivo llega sin texto: el
                     // preview muestra el marcador del tipo ("[Audio]") en vez
                     // de quedar en "Sin mensajes" hasta el UPDATE de la
                     // conversación.
-                    last_message_text:
-                      newMsg.content_text?.trim() ||
-                      mediaPreviewToken(newMsg.media_mime ?? newMsg.media_type),
-                    last_message_at: newMsg.created_at,
                     unread_count:
                       activeConversation?.id === newMsg.conversation_id
                         ? 0
-                        : c.unread_count + 1,
+                        : c.unread_count + (newMsg.sender_type === "customer" ? 1 : 0),
                   }
                 : c,
             ),
@@ -331,15 +329,20 @@ export default function InboxPage() {
         // (migración 264): la burbuja se va de esta pestaña y de las demás.
         if (newMsg.deleted_at) {
           setMessages((prev) => prev.filter((m) => m.id !== newMsg.id));
+          setConversations(current => current.map(c =>
+            c.id === newMsg.conversation_id && Date.parse(c.last_message_at ?? '') === Date.parse(newMsg.created_at)
+              ? { ...c, last_message_at: undefined } : c));
+          setResyncToken(n => n + 1);
           return;
         }
         // Update message status
         setMessages((prev) =>
           prev.map((m) => (m.id === newMsg.id ? { ...m, ...newMsg } : m))
         );
+        setConversations(current => current.map(c => previewFromMessage(c, newMsg)));
       }
     },
-    [activeConversation, hydrateConversation]
+    [activeConversation]
   );
 
   // Handle realtime conversation events
@@ -391,8 +394,7 @@ export default function InboxPage() {
             prev.map((c) =>
               c.id === conv.id
                 ? {
-                    ...c,
-                    ...conv,
+                    ...mergeLiveConversation(c, conv),
                     unread_count: isActive ? 0 : conv.unread_count,
                   }
                 : c,
@@ -409,7 +411,7 @@ export default function InboxPage() {
         // Update active conversation if it changed
         if (activeConversation && conv.id === activeConversation.id) {
           setActiveConversation((prev) =>
-            prev ? { ...prev, ...conv } : prev
+            prev ? mergeLiveConversation(prev, conv) : prev
           );
         }
       }
@@ -483,7 +485,10 @@ export default function InboxPage() {
 
   const handleConversationsLoaded = useCallback(
     (loaded: Conversation[]) => {
-      setConversations(loaded);
+      setConversations(current => loaded.map(row => {
+        const previous = current.find(c => c.id === row.id);
+        return previous ? mergeLiveConversation(previous, row) : row;
+      }));
       // La lista vuelve con el contacto unido. Si cambió su nombre o avatar,
       // refrescamos también el encabezado y la ficha abierta sin vaciar el
       // hilo ni obligar a seleccionar otra conversación.
@@ -649,6 +654,11 @@ export default function InboxPage() {
 
   const handleMessagesLoaded = useCallback((loaded: Message[]) => {
     setMessages(loaded);
+    const latest = latestPreviewMessage(loaded);
+    if (latest) {
+      setConversations(current => current.map(c => previewFromMessage(c, latest)));
+      setActiveConversation(current => current ? previewFromMessage(current, latest) : current);
+    }
   }, []);
 
   const handleNewMessage = useCallback((msg: Message) => {
@@ -656,6 +666,8 @@ export default function InboxPage() {
       if (prev.some((m) => m.id === msg.id)) return prev;
       return [...prev, msg];
     });
+    setConversations(current => current.map(c => previewFromMessage(c, msg)));
+    setActiveConversation(current => current ? previewFromMessage(current, msg) : current);
   }, []);
 
   const handleUpdateMessage = useCallback(
@@ -668,11 +680,15 @@ export default function InboxPage() {
   );
 
   const handleDeleteMessage = useCallback((id: string) => {
+    const deleted = messages.find(m => m.id === id);
+    if (deleted) setConversations(current => current.map(c =>
+      c.id === deleted.conversation_id && Date.parse(c.last_message_at ?? '') === Date.parse(deleted.created_at)
+        ? { ...c, last_message_at: undefined } : c));
     setMessages((prev) => prev.filter((m) => m.id !== id));
     // El DELETE también rebobina el resumen de la conversación. La
     // resincronización actualiza el preview incluso si Realtime está dormido.
     setResyncToken((n) => n + 1);
-  }, []);
+  }, [messages]);
 
   const handleStatusChange = useCallback(
     (conversationId: string, status: ConversationStatus) => {
