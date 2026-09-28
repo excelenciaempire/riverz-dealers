@@ -4,6 +4,7 @@ import {
   DROPI_BRIDGE_KEY_ID,
   verifyDropiBridgeSignature,
 } from '@/lib/logistics/dropi-bridge-auth';
+import { installRiverzOfficialDeliveryIncidents } from '@/lib/logistics/incident-install';
 import {
   resolveShopifyAdmin,
   setDeliveryIncidentOrderTag,
@@ -15,6 +16,7 @@ const RIVERZ_OFFICIAL_WORKSPACE_ID = '36f81b96-41b9-4d29-b72e-11be3d3070a3';
 const MAX_BODY_BYTES = 16_384;
 
 type DropiIncidentPayload = {
+  action?: unknown;
   event_id?: unknown;
   dropi_order_id?: unknown;
   shopify_order_id?: unknown;
@@ -22,6 +24,20 @@ type DropiIncidentPayload = {
   reason?: unknown;
   occurred_at?: unknown;
 };
+
+function validSetupPayload(value: DropiIncidentPayload): value is {
+  event_id: string;
+  action: 'setup';
+  occurred_at: string;
+} {
+  return (
+    value.action === 'setup' &&
+    typeof value.event_id === 'string' &&
+    /^[a-zA-Z0-9:_-]{8,180}$/.test(value.event_id) &&
+    typeof value.occurred_at === 'string' &&
+    Number.isFinite(Date.parse(value.occurred_at))
+  );
+}
 
 function validPayload(value: DropiIncidentPayload): value is {
   event_id: string;
@@ -69,7 +85,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
   }
   if (!validPayload(payload)) {
-    return NextResponse.json({ error: 'invalid_payload' }, { status: 400 });
+    if (!validSetupPayload(payload)) {
+      return NextResponse.json({ error: 'invalid_payload' }, { status: 400 });
+    }
+    const setup = await installRiverzOfficialDeliveryIncidents();
+    return NextResponse.json({ ok: true, accepted: payload.event_id, setup });
   }
 
   const shopify = await resolveShopifyAdmin(
