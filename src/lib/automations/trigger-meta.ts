@@ -62,6 +62,14 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'Pedido entregado (Shopify)',
     pillClass: 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300',
   },
+  shopify_order_incident_opened: {
+    label: '', labelKey: 'automations.triggerShopifyIncidentOpened',
+    pillClass: 'border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300',
+  },
+  shopify_order_incident_resolved: {
+    label: '', labelKey: 'automations.triggerShopifyIncidentResolved',
+    pillClass: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  },
   shopify_order_cancelled: {
     label: 'Pedido cancelado (Shopify)',
     pillClass: 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300',

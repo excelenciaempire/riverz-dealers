@@ -59,6 +59,8 @@ const ORDER_TRIGGERS: AutomationTriggerType[] = [
   'shopify_order_confirmed',
   'shopify_order_fulfilled',
   'shopify_order_delivered',
+  'shopify_order_incident_opened',
+  'shopify_order_incident_resolved',
   'shopify_order_cancelled',
   'shopify_order_refunded',
 ]
@@ -66,9 +68,25 @@ const ORDER_TRIGGERS: AutomationTriggerType[] = [
 const FULFILLED: AutomationTriggerType[] = [
   'shopify_order_fulfilled',
   'shopify_order_delivered',
+  'shopify_order_incident_opened',
+  'shopify_order_incident_resolved',
 ]
 
 export const DATA_POINTS: DataPoint[] = [
+  ...[
+    ['incident_reason', 'automations.dpIncidentReason'],
+    ['incident_status', 'automations.dpIncidentStatus'],
+    ['incident_source', 'automations.dpIncidentSource'],
+  ].map(([id, labelKey]): DataPoint => ({
+    id,
+    labelKey,
+    group: 'order',
+    valueKind: 'text',
+    triggers: ['shopify_order_incident_opened', 'shopify_order_incident_resolved'],
+    usableInConditions: true,
+    templateVarKey: id,
+    condition: { kind: 'var', varKey: id },
+  })),
   { id: 'automation_entry', labelKey: 'automations.dpJourneyEvent', group: 'order', valueKind: 'enum',
     triggers: ['shopify_order_delivered'], usableInConditions: true,
     condition: { kind: 'var', varKey: 'automation_entry' },

@@ -124,6 +124,18 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
         return
       }
     }
+    if (
+      input.triggerType === 'shopify_order_incident_resolved' &&
+      input.contactId
+    ) {
+      await cancelPendingByTrigger(
+        db,
+        input.workspaceId,
+        input.contactId,
+        'shopify_order_incident_opened',
+        { order_id: String(input.context?.vars?.order_id ?? '') },
+      )
+    }
 
     // Una compra gana sobre el carrito. Cancelamos la espera de recuperación
     // antes de evaluar el pedido nuevo, para que el cron no alcance a mandar
@@ -302,14 +314,22 @@ async function stopReordersForOrderEvent(db: ReturnType<typeof supabaseAdmin>, w
 
 export async function cancelPendingByTrigger(
   db: ReturnType<typeof supabaseAdmin>, workspaceId: string, contactId: string, triggerType: string,
+  contextVars?: Record<string, string>,
 ): Promise<void> {
   const { data: automations, error } = await db.from('automations').select('id').eq('workspace_id', workspaceId).eq('trigger_type', triggerType)
   if (error) throw new Error(error.message)
   const ids = (automations ?? []).map((a) => a.id)
   if (!ids.length) return
-  const cancelled = await db.from('automation_pending_executions').update({ status: 'done' })
+  let cancellation = db.from('automation_pending_executions').update({ status: 'done' })
     .eq('workspace_id', workspaceId).eq('contact_id', contactId).eq('status', 'pending')
-    .in('automation_id', ids).select('id,log_id')
+    .in('automation_id', ids)
+  const nonEmptyContext = Object.fromEntries(
+    Object.entries(contextVars ?? {}).filter(([, value]) => value),
+  )
+  if (Object.keys(nonEmptyContext).length > 0) {
+    cancellation = cancellation.contains('context', { vars: nonEmptyContext })
+  }
+  const cancelled = await cancellation.select('id,log_id')
   if (cancelled.error) throw new Error(cancelled.error.message)
   // A purchase intentionally ends cart reminders. Record that terminal
   // outcome so the orphan reconciler cannot mislabel it as an interruption.

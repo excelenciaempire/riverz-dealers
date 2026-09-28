@@ -45,6 +45,14 @@ export const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] 
       label: 'automations.triggerShopifyOrderDelivered',
     },
     {
+      value: 'shopify_order_incident_opened',
+      label: 'automations.triggerShopifyIncidentOpened',
+    },
+    {
+      value: 'shopify_order_incident_resolved',
+      label: 'automations.triggerShopifyIncidentResolved',
+    },
+    {
       value: 'shopify_order_cancelled',
       label: 'automations.triggerShopifyOrderCancelled',
     },

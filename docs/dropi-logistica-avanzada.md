@@ -135,3 +135,21 @@ Las tres plantillas de confirmación, recordatorio y última revisión se reescr
 Las seis versiones `*_datos_v3` se enviaron a Meta. El script `scripts/refresh-deuna-confirmation-copy.ts` consulta su aprobación. Solo `--apply --deployed-commit=<commit completo>` permite sustituir las referencias de los tres pasos existentes, después de comprobar aprobación española y despliegue de las variables nuevas. Preserva esperas, llamada, contexto de revisión de datos y estado de activación. No reenvía mensajes a clientes ni reinicia seguimientos.
 
 Validación: casos de límites entre Shopify y Dropi, aislamiento de la consulta autenticada, formato de moneda, compatibilidad real de los seis cuerpos con el constructor de Meta y motor de decisiones del borrador. La aprobación de Meta es externa; enviar una plantilla a revisión no significa que esté aprobada o utilizada por el flujo.
+
+## Avance implementado: novedades futuras de entrega
+
+El 28 de septiembre de 2026 se conectó una señal operativa segura sin atribuirle a Dropi datos que Shopify no demuestra. El webhook de Shopify reconoce los estados logísticos estructurados `failure` y `attempted_delivery`. También acepta una convención explícita aplicada en Shopify por el comercio o por una integración autorizada: etiquetas exactas `NOVEDAD` / `NOVEDAD: <causa>` y `NOVEDAD SOLUCIONADA`. Una etiqueta no prueba por sí sola que Dropi la haya escrito. Notas libres y mensajes del cliente nunca se convierten en novedades oficiales.
+
+La detección compara el estado anterior guardado con el nuevo. Una actualización repetida no vuelve a contactar al cliente. Una solución explícita o la reanudación comprobada del movimiento cierra la espera de esa novedad. Riverz publica además `delivery.incident.opened` y `delivery.incident.resolved` hacia los webhooks configurados por el comercio.
+
+Para Riverz oficial se prepara de forma idempotente la automatización `DeUNA Shop · Novedad de entrega`. El primer paso usa una plantilla Utility bilingüe con producto, causa, guía y enlace directo; luego conserva una espera de 72 horas para que una respuesta entregue el chat a la asesora con el contexto completo. La plantilla se envía a revisión de Meta desde el trabajo periódico `dropi-incident-setup`; la automatización permanece armada, sin enviar, hasta que la versión española esté aprobada y WhatsApp esté operativo.
+
+La guía del agente prohíbe prometer un nuevo intento o decir que Dropi aceptó una corrección sin evidencia. La novedad que ya existía antes de desplegar este cambio no se reprocesa ni contacta: el dueño pidió que el flujo aplique a las próximas.
+
+La investigación local encontró y verificó contra Dropi la lectura `GET https://api.dropi.co/api/orders/myorders/novelties`, autenticada mediante `X-Authorization` y los encabezados de navegador documentados en el conector interno. No se incorporó todavía como fuente de producción: el acceso a `riverzoficial@gmail.com` llegó correctamente hasta el segundo factor de Dropi, pero no había un código TOTP autorizado en esta sesión; además, sin una fila real no se capturó el esquema de una novedad para enlazarla de forma fiable con pedido, cliente y conversación. La escritura para resolver novedades sigue deliberadamente deshabilitada porque su endpoint y forma no están verificados. Mientras tanto, Riverz usa solo las señales estructuradas de Shopify descritas arriba y publica la fuente exacta en cada evento.
+
+Fuentes oficiales consultadas:
+
+- https://www.dropi.co/servicio-logistico
+- https://wf.dropi.co/integraciones
+- https://dropi.co/terminos-y-condiciones

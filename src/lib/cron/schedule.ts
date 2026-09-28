@@ -253,6 +253,13 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     schedule: '*/15 * * * *',
     retryOnFailure: true,
   },
+  {
+    name: 'dropi-incident-setup',
+    whatKey: 'admin.cronDropiIncidentSetup',
+    path: '/api/cron/dropi-incident-setup',
+    schedule: '7,22,37,52 * * * *',
+    retryOnFailure: true,
+  },
   // Las ventas del chat que no le llegaron a Meta. Casi todo lo que falla acá
   // se arregla solo o en un rato (un 500, la red, un token que el comercio
   // renueva), y sin reintento cada uno de esos ratos es una venta que el

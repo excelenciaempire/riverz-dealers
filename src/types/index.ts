@@ -792,6 +792,8 @@ export type AutomationTriggerType =
   | 'shopify_order_confirmed'
   | 'shopify_order_fulfilled'
   | 'shopify_order_delivered'
+  | 'shopify_order_incident_opened'
+  | 'shopify_order_incident_resolved'
   | 'shopify_order_cancelled'
   | 'shopify_order_refunded'
   // Time-based variants discovered by the dedicated cron jobs, NOT by

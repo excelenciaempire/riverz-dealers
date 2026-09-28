@@ -529,6 +529,10 @@ export const admin = {
     es: 'Activa el rastreo visual seguro',
     en: 'Activates safe visual tracking',
   },
+  cronDropiIncidentSetup: {
+    es: 'Prepara novedades de entrega de Dropi',
+    en: 'Prepares Dropi delivery issues',
+  },
   cronConversionRetry: {
     es: 'Reintenta las ventas que no le llegaron a Meta',
     en: "Retries sales that didn't reach Meta",

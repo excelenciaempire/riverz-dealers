@@ -269,6 +269,37 @@ describe('POST /api/shopify/webhooks/orders — espejo de estados', () => {
     expect(emittedWebhooks.map((event) => event.type)).toEqual(['order.updated'])
   })
 
+  it('publica una novedad oficial una sola vez cuando Dropi la refleja en Shopify', async () => {
+    filaExistente = { id: 'ord1', shop_tags: 'Confirmado' }
+
+    await POST(
+      actualizacion('paid', {
+        tags: 'Confirmado, NOVEDAD: Dirección incompleta',
+      }),
+    )
+
+    expect(emittedWebhooks.map((event) => event.type)).toEqual([
+      'order.updated',
+      'delivery.incident.opened',
+    ])
+    expect(emittedWebhooks.at(-1)?.data.incident_reason).toBe(
+      'Dirección incompleta',
+    )
+  })
+
+  it('no publica una novedad nueva de un pedido ya cancelado', async () => {
+    filaExistente = { id: 'ord1', shop_tags: 'Confirmado' }
+
+    await POST(
+      actualizacion('paid', {
+        tags: 'NOVEDAD: Destinatario ausente',
+        cancelled_at: '2026-09-28T15:00:00.000Z',
+      }),
+    )
+
+    expect(emittedWebhooks.map((event) => event.type)).toEqual(['order.updated'])
+  })
+
   /**
    * La venta que hizo una persona sola en la tienda.
    *

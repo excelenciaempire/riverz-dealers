@@ -75,6 +75,8 @@ export const AI_TRIGGERS: {
   { value: 'shopify_order_paid', que: 'se pagó un pedido' },
   { value: 'shopify_order_fulfilled', que: 'salió el envío de un pedido' },
   { value: 'shopify_order_delivered', que: 'se entregó un pedido' },
+  { value: 'shopify_order_incident_opened', que: 'la transportadora reportó una novedad de entrega' },
+  { value: 'shopify_order_incident_resolved', que: 'se solucionó una novedad de entrega' },
   { value: 'shopify_order_confirmed', que: 'se acreditó el pago anticipado o se confirmó el pedido contra entrega' },
   { value: 'shopify_order_cancelled', que: 'se canceló un pedido' },
   { value: 'shopify_order_refunded', que: 'se reembolsó un pedido' },

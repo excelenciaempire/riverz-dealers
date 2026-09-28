@@ -55,6 +55,10 @@ export const AI_RECENT_WINDOW_MS = 5 * 60 * 1000
 const TRANSACTIONAL_TRIGGERS: ReadonlySet<AutomationTriggerType> = new Set<AutomationTriggerType>([
   // Order shipped / tracking update — customer wants this regardless.
   'shopify_order_fulfilled',
+  // A delivery exception needs a timely confirmation even when the agent
+  // spoke recently; waiting can cause another failed delivery attempt.
+  'shopify_order_incident_opened',
+  'shopify_order_incident_resolved',
   // Cart recovery is scheduled deliberately and only fires once per
   // checkout; if it lands near an IA message the IA was likely the one
   // who sent the checkout link, so it would feel even more robotic —

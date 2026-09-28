@@ -32,6 +32,7 @@ import { espejarPedidoDeShopify } from '@/lib/shopify/espejo-de-pedido';
 import { buildVarsForOrder } from '@/lib/shopify/order-vars';
 import { ensureShopifyOrderCustomer } from '@/lib/shopify/order-customer';
 import { emitWebhook } from '@/lib/webhooks/outbound';
+import { detectDropiIncidentTransition } from '@/lib/logistics/dropi-incident-signal';
 import type {
   AutomationTriggerType,
   Channel,
@@ -137,13 +138,14 @@ export async function POST(request: Request) {
       tracking_number?: string | null;
       tracking_company?: string | null;
       tracking_url?: string | null;
+      shop_tags?: string | null;
     } | null = null;
 
     if (topic === 'orders/updated' && orderId > 0) {
       const [{ data: mirrored }, { data: state }] = await Promise.all([
         admin
           .from('orders')
-          .select('tracking_number, tracking_company, tracking_url')
+          .select('tracking_number, tracking_company, tracking_url, shop_tags')
           .eq('workspace_id', workspaceId)
           .eq('shop_domain', shopDomain)
           .eq('shopify_order_id', String(orderId))
@@ -350,6 +352,39 @@ export async function POST(request: Request) {
       }
     }
 
+    const incident =
+      topic === 'orders/updated'
+        ? detectDropiIncidentTransition(
+            { tags: order.tags, shipment_status: shipmentStatus },
+            previousLogistics,
+          )
+        : {
+            state: 'none' as const,
+            transition: null,
+            reason: '',
+            source: 'none' as const,
+          };
+    const terminalOrderEvent = triggerTypes.some((trigger) =>
+      [
+        'shopify_order_cancelled',
+        'shopify_order_refunded',
+        'shopify_order_delivered',
+      ].includes(trigger),
+    );
+    const incidentOpened =
+      incident.transition === 'opened' &&
+      !order.cancelled_at &&
+      !terminalOrderEvent;
+    const incidentEventTransition =
+      incident.transition === 'resolved' || incidentOpened
+        ? incident.transition
+        : null;
+    if (incidentOpened) {
+      triggerTypes.push('shopify_order_incident_opened');
+    } else if (incident.transition === 'resolved') {
+      triggerTypes.push('shopify_order_incident_resolved');
+    }
+
     // Shopify es la fuente que Dropi actualiza cuando genera la guía. Así,
     // Make, Zapier y n8n reciben tanto el pedido inicial como cada cambio de
     // fulfillment sin necesitar acceso a la API privada de Dropi.
@@ -367,6 +402,9 @@ export async function POST(request: Request) {
         trackingUrl ||
         resolveCarrierTrackingUrl(trackingCompany, trackingNumber) ||
         String(order.order_status_url ?? ''),
+      incident_status: incident.state,
+      incident_reason: incident.reason,
+      incident_source: incident.source,
     };
     void emitWebhook(
       workspaceId,
@@ -403,6 +441,17 @@ export async function POST(request: Request) {
         void emitWebhook(workspaceId, 'tracking.updated', eventData).catch(
           (error) =>
             console.error('[webhook] Shopify tracking delivery failed', error)
+        );
+      }
+      if (incidentEventTransition) {
+        void emitWebhook(
+          workspaceId,
+          incidentEventTransition === 'opened'
+            ? 'delivery.incident.opened'
+            : 'delivery.incident.resolved',
+          eventData,
+        ).catch((error) =>
+          console.error('[webhook] Shopify delivery incident failed', error)
         );
       }
     }
@@ -585,6 +634,16 @@ export async function POST(request: Request) {
       vars.purchase_shop_domain = shopDomain;
       vars.offer_chosen = offer.label;
       vars.offer_units = offer.units > 0 ? String(offer.units) : '';
+      if (
+        triggerType === 'shopify_order_incident_opened' ||
+        triggerType === 'shopify_order_incident_resolved'
+      ) {
+        vars.incident_status = incident.state;
+        vars.incident_reason = incident.reason;
+        vars.incident_source = incident.source;
+        vars.tracking_number =
+          vars.tracking_number || 'Pendiente de actualización';
+      }
 
       await runAutomationsForTrigger({
         workspaceId,

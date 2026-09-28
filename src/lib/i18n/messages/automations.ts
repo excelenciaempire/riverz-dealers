@@ -269,6 +269,26 @@ export const automations = {
     es: "Pedido entregado",
     en: "Order delivered",
   },
+  triggerShopifyIncidentOpened: {
+    es: "Novedad de entrega",
+    en: "Delivery issue",
+  },
+  triggerShopifyIncidentResolved: {
+    es: "Novedad solucionada",
+    en: "Delivery issue resolved",
+  },
+  dpIncidentReason: {
+    es: "Motivo de la novedad",
+    en: "Delivery issue reason",
+  },
+  dpIncidentStatus: {
+    es: "Estado de la novedad",
+    en: "Delivery issue status",
+  },
+  dpIncidentSource: {
+    es: "Origen de la novedad",
+    en: "Delivery issue source",
+  },
   triggerShopifyOrderCancelled: {
     es: "Pedido cancelado",
     en: "Order cancelled",

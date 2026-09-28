@@ -80,7 +80,9 @@ export function buildVarsForOrder(
 
   if (
     trigger === 'shopify_order_fulfilled' ||
-    trigger === 'shopify_order_delivered'
+    trigger === 'shopify_order_delivered' ||
+    trigger === 'shopify_order_incident_opened' ||
+    trigger === 'shopify_order_incident_resolved'
   ) {
     const fulfillments = Array.isArray(order.fulfillments)
       ? (order.fulfillments as Record<string, unknown>[])
