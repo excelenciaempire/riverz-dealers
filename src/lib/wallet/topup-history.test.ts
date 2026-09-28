@@ -18,6 +18,8 @@ function database(
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     gt: vi.fn().mockReturnThis(),
+    gte: vi.fn().mockReturnThis(),
+    lt: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     range: vi.fn().mockResolvedValue({ data: rows, error: null }),
   };
@@ -33,6 +35,48 @@ function database(
 }
 
 describe('credited top-up history', () => {
+  it('applies the exact selected period to recharge history queries', async () => {
+    const { db, ledger } = database([]);
+    await listTopupHistory(db, 'ws', 0, undefined, {
+      desde: '2026-09-28T05:00:00Z',
+      hasta: '2026-09-29T05:00:00Z',
+    });
+    expect(ledger.gte).toHaveBeenCalledWith(
+      'creado_en',
+      '2026-09-28T05:00:00Z'
+    );
+    expect(ledger.lt).toHaveBeenCalledWith('creado_en', '2026-09-29T05:00:00Z');
+  });
+  it('uses the same supplied financial snapshot without rereading a different period', async () => {
+    const { db, from } = database([]);
+    const result = await listTopupHistory(db, 'ws', 0, undefined, undefined, [
+      {
+        id: 'credit',
+        tipo: 'recarga',
+        concepto: 'recarga',
+        centavos: 2500,
+        cantidad: 1,
+        creado_en: '2026-09-28T12:00:00Z',
+        saldo_despues_centavos: 3000,
+        detalle: { origen: 'manual' },
+      },
+      {
+        id: 'consumption',
+        tipo: 'consumo',
+        concepto: 'ia_respuesta',
+        centavos: -5,
+        cantidad: 1,
+        creado_en: '2026-09-28T12:01:00Z',
+      },
+    ]);
+    expect(result.filas).toHaveLength(1);
+    expect(result.filas[0]).toMatchObject({
+      id: 'credit',
+      centavos: 2500,
+      origen: 'manual',
+    });
+    expect(from).not.toHaveBeenCalled();
+  });
   it('does not confuse webhook delivery with automatic payment', () => {
     expect(topupOrigin({ porWebhook: true })).toBe('desconocida');
     expect(topupOrigin({ automatica: true })).toBe('automatica');
@@ -87,15 +131,13 @@ describe('credited top-up history', () => {
     'reads a legacy payment receipt with origin %s without rewriting the ledger',
     async (origin, expected) => {
       const { db } = database([row()]);
-      const read = vi
-        .fn()
-        .mockResolvedValue({
-          metadata: {
-            workspace_id: 'ws',
-            tipo: 'recarga_billetera',
-            origen: origin,
-          },
-        });
+      const read = vi.fn().mockResolvedValue({
+        metadata: {
+          workspace_id: 'ws',
+          tipo: 'recarga_billetera',
+          origen: origin,
+        },
+      });
       expect((await listTopupHistory(db, 'ws', 0, read)).filas[0].origen).toBe(
         expected
       );
@@ -106,16 +148,12 @@ describe('credited top-up history', () => {
     const { db } = database([row()]);
     for (const read of [
       vi.fn().mockRejectedValue(new Error('timeout')),
-      vi
-        .fn()
-        .mockResolvedValue({
-          metadata: { workspace_id: 'other', tipo: 'recarga_billetera' },
-        }),
-      vi
-        .fn()
-        .mockResolvedValue({
-          metadata: { workspace_id: 'ws', tipo: 'subscription' },
-        }),
+      vi.fn().mockResolvedValue({
+        metadata: { workspace_id: 'other', tipo: 'recarga_billetera' },
+      }),
+      vi.fn().mockResolvedValue({
+        metadata: { workspace_id: 'ws', tipo: 'subscription' },
+      }),
     ]) {
       expect(
         (await listTopupHistory(db, 'ws', 0, read)).filas[0]

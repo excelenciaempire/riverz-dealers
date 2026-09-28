@@ -16,7 +16,7 @@ it('uses the reporting timezone for daily usage',()=>{
  expect(result.porDia[0].dia).toBe('2026-09-27');
 });
 it('reads beyond the PostgREST 1000-row cap',async()=>{
- const q={select:vi.fn().mockReturnThis(),eq:vi.fn().mockReturnThis(),gte:vi.fn().mockReturnThis(),lte:vi.fn().mockReturnThis(),order:vi.fn().mockReturnThis(),range:vi.fn().mockResolvedValueOnce({data:Array.from({length:1000},()=>row('consumo','ia_respuesta',-1)),error:null}).mockResolvedValueOnce({data:[row('consumo','ia_respuesta',-2)],error:null})};
+ const q={select:vi.fn().mockReturnThis(),eq:vi.fn().mockReturnThis(),gte:vi.fn().mockReturnThis(),lt:vi.fn().mockReturnThis(),order:vi.fn().mockReturnThis(),range:vi.fn().mockResolvedValueOnce({data:Array.from({length:1000},()=>row('consumo','ia_respuesta',-1)),error:null}).mockResolvedValueOnce({data:[row('consumo','ia_respuesta',-2)],error:null})};
  const result=await resumen({from:()=>q} as never,'ws',range);
  expect(result.gastadoCentavos).toBe(1002);expect(q.range).toHaveBeenCalledTimes(2);
 });

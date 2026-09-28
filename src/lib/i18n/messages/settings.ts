@@ -70,6 +70,106 @@ export const settings = {
     es: 'Consumo cobrado por canal',
     en: 'Billed usage by channel',
   },
+  walletChargeJustification: {
+    es: 'Justificación del consumo',
+    en: 'Usage explanation',
+  },
+  walletChargeJustificationNote: {
+    es: 'Abre cada fila para ver qué se procesó y cuánto se cobró. Los mensajes y los cargos son medidas diferentes.',
+    en: 'Open each row to see what was processed and charged. Messages and charges are different measures.',
+  },
+  walletChannelOrService: { es: 'Canal o servicio', en: 'Channel or service' },
+  walletServiceRecordedOnly: {
+    es: 'El registro conserva el servicio y su consumo. El canal original no quedó guardado.',
+    en: 'The record preserves the service and its usage. The original channel was not saved.',
+  },
+  walletRecordedServiceWork: {
+    es: 'Consumo medido para «{service}».',
+    en: 'Measured usage for “{service}”.',
+  },
+  walletMeasuredSeconds: {
+    es: '{n} segundos procesados',
+    en: '{n} seconds processed',
+  },
+  walletInspectCharges: { es: 'Ver cargos', en: 'View charges' },
+  walletClearSource: {
+    es: 'Quitar filtro de canal',
+    en: 'Clear channel filter',
+  },
+  walletUpdatedAt: { es: 'Actualizado a las {time}', en: 'Updated at {time}' },
+  walletOpenConversation: { es: 'Abrir conversación', en: 'Open conversation' },
+  walletBalanceBreakdown: {
+    es: 'Saldo total: {total} · {reserved} reservado para operaciones en curso.',
+    en: 'Total balance: {total} · {reserved} reserved for ongoing operations.',
+  },
+  walletReasonReply: {
+    es: 'Procesar el contexto del cliente y generar una respuesta.',
+    en: 'Process customer context and generate a reply.',
+  },
+  walletReasonClassify: {
+    es: 'Interpretar lo que pidió el cliente y decidir la siguiente acción.',
+    en: 'Interpret the customer request and decide the next action.',
+  },
+  walletReasonMemory: {
+    es: 'Resumir la conversación para conservar su contexto.',
+    en: 'Summarize the conversation to preserve its context.',
+  },
+  walletReasonFollowup: {
+    es: 'Preparar un mensaje de seguimiento.',
+    en: 'Prepare a follow-up message.',
+  },
+  walletReasonAssist: {
+    es: 'Generar o revisar contenido con la asistencia de la IA.',
+    en: 'Generate or review content with AI assistance.',
+  },
+  walletReasonOperator: {
+    es: 'Procesar una solicitud del equipo y ejecutar sus herramientas.',
+    en: 'Process a team request and run its tools.',
+  },
+  walletReasonTranscribe: {
+    es: 'Convertir audio o video en texto.',
+    en: 'Convert audio or video into text.',
+  },
+  walletReasonPost: {
+    es: 'Analizar una publicación o anuncio para contextualizar las respuestas.',
+    en: 'Analyze a post or ad to provide context for replies.',
+  },
+  walletReasonImage: {
+    es: 'Analizar una imagen enviada por el cliente.',
+    en: 'Analyze an image sent by the customer.',
+  },
+  walletReasonCallAI: {
+    es: 'Procesar el contexto y generar respuestas durante una llamada.',
+    en: 'Process context and generate replies during a call.',
+  },
+  walletReasonCall: {
+    es: 'Consumo medido de una llamada telefónica.',
+    en: 'Measured telephone call usage.',
+  },
+  walletReasonPhone: {
+    es: 'Alta o renovación del número de teléfono del comercio.',
+    en: 'Activation or renewal of the business phone number.',
+  },
+  walletReasonVoice: {
+    es: 'Convertir una respuesta en audio.',
+    en: 'Convert a reply into audio.',
+  },
+  walletReasonSearch: {
+    es: 'Consultar información en internet.',
+    en: 'Look up information on the internet.',
+  },
+  walletReasonResearch: {
+    es: 'Investigar información para completar una solicitud.',
+    en: 'Research information to complete a request.',
+  },
+  walletReasonPage: {
+    es: 'Leer una página para obtener información solicitada.',
+    en: 'Read a page to retrieve requested information.',
+  },
+  walletReasonProfile: {
+    es: 'Consultar el perfil público de un contacto.',
+    en: 'Look up a contact public profile.',
+  },
   walletActivityNote: {
     es: 'Solo descuentos reales del saldo. Un cargo no equivale a un mensaje enviado.',
     en: 'Actual wallet debits only. A charge does not equal a sent message.',

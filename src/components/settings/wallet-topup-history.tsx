@@ -12,10 +12,18 @@ export function WalletTopupHistory({
   currency,
   timezone,
   revision,
+  snapshot,
+  snapshotPage = 0,
+  busy = false,
+  onPage,
 }: {
   currency: string;
   timezone: string;
   revision: number;
+  snapshot?: { filas: TopupHistoryRow[]; hayMas: boolean };
+  snapshotPage?: number;
+  busy?: boolean;
+  onPage?: (page: number) => void;
 }) {
   const t = useT();
   const [page, setPage] = useState(0);
@@ -27,6 +35,7 @@ export function WalletTopupHistory({
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
+    if (snapshot) return;
     const controller = new AbortController();
     void (async () => {
       setLoading(true);
@@ -46,11 +55,16 @@ export function WalletTopupHistory({
       }
     })();
     return () => controller.abort();
-  }, [page, retry, revision]);
+  }, [page, retry, revision, snapshot]);
+  const visible = snapshot ?? result;
+  const pending = snapshot ? busy : loading;
+  const currentPage = snapshot ? snapshotPage : page;
+  const changePage = (next: number) =>
+    snapshot ? onPage?.(next) : setPage(next);
   return (
     <WalletDisclosure title={t('settings.walletTopupHistory')}>
-      <div aria-busy={loading}>
-        {failed ? (
+      <div aria-busy={pending}>
+        {failed && !snapshot ? (
           <div
             role="alert"
             className="flex items-center justify-between gap-3 p-5"
@@ -64,36 +78,36 @@ export function WalletTopupHistory({
               {t('settings.walletRetry')}
             </Button>
           </div>
-        ) : loading && !result ? (
+        ) : pending && !visible ? (
           <div className="flex justify-center p-8">
             <Loader2 className="size-4 animate-spin" />
           </div>
-        ) : result?.filas.length === 0 ? (
+        ) : visible?.filas.length === 0 ? (
           <p className="text-muted-foreground p-5 text-sm">
             {t('settings.walletNoTopups')}
           </p>
         ) : (
           <WalletTopupHistoryTable
-            rows={result?.filas ?? []}
+            rows={visible?.filas ?? []}
             currency={currency}
             timezone={timezone}
           />
         )}
-        {(page > 0 || result?.hayMas) && (
+        {(currentPage > 0 || visible?.hayMas) && (
           <footer className="border-border flex justify-between border-t px-5 py-3">
             <Button
               size="sm"
               variant="outline"
-              disabled={loading || page === 0}
-              onClick={() => setPage((p) => p - 1)}
+              disabled={pending || currentPage === 0}
+              onClick={() => changePage(currentPage - 1)}
             >
               {t('settings.walletPrev')}
             </Button>
             <Button
               size="sm"
               variant="outline"
-              disabled={loading || failed || !result?.hayMas}
-              onClick={() => setPage((p) => p + 1)}
+              disabled={pending || (failed && !snapshot) || !visible?.hayMas}
+              onClick={() => changePage(currentPage + 1)}
             >
               {t('settings.walletNext')}
             </Button>

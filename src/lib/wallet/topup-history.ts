@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { MovimientoResumen, Rango } from './movimientos';
 
 export type TopupOrigin = 'manual' | 'automatica' | 'desconocida';
 export interface TopupHistoryRow {
@@ -21,6 +22,32 @@ interface PaymentMetadata {
   tipo?: string;
   origen?: string;
 }
+type PaymentReader = (id: string) => Promise<{ metadata: PaymentMetadata }>;
+/** Receipt metadata is immutable evidence; avoid repeated remote reads on each
+ * live update. Cache only this metadata, never card details or credentials. */
+export function cachedTopupReader(read: PaymentReader): PaymentReader {
+  const cache = new Map<
+    string,
+    { expires: number; value: { metadata: PaymentMetadata } }
+  >();
+  return async (id) => {
+    const hit = cache.get(id);
+    if (hit && hit.expires > Date.now()) return hit.value;
+    const value = await read(id);
+    if (cache.size >= 500) cache.delete(cache.keys().next().value!);
+    cache.set(id, {
+      expires: Date.now() + 10 * 60_000,
+      value: {
+        metadata: {
+          workspace_id: value.metadata.workspace_id,
+          tipo: value.metadata.tipo,
+          origen: value.metadata.origen,
+        },
+      },
+    });
+    return value;
+  };
+}
 
 /** A webhook is a delivery mechanism, not evidence that a payment was automatic. */
 export function topupOrigin(
@@ -37,30 +64,55 @@ export function topupOrigin(
   return 'desconocida';
 }
 
-/** Read-only, all-time history. Only credited principal is a top-up: never fees,
+/** Read-only history. Only credited principal is a top-up: never fees,
  * refunds, bonuses, failed attempts or subscription payments. */
 export async function listTopupHistory(
   db: SupabaseClient,
   workspaceId: string,
   page = 0,
-  readPayment?: (id: string) => Promise<{ metadata: PaymentMetadata }>
+  readPayment?: (id: string) => Promise<{ metadata: PaymentMetadata }>,
+  range?: Rango,
+  snapshot?: MovimientoResumen[]
 ) {
   const size = 20;
   const offset =
     Math.max(0, Math.floor(Number.isFinite(page) ? page : 0)) * size;
-  const { data, error } = await db
-    .from('wallet_movimientos')
-    .select(
-      'id, creado_en, centavos, saldo_despues_centavos, stripe_id, detalle'
-    )
-    .eq('workspace_id', workspaceId)
-    .eq('tipo', 'recarga')
-    .gt('centavos', 0)
-    .order('creado_en', { ascending: false })
-    .order('id', { ascending: false })
-    .range(offset, offset + size);
-  if (error) throw new Error('wallet_topup_history_unavailable');
-  const stored = (data ?? []) as StoredTopup[];
+  let stored: StoredTopup[];
+  if (snapshot) {
+    stored = snapshot
+      .filter((row) => row.tipo === 'recarga' && Number(row.centavos) > 0)
+      .sort(
+        (a, b) =>
+          Date.parse(b.creado_en) - Date.parse(a.creado_en) ||
+          (b.id ?? '').localeCompare(a.id ?? '')
+      )
+      .slice(offset, offset + size + 1)
+      .map((row) => ({
+        id: row.id!,
+        creado_en: row.creado_en,
+        centavos: Number(row.centavos),
+        saldo_despues_centavos: Number(row.saldo_despues_centavos),
+        stripe_id: row.stripe_id ?? null,
+        detalle: row.detalle ?? null,
+      }));
+  } else {
+    let query = db
+      .from('wallet_movimientos')
+      .select(
+        'id, creado_en, centavos, saldo_despues_centavos, stripe_id, detalle'
+      )
+      .eq('workspace_id', workspaceId)
+      .eq('tipo', 'recarga')
+      .gt('centavos', 0);
+    if (range)
+      query = query.gte('creado_en', range.desde).lt('creado_en', range.hasta);
+    const { data, error } = await query
+      .order('creado_en', { ascending: false })
+      .order('id', { ascending: false })
+      .range(offset, offset + size);
+    if (error) throw new Error('wallet_topup_history_unavailable');
+    stored = (data ?? []) as StoredTopup[];
+  }
   const rows = stored.slice(0, size);
   const unknownIds = rows
     .filter(

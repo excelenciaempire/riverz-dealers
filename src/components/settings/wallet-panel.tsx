@@ -1,7 +1,13 @@
 'use client';
 
 import { LogoTarjeta } from '@/components/billing/logo-tarjeta';
+import Link from '@/components/i18n/locale-link';
 import { WalletTopupHistory } from './wallet-topup-history';
+import { WalletChargeReport } from './wallet-charge-report';
+import type { ChargeExplanation } from '@/lib/wallet/explanation';
+import type { TopupHistoryRow } from '@/lib/wallet/topup-history';
+import { useWalletLive } from '@/hooks/use-wallet-live';
+import { walletDateRange, walletDefaultDates } from '@/lib/wallet/date-range';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -10,14 +16,16 @@ import { useLocale, useT } from '@/hooks/use-locale';
 import { avisarSaldoCambio } from '@/hooks/use-saldo';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { cn } from '@/lib/utils';
-import { movementContext, movementTokens } from '@/lib/wallet/movement-context';
+import {
+  movementContext,
+  movementTokens,
+  movementReason,
+} from '@/lib/wallet/movement-context';
 import { useTimezone } from '@/hooks/use-timezone';
-import { daysAgoStart } from '@/lib/dashboard/date-utils';
-import { fromZonedTime } from 'date-fns-tz';
 import type { BilledActivity } from '@/lib/wallet/activity';
 import type { ServiceActivity } from '@/lib/wallet/service-activity';
 import { ChevronDown, CreditCard, Loader2, Plus, Wallet } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 /**
@@ -43,9 +51,15 @@ interface Tarifa {
 }
 
 interface Estado {
+  workspaceId?: string;
+  updatedAt?: string;
+  explanation?: ChargeExplanation;
+  ledger?: { filas: Movimiento[]; hayMas: boolean };
+  topupHistory?: { filas: TopupHistoryRow[]; hayMas: boolean };
   serviceActivity?: ServiceActivity;
   billedActivity?: BilledActivity;
   reservadoCentavos?: number;
+  disponibleCentavos?: number;
   saldoCentavos: number;
   moneda: string;
   bloquearSinSaldo: boolean;
@@ -108,16 +122,6 @@ interface Movimiento {
 /** 0 = hoy, -1 = ayer. Los positivos son ventanas móviles hacia atrás. */
 const DIAS = [0, -1, 7, 30, 90] as const;
 
-function desdeHace(dias: number): string {
-  return new Date(Date.now() - dias * 24 * 60 * 60 * 1000).toISOString();
-}
-
-/** Medianoche de hoy, o de hace `offset` días. En la hora del navegador: el
- *  comercio piensa "hoy" en su reloj, no en UTC. */
-
-/** Sólo la parte YYYY-MM-DD, que es lo que entiende un <input type=date>. */
-const soloDia = (iso: string) => iso.slice(0, 10);
-
 export function WalletPanel() {
   const t = useT();
   const { locale } = useLocale();
@@ -153,8 +157,8 @@ export function WalletPanel() {
   const fetchWithCsrf = useFetchWithCsrf();
 
   const [dias, setDias] = useState<number | null>(30);
-  const [desde, setDesde] = useState<string>(soloDia(desdeHace(30)));
-  const [hasta, setHasta] = useState<string>(soloDia(new Date().toISOString()));
+  const [desde, setDesde] = useState<string>(() => walletDefaultDates(tz).from);
+  const [hasta, setHasta] = useState<string>(() => walletDefaultDates(tz).to);
   const [e, setE] = useState<Estado | null>(null);
   const [cargando, setCargando] = useState(true);
   const [yendo, setYendo] = useState(false);
@@ -163,16 +167,29 @@ export function WalletPanel() {
   const [movs, setMovs] = useState<Movimiento[] | null>(null);
   const [pagina, setPagina] = useState(0);
   const [hayMas, setHayMas] = useState(false);
-  const [movimientosAbiertos, setMovimientosAbiertos] = useState(true);
+  const [movimientosAbiertos, setMovimientosAbiertos] = useState(false);
   const [movsError, setMovsError] = useState(false);
+  const [canal, setCanal] = useState<string | null>(null);
+  const [purpose, setPurpose] = useState<string | null>(null);
+  const [topupPage, setTopupPage] = useState(0);
+  const [loadError, setLoadError] = useState(false);
   const [movsLoading, setMovsLoading] = useState(true);
   const [autoDeseado, setAutoDeseado] = useState<boolean | null>(null);
   const [autoMonto, setAutoMonto] = useState('');
   const [autoUmbral, setAutoUmbral] = useState('');
   const [revision, setRevision] = useState(0);
+  const busy = useRef(false);
+  const refreshPending = useRef(false);
+  const queueRefresh = useCallback(() => {
+    if (busy.current) {
+      refreshPending.current = true;
+      return;
+    }
+    setRevision((v) => v + 1);
+  }, []);
   useEffect(() => {
     const refresh = () => {
-      if (document.visibilityState === 'visible') setRevision((v) => v + 1);
+      if (document.visibilityState === 'visible') queueRefresh();
     };
     const interval = setInterval(refresh, 30_000);
     window.addEventListener('focus', refresh);
@@ -182,96 +199,80 @@ export function WalletPanel() {
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, []);
+  }, [queueRefresh]);
 
+  useWalletLive(e?.workspaceId, queueRefresh);
   const rango = useMemo(() => {
-    // Refresh the current range as live usage arrives, including across midnight.
     void revision;
-    // Hoy y ayer son DÍAS, no ventanas de 24 horas: "hoy" arranca a la
-    // medianoche. Un resumen que dice "hoy" y trae lo de anoche hace dudar de
-    // todos los demás números de la pantalla.
-    if (dias === 0) {
-      return {
-        desde: daysAgoStart(tz, 0).toISOString(),
-        hasta: new Date().toISOString(),
-      };
-    }
-    if (dias === -1) {
-      return {
-        desde: daysAgoStart(tz, 1).toISOString(),
-        hasta: daysAgoStart(tz, 0).toISOString(),
-      };
-    }
-    if (dias !== null) {
-      return { desde: desdeHace(dias), hasta: new Date().toISOString() };
-    }
-    return {
-      desde: fromZonedTime(`${desde}T00:00:00`, tz).toISOString(),
-      // El día "hasta" se toma entero: quien elige el 20 quiere lo del 20.
-      hasta: fromZonedTime(`${hasta}T23:59:59`, tz).toISOString(),
-    };
+    return walletDateRange(tz, dias, desde, hasta);
   }, [dias, desde, hasta, revision, tz]);
+  const selectionKey = `${dias}:${desde}:${hasta}:${tz}`;
+  const [snapshotSelection, setSnapshotSelection] = useState(selectionKey);
+  useEffect(() => {
+    setPagina(0);
+    setTopupPage(0);
+  }, [selectionKey]);
 
   useEffect(() => {
-    let vivo = true;
+    const controller = new AbortController();
+    busy.current = true;
+    refreshPending.current = false;
     void (async () => {
       setCargando(true);
-      try {
-        const q = new URLSearchParams({
-          desde: rango.desde,
-          hasta: rango.hasta,
-        });
-        const res = await fetch(`/api/wallet/estado?${q}`, {
-          cache: 'no-store',
-        });
-        if (vivo) setE(res.ok ? ((await res.json()) as Estado) : null);
-        // El número del menú viene de otra lectura: al volver de Stripe esta
-        // pantalla ya muestra el saldo nuevo y el menú seguiría con el viejo.
-        if (vivo && res.ok) avisarSaldoCambio();
-      } catch {
-        if (vivo) setE(null);
-      } finally {
-        if (vivo) setCargando(false);
-      }
-    })();
-    return () => {
-      vivo = false;
-    };
-  }, [rango.desde, rango.hasta, revision]);
-
-  useEffect(() => {
-    let vivo = true;
-    void (async () => {
       setMovsLoading(true);
+      setLoadError(false);
       setMovsError(false);
       try {
         const q = new URLSearchParams({
           desde: rango.desde,
           hasta: rango.hasta,
           pagina: String(pagina),
+          recargaPagina: String(topupPage),
         });
         if (concepto) q.set('concepto', concepto);
-        const res = await fetch(`/api/wallet/movimientos?${q}`, {
+        if (canal) q.set('canal', canal);
+        if (purpose) q.set('purpose', purpose);
+        const response = await fetch(`/api/wallet/estado?${q}`, {
           cache: 'no-store',
+          signal: controller.signal,
         });
-        if (!res.ok) throw new Error('Wallet movements unavailable');
-        const json = (await res.json()) as {
-          filas: Movimiento[];
-          hayMas: boolean;
-        };
-        if (!vivo) return;
-        setMovs(json.filas);
-        setHayMas(json.hayMas);
+        if (!response.ok) throw new Error('wallet_snapshot_unavailable');
+        const next = (await response.json()) as Estado;
+        if (controller.signal.aborted) return;
+        setE(next);
+        setMovs(next.ledger?.filas ?? []);
+        setHayMas(next.ledger?.hayMas ?? false);
+        setSnapshotSelection(selectionKey);
+        avisarSaldoCambio();
       } catch {
-        if (vivo) setMovsError(true);
+        if (!controller.signal.aborted) {
+          setLoadError(true);
+          setMovsError(true);
+        }
       } finally {
-        if (vivo) setMovsLoading(false);
+        if (!controller.signal.aborted) {
+          setCargando(false);
+          setMovsLoading(false);
+          busy.current = false;
+          if (refreshPending.current) {
+            refreshPending.current = false;
+            setRevision((v) => v + 1);
+          }
+        }
       }
     })();
-    return () => {
-      vivo = false;
-    };
-  }, [rango.desde, rango.hasta, concepto, pagina, revision]);
+    return () => controller.abort();
+  }, [
+    rango.desde,
+    rango.hasta,
+    concepto,
+    canal,
+    purpose,
+    pagina,
+    topupPage,
+    revision,
+    selectionKey,
+  ]);
 
   const recargar = useCallback(
     async (centavos: number) => {
@@ -330,21 +331,14 @@ export function WalletPanel() {
           return;
         }
         toast.success(t('settings.walletAutoSaved'));
-        const q = new URLSearchParams({
-          desde: rango.desde,
-          hasta: rango.hasta,
-        });
-        const nuevo = await fetch(`/api/wallet/estado?${q}`, {
-          cache: 'no-store',
-        });
-        if (nuevo.ok) setE((await nuevo.json()) as Estado);
+        setRevision((v) => v + 1);
       } catch {
         toast.error(t('settings.walletTopUpFailed'));
       } finally {
         setYendo(false);
       }
     },
-    [fetchWithCsrf, rango.desde, rango.hasta, t]
+    [fetchWithCsrf, t]
   );
 
   /**
@@ -378,14 +372,14 @@ export function WalletPanel() {
     [e?.tarifas, e?.costos, locale, t]
   );
 
-  if (cargando && !e) {
+  if (cargando && (!e || snapshotSelection !== selectionKey)) {
     return (
       <div className="flex justify-center py-10">
         <Loader2 className="text-muted-foreground size-5 animate-spin" />
       </div>
     );
   }
-  if (!e)
+  if (!e || (loadError && snapshotSelection !== selectionKey))
     return (
       <div
         role="alert"
@@ -407,7 +401,30 @@ export function WalletPanel() {
   const enRojo = e.saldoCentavos <= 0 && !e.exenta;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-busy={cargando}>
+      {loadError && (
+        <div
+          role="alert"
+          className="border-border flex items-center justify-between gap-3 rounded-xl border p-4 text-sm"
+        >
+          <p>{t('settings.walletLoadFailed')}</p>
+          <Button variant="outline" onClick={() => setRevision((v) => v + 1)}>
+            {t('settings.walletRetry')}
+          </Button>
+        </div>
+      )}
+      {e.updatedAt && (
+        <p className="text-muted-foreground text-right text-xs">
+          {t('settings.walletUpdatedAt', {
+            time: fmt.dateTime(e.updatedAt, {
+              timeZone: tz,
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            }),
+          })}
+        </p>
+      )}
       {/* ── Saldo y recarga ─────────────────────────────────────────── */}
       <section className="border-border bg-card rounded-xl border p-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -422,7 +439,10 @@ export function WalletPanel() {
                 enRojo ? 'text-destructive' : 'text-foreground'
               )}
             >
-              {plata(e.saldoCentavos)}
+              {plata(
+                e.disponibleCentavos ??
+                  e.saldoCentavos - (e.reservadoCentavos ?? 0)
+              )}
             </p>
           </div>
           {e.puedeRecargar && (
@@ -477,8 +497,9 @@ export function WalletPanel() {
         </div>
         {(e.reservadoCentavos ?? 0) > 0 && (
           <p className="text-muted-foreground mt-2 text-sm">
-            {t('settings.walletReserved', {
-              amount: plata(e.reservadoCentavos ?? 0),
+            {t('settings.walletBalanceBreakdown', {
+              total: plata(e.saldoCentavos),
+              reserved: plata(e.reservadoCentavos ?? 0),
             })}
           </p>
         )}
@@ -789,6 +810,8 @@ export function WalletPanel() {
                       className="w-full text-left"
                       onClick={() => {
                         setConcepto(activo ? null : c.concepto);
+                        setCanal(null);
+                        setPurpose(null);
                         setPagina(0);
                       }}
                     >
@@ -918,110 +941,30 @@ export function WalletPanel() {
           </div>
         </section>
       )}
-      {e.billedActivity && (
-        <section className="border-border bg-card rounded-xl border p-5">
-          <h3 className="text-sm font-semibold">
-            {t('settings.walletActivity')}
-          </h3>
-          <p className="text-muted-foreground mt-1 text-xs">
-            {t('settings.walletActivityNote')}
-          </p>
-
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-muted-foreground">
-                <tr>
-                  <th className="py-2 text-left">
-                    {t('settings.walletActivityChannel')}
-                  </th>
-                  <th className="px-3 text-right">
-                    {t('settings.walletActivityContacts')}
-                  </th>
-                  <th className="px-3 text-right">
-                    {t('settings.walletActivityCharges')}
-                  </th>
-                  <th className="text-right">
-                    {t('settings.walletActivityCharged')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {e.billedActivity.byChannel
-                  .filter((c) => c.channel !== 'unattributed')
-                  .map((c) => (
-                    <tr key={c.channel} className="border-border border-t">
-                      <td className="py-3">{channelName(c.channel)}</td>
-                      <td className="px-3 text-right tabular-nums">
-                        {fmt.number(c.contacts)}
-                      </td>
-                      <td className="px-3 text-right tabular-nums">
-                        {fmt.number(c.charges)}
-                      </td>
-                      <td className="text-right tabular-nums">
-                        {fmt.currency(
-                          c.chargedCentavos / 100,
-                          e.moneda.toUpperCase()
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-              <tfoot className="border-border border-t font-semibold">
-                <tr>
-                  <td className="py-3">{t('settings.walletActivityTotal')}</td>
-                  <td className="px-3 text-right">
-                    {fmt.number(e.billedActivity.contacts)}
-                  </td>
-                  <td className="px-3 text-right">
-                    {fmt.number(e.billedActivity.charges)}
-                  </td>
-                  <td className="text-right">
-                    {fmt.currency(
-                      e.billedActivity.chargedCentavos / 100,
-                      e.moneda.toUpperCase()
-                    )}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-          {e.billedActivity.unrecorded && (
-            <div className="bg-muted/40 mt-4 rounded-lg p-4">
-              <div className="flex flex-wrap justify-between gap-3 text-sm">
-                <h4 className="font-medium">
-                  {t('settings.walletHistoricalIncomplete')}
-                </h4>
-                <span className="tabular-nums">
-                  {plata(e.billedActivity.unrecorded.chargedCentavos)}
-                </span>
-              </div>
-              <p className="text-muted-foreground mt-1 text-xs">
-                {t('settings.walletHistoricalIncluded')}
-              </p>
-              <p className="text-muted-foreground mt-2 text-xs">
-                {t('settings.walletChargedOperations', {
-                  count: e.billedActivity.unrecorded.charges,
-                })}{' '}
-                ·{' '}
-                {fmt.date(e.billedActivity.unrecorded.firstAt, {
-                  timeZone: tz,
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                })}{' '}
-                –{' '}
-                {fmt.date(e.billedActivity.unrecorded.lastAt, {
-                  timeZone: tz,
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                })}
-              </p>
-            </div>
-          )}
-        </section>
+      {e.explanation && (
+        <WalletChargeReport
+          explanation={e.explanation}
+          activity={e.serviceActivity}
+          currency={e.moneda}
+          timezone={tz}
+          name={nombreConcepto}
+          channelName={channelName}
+          onInspect={(concept, channel, purpose) => {
+            setConcepto(concept);
+            setCanal(channel);
+            setPurpose(purpose);
+            setPagina(0);
+            setMovimientosAbiertos(true);
+            requestAnimationFrame(() =>
+              document
+                .getElementById('wallet-ledger')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            );
+          }}
+        />
       )}
       <details
+        id="wallet-ledger"
         className="group border-border bg-card rounded-xl border"
         open={movimientosAbiertos}
         onToggle={(ev) => setMovimientosAbiertos(ev.currentTarget.open)}
@@ -1036,12 +979,29 @@ export function WalletPanel() {
         <label className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3 text-sm">
           <span className="text-muted-foreground">
             {t('settings.walletMovementFilter')}
+            {canal && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setCanal(null);
+                  setPurpose(null);
+                  setPagina(0);
+                }}
+              >
+                {canal !== 'unattributed'
+                  ? channelName(canal)
+                  : t('settings.walletClearSource')}{' '}
+                · ×
+              </Button>
+            )}
           </span>
           <select
             className="border-input bg-background max-w-full rounded-lg border px-3 py-2"
             value={concepto ?? ''}
             onChange={(ev) => {
               setConcepto(ev.target.value || null);
+              setPurpose(null);
               setPagina(0);
             }}
           >
@@ -1090,6 +1050,11 @@ export function WalletPanel() {
                   <p className="text-foreground truncate">
                     {nombreConcepto(m.concepto)}
                   </p>
+                  {movementReason(m.concepto, t) && (
+                    <p className="text-muted-foreground text-xs">
+                      {movementReason(m.concepto, t)}
+                    </p>
+                  )}
                   {movementContext(m.detalle, t) && (
                     <p className="text-muted-foreground text-xs">
                       {movementContext(m.detalle, t)}
@@ -1101,6 +1066,14 @@ export function WalletPanel() {
                         n: fmt.number(movementTokens(m.detalle)!),
                       })}
                     </p>
+                  )}
+                  {typeof m.detalle?.conversacion === 'string' && (
+                    <Link
+                      className="text-primary text-xs hover:underline"
+                      href={`/bandeja?c=${encodeURIComponent(m.detalle.conversacion)}&t=${encodeURIComponent(m.creadoEn)}`}
+                    >
+                      {t('settings.walletOpenConversation')}
+                    </Link>
                   )}
                   <p className="text-muted-foreground text-xs">
                     {fmt.dateTime(m.creadoEn, {

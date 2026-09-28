@@ -359,6 +359,7 @@ export async function runFollowUp(
       db,
       workspaceId: agent.workspace_id,
       concepto: 'ia_seguimiento',
+      detalle: { conversacion: conversation.id, canal: conversation.channel, para: 'seguimiento' },
       origenDeLaClave: resolvedKey.source,
     });
     const resp = await client.messages.create({

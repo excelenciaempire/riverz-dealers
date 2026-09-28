@@ -48,14 +48,38 @@ it('never counts drafts, failed deliveries, customer messages or attempts as sen
     ]).sent
   ).toBe(0);
 });
+it('counts one actual send when a confirmed delivery is stored twice', () => {
+  expect(
+    summarizeServiceActivity([
+      row('record-1', { message_id: 'external-send' }),
+      row('record-2', { message_id: 'external-send' }),
+    ])
+  ).toMatchObject({ sent: 1, aiMessages: 1, contacts: 1 });
+});
 it('includes confirmed TikTok comment replies in the comment metric', () => {
-  expect(summarizeServiceActivity([row('tiktok', { channel: 'tiktok_comment', origin: 'comment_ai' })])).toMatchObject({ sent: 1, comments: 1, aiMessages: 1 });
+  expect(
+    summarizeServiceActivity([
+      row('tiktok', { channel: 'tiktok_comment', origin: 'comment_ai' }),
+    ])
+  ).toMatchObject({ sent: 1, comments: 1, aiMessages: 1 });
 });
 it('does not count a private comment reply twice through its public-thread mirror', () => {
   const result = summarizeServiceActivity([
-    row('dm', { channel: 'instagram', origin: 'comment_ai', message_id: 'provider-dm' }),
-    row('mirror', { channel: 'ig_comment', origin: 'comment_ai', message_id: null }),
-    row('public', { channel: 'ig_comment', origin: 'comment_ai', message_id: 'provider-comment' }),
+    row('dm', {
+      channel: 'instagram',
+      origin: 'comment_ai',
+      message_id: 'provider-dm',
+    }),
+    row('mirror', {
+      channel: 'ig_comment',
+      origin: 'comment_ai',
+      message_id: null,
+    }),
+    row('public', {
+      channel: 'ig_comment',
+      origin: 'comment_ai',
+      message_id: 'provider-comment',
+    }),
   ]);
   expect(result).toMatchObject({ sent: 2, aiMessages: 2, comments: 1 });
 });
@@ -76,6 +100,18 @@ it('recognizes comment AI even when persisted as an agent sender', () => {
       }),
     ])
   ).toMatchObject({ aiMessages: 1, aiContacts: 1, human: 0, comments: 1 });
+});
+it('classifies AI-personalized outreach as AI rather than a manual message', () => {
+  expect(
+    summarizeServiceActivity([
+      row('outreach', {
+        sender_type: 'agent',
+        origin: 'ig_outreach',
+        channel: 'instagram',
+        message_id: 'confirmed-outreach',
+      }),
+    ])
+  ).toMatchObject({ sent: 1, aiMessages: 1, aiContacts: 1, human: 0 });
 });
 it('paginates all confirmed sends and scopes every page to the merchant and date range', async () => {
   const rows = Array.from({ length: 1201 }, (_, i) => row(String(i)));

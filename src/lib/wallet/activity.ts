@@ -62,8 +62,7 @@ export function summarizeActivity(
       conversation?.channel ??
       text(row.detalle?.canal) ??
       text(row.detalle?.channel) ??
-      (row.detalle?.superficie === 'panel' ||
-      row.concepto === 'ia_operador'
+      (row.detalle?.superficie === 'panel' || row.concepto === 'ia_operador'
         ? 'panel'
         : ['llamada_ia', 'llamada_voz', 'voz_stt', 'numero_telefono'].includes(
               row.concepto
@@ -116,12 +115,12 @@ export function summarizeActivity(
   };
 }
 
-export async function walletActivity(
+export async function resolveBillingEvidence(
   db: SupabaseClient,
   workspaceId: string,
   range: Rango,
   snapshot?: MovimientoResumen[]
-): Promise<BilledActivity> {
+): Promise<MovimientoResumen[]> {
   const rows = (
     snapshot ?? (await movimientosDelPeriodo(db, workspaceId, range))
   )
@@ -230,15 +229,24 @@ export async function walletActivity(
     for (const post of result.data ?? []) {
       // External IDs can overlap across networks. An ambiguous reference is
       // not evidence for whichever database row happens to come last.
-      if (posts.has(post.external_id) && posts.get(post.external_id) !== post.channel)
+      if (
+        posts.has(post.external_id) &&
+        posts.get(post.external_id) !== post.channel
+      )
         posts.set(post.external_id, null);
-      else if (!posts.has(post.external_id)) posts.set(post.external_id, post.channel);
+      else if (!posts.has(post.external_id))
+        posts.set(post.external_id, post.channel);
     }
     for (const row of rows) {
       const channel = posts.get(
         reference(row, ['publicacion', 'publication']) ?? ''
       );
-      if (channel) row.detalle = { ...row.detalle, canal: text(row.detalle?.canal) ?? text(row.detalle?.channel) ?? channel };
+      if (channel)
+        row.detalle = {
+          ...row.detalle,
+          canal:
+            text(row.detalle?.canal) ?? text(row.detalle?.channel) ?? channel,
+        };
     }
   }
   const ids = [
@@ -254,5 +262,42 @@ export async function walletActivity(
     if (result.error) throw result.error;
     conversations.push(...((result.data ?? []) as Conversation[]));
   }
-  return summarizeActivity(rows, conversations);
+  const lookup = new Map(conversations.map((c) => [c.id, c]));
+  for (const row of rows) {
+    const conversation = lookup.get(conversationId(row) ?? '');
+    if (conversation)
+      row.detalle = {
+        ...row.detalle,
+        conversacion: conversation.id,
+        canal: conversation.channel,
+        billingContactId: conversation.contact_id,
+      };
+    else if (
+      row.detalle?.superficie === 'panel' ||
+      row.concepto === 'ia_operador'
+    )
+      row.detalle = { ...row.detalle, canal: 'panel' };
+    else if (
+      ['llamada_ia', 'llamada_voz', 'voz_stt', 'numero_telefono'].includes(
+        row.concepto
+      ) ||
+      text(row.detalle?.callId)
+    )
+      row.detalle = {
+        ...row.detalle,
+        canal: text(row.detalle?.canal) ?? 'calls',
+      };
+  }
+  return rows;
+}
+
+export async function walletActivity(
+  db: SupabaseClient,
+  workspaceId: string,
+  range: Rango,
+  snapshot?: MovimientoResumen[]
+) {
+  return summarizeActivity(
+    await resolveBillingEvidence(db, workspaceId, range, snapshot)
+  );
 }

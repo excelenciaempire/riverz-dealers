@@ -5,6 +5,7 @@ import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { createClient } from '@/lib/supabase/server';
 import { listTopupHistory } from '@/lib/wallet/topup-history';
+import { rangoDe } from '@/lib/wallet/movimientos';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 
 export const runtime = 'nodejs';
@@ -21,7 +22,12 @@ export async function GET(request: Request) {
   const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
   if (!workspaceId)
     return NextResponse.json({ error: 'no_workspace' }, { status: 400 });
-  const page = Number(new URL(request.url).searchParams.get('pagina') ?? 0);
+  const params = new URL(request.url).searchParams;
+  const page = Number(params.get('pagina') ?? 0);
+  const range =
+    params.has('desde') || params.has('hasta')
+      ? rangoDe(params.get('desde'), params.get('hasta'))
+      : undefined;
   try {
     const history = await listTopupHistory(
       admin,
@@ -34,7 +40,8 @@ export async function GET(request: Request) {
               {},
               { timeout: 5000, maxNetworkRetries: 0 }
             )
-        : undefined
+        : undefined,
+      range
     );
     return NextResponse.json(history, {
       headers: { 'Cache-Control': 'no-store' },
