@@ -31,8 +31,9 @@ export async function POST(request: Request) {
   }
   const { accessToken } = await tokenVivo(db, row);
   const base = `https://${row.shop_domain}/admin/api/${shopifyApiVersion()}`;
-  const checks = await Promise.all(['/shop.json', '/webhooks.json', '/graphql.json'].map(async path => {
-    const response = await fetch(`${base}${path}`, {
+  const checks = await Promise.all(['/shop.json', '/webhooks.json', '/graphql.json', '/oauth/access_scopes.json'].map(async path => {
+    const url = path === '/oauth/access_scopes.json' ? `https://${row.shop_domain}/admin${path}` : `${base}${path}`;
+    const response = await fetch(url, {
       method: path === '/graphql.json' ? 'POST' : 'GET',
       headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
       body: path === '/graphql.json' ? JSON.stringify({ query: '{ shop { id } }' }) : undefined,
@@ -41,7 +42,9 @@ export async function POST(request: Request) {
     const payload = await response.json().catch(() => null);
     return { endpoint: path, status: response.status,
       valid: response.ok && (path === '/shop.json' ? !!payload?.shop?.id
-        : path === '/webhooks.json' ? Array.isArray(payload?.webhooks) : !!payload?.data?.shop?.id && !payload?.errors?.length) };
+        : path === '/webhooks.json' ? Array.isArray(payload?.webhooks)
+        : path === '/oauth/access_scopes.json' ? Array.isArray(payload?.access_scopes)
+        : !!payload?.data?.shop?.id && !payload?.errors?.length) };
   }));
   await recordAdminAction(gate.actor, request, {
     action: 'update.ops_reconciliation', targetType: 'shopify_connections', targetId: row.id,

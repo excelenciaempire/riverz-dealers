@@ -33,7 +33,7 @@ it('rejects arbitrary hosts without transmitting credentials', async () => {
 });
 it('returns only provider status metadata and records the read-only diagnostic', async () => {
   const response = await POST(request()); const result = await response.json();
-  expect(result.checks).toHaveLength(3);
+  expect(result.checks).toHaveLength(4);
   expect(result.checks.every((c: {status: number; valid: boolean}) => c.status === 404 && !c.valid)).toBe(true);
   expect(JSON.stringify(result)).not.toContain('private-token');
   expect(mocks.audit).toHaveBeenCalled();

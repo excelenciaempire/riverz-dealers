@@ -150,7 +150,11 @@ export class ShopifyAdminClient {
     path: string,
     init?: { method?: string; body?: unknown },
   ): Promise<T> {
-    const res = await fetch(`${this.base()}${path}`, {
+    // AccessScope is the documented unversioned /admin/oauth resource,
+    // not /admin/api/{version}/oauth (which returns a misleading 404).
+    const url = path === '/oauth/access_scopes.json'
+      ? `https://${this.shop}/admin${path}` : `${this.base()}${path}`
+    const res = await fetch(url, {
       method: init?.method ?? 'GET',
       headers: {
         'X-Shopify-Access-Token': this.token,

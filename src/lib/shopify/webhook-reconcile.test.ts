@@ -46,6 +46,17 @@ function fakeShopify(webhooks: Array<{ id: number; topic: string; address: strin
 const client = () => new ShopifyAdminClient(SHOP, "token", "2024-10");
 
 describe("ShopifyAdminClient.reconcileWebhooks", () => {
+  it('reads granted permissions from the unversioned OAuth endpoint', async () => {
+    const live = SHOPIFY_WEBHOOK_TOPICS.map((t, i) => ({ id: i, topic: t.topic, address: `${NEW}${t.path}` }));
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/api/') && url.includes('/oauth/')) {
+        return new Response('{"errors":"Not Found"}', { status: 404 });
+      }
+      return new Response(JSON.stringify(responseForGet(url, live)));
+    }));
+    await expect(client().reconcileWebhooks(NEW)).resolves.toMatchObject({ created: 0, kept: live.length });
+    expect(fetch).toHaveBeenCalledWith(`https://${SHOP}/admin/oauth/access_scopes.json`, expect.anything());
+  });
   it('does not report successful recovery when Shopify rejects a missing subscription', async () => {
     const live = SHOPIFY_WEBHOOK_TOPICS.filter(t => t.topic !== 'draft_orders/create')
       .map((t, i) => ({ id: i, topic: t.topic, address: `${NEW}${t.path}` }));
