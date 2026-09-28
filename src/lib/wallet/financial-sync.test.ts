@@ -47,7 +47,7 @@ function fixture() {
     },
   };
   mock.client.mockReturnValue(client);
-  return {db,rpc,client,rows};
+  return {db,rpc,client,rows,chargeTx,payoutTx};
 }
 describe('Stripe read-only expense synchronization', () => {
   it('imports verified processing and the real instant fee without moving any money', async () => {
@@ -75,5 +75,17 @@ describe('Stripe read-only expense synchronization', () => {
     client.balance.retrieve.mockResolvedValueOnce({available:[{currency:'usd',amount:1}],pending:[]});
     await expect(syncFinancialCosts(db)).rejects.toThrow('wallet_financial_cash_snapshot_changed');
     expect(rpc.mock.calls).toHaveLength(1);
+  });
+  it('includes ambiguous same-second money in the denominator, never in merchant shares', async () => {
+    const {db,rpc,client,chargeTx,payoutTx} = fixture();
+    client.balance.retrieve.mockResolvedValue({available:[{currency:'usd',amount:950}],pending:[]});
+    client.balanceTransactions.list.mockImplementation(params => params.limit===1 ? Promise.resolve({data:[payoutTx]}) : ({
+      async *[Symbol.asyncIterator]() {
+        yield payoutTx; yield chargeTx;
+        yield {...chargeTx,id:'tx_other',type:'adjustment',created:payoutTx.created};
+      },
+    }));
+    await syncFinancialCosts(db);
+    expect(rpc.mock.calls[1][1].p_allocations[0].allocatedCents).toBe(25);
   });
 });

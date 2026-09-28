@@ -106,12 +106,18 @@ export async function syncFinancialCosts(db: SupabaseClient) {
     const usd = history.filter(item => item.currency === 'usd');
     const totalCash = [...balanceBefore.available, ...balanceBefore.pending].filter(b => b.currency === 'usd').reduce((n, b) => n + b.amount, 0);
     const opening = totalCash - usd.reduce((n, item) => n + item.net, 0);
-    const periodCredits = usd.filter(item => item.created < payout.created && item.net > 0);
+    // Same-second credits may already fund the payout: include them in the
+    // denominator but leave their share unattributed rather than overbilling
+    // an earlier merchant. Stripe timestamps do not establish ordering here.
+    const periodCredits = usd.filter(item => item.created <= Math.max(payout.created, tx.created) && item.net > 0);
     // Ambiguous same-second payouts cannot be attributed safely.
-    const concurrent = usd.some(item => item.type === 'payout' && item.created === tx.created && item.id !== tx.id);
+    const concurrent = usd.some(item => item.type === 'payout' && item.created >= payout.created && item.created <= tx.created && item.id !== tx.id);
     const basis = payoutFundingBasis(opening, periodCredits.map(item => item.net), -tx.net);
     const shares: FundingShare[] = [];
-    if (!concurrent) for (const credit of periodCredits) { const part = await funding(credit); if (part) shares.push(part); }
+    if (!concurrent) for (const credit of periodCredits) {
+      if (credit.created >= payout.created) continue;
+      const part = await funding(credit); if (part) shares.push(part);
+    }
     const plan = allocateFinancialReceipt({ id: tx.id, kind: 'instant_payout', currency: 'usd', createdAt: iso(tx.created), feeCents: tx.fee, basisCents: basis }, shares, config.activated_at);
     await save(tx, 'instant_payout', { payoutId: payout.id, method: 'weighted_period_cash_v1', boundary, openingCents: opening, basisCents: basis, riverzCents: plan.riverzCents },
       plan.allocations.map(a => ({ ...a, basisCents: shares.find(s => s.id === a.fundingId)!.basisCents })));
