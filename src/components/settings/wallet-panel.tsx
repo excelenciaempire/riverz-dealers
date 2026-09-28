@@ -14,6 +14,7 @@ import {useTimezone} from '@/hooks/use-timezone';
 import {daysAgoStart} from '@/lib/dashboard/date-utils';
 import {fromZonedTime} from 'date-fns-tz';
 import type { BilledActivity } from '@/lib/wallet/activity';
+import type { ServiceActivity } from '@/lib/wallet/service-activity';
 import { ChevronDown, CreditCard, Loader2, Plus, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -41,6 +42,7 @@ interface Tarifa {
 }
 
 interface Estado {
+  serviceActivity?: ServiceActivity;
   billedActivity?: BilledActivity;
   reservadoCentavos?: number;
   saldoCentavos: number;
@@ -121,7 +123,7 @@ export function WalletPanel() {
   const { locale } = useLocale();
   const fmt = useFormat();
   const tz=useTimezone();
-  const channelName=(channel:string)=>channel==='fb_comment'?t('settings.walletActivityFbComments'):
+  const channelName=(channel:string)=>channel==='panel'?t('settings.walletServicePanel'):channel==='fb_comment'?t('settings.walletActivityFbComments'):
     channel==='ig_comment'?t('settings.walletActivityIgComments'):channel==='webchat'?t('settings.walletActivityWeb'):
     ({whatsapp:'WhatsApp',gmail:'Gmail',outlook:'Outlook / Hotmail',zoho:'Zoho',instagram:'Instagram',messenger:'Messenger',mercadolibre:'Mercado Libre',telegram:'Telegram',sms:'SMS',tiktok:'TikTok'} as Record<string,string>)[channel]??t('settings.walletActivityOther');
   const fetchWithCsrf = useFetchWithCsrf();
@@ -339,7 +341,7 @@ export function WalletPanel() {
       </div>
     );
   }
-  if (!e) return null;
+  if (!e) return <div role="alert" className="border-border rounded-xl border p-5 flex items-center justify-between gap-4"><p className="text-sm">{t('settings.walletLoadFailed')}</p><Button variant="outline" onClick={()=>setRevision(v=>v+1)}>{t('settings.walletRetry')}</Button></div>;
   if (e.exenta) return null;
 
   const { resumen, auto } = e;
@@ -750,9 +752,33 @@ export function WalletPanel() {
       </div>
 
       {/* ── El detalle ──────────────────────────────────────────────── */}
+      {e.serviceActivity && <section className="border-border bg-card rounded-xl border p-5">
+        <h3 className="text-sm font-semibold">{t('settings.walletServiceTitle')}</h3>
+        <p className="text-muted-foreground mt-1 text-xs">{t('settings.walletServiceNote')}</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+          {([
+            ['walletServiceContacts', e.serviceActivity.contacts],
+            ['walletServiceAiContacts', e.serviceActivity.aiContacts],
+            ['walletActivitySent', e.serviceActivity.sent],
+            ['walletServiceComments', e.serviceActivity.comments],
+          ] as const).map(([key, value]) => <div key={key} className="bg-muted/40 rounded-lg p-3"><p className="text-xs text-muted-foreground">{t(`settings.${key}`)}</p><p className="text-xl font-semibold tabular-nums mt-1">{fmt.number(value)}</p></div>)}
+        </div>
+        <div className="overflow-x-auto mt-4"><table className="w-full text-sm">
+          <thead className="text-muted-foreground"><tr><th className="text-left py-2">{t('settings.walletActivityChannel')}</th>
+            {['walletServiceContacts','walletServiceAi','walletServiceAutomations','walletServiceHuman','walletServiceOther','walletActivitySent'].map(key=><th key={key} className="text-right px-3 whitespace-nowrap">{t(`settings.${key}`)}</th>)}
+          </tr></thead>
+          <tbody>{e.serviceActivity.byChannel.map(c=><tr key={c.channel} className="border-t border-border"><td className="py-3 whitespace-nowrap">{channelName(c.channel)}</td>
+            {[c.contacts,c.aiMessages,c.automated,c.human,c.other,c.sent].map((value,i)=><td key={i} className="text-right px-3 tabular-nums">{fmt.number(value)}</td>)}
+          </tr>)}</tbody>
+          <tfoot className="border-t border-border font-semibold"><tr><td className="py-3">{t('settings.walletActivityTotal')}</td>
+            {[e.serviceActivity.contacts,e.serviceActivity.aiMessages,e.serviceActivity.automated,e.serviceActivity.human,e.serviceActivity.other,e.serviceActivity.sent].map((value,i)=><td key={i} className="text-right px-3 tabular-nums">{fmt.number(value)}</td>)}
+          </tr></tfoot>
+        </table></div>
+      </section>}
       {e.billedActivity&&<section className="border-border bg-card rounded-xl border p-5">
         <h3 className="text-sm font-semibold">{t('settings.walletActivity')}</h3>
         <p className="text-muted-foreground mt-1 text-xs">{t('settings.walletActivityNote')}</p>
+        {e.billedActivity.byChannel.some(c=>c.channel==='unattributed')&&<p className="text-muted-foreground mt-2 text-xs">{t('settings.walletServiceUnknownNote')}</p>}
         <div className="overflow-x-auto mt-4"><table className="w-full text-sm">
           <thead className="text-muted-foreground"><tr><th className="text-left py-2">{t('settings.walletActivityChannel')}</th>
             <th className="text-right px-3">{t('settings.walletActivityContacts')}</th><th className="text-right px-3">{t('settings.walletActivityCharges')}</th><th className="text-right">{t('settings.walletActivityCharged')}</th></tr></thead>

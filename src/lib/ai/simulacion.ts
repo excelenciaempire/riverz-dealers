@@ -266,6 +266,7 @@ export async function simularRespuesta(
     db: admin,
     workspaceId: a.workspace_id,
     concepto: 'ia_asistencia',
+    detalle: { superficie: 'panel', para: 'simulacion', agente: a.id },
     origenDeLaClave: resolvedKey?.source,
   });
   const maxComentario = Math.min(a.max_response_chars || 500, IG_DM_MAX_CHARS);
@@ -320,6 +321,7 @@ export async function simularRespuesta(
   let text: string;
   try {
     const salida = await guardasDeSalida(admin, a, result.text, {
+      billingContext: { superficie: 'panel' },
       products,
       productMatch,
       reglasCrudas,

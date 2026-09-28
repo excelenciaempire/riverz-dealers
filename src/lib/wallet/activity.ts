@@ -22,7 +22,8 @@ export function summarizeActivity(rows: MovimientoResumen[], conversations: Conv
   const channels = new Map<string, { contacts: Set<string>; charges: number; chargedCentavos: number }>();
   for (const row of rows.filter(esConsumoCobrado)) {
     const conversation = lookup.get(conversationId(row) ?? '');
-    const channel = conversation?.channel ?? text(row.detalle?.canal) ?? text(row.detalle?.channel) ?? 'unattributed';
+    const channel = conversation?.channel ?? text(row.detalle?.canal) ?? text(row.detalle?.channel) ??
+      (row.detalle?.superficie === 'panel' || ['ia_asistencia', 'ia_operador'].includes(row.concepto) ? 'panel' : 'unattributed');
     const group = channels.get(channel) ?? { contacts: new Set<string>(), charges: 0, chargedCentavos: 0 };
     channels.set(channel, group);
     group.charges++;

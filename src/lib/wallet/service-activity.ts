@@ -1,0 +1,134 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { AI_ORIGINS } from '@/lib/dashboard/outcomes';
+import type { Rango } from './movimientos';
+
+interface Counts {
+  contacts: number;
+  aiContacts: number;
+  sent: number;
+  aiMessages: number;
+  automated: number;
+  human: number;
+  other: number;
+  comments: number;
+}
+export interface ServiceActivity extends Counts {
+  byChannel: Array<Counts & { channel: string }>;
+}
+export interface ServiceMessage {
+  id: string;
+  sender_type: string | null;
+  origin: string | null;
+  status: string | null;
+  channel: string | null;
+  conversations: { channel: string; contact_id: string | null };
+}
+const empty = (): Counts => ({
+  contacts: 0,
+  aiContacts: 0,
+  sent: 0,
+  aiMessages: 0,
+  automated: 0,
+  human: 0,
+  other: 0,
+  comments: 0,
+});
+
+/** Operational delivery evidence is independent of billing. A model request
+ * can create multiple bubbles or no sent message; never call it a delivery. */
+export function summarizeServiceActivity(
+  messages: ServiceMessage[]
+): ServiceActivity {
+  const groups = new Map<
+    string,
+    { counts: Counts; contacts: Set<string>; aiContacts: Set<string> }
+  >();
+  const contacts = new Set<string>(),
+    aiContacts = new Set<string>(),
+    seen = new Set<string>();
+  const total = empty();
+  for (const m of messages) {
+    if (
+      seen.has(m.id) ||
+      !['bot', 'agent'].includes(m.sender_type ?? '') ||
+      !['sent', 'delivered', 'read'].includes(m.status ?? '')
+    )
+      continue;
+    seen.add(m.id);
+    const channel = m.channel || m.conversations.channel;
+    const group = groups.get(channel) ?? {
+      counts: empty(),
+      contacts: new Set<string>(),
+      aiContacts: new Set<string>(),
+    };
+    groups.set(channel, group);
+    // Comment replies are persisted as sender_type=agent with comment_ai origin.
+    const ai = (AI_ORIGINS as readonly string[]).includes(m.origin ?? '');
+    const kind = ai
+      ? 'aiMessages'
+      : m.sender_type === 'agent'
+        ? 'human'
+        : m.origin &&
+            ['automation', 'flow', 'broadcast', 'campaign'].includes(m.origin)
+          ? 'automated'
+          : 'other';
+    group.counts.sent++;
+    total.sent++;
+    group.counts[kind]++;
+    total[kind]++;
+    if (['fb_comment', 'ig_comment'].includes(channel)) {
+      group.counts.comments++;
+      total.comments++;
+    }
+    const contact = m.conversations.contact_id;
+    if (contact) {
+      group.contacts.add(contact);
+      contacts.add(contact);
+      if (ai) {
+        group.aiContacts.add(contact);
+        aiContacts.add(contact);
+      }
+    }
+  }
+  return {
+    ...total,
+    contacts: contacts.size,
+    aiContacts: aiContacts.size,
+    byChannel: [...groups]
+      .map(([channel, g]) => ({
+        channel,
+        ...g.counts,
+        contacts: g.contacts.size,
+        aiContacts: g.aiContacts.size,
+      }))
+      .sort((a, b) => b.sent - a.sent),
+  };
+}
+
+export async function serviceActivity(
+  db: SupabaseClient,
+  workspaceId: string,
+  range: Rango
+): Promise<ServiceActivity> {
+  const rows: ServiceMessage[] = [];
+  for (let offset = 0; offset < 500_000; offset += 1000) {
+    const result = await db
+      .from('messages')
+      .select(
+        'id, sender_type, origin, status, channel, conversations!inner(workspace_id, channel, contact_id)'
+      )
+      .eq('conversations.workspace_id', workspaceId)
+      .in('sender_type', ['bot', 'agent'])
+      .in('status', ['sent', 'delivered', 'read'])
+      .gte('created_at', range.desde)
+      .lt('created_at', range.hasta)
+      .order('created_at')
+      .order('id')
+      .range(offset, offset + 999);
+    if (result.error) throw result.error;
+    rows.push(...((result.data ?? []) as unknown as ServiceMessage[]));
+    if ((result.data?.length ?? 0) < 1000)
+      return summarizeServiceActivity(rows);
+  }
+  throw new Error('wallet_activity_range_too_large');
+}

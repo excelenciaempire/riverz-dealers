@@ -5,6 +5,11 @@ import { costoPorConcepto } from './costos';
 const range = { desde: '2026-09-27T03:00:00Z', hasta: '2026-09-28T03:00:00Z' };
 const row = (id: string, centavos = -10, conversation = 'chat'): MovimientoResumen => ({ id, tipo: 'consumo', concepto: 'ia_respuesta', centavos, cantidad: 1, creado_en: '2026-09-27T19:00:00Z', detalle: { conversacion: conversation } });
 const conversations = [{ id: 'chat', channel: 'whatsapp', contact_id: 'c' }, { id: 'email', channel: 'gmail', contact_id: 'c' }];
+it('classifies app assistance separately without guessing historical customer channels', () => {
+  const result=summarizeActivity([{...row('1'),concepto:'ia_asistencia',detalle:{}},{...row('2'),detalle:{}},{...row('3'),detalle:{superficie:'panel'}}]);
+  expect(result.byChannel.find(c=>c.channel==='panel')).toMatchObject({charges:2,chargedCentavos:20,contacts:0});
+  expect(result.byChannel.find(c=>c.channel==='unattributed')).toMatchObject({charges:1,chargedCentavos:10});
+});
 it('counts only actual debits, not tests, courtesy, credits or internal Stripe costs', () => {
   const result = summarizeActivity([row('paid'), row('test', 0), row('courtesy', 0), { ...row('credit', 2500), tipo: 'recarga' }, { ...row('fee'), concepto: 'comision_stripe' }], conversations);
   expect(result).toMatchObject({ contacts: 1, charges: 1, chargedCentavos: 10 });

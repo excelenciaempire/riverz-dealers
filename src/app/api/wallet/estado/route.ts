@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import {walletActivity} from '@/lib/wallet/activity';
+import {serviceActivity} from '@/lib/wallet/service-activity';
 
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { leerSuscripcion, usaSaldo } from '@/lib/billing/plan';
@@ -44,13 +45,14 @@ export async function GET(request: Request) {
   const workspace=await admin.from('workspaces').select('timezone').eq('id',workspaceId).single();
   const movements = await movimientosDelPeriodo(admin, workspaceId, rango);
 
-  const [billetera, datos, tarifas, sus, costos, activity] = await Promise.all([
+  const [billetera, datos, tarifas, sus, costos, activity, deliveredActivity] = await Promise.all([
     leerBilletera(admin, workspaceId),
     Promise.resolve(summarizeMovements(movements, rango, workspace.data?.timezone || 'UTC')),
     listarTarifas(admin),
     leerSuscripcion(admin, workspaceId),
     costosReales(admin, workspaceId, movements),
     walletActivity(admin, workspaceId, rango, movements),
+    serviceActivity(admin, workspaceId, rango),
   ]);
 
   // La cuenta de cortesía no gasta saldo: la puerta la deja pasar siempre. Sin
@@ -86,6 +88,7 @@ export async function GET(request: Request) {
       },
       resumen: datos,
       billedActivity: activity,
+      serviceActivity: deliveredActivity,
       tarifas: tarifas
         .filter((t) => t.activo && t.concepto!=='comision_stripe')
         .map((t) => ({

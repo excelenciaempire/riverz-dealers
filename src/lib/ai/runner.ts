@@ -3070,6 +3070,7 @@ export async function guardasDeSalida(
     inboundText: string;
     priceIntegrity: { priceQuestion: boolean; priceVerified: boolean };
     transferDiscount?: number | null;
+    billingContext?: { conversacion?: string; canal?: string; superficie?: string };
     handoffContext: Record<string, unknown> | null;
   }
 ): Promise<{ texto: string; sinProducto: boolean }> {
@@ -3141,7 +3142,7 @@ export async function guardasDeSalida(
       respuesta,
       ultimoMensaje: g.inboundText,
       reglas: reglasDeSalida,
-      detalle: { agente: agent.id },
+      detalle: { agente: agent.id, ...g.billingContext },
     });
   let verificada = limpio;
   const primero = await verificar(limpio);
@@ -3156,7 +3157,7 @@ export async function guardasDeSalida(
         workspaceId: agent.workspace_id,
         agentKeyEncrypted: agent.api_key_encrypted,
         concepto: 'ia_respuesta',
-        detalle: { para: 'reescritura', agente: agent.id },
+        detalle: { para: 'reescritura', agente: agent.id, ...g.billingContext },
         tier: 'triage',
         system: [
           'Reescribes un mensaje que un asistente de ventas ya redactó para una clienta. El mensaje rompe una regla del comercio y hay que quitar SOLO eso.',
@@ -3572,6 +3573,7 @@ async function generateReply(
   }
 
   const salida = await guardasDeSalida(db, agent, result.text, {
+    billingContext: { conversacion: origen.conversationId, canal: origen.channel },
     products,
     productMatch,
     reglasCrudas,
