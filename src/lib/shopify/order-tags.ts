@@ -7,7 +7,6 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { tokenVivo, COLUMNAS_TOKEN } from './token-vivo';
-import { decrypt } from '@/lib/whatsapp/encryption';
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
 
 export interface ShopifyAdmin {
@@ -80,5 +79,84 @@ export async function appendOrderTags(
   } catch (err) {
     console.error('[shopify] appendOrderTags failed:', err);
     return false;
+  }
+}
+
+export type DeliveryIncidentTagState = 'active' | 'resolved';
+
+function normalizeIncidentTag(tag: string): string {
+  return tag
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function isDeliveryIncidentTag(tag: string): boolean {
+  const normalized = normalizeIncidentTag(tag);
+  return (
+    normalized === 'novedad solucionada' ||
+    /^novedad(?:\s*[:\-].*)?$/.test(normalized)
+  );
+}
+
+export function nextDeliveryIncidentTags(
+  existing: string[],
+  state: DeliveryIncidentTagState,
+  reason = '',
+): string[] {
+  const preserved = existing
+    .map((tag) => tag.trim())
+    .filter((tag) => tag && !isDeliveryIncidentTag(tag));
+  const safeReason = reason.replace(/[,\r\n]+/g, '; ').replace(/\s+/g, ' ').trim();
+  const incidentTag =
+    state === 'resolved'
+      ? 'NOVEDAD SOLUCIONADA'
+      : `NOVEDAD: ${safeReason || 'La transportadora requiere información'}`.slice(
+          0,
+          180,
+        );
+  return [...new Set([...preserved, incidentTag])];
+}
+
+export async function setDeliveryIncidentOrderTag(
+  admin: ShopifyAdmin,
+  orderId: string | number,
+  state: DeliveryIncidentTagState,
+  reason = '',
+): Promise<{ ok: boolean; changed: boolean }> {
+  const base = `https://${admin.shopDomain}/admin/api/${admin.apiVersion}/orders/${orderId}.json`;
+  const headers = {
+    'X-Shopify-Access-Token': admin.accessToken,
+    'Content-Type': 'application/json',
+  };
+  try {
+    const current = await fetch(`${base}?fields=id,tags,cancelled_at`, { headers });
+    if (!current.ok) return { ok: false, changed: false };
+    const body = (await current.json()) as {
+      order?: { id?: number; tags?: string; cancelled_at?: string | null };
+    };
+    if (!body.order?.id) return { ok: false, changed: false };
+    if (state === 'active' && body.order.cancelled_at) {
+      return { ok: true, changed: false };
+    }
+    const existing = String(body.order.tags ?? '')
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    const next = nextDeliveryIncidentTags(existing, state, reason);
+    if (next.join(', ') === existing.join(', ')) {
+      return { ok: true, changed: false };
+    }
+    const updated = await fetch(base, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ order: { id: Number(orderId), tags: next.join(', ') } }),
+    });
+    return { ok: updated.ok, changed: updated.ok };
+  } catch (err) {
+    console.error('[shopify] setDeliveryIncidentOrderTag failed:', err);
+    return { ok: false, changed: false };
   }
 }

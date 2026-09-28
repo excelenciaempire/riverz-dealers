@@ -1,6 +1,6 @@
 # Dropi: logística avanzada y automatización en borrador
 
-Estado: **sin activar**. Investigación y base de evaluación preparadas el 13 de septiembre de 2026. No se instalaron automatizaciones, no se enviaron mensajes ni se realizaron llamadas, despachos o cancelaciones.
+Estado: **detección de novedades futuras conectada**. La automatización solo envía cuando su plantilla española está aprobada y WhatsApp está operativo. No se automatizan despachos, cancelaciones ni la resolución de novedades dentro de Dropi.
 
 ## Decisiones del dueño
 
@@ -146,7 +146,11 @@ Para Riverz oficial se prepara de forma idempotente la automatización `DeUNA Sh
 
 La guía del agente prohíbe prometer un nuevo intento o decir que Dropi aceptó una corrección sin evidencia. La novedad que ya existía antes de desplegar este cambio no se reprocesa ni contacta: el dueño pidió que el flujo aplique a las próximas.
 
-La investigación local encontró y verificó contra Dropi la lectura `GET https://api.dropi.co/api/orders/myorders/novelties`, autenticada mediante `X-Authorization` y los encabezados de navegador documentados en el conector interno. No se incorporó todavía como fuente de producción: el acceso a `riverzoficial@gmail.com` llegó correctamente hasta el segundo factor de Dropi, pero no había un código TOTP autorizado en esta sesión; además, sin una fila real no se capturó el esquema de una novedad para enlazarla de forma fiable con pedido, cliente y conversación. La escritura para resolver novedades sigue deliberadamente deshabilitada porque su endpoint y forma no están verificados. Mientras tanto, Riverz usa solo las señales estructuradas de Shopify descritas arriba y publica la fuente exacta en cada evento.
+La lectura directa quedó verificada contra la cuenta oficial mediante `GET /bff/orders/myorders/v2` y su detalle por ID. El worker local reutiliza la semilla TOTP cifrada con DPAPI que ya usa Contabilidad; la semilla, el código temporal y la contraseña nunca salen de Windows. Cada diez minutos clasifica una novedad como activa o resuelta a partir del estado, la causa oficial y las marcas de solución de Dropi.
+
+El puente envía a Riverz solo los IDs Dropi/Shopify, estado, causa y fecha. Firma cada cuerpo con Ed25519 usando una clave privada también cifrada con DPAPI; el servidor conserva únicamente la clave pública y rechaza firmas vencidas o cuerpos alterados. Riverz actualiza de forma idempotente la etiqueta estructurada del pedido Shopify, y el webhook existente dispara o cierra la automatización.
+
+La línea base del 28 de septiembre contiene nueve pedidos. El único pedido en `NOVEDAD`, Dropi `90767154`, ya tenía solución registrada a las 14:21 (`DEVOLVER AL REMITENTE`) después de la causa `DESTINATARIO SE REHUSA A RECIBIR`; quedó guardado como resuelto y se enviaron cero eventos. Por decisión del dueño, ese cliente no se contacta desde este flujo. La escritura para resolver novedades dentro de Dropi sigue deshabilitada porque no se necesita para avisar y no existe un contrato de escritura verificado.
 
 Fuentes oficiales consultadas:
 
