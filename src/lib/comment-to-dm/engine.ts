@@ -16,6 +16,7 @@ import {
 import { composeDmText } from './rules';
 import { stripPublicCommentUrls } from '@/lib/ai/url-integrity';
 import { addCommentContextToPrivateReply } from '@/lib/comments/private-reply-context';
+import { readPrivateReplyState, privateReplyStateIsCurrent } from '@/lib/comments/private-attention';
 
 /**
  * Comentario → DM (auto-DM on comments) — ManyChat's signature growth tool.
@@ -111,6 +112,14 @@ export async function processCommentForDmRules(
       commentMatches(r, ev.text),
   );
   if (!rule) return false;
+  const dmChannel = DM_CHANNEL[ev.channel];
+  const identity = dmChannel && ev.contact.external_id
+    ? { workspaceId: ev.workspaceId, externalId: ev.contact.external_id, channel: dmChannel }
+    : null;
+  const privateState = identity ? await readPrivateReplyState(db, identity) : null;
+  // A static keyword rule is still automation: it cannot restart a sales
+  // conversation while a person owns the customer's private support case.
+  if (dmChannel && (!privateState || !privateState.allowed)) return true;
 
   // The webhook may already be in flight when the user disconnects. Stop
   // before claiming the rule and recheck at each actual send below.
@@ -162,6 +171,15 @@ export async function processCommentForDmRules(
   let dmStatus: 'sent' | 'failed' | 'skipped' = 'failed';
   let dmExternalId: string | null = null;
   let errMsg: string | null = null;
+  const stopIfContextChanged = async () => {
+    if (!identity || !privateState) return false;
+    if (privateReplyStateIsCurrent(privateState, await readPrivateReplyState(db, identity))) return false;
+    await db.from('comment_to_dm_log').update({
+      public_reply_status: publicReplyStatus, public_reply_external_id: publicReplyExternalId,
+      dm_status: 'skipped', error: 'private_context_changed',
+    }).eq('id', logId);
+    return true;
+  };
 
   // 1. Public reply on the comment (rotate templates so repeated replies on a
   //    busy post don't all read identically — looks human, dodges spam heuristics).
@@ -177,6 +195,7 @@ export async function processCommentForDmRules(
     } else {
       try {
         await assertStoredConnectionCanSend(db, ev.connection.id);
+        if (await stopIfContextChanged()) return true;
         const res = await getAdapter(ev.channel).sendText({
           channel: ev.channel,
           connection: ev.connection,
@@ -218,7 +237,7 @@ export async function processCommentForDmRules(
   //    claims first sends, the other skips.
   //
   //    En TikTok no hay paso 2: la regla ya hizo todo lo que TikTok permite.
-  const dmChannel = DM_CHANNEL[ev.channel];
+  if (await stopIfContextChanged()) return true;
   const wonReply = dmChannel
     ? await claimCommentPrivateReply(db, ev.workspaceId, ev.commentId, 'rule')
     : false;
@@ -240,6 +259,7 @@ export async function processCommentForDmRules(
       try {
         if (!dmAdapter.sendMedia) throw new Error('canal sin adjuntos');
         await assertStoredConnectionCanSend(db, ev.connection.id);
+        if (await stopIfContextChanged()) return true;
         await dmAdapter.sendMedia({
           channel: dmChannel,
           connection: ev.connection,
@@ -279,6 +299,7 @@ export async function processCommentForDmRules(
     });
     try {
       await assertStoredConnectionCanSend(db, ev.connection.id);
+      if (await stopIfContextChanged()) return true;
       const res = await getAdapter(dmChannel).sendText({
         channel: dmChannel,
         connection: ev.connection,
