@@ -244,7 +244,7 @@ export async function POST(request: Request) {
         await completeTextMedido(supabase, {
           workspaceId: workspaceId ?? '',
           concepto: 'ia_asistencia',
-          detalle: { para: 'plan_de_campana' },
+          detalle: { superficie: 'panel', para: 'plan_de_campana' },
           tier: 'premium',
           system: SYSTEM_PROMPT,
           user: userPrompt,

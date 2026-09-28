@@ -2,40 +2,126 @@ import type { Namespace } from './types';
 
 /** Settings page: tabs, appearance and the language picker. */
 export const settings = {
-  walletChargedOperations:{es:'{count} cargos de consumo',en:'{count} usage charges'},
-  walletServiceTitle:{es:'Atención y mensajes enviados',en:'Service and sent messages'},
-  walletLoadFailed:{es:'No se pudo cargar el saldo y su desglose.',en:'Could not load the balance and its breakdown.'},
-  walletRetry:{es:'Reintentar',en:'Retry'},
-  walletServiceNote:{es:'Envíos confirmados del período, independientes de los cargos de consumo. Los comentarios están incluidos en los mensajes.',en:'Confirmed sends in this period, independent of usage charges. Comments are included in messages.'},
-  walletServiceContacts:{es:'Contactos atendidos',en:'Contacts served'},
-  walletServiceAiContacts:{es:'Contactos atendidos por IA',en:'Contacts served by AI'},
-  walletServiceAi:{es:'Mensajes de IA',en:'AI messages'},
-  walletServiceAutomations:{es:'Automatizaciones',en:'Automations'},
-  walletServiceHuman:{es:'Mensajes manuales',en:'Manual messages'},
-  walletServiceOther:{es:'Otros envíos',en:'Other sends'},
-  walletServiceComments:{es:'Comentarios respondidos',en:'Comment replies'},
-  walletServicePanel:{es:'Uso del panel',en:'App usage'},
-  walletServiceUnknownNote:{es:'Estos cargos históricos no guardaron el canal de origen. Se conservan en el total, sin asignarlos por estimación.',en:'These historical charges did not record their source channel. They remain in the total without estimated attribution.'},
-  walletActivity:{es:'Consumo cobrado por canal',en:'Billed usage by channel'},
-  walletActivityNote:{es:'Solo descuentos reales del saldo. Un cargo no equivale a un mensaje enviado.',en:'Actual wallet debits only. A charge does not equal a sent message.'},
-  walletActivityChannel:{es:'Canal',en:'Channel'},
-  walletActivityContacts:{es:'Contactos con consumo cobrado',en:'Contacts with billed usage'},
-  walletActivityCharges:{es:'Cargos de consumo',en:'Usage charges'},
-  walletActivityCharged:{es:'Descontado del saldo',en:'Debited from balance'},
-  walletActivityAuto:{es:'Mensajes automáticos',en:'Automated messages'},
-  walletActivitySent:{es:'Total enviado',en:'Total sent'},
-  walletActivityTotal:{es:'Total',en:'Total'},
-  walletActivityOther:{es:'Sin canal identificado',en:'No identified channel'},
-  walletActivityFbComments:{es:'Comentarios de Facebook',en:'Facebook comments'},
-  walletActivityIgComments:{es:'Comentarios de Instagram',en:'Instagram comments'},
-  walletActivityWeb:{es:'Chat web',en:'Web chat'},
-  walletPurposeReply:{es:'Respuesta al cliente',en:'Customer reply'},
-  walletPurposeRewrite:{es:'Revisión de una respuesta',en:'Reply revision'},
-  walletPurposeClosure:{es:'Comprobar si el cliente necesita respuesta',en:'Check whether the customer needs a reply'},
-  walletPurposeEscalation:{es:'Evaluar si necesita atención humana',en:'Assess need for human attention'},
-  walletPurposeEscalationNote:{es:'Preparar aviso para el equipo',en:'Prepare team notification'},
-  walletAdjustments:{es:'Ajustes de saldo',en:'Balance adjustments'},
-  walletProcessedTokens:{es:'{n} tokens procesados',en:'{n} tokens processed'},
+  walletChargedOperations: {
+    es: '{count} cargos de consumo',
+    en: '{count} usage charges',
+  },
+  walletServiceTitle: {
+    es: 'Atención y mensajes enviados',
+    en: 'Service and sent messages',
+  },
+  walletLoadFailed: {
+    es: 'No se pudo cargar el saldo y su desglose.',
+    en: 'Could not load the balance and its breakdown.',
+  },
+  walletRetry: { es: 'Reintentar', en: 'Retry' },
+  walletServiceNote: {
+    es: 'Envíos confirmados del período, independientes de los cargos de consumo. Los comentarios están incluidos en los mensajes.',
+    en: 'Confirmed sends in this period, independent of usage charges. Comments are included in messages.',
+  },
+  walletServiceContacts: { es: 'Contactos atendidos', en: 'Contacts served' },
+  walletServiceAiContacts: {
+    es: 'Contactos atendidos por IA',
+    en: 'Contacts served by AI',
+  },
+  walletServiceAi: { es: 'Mensajes de IA', en: 'AI messages' },
+  walletServiceAutomations: { es: 'Automatizaciones', en: 'Automations' },
+  walletServiceHuman: { es: 'Mensajes manuales', en: 'Manual messages' },
+  walletServiceOther: { es: 'Otros envíos', en: 'Other sends' },
+  walletServiceComments: {
+    es: 'Comentarios respondidos',
+    en: 'Comment replies',
+  },
+  walletServicePanel: { es: 'Uso del panel', en: 'App usage' },
+  walletOriginCalls: { es: 'Llamadas y telefonía', en: 'Calls and telephony' },
+  walletActivityTikTokComments: {
+    es: 'Comentarios de TikTok',
+    en: 'TikTok comments',
+  },
+  walletOtherService: { es: 'Otros servicios', en: 'Other services' },
+  walletEnabled: { es: 'Activada', en: 'Enabled' },
+  walletDisabled: { es: 'Desactivada', en: 'Disabled' },
+  walletUsageDetails: { es: 'Detalle del consumo', en: 'Usage breakdown' },
+  walletBreakdownView: { es: 'Agrupar por', en: 'Group by' },
+  walletViewService: { es: 'Servicio', en: 'Service' },
+  walletViewChannel: { es: 'Origen', en: 'Source' },
+  walletHistoricalIncomplete: {
+    es: 'Detalle incompleto del historial',
+    en: 'Incomplete historical detail',
+  },
+  walletHistoricalIncluded: {
+    es: 'Incluido en el total. El registro original no guardó su origen.',
+    en: 'Included in the total. The original record did not save its source.',
+  },
+  walletPeriodTotal: { es: 'Total del período', en: 'Period total' },
+  walletPeriod: { es: 'Período', en: 'Period' },
+  walletFromDate: { es: 'Desde', en: 'From' },
+  walletToDate: { es: 'Hasta', en: 'To' },
+  walletMovementFilter: {
+    es: 'Filtrar movimientos',
+    en: 'Filter transactions',
+  },
+  walletAllServices: { es: 'Todos los servicios', en: 'All services' },
+  walletServiceUnknownNote: {
+    es: 'Estos cargos históricos no guardaron el canal de origen. Se conservan en el total, sin asignarlos por estimación.',
+    en: 'These historical charges did not record their source channel. They remain in the total without estimated attribution.',
+  },
+  walletActivity: {
+    es: 'Consumo cobrado por canal',
+    en: 'Billed usage by channel',
+  },
+  walletActivityNote: {
+    es: 'Solo descuentos reales del saldo. Un cargo no equivale a un mensaje enviado.',
+    en: 'Actual wallet debits only. A charge does not equal a sent message.',
+  },
+  walletActivityChannel: { es: 'Canal', en: 'Channel' },
+  walletActivityContacts: {
+    es: 'Contactos con consumo cobrado',
+    en: 'Contacts with billed usage',
+  },
+  walletActivityCharges: { es: 'Cargos de consumo', en: 'Usage charges' },
+  walletActivityCharged: {
+    es: 'Descontado del saldo',
+    en: 'Debited from balance',
+  },
+  walletActivityAuto: { es: 'Mensajes automáticos', en: 'Automated messages' },
+  walletActivitySent: { es: 'Total enviado', en: 'Total sent' },
+  walletActivityTotal: { es: 'Total', en: 'Total' },
+  walletActivityOther: {
+    es: 'Sin canal identificado',
+    en: 'No identified channel',
+  },
+  walletActivityFbComments: {
+    es: 'Comentarios de Facebook',
+    en: 'Facebook comments',
+  },
+  walletActivityIgComments: {
+    es: 'Comentarios de Instagram',
+    en: 'Instagram comments',
+  },
+  walletActivityWeb: { es: 'Chat web', en: 'Web chat' },
+  walletPurposeReply: { es: 'Respuesta al cliente', en: 'Customer reply' },
+  walletPurposeRewrite: {
+    es: 'Revisión de una respuesta',
+    en: 'Reply revision',
+  },
+  walletPurposeClosure: {
+    es: 'Comprobar si el cliente necesita respuesta',
+    en: 'Check whether the customer needs a reply',
+  },
+  walletPurposeEscalation: {
+    es: 'Evaluar si necesita atención humana',
+    en: 'Assess need for human attention',
+  },
+  walletPurposeEscalationNote: {
+    es: 'Preparar aviso para el equipo',
+    en: 'Prepare team notification',
+  },
+  walletAdjustments: { es: 'Ajustes de saldo', en: 'Balance adjustments' },
+  walletProcessedTokens: {
+    es: '{n} tokens procesados',
+    en: '{n} tokens processed',
+  },
   webhooksTitle: { es: 'Webhooks', en: 'Webhooks' },
   webhooksDescription: {
     es: 'Envía eventos de Riverz a tus automatizaciones.',
@@ -1339,7 +1425,10 @@ export const settings = {
   // Facturación, en Ajustes.
   billingTitle: { es: 'Plan y facturación', en: 'Plan and billing' },
   billingPlan500: { es: 'Hasta 500 contactos', en: 'Up to 500 contacts' },
-  billingPlanSaldoUnlimited: { es: 'Contactos ilimitados con saldo', en: 'Unlimited contacts with balance' },
+  billingPlanSaldoUnlimited: {
+    es: 'Contactos ilimitados con saldo',
+    en: 'Unlimited contacts with balance',
+  },
   billingPlanByok: { es: 'Clave propia de IA', en: 'Own AI key' },
   billingSaldoUnlimitedCheckout: {
     es: 'El uso de la IA se descuenta del saldo que recargas por separado.',
@@ -1418,8 +1507,14 @@ export const settings = {
   billingAllIncluded: { es: 'Todo incluido', en: 'All included' },
   billingBalanceModel: { es: 'Saldo por consumo', en: 'Usage balance' },
   billingByokModel: { es: 'Tu propia clave de IA', en: 'Your own AI key' },
-  billingByokNeedsKey: { es: 'Agrega tu clave de Anthropic para usar la IA. No necesitas recargar saldo en Riverz.', en: 'Add your Anthropic key to use AI. You do not need to top up your Riverz balance.' },
-  billingByokConfigureKey: { es: 'Configurar clave de IA', en: 'Set up AI key' },
+  billingByokNeedsKey: {
+    es: 'Agrega tu clave de Anthropic para usar la IA. No necesitas recargar saldo en Riverz.',
+    en: 'Add your Anthropic key to use AI. You do not need to top up your Riverz balance.',
+  },
+  billingByokConfigureKey: {
+    es: 'Configurar clave de IA',
+    en: 'Set up AI key',
+  },
   billingServedContacts: {
     es: 'Contactos atendidos este período',
     en: 'Contacts served this period',
@@ -1438,7 +1533,10 @@ export const settings = {
     es: '{n} contactos · {price}/mes',
     en: '{n} contacts · {price}/month',
   },
-  billingUpgradePreview: { es: 'Ver costo del cambio', en: 'Preview upgrade cost' },
+  billingUpgradePreview: {
+    es: 'Ver costo del cambio',
+    en: 'Preview upgrade cost',
+  },
   billingUpgradeConfirm: { es: 'Confirmar ampliación', en: 'Confirm upgrade' },
   billingUpgradeDueNow: {
     es: 'Capacidad adicional este ciclo: {amount}.',
@@ -1533,7 +1631,10 @@ export const settings = {
   walletTopupOrigin_automatica: { es: 'Automática', en: 'Automatic' },
   walletTopupOrigin_desconocida: { es: 'Sin especificar', en: 'Unspecified' },
   walletNoTopups: { es: 'Todavía no hay recargas.', en: 'No top-ups yet.' },
-  walletTopupHistoryFailed: { es: 'No se pudo cargar el historial de recargas.', en: 'Could not load top-up history.' },
+  walletTopupHistoryFailed: {
+    es: 'No se pudo cargar el historial de recargas.',
+    en: 'Could not load top-up history.',
+  },
   walletTopUpFailed: {
     es: 'No se pudo abrir la recarga.',
     en: "Couldn't open the top-up.",

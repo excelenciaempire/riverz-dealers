@@ -309,7 +309,7 @@ export async function POST(request: Request) {
         if (hasLlm(clave?.key)) {
           try {
             const completado = await completeTextConUso({
-              billing: { db: admin, workspaceId, concepto: 'investigacion' },
+              billing: { db: admin, workspaceId, concepto: 'investigacion', detalle: { superficie: 'panel' } },
               tier: 'premium',
               system:
                 'You produce evidence-based market research from customer comments. Never make up facts.',

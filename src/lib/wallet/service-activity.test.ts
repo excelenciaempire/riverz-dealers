@@ -48,6 +48,9 @@ it('never counts drafts, failed deliveries, customer messages or attempts as sen
     ]).sent
   ).toBe(0);
 });
+it('includes confirmed TikTok comment replies in the comment metric', () => {
+  expect(summarizeServiceActivity([row('tiktok', { channel: 'tiktok_comment', origin: 'comment_ai' })])).toMatchObject({ sent: 1, comments: 1, aiMessages: 1 });
+});
 it('does not invent contacts when identity is missing', () => {
   expect(
     summarizeServiceActivity([

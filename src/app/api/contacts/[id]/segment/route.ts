@@ -126,6 +126,7 @@ export async function GET(
       db: admin,
       workspaceId,
       concepto: 'ia_clasificacion',
+      detalle: { contactId: id },
       origenDeLaClave: resolved.source,
     },
     name: c.name,

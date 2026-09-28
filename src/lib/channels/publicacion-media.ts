@@ -328,13 +328,22 @@ async function entenderUna(
   const imagen =
     medio.tipo === 'video'
       ? null
-      : await queSeVeEnLaImagen(db, fila.workspace_id, medio.url);
+      : await queSeVeEnLaImagen(db, fila.workspace_id, medio.url, {
+          canal: fila.channel,
+          referenciaTipo: 'publicacion',
+          referenciaId: fila.external_id,
+        });
   const entendido =
     medio.tipo === 'video'
       ? await queSeDiceEnElVideo(medio.url, {
           db,
           workspaceId: fila.workspace_id,
           concepto: 'transcripcion',
+          detalle: {
+            canal: fila.channel,
+            referenciaTipo: 'publicacion',
+            referenciaId: fila.external_id,
+          },
         })
       : (imagen?.texto ?? null);
 
@@ -595,7 +604,8 @@ async function medioDelPost(
 async function queSeVeEnLaImagen(
   db: SupabaseClient,
   workspaceId: string,
-  url: string
+  url: string,
+  detalle: Record<string, unknown>
 ): Promise<{ texto: string; costoUsd: number } | null> {
   const resuelta = await resolveAnthropicKey(db, { workspaceId });
   if (!resuelta) return null;
@@ -611,6 +621,7 @@ async function queSeVeEnLaImagen(
         db,
         workspaceId,
         concepto: 'entender_publicacion',
+        detalle,
         origenDeLaClave: resuelta.source,
       },
       base64: buf.toString('base64'),

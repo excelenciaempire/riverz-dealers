@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useFormat } from '@/hooks/use-format';
 import { useT } from '@/hooks/use-locale';
 import type { TopupHistoryRow } from '@/lib/wallet/topup-history';
+import { WalletDisclosure } from './wallet-disclosure';
 
 export function WalletTopupHistory({
   currency,
@@ -47,63 +48,59 @@ export function WalletTopupHistory({
     return () => controller.abort();
   }, [page, retry, revision]);
   return (
-    <section
-      className="border-border bg-card rounded-xl border"
-      aria-busy={loading}
-    >
-      <h3 className="border-border border-b px-5 py-4 text-sm font-semibold">
-        {t('settings.walletTopupHistory')}
-      </h3>
-      {failed ? (
-        <div
-          role="alert"
-          className="flex items-center justify-between gap-3 p-5"
-        >
-          <p className="text-sm">{t('settings.walletTopupHistoryFailed')}</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setRetry((v) => v + 1)}
+    <WalletDisclosure title={t('settings.walletTopupHistory')}>
+      <div aria-busy={loading}>
+        {failed ? (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-3 p-5"
           >
-            {t('settings.walletRetry')}
-          </Button>
-        </div>
-      ) : loading && !result ? (
-        <div className="flex justify-center p-8">
-          <Loader2 className="size-4 animate-spin" />
-        </div>
-      ) : result?.filas.length === 0 ? (
-        <p className="text-muted-foreground p-5 text-sm">
-          {t('settings.walletNoTopups')}
-        </p>
-      ) : (
-        <WalletTopupHistoryTable
-          rows={result?.filas ?? []}
-          currency={currency}
-          timezone={timezone}
-        />
-      )}
-      {(page > 0 || result?.hayMas) && (
-        <footer className="border-border flex justify-between border-t px-5 py-3">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={loading || page === 0}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            {t('settings.walletPrev')}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={loading || failed || !result?.hayMas}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            {t('settings.walletNext')}
-          </Button>
-        </footer>
-      )}
-    </section>
+            <p className="text-sm">{t('settings.walletTopupHistoryFailed')}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRetry((v) => v + 1)}
+            >
+              {t('settings.walletRetry')}
+            </Button>
+          </div>
+        ) : loading && !result ? (
+          <div className="flex justify-center p-8">
+            <Loader2 className="size-4 animate-spin" />
+          </div>
+        ) : result?.filas.length === 0 ? (
+          <p className="text-muted-foreground p-5 text-sm">
+            {t('settings.walletNoTopups')}
+          </p>
+        ) : (
+          <WalletTopupHistoryTable
+            rows={result?.filas ?? []}
+            currency={currency}
+            timezone={timezone}
+          />
+        )}
+        {(page > 0 || result?.hayMas) && (
+          <footer className="border-border flex justify-between border-t px-5 py-3">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={loading || page === 0}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              {t('settings.walletPrev')}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={loading || failed || !result?.hayMas}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              {t('settings.walletNext')}
+            </Button>
+          </footer>
+        )}
+      </div>
+    </WalletDisclosure>
   );
 }
 

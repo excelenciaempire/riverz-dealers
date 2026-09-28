@@ -242,6 +242,7 @@ export async function POST(request: Request): Promise<Response> {
           db: admin,
           workspaceId,
           concepto: 'ia_asistencia',
+          detalle: { superficie: 'panel', para: 'mejorar_texto' },
           origenDeLaClave: deAgente[i] ? 'agent' : 'platform',
         }).messages.create({
           model: MODEL,

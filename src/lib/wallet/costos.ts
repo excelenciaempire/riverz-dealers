@@ -227,8 +227,8 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     // texto, escribir un borrador, probar el agente, leer una web, redactar
     // una plantilla, armar un plan. Frenaban sin saldo y no cobraban nada.
     concepto: 'ia_asistencia',
-    nombreEs: 'Ayuda de la IA en el panel',
-    nombreEn: 'AI help in the app',
+    nombreEs: 'Asistencia de la IA',
+    nombreEn: 'AI assistance',
     centavos: 2,
     unidad: 'uso',
     proveedor: 'Anthropic',

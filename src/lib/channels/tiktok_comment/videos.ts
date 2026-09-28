@@ -148,7 +148,8 @@ export async function transcribirPendientes(
   for (const v of candidatos) {
     if (pendientes.length >= limite) break;
     if (!v.workspace_id) continue;
-    if (!puede.has(v.workspace_id)) puede.set(v.workspace_id, await puedeUsarIa(db, v.workspace_id));
+    if (!puede.has(v.workspace_id))
+      puede.set(v.workspace_id, await puedeUsarIa(db, v.workspace_id));
     if (puede.get(v.workspace_id)) pendientes.push(v);
   }
 
@@ -181,6 +182,7 @@ export async function transcribirPendientes(
           db,
           workspaceId: v.workspace_id ?? '',
           concepto: 'transcripcion',
+          detalle: { canal: 'tiktok', videoId: v.video_id },
         },
         mime: 'video/mp4',
         filename: `${v.video_id}.mp4`,

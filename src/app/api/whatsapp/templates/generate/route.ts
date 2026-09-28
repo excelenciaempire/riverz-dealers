@@ -99,6 +99,7 @@ export async function POST(request: Request) {
       db: supabaseAdmin(),
       workspaceId: workspaceId ?? '',
       concepto: 'ia_asistencia',
+      detalle: { superficie: 'panel', para: 'plantilla' },
       origenDeLaClave: clave.source,
     });
 

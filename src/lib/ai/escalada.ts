@@ -244,6 +244,8 @@ export interface ContextoEscalada {
   db: SupabaseClient;
   workspaceId: string;
   agentKeyEncrypted?: string | null;
+  conversationId?: string;
+  channel?: string;
 }
 
 /**
@@ -460,7 +462,7 @@ async function clasificarConJev(ctx: ContextoEscalada): Promise<Escalada | null 
     db: ctx.db,
     workspaceId: ctx.workspaceId,
     concepto: 'ia_clasificacion',
-    detalle: { para: 'escalada' },
+    detalle: { para: 'escalada', conversacion: ctx.conversationId, canal: ctx.channel },
     state: {
       conversacion: hilo,
       ultimo_mensaje: ctx.mensaje.slice(0, 600),
@@ -498,7 +500,7 @@ async function redactarPorQue(
       workspaceId: ctx.workspaceId,
       agentKeyEncrypted: ctx.agentKeyEncrypted,
       concepto: 'ia_clasificacion',
-      detalle: { para: 'escalada_por_que' },
+      detalle: { para: 'escalada_por_que', conversacion: ctx.conversationId, canal: ctx.channel },
       tier: 'triage',
       system:
         'Una persona del comercio va a recibir un aviso de que esta conversación necesita que se meta. Escribí en UNA línea, en español llano y en máximo 90 caracteres, qué le pasa a la clienta. Sin comillas, sin JSON, sin encabezado.',
@@ -543,7 +545,7 @@ async function clasificarConHaiku(ctx: ContextoEscalada): Promise<Escalada | nul
       workspaceId: ctx.workspaceId,
       agentKeyEncrypted: ctx.agentKeyEncrypted,
       concepto: 'ia_clasificacion',
-      detalle: { para: 'escalada' },
+      detalle: { para: 'escalada', conversacion: ctx.conversationId, canal: ctx.channel },
       tier: 'triage',
       system: SISTEMA_CLASIFICADOR,
       user: [

@@ -18,6 +18,7 @@ import { supabaseAdmin } from './admin-client';
  */
 export async function classifyIntent(args: {
   workspaceId: string;
+  conversationId?: string | null;
   message: string;
   intents: Array<{ intent_key: string; description: string }>;
 }): Promise<string | null> {
@@ -33,12 +34,13 @@ export async function classifyIntent(args: {
       db,
       workspaceId: args.workspaceId,
       concepto: 'ia_clasificacion',
-      detalle: { para: 'flujo_intencion' },
+      detalle: { para: 'flujo_intencion', conversacion: args.conversationId },
       state: { mensaje_del_cliente: args.message.slice(0, 1500) },
       questions: { intencion: preguntaDeIntencion(args.intents) },
     });
     // Si Jev no contestó (caído, fusible abierto), sigue Haiku como siempre.
-    if (resultado) return intencionDesdeJev(resultado.answers.intencion, args.intents);
+    if (resultado)
+      return intencionDesdeJev(resultado.answers.intencion, args.intents);
   }
 
   const { data: agent } = await db
@@ -72,6 +74,7 @@ export async function classifyIntent(args: {
     db,
     workspaceId: args.workspaceId,
     concepto: 'ia_clasificacion',
+    detalle: { para: 'flujo_intencion', conversacion: args.conversationId },
     origenDeLaClave: resolved?.source,
   });
   try {

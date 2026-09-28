@@ -126,6 +126,7 @@ export async function POST(
     db: supabaseAdmin(),
     workspaceId,
     concepto: 'ia_asistencia',
+    detalle: { superficie: 'panel', para: 'flujo' },
     origenDeLaClave: resolved.source,
   });
   const system = buildSystemPrompt(

@@ -320,6 +320,7 @@ export async function sendCampaignBatch(
           db,
           workspaceId: campaign.workspace_id,
           concepto: 'ia_asistencia',
+          detalle: { contactId: contact.id, canal: 'instagram' },
         },
         apiKey,
         base: campaign.plan.message.text,

@@ -79,6 +79,7 @@ Reglas: escribe los CUATRO objetivos, cortos y accionables, adaptados al negocio
       db: supabaseAdmin(),
       workspaceId: body.workspace_id,
       concepto: 'ia_asistencia',
+      detalle: { superficie: 'panel', para: 'configurar_voz' },
       origenDeLaClave: resuelta?.source,
     });
     const resp = await client.messages.create({

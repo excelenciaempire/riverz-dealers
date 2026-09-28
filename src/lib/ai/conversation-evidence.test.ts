@@ -33,6 +33,7 @@ describe('media processing without permission to send', () => {
     const { db, writes } = database([{ id: 'human', media_url: 'https://media.test/image.png', media_mime: 'image/png' }]);
     await enrichConversationEvidence(db, scope);
     expect(services.describe).toHaveBeenCalledTimes(1);
+    expect(services.describe).toHaveBeenCalledWith(expect.objectContaining({ billing: expect.objectContaining({ detalle: { conversacion: 'chat', mensaje: 'human' } }) }));
     expect(JSON.stringify(writes)).toContain('Dos pares Negro, talla 39.');
     expect(Object.keys(writes[0])).toEqual(['attachments']);
   });
@@ -40,6 +41,7 @@ describe('media processing without permission to send', () => {
     const { db, writes } = database([{ id: 'audio', media_url: '/one', media_type: 'voice', attachments: [{ url: '/one', mime_type: 'audio/ogg' }, { url: '/two', mime_type: 'audio/ogg' }] }]);
     await enrichConversationEvidence(db, scope);
     expect(services.transcribe).toHaveBeenCalledTimes(2);
+    expect(services.transcribe).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ detalle: { conversacion: 'chat', mensaje: 'audio' } }));
     expect(writes).toHaveLength(1);
     expect(writes[0].media_transcription).toBe('Uno negro y otro negro con blanco.');
     expect(Object.keys(writes[0]).sort()).toEqual(['attachments', 'media_transcription']);

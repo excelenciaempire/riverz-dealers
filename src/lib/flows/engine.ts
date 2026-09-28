@@ -1529,6 +1529,7 @@ async function handleReplyForActiveRun(
     try {
       const intentKey = await classifyIntent({
         workspaceId: run.workspace_id,
+        conversationId: run.conversation_id,
         message: message.text,
         intents: cfg.intents,
       });

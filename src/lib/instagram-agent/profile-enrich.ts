@@ -166,6 +166,7 @@ export async function enrichContactProfile(
           db,
           workspaceId: opts.connection.workspace_id,
           concepto: 'ia_clasificacion',
+          detalle: { contactId: opts.contactId, canal: 'instagram' },
         },
         p.profile_pic,
         prev?.pic_hash ?? null,

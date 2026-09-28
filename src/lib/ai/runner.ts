@@ -477,6 +477,8 @@ export async function runAiAgent(
             db,
             workspaceId: args.workspaceId,
             agentKeyEncrypted: agent.api_key_encrypted,
+            conversationId: args.conversation.id,
+            channel: args.channel,
           }).catch(() => null);
     // Un problema real (no "quiero hablar con alguien") ya no se escala a
     // ciegas: primero se verifica con las herramientas —el pedido en la tienda,
@@ -3355,7 +3357,7 @@ async function generateReply(
       if (msg.media.transcription) return;
       const result = await transcribeAudio(
         await resolveMediaFetchUrl(msg.media.url, agent.workspace_id),
-        { db, workspaceId: agent.workspace_id, concepto: 'transcripcion' }
+        { db, workspaceId: agent.workspace_id, concepto: 'transcripcion', detalle: { conversacion: origen.conversationId, canal: origen.channel, mensaje: msg.messageId } }
       );
       if (!result) return;
       msg.media.transcription = result.text;

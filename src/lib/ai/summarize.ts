@@ -103,7 +103,9 @@ export async function summarizeConversationIfNeeded(
     const oldCount = total - RECENT_TAIL_COUNT;
     const { data: oldRows } = await db
       .from('messages')
-      .select('id, sender_type, content_text, created_at, media_url, media_type, media_mime, media_transcription, attachments')
+      .select(
+        'id, sender_type, content_text, created_at, media_url, media_type, media_mime, media_transcription, attachments'
+      )
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: true })
       .limit(oldCount);
@@ -134,6 +136,7 @@ export async function summarizeConversationIfNeeded(
       db,
       workspaceId: conversation.workspace_id,
       concepto: 'ia_resumen',
+      detalle: { conversacion: conversation.id, canal: conversation.channel },
       origenDeLaClave: clave.source,
     });
     const prompt = `Eres el módulo de memoria de un asistente de servicio al cliente. Recibís un transcripto y devolvés un resumen muy comprimido (máximo 200 palabras) que conserve TODO lo que un siguiente turno del asistente necesitaría: pedido del cliente, productos mencionados, decisiones tomadas, datos compartidos (números de pedido, direcciones, montos), tono y estado emocional. No uses listas con guiones; escribilo como un párrafo denso en español. No incluyas saludos ni meta-comentarios, sólo el resumen.\n\nTranscripto:\n${transcript}`;
@@ -210,7 +213,9 @@ export async function summarizeContactIfNeeded(
 
     const { data: msgs } = await db
       .from('messages')
-      .select('id, sender_type, content_text, created_at, media_url, media_type, media_mime, media_transcription, attachments')
+      .select(
+        'id, sender_type, content_text, created_at, media_url, media_type, media_mime, media_transcription, attachments'
+      )
       .in('conversation_id', convIds)
       .order('created_at', { ascending: false })
       .limit(60);
@@ -245,6 +250,7 @@ export async function summarizeContactIfNeeded(
       db,
       workspaceId: conversation.workspace_id,
       concepto: 'ia_resumen',
+      detalle: { conversacion: conversation.id, canal: conversation.channel },
       origenDeLaClave: clave.source,
     });
     const res = await client.messages.create({

@@ -290,7 +290,7 @@ export async function scoreCampaignRecipients(
     scored = await scoreLeads(
       apiKey,
       texts.map((t) => t ?? '(sin mensaje)'),
-      { db, workspaceId: wsCampaña, concepto: 'ia_clasificacion' }
+      { db, workspaceId: wsCampaña, concepto: 'ia_clasificacion', detalle: { superficie: 'panel', campaignId } }
     );
   } catch {
     return { scored: 0, spam: 0 };

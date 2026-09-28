@@ -439,6 +439,7 @@ export async function maybeInstantOutreach(
         db,
         workspaceId: opts.workspaceId,
         concepto: 'ia_clasificacion',
+        detalle: { contactId: opts.contact.id, canal: opts.commentId ? (opts.commentChannel ?? 'ig_comment') : 'instagram' },
       });
       // Mismo criterio que el piso autónomo: lo que el triage llama spam se
       // oculta y no se contesta, crítica incluida. Ver el comentario largo en
@@ -611,7 +612,7 @@ export async function maybeInstantOutreach(
   }
 
   const text = await craftPersonalizedDM({
-    billing: { db, workspaceId: opts.workspaceId, concepto: 'ia_asistencia' },
+    billing: { db, workspaceId: opts.workspaceId, concepto: 'ia_asistencia', detalle: { contactId: opts.contact.id, canal: 'instagram' } },
     apiKey,
     base: campaign.plan.message.text,
     brand,
@@ -1021,6 +1022,7 @@ async function decidirComentario(
       db,
       workspaceId: opts.workspaceId,
       concepto: 'ia_clasificacion',
+      detalle: { contactId: opts.contact.id, canal: commentChannel },
     }, postBrief);
     if (!s) return 'comment_sin_clasificar';
     // El spam se oculta y se calla. DECISIÓN DEL COMERCIO, 2026-08-28.
@@ -1246,7 +1248,7 @@ async function decidirComentario(
   // sin respuesta por culpa de esto.
   if (!text?.trim()) {
     text = await craftPersonalizedDM({
-      billing: { db, workspaceId: opts.workspaceId, concepto: 'ia_asistencia' },
+      billing: { db, workspaceId: opts.workspaceId, concepto: 'ia_asistencia', detalle: { contactId: opts.contact.id, canal: commentChannel } },
       apiKey,
       base: orderStatus
         ? 'Responde su duda sobre el pedido con los datos reales. No vendas nada.'
@@ -1371,6 +1373,7 @@ async function decidirComentario(
           db,
           workspaceId: opts.workspaceId,
           concepto: 'ia_clasificacion',
+          detalle: { contactId: opts.contact.id, canal: commentChannel },
         },
         // En TikTok la única respuesta posible es la pública, así que no se le
         // pregunta al clasificador algo que no se puede ejecutar.
@@ -1832,7 +1835,7 @@ export async function maybeRunCloser(
     leadScore: rec.lead_score,
   });
   const reply = await generateCloserReply({
-    billing: { db, workspaceId: opts.workspaceId, concepto: 'ia_asistencia' },
+    billing: { db, workspaceId: opts.workspaceId, concepto: 'ia_asistencia', detalle: { conversacion: conv.id, contactId: opts.contact.id } },
     apiKey,
     plan,
     brand,

@@ -104,7 +104,7 @@ export async function simularComentario(
   const resuelta = await resolveAnthropicKey(db, { workspaceId });
   const apiKey = resuelta?.key ?? null;
   if (!apiKey) return barrera('comment_sin_llave');
-  const billing = { db, workspaceId, concepto: 'ia_clasificacion' as const };
+  const billing = { db, workspaceId, concepto: 'ia_clasificacion' as const, detalle: { superficie: 'panel', para: 'simulacion_comentario' } };
 
   // La crítica y el spam se ocultan y no se contestan: decisión del dueño,
   // igual que en vivo. Primero la regla sin modelo, después el clasificador.

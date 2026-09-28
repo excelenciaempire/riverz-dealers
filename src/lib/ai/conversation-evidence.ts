@@ -76,7 +76,7 @@ async function enrich(db: SupabaseClient, input: {
       const image = mime.startsWith('image/') || (primary && /^(image|sticker)$/.test(row.media_type ?? ''));
       if (!audio && !image) continue;
       try {
-        const billing = { db, workspaceId: input.workspaceId, concepto: 'transcripcion' as const };
+        const billing = { db, workspaceId: input.workspaceId, concepto: 'transcripcion' as const, detalle: { conversacion: input.conversationId, mensaje: row.id } };
         let text = audio && primary ? transcript : null;
         if (!text) {
           const url = await resolveMediaFetchUrl(attachment.url, input.workspaceId);

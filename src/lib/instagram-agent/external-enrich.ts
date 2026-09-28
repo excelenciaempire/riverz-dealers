@@ -415,6 +415,7 @@ export async function enrichExternalProfile(
         db,
         workspaceId: opts.workspaceId ?? '',
         concepto: 'ia_asistencia',
+        detalle: { contactId: opts.contactId },
       }),
     ]);
     await mark(db, opts.contactId, {

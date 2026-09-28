@@ -293,6 +293,10 @@ export async function composeSuperAgentReply(
         db,
         workspaceId: input.workspaceId,
         concepto: 'ia_respuesta',
+        detalle: {
+          conversacion: conversation.id,
+          canal: input.commentChannel ?? 'ig_comment',
+        },
         origenDeLaClave: resolvedKey.source,
       }),
       {

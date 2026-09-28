@@ -76,7 +76,7 @@ export function summarizeServiceActivity(
     total.sent++;
     group.counts[kind]++;
     total[kind]++;
-    if (['fb_comment', 'ig_comment'].includes(channel)) {
+    if (['fb_comment', 'ig_comment', 'tiktok_comment'].includes(channel)) {
       group.counts.comments++;
       total.comments++;
     }

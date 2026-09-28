@@ -278,6 +278,7 @@ export async function componerBorrador(
             db,
             workspaceId: input.workspaceId,
             concepto: 'ia_asistencia',
+            detalle: { superficie: 'panel', para: 'borrador' },
             origenDeLaClave:
               clave === resolvedKey?.key ? resolvedKey.source : 'platform',
           }),

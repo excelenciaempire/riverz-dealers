@@ -2,6 +2,8 @@
 
 import { LogoTarjeta } from '@/components/billing/logo-tarjeta';
 import { WalletTopupHistory } from './wallet-topup-history';
+import { WalletDisclosure } from './wallet-disclosure';
+import { WalletUsageBreakdown } from './wallet-usage-breakdown';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -10,10 +12,10 @@ import { useLocale, useT } from '@/hooks/use-locale';
 import { avisarSaldoCambio } from '@/hooks/use-saldo';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { cn } from '@/lib/utils';
-import {movementContext,movementTokens} from '@/lib/wallet/movement-context';
-import {useTimezone} from '@/hooks/use-timezone';
-import {daysAgoStart} from '@/lib/dashboard/date-utils';
-import {fromZonedTime} from 'date-fns-tz';
+import { movementContext, movementTokens } from '@/lib/wallet/movement-context';
+import { useTimezone } from '@/hooks/use-timezone';
+import { daysAgoStart } from '@/lib/dashboard/date-utils';
+import { fromZonedTime } from 'date-fns-tz';
 import type { BilledActivity } from '@/lib/wallet/activity';
 import type { ServiceActivity } from '@/lib/wallet/service-activity';
 import { ChevronDown, CreditCard, Loader2, Plus, Wallet } from 'lucide-react';
@@ -102,7 +104,7 @@ interface Movimiento {
   unidad: string | null;
   referenciaTipo: string | null;
   referenciaId: string | null;
-  detalle?: Record<string,unknown>;
+  detalle?: Record<string, unknown>;
 }
 
 /** 0 = hoy, -1 = ayer. Los positivos son ventanas móviles hacia atrás. */
@@ -122,10 +124,34 @@ export function WalletPanel() {
   const t = useT();
   const { locale } = useLocale();
   const fmt = useFormat();
-  const tz=useTimezone();
-  const channelName=(channel:string)=>channel==='panel'?t('settings.walletServicePanel'):channel==='fb_comment'?t('settings.walletActivityFbComments'):
-    channel==='ig_comment'?t('settings.walletActivityIgComments'):channel==='webchat'?t('settings.walletActivityWeb'):
-    ({whatsapp:'WhatsApp',gmail:'Gmail',outlook:'Outlook / Hotmail',zoho:'Zoho',instagram:'Instagram',messenger:'Messenger',mercadolibre:'Mercado Libre',telegram:'Telegram',sms:'SMS',tiktok:'TikTok'} as Record<string,string>)[channel]??t('settings.walletActivityOther');
+  const tz = useTimezone();
+  const channelName = (channel: string) =>
+    channel === 'panel'
+      ? t('settings.walletServicePanel')
+      : ['voice', 'calls'].includes(channel)
+        ? t('settings.walletOriginCalls')
+        : channel === 'tiktok_comment'
+          ? t('settings.walletActivityTikTokComments')
+          : channel === 'fb_comment'
+            ? t('settings.walletActivityFbComments')
+            : channel === 'ig_comment'
+              ? t('settings.walletActivityIgComments')
+              : channel === 'webchat'
+                ? t('settings.walletActivityWeb')
+                : ((
+                    {
+                      whatsapp: 'WhatsApp',
+                      gmail: 'Gmail',
+                      outlook: 'Outlook / Hotmail',
+                      zoho: 'Zoho',
+                      instagram: 'Instagram',
+                      messenger: 'Messenger',
+                      mercadolibre: 'Mercado Libre',
+                      telegram: 'Telegram',
+                      sms: 'SMS',
+                      tiktok: 'TikTok',
+                    } as Record<string, string>
+                  )[channel] ?? channel);
   const fetchWithCsrf = useFetchWithCsrf();
 
   const [dias, setDias] = useState<number | null>(30);
@@ -139,18 +165,26 @@ export function WalletPanel() {
   const [movs, setMovs] = useState<Movimiento[] | null>(null);
   const [pagina, setPagina] = useState(0);
   const [hayMas, setHayMas] = useState(false);
-  const [movimientosAbiertos, setMovimientosAbiertos] = useState(true);
+  const [movimientosAbiertos, setMovimientosAbiertos] = useState(false);
+  const [movsError, setMovsError] = useState(false);
+  const [movsLoading, setMovsLoading] = useState(true);
   const [autoDeseado, setAutoDeseado] = useState<boolean | null>(null);
   const [autoMonto, setAutoMonto] = useState('');
   const [autoUmbral, setAutoUmbral] = useState('');
-  const [revision,setRevision]=useState(0);
-  useEffect(()=>{
-    const refresh=()=>{if(document.visibilityState==='visible')setRevision(v=>v+1);};
-    const interval=setInterval(refresh,30_000);
-    window.addEventListener('focus',refresh);
-    document.addEventListener('visibilitychange',refresh);
-    return()=>{clearInterval(interval);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);};
-  },[]);
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') setRevision((v) => v + 1);
+    };
+    const interval = setInterval(refresh, 30_000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
 
   const rango = useMemo(() => {
     // Refresh the current range as live usage arrives, including across midnight.
@@ -159,18 +193,24 @@ export function WalletPanel() {
     // medianoche. Un resumen que dice "hoy" y trae lo de anoche hace dudar de
     // todos los demás números de la pantalla.
     if (dias === 0) {
-      return { desde: daysAgoStart(tz,0).toISOString(), hasta: new Date().toISOString() };
+      return {
+        desde: daysAgoStart(tz, 0).toISOString(),
+        hasta: new Date().toISOString(),
+      };
     }
     if (dias === -1) {
-      return { desde: daysAgoStart(tz,1).toISOString(), hasta: daysAgoStart(tz,0).toISOString() };
+      return {
+        desde: daysAgoStart(tz, 1).toISOString(),
+        hasta: daysAgoStart(tz, 0).toISOString(),
+      };
     }
     if (dias !== null) {
       return { desde: desdeHace(dias), hasta: new Date().toISOString() };
     }
     return {
-      desde: fromZonedTime(`${desde}T00:00:00`,tz).toISOString(),
+      desde: fromZonedTime(`${desde}T00:00:00`, tz).toISOString(),
       // El día "hasta" se toma entero: quien elige el 20 quiere lo del 20.
-      hasta: fromZonedTime(`${hasta}T23:59:59`,tz).toISOString(),
+      hasta: fromZonedTime(`${hasta}T23:59:59`, tz).toISOString(),
     };
   }, [dias, desde, hasta, revision, tz]);
 
@@ -204,6 +244,8 @@ export function WalletPanel() {
   useEffect(() => {
     let vivo = true;
     void (async () => {
+      setMovsLoading(true);
+      setMovsError(false);
       try {
         const q = new URLSearchParams({
           desde: rango.desde,
@@ -214,7 +256,7 @@ export function WalletPanel() {
         const res = await fetch(`/api/wallet/movimientos?${q}`, {
           cache: 'no-store',
         });
-        if (!res.ok) return;
+        if (!res.ok) throw new Error('Wallet movements unavailable');
         const json = (await res.json()) as {
           filas: Movimiento[];
           hayMas: boolean;
@@ -223,7 +265,9 @@ export function WalletPanel() {
         setMovs(json.filas);
         setHayMas(json.hayMas);
       } catch {
-        if (vivo) setMovs([]);
+        if (vivo) setMovsError(true);
+      } finally {
+        if (vivo) setMovsLoading(false);
       }
     })();
     return () => {
@@ -327,11 +371,13 @@ export function WalletPanel() {
       if (c === 'recarga_ajuste') return t('settings.walletTopupAdjustment');
       if (c === 'comision_stripe') return t('settings.walletTopupAdjustment');
       if (c === 'recarga') return t('settings.walletTopUp');
-      const tar = e?.tarifas.find((x) => x.concepto === c);
-      if (!tar) return c;
+      const tar =
+        e?.costos.find((x) => x.concepto === c) ??
+        e?.tarifas.find((x) => x.concepto === c);
+      if (!tar) return t('settings.walletOtherService');
       return locale === 'en' ? tar.nombreEn : tar.nombreEs;
     },
-    [e?.tarifas, locale, t]
+    [e?.tarifas, e?.costos, locale, t]
   );
 
   if (cargando && !e) {
@@ -341,7 +387,18 @@ export function WalletPanel() {
       </div>
     );
   }
-  if (!e) return <div role="alert" className="border-border rounded-xl border p-5 flex items-center justify-between gap-4"><p className="text-sm">{t('settings.walletLoadFailed')}</p><Button variant="outline" onClick={()=>setRevision(v=>v+1)}>{t('settings.walletRetry')}</Button></div>;
+  if (!e)
+    return (
+      <div
+        role="alert"
+        className="border-border flex items-center justify-between gap-4 rounded-xl border p-5"
+      >
+        <p className="text-sm">{t('settings.walletLoadFailed')}</p>
+        <Button variant="outline" onClick={() => setRevision((v) => v + 1)}>
+          {t('settings.walletRetry')}
+        </Button>
+      </div>
+    );
   if (e.exenta) return null;
 
   const { resumen, auto } = e;
@@ -436,195 +493,50 @@ export function WalletPanel() {
         )}
       </section>
 
-      <WalletTopupHistory currency={e.moneda} timezone={tz} revision={revision} />
-
-      {/* ── Recarga automática ──────────────────────────────────────── */}
-      {e.puedeRecargar && (
-        <section className="border-border bg-card rounded-xl border p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-3">
-                <h3 className="text-foreground text-sm font-semibold">
-                  {t('settings.walletAutoTitle')}
-                </h3>
-                <Switch
-                  checked={autoVisible}
-                  disabled={yendo}
-                  aria-label={t('settings.walletAutoTitle')}
-                  onCheckedChange={(checked) => {
-                    setAutoDeseado(checked);
-                    if (checked) {
-                      if (!auto.tieneTarjeta) return;
-                      void guardarAuto({
-                        recargaCentavos: (Number(autoMonto) || 10) * 100,
-                        umbralCentavos: (Number(autoUmbral) || 1) * 100,
-                      }).finally(() => setAutoDeseado(null));
-                      return;
-                    }
-                    if (!autoActivo) {
-                      setAutoDeseado(null);
-                      return;
-                    }
-                    setAutoMonto(String((auto.recargaCentavos ?? 1000) / 100));
-                    setAutoUmbral(String((auto.umbralCentavos ?? 100) / 100));
-                    void guardarAuto({ apagar: true }).finally(() =>
-                      setAutoDeseado(null)
-                    );
-                  }}
-                />
-              </div>
-            </div>
-            {autoVisible && (
-              <div className="flex items-center gap-3">
-                {/* Cuál tarjeta quedó. "Hay una tarjeta" no le sirve a quien
-                  tiene tres: sin la marca y los últimos cuatro, ante la duda la
-                  cambia — o no la cambia porque no sabe si hace falta. */}
-                {auto.tieneTarjeta && auto.ultimos4 && (
-                  <span className="text-foreground flex items-center gap-2 text-sm">
-                    <LogoTarjeta marca={auto.marca} />
-                    <span className="tabular-nums">···· {auto.ultimos4}</span>
-                  </span>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={yendo}
-                  onClick={() => void irPorTarjeta()}
-                >
-                  <CreditCard className="size-4" />
-                  {auto.tieneTarjeta
-                    ? t('settings.walletCardChange')
-                    : t('settings.walletCardAdd')}
-                </Button>
-                {auto.tieneTarjeta && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={yendo}
-                    onClick={() => {
-                      if (confirm(t('settings.walletCardRemoveConfirm'))) {
-                        void guardarAuto({ borrarTarjeta: true });
-                      }
-                    }}
-                  >
-                    {t('settings.walletCardRemove')}
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Sin tarjeta guardada no se ofrece configurar el disparo: sería
-              prometer un cobro que no se puede hacer. */}
-          {autoVisible && auto.tieneTarjeta && (
-            <div className="mt-4 flex flex-wrap items-end gap-2">
-              <label className="text-sm">
-                <span className="text-muted-foreground block">
-                  {t('settings.walletAutoAmount')}
-                </span>
-                <Input
-                  value={autoMonto}
-                  onChange={(ev) =>
-                    setAutoMonto(ev.target.value.replace(/[^\d]/g, ''))
-                  }
-                  placeholder={
-                    auto.recargaCentavos !== null
-                      ? String(auto.recargaCentavos / 100)
-                      : '10'
-                  }
-                  inputMode="numeric"
-                  className="mt-1 h-9 w-28"
-                />
-              </label>
-              <label className="text-sm">
-                <span className="text-muted-foreground block">
-                  {t('settings.walletAutoThreshold')}
-                </span>
-                <Input
-                  value={autoUmbral}
-                  onChange={(ev) =>
-                    setAutoUmbral(ev.target.value.replace(/[^\d]/g, ''))
-                  }
-                  placeholder={
-                    auto.umbralCentavos !== null
-                      ? String(auto.umbralCentavos / 100)
-                      : '1'
-                  }
-                  inputMode="numeric"
-                  className="mt-1 h-9 w-28"
-                />
-              </label>
-              <Button
-                size="sm"
-                disabled={yendo || (!autoMonto && !autoUmbral)}
-                onClick={() =>
-                  void guardarAuto({
-                    recargaCentavos:
-                      (Number(autoMonto) || (auto.recargaCentavos ?? 0) / 100) *
-                      100,
-                    umbralCentavos:
-                      (Number(autoUmbral) || (auto.umbralCentavos ?? 0) / 100) *
-                      100,
-                  })
-                }
-              >
-                {t('settings.walletAutoSave')}
-              </Button>
-            </div>
-          )}
-          {autoVisible && autoActivo && (
-            <p className="text-muted-foreground mt-3 text-sm">
-              {t('settings.walletAutoOn', {
-                monto: plata(auto.recargaCentavos ?? 0),
-                umbral: plata(auto.umbralCentavos ?? 0),
-              })}
-            </p>
-          )}
-        </section>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+      <div>
         {/* ── Uso en el período ───────────────────────────────────────── */}
         <section className="border-border bg-card rounded-xl border p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-foreground text-sm font-semibold">
               {t('settings.walletUsage')}
             </h3>
-            <div className="flex flex-wrap items-center gap-2">
-              {DIAS.map((d) => (
-                <Button
-                  key={d}
-                  size="sm"
-                  variant={dias === d ? 'default' : 'outline'}
-                  onClick={() => {
-                    setDias(d);
-                    setPagina(0);
-                  }}
-                >
-                  {d === 0
-                    ? t('settings.walletToday')
-                    : d === -1
-                      ? t('settings.walletYesterday')
-                      : t('settings.walletLastDays', { n: d })}
-                </Button>
-              ))}
-              <Button
-                size="sm"
-                variant={dias === null ? 'default' : 'outline'}
-                onClick={() => {
-                  setDias(null);
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">
+                {t('settings.walletPeriod')}
+              </span>
+              <select
+                className="border-input bg-background rounded-lg border px-3 py-2"
+                value={dias ?? 'custom'}
+                onChange={(ev) => {
+                  setDias(
+                    ev.target.value === 'custom'
+                      ? null
+                      : Number(ev.target.value)
+                  );
                   setPagina(0);
                 }}
               >
-                {t('settings.walletCustomRange')}
-              </Button>
-            </div>
+                {DIAS.map((d) => (
+                  <option key={d} value={d}>
+                    {d === 0
+                      ? t('settings.walletToday')
+                      : d === -1
+                        ? t('settings.walletYesterday')
+                        : t('settings.walletLastDays', { n: d })}
+                  </option>
+                ))}
+                <option value="custom">
+                  {t('settings.walletCustomRange')}
+                </option>
+              </select>
+            </label>
           </div>
 
           {dias === null && (
             <div className="mt-3 flex w-full items-center gap-2 sm:w-auto">
               <Input
                 type="date"
+                aria-label={t('settings.walletFromDate')}
                 value={desde}
                 onChange={(ev) => {
                   setDesde(ev.target.value);
@@ -635,6 +547,7 @@ export function WalletPanel() {
               <span className="text-muted-foreground">–</span>
               <Input
                 type="date"
+                aria-label={t('settings.walletToDate')}
                 value={hasta}
                 onChange={(ev) => {
                   setHasta(ev.target.value);
@@ -663,132 +576,313 @@ export function WalletPanel() {
               </p>
             </div>
           </div>
-          {!!resumen.ajustesCentavos&&<p className="mt-2 text-xs text-muted-foreground">{t('settings.walletAdjustments')}: {plata(resumen.ajustesCentavos)}</p>}
+          {!!resumen.ajustesCentavos && (
+            <p className="text-muted-foreground mt-2 text-xs">
+              {t('settings.walletAdjustments')}:{' '}
+              {plata(resumen.ajustesCentavos)}
+            </p>
+          )}
 
           {resumen.porDia.length > 1 && (
-            <div className="mt-6">
-              <h4 className="text-foreground text-sm font-medium">
+            <details className="group/day mt-5">
+              <summary className="text-foreground flex cursor-pointer list-none items-center justify-between text-sm font-medium">
                 {t('settings.walletByDay')}
-              </h4>
+                <ChevronDown className="size-4 transition-transform group-open/day:rotate-180" />
+              </summary>
               <div className="mt-3 flex h-28 items-end gap-1">
                 {resumen.porDia.map((d) => (
                   <div
                     key={d.dia}
                     className="group relative flex h-full flex-1 items-end"
-                    title={`${fmt.date(d.dia,{timeZone:'UTC'})} · ${plata(d.gastadoCentavos)}`}
+                    title={`${fmt.date(d.dia, { timeZone: 'UTC' })} · ${plata(d.gastadoCentavos)}`}
                   >
                     <div
                       className="bg-primary w-full rounded-t transition-colors"
                       style={{
-                        height: `${Math.max(2, (d.gastadoCentavos / maxDia) * 100)}%`,
+                        height: `${d.gastadoCentavos === 0 ? 0 : Math.max(2, (d.gastadoCentavos / maxDia) * 100)}%`,
                       }}
                     />
                   </div>
                 ))}
               </div>
               <div className="text-muted-foreground mt-2 flex justify-between text-xs">
-                <span>{fmt.date(resumen.porDia[0].dia,{timeZone:'UTC'})}</span>
                 <span>
-                  {fmt.date(resumen.porDia[resumen.porDia.length - 1].dia,{timeZone:'UTC'})}
+                  {fmt.date(resumen.porDia[0].dia, { timeZone: 'UTC' })}
+                </span>
+                <span>
+                  {fmt.date(resumen.porDia[resumen.porDia.length - 1].dia, {
+                    timeZone: 'UTC',
+                  })}
                 </span>
               </div>
-            </div>
-          )}
-        </section>
-
-        {/* ── En qué se fue ───────────────────────────────────────────── */}
-        <section className="border-border bg-card rounded-xl border p-5">
-          <h3 className="text-foreground text-sm font-semibold">
-            {t('settings.walletByConcept')}
-          </h3>
-          {resumen.porConcepto.length === 0 ? (
-            <p className="text-muted-foreground mt-3 text-sm">
-              {t('settings.walletNoSpend')}
-            </p>
-          ) : (
-            <ul className="mt-4 space-y-3">
-              {resumen.porConcepto.map((c) => {
-                const pct = Math.round(
-                  (c.centavos / Math.max(1, resumen.gastadoCentavos)) * 100
-                );
-                const activo = concepto === c.concepto;
-                return (
-                  <li key={c.concepto}>
-                    <button
-                      type="button"
-                      className="w-full text-left"
-                      onClick={() => {
-                        setConcepto(activo ? null : c.concepto);
-                        setPagina(0);
-                      }}
-                    >
-                      <div className="flex items-baseline justify-between gap-3 text-sm">
-                        <span
-                          className={cn(
-                            'truncate',
-                            activo
-                              ? 'text-foreground font-medium'
-                              : 'text-foreground'
-                          )}
-                        >
-                          {nombreConcepto(c.concepto)}
-                        </span>
-                        <span className="text-muted-foreground shrink-0 tabular-nums">
-                          {plata(c.centavos)} · {pct}%
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">{t('settings.walletChargedOperations',{count:c.movimientos})}</p>
-                      <div className="bg-muted mt-1 h-1.5 w-full overflow-hidden rounded-full">
-                        <div
-                          className="bg-primary h-full rounded-full"
-                          style={{ width: `${Math.max(2, pct)}%` }}
-                        />
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            </details>
           )}
         </section>
       </div>
 
+      <WalletUsageBreakdown
+        concepts={resumen.porConcepto}
+        activity={e.billedActivity}
+        currency={e.moneda}
+        timezone={tz}
+        name={nombreConcepto}
+        channelName={channelName}
+      />
+      {/* ── Recarga automática ──────────────────────────────────────── */}
+      {e.puedeRecargar && (
+        <WalletDisclosure
+          title={t('settings.walletAutoTitle')}
+          value={t(
+            autoActivo ? 'settings.walletEnabled' : 'settings.walletDisabled'
+          )}
+        >
+          <div className="p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-foreground text-sm font-semibold">
+                    {t('settings.walletAutoTitle')}
+                  </h3>
+                  <Switch
+                    checked={autoVisible}
+                    disabled={yendo}
+                    aria-label={t('settings.walletAutoTitle')}
+                    onCheckedChange={(checked) => {
+                      setAutoDeseado(checked);
+                      if (checked) {
+                        if (!auto.tieneTarjeta) return;
+                        void guardarAuto({
+                          recargaCentavos: (Number(autoMonto) || 10) * 100,
+                          umbralCentavos: (Number(autoUmbral) || 1) * 100,
+                        }).finally(() => setAutoDeseado(null));
+                        return;
+                      }
+                      if (!autoActivo) {
+                        setAutoDeseado(null);
+                        return;
+                      }
+                      setAutoMonto(
+                        String((auto.recargaCentavos ?? 1000) / 100)
+                      );
+                      setAutoUmbral(String((auto.umbralCentavos ?? 100) / 100));
+                      void guardarAuto({ apagar: true }).finally(() =>
+                        setAutoDeseado(null)
+                      );
+                    }}
+                  />
+                </div>
+              </div>
+              {autoVisible && (
+                <div className="flex items-center gap-3">
+                  {/* Cuál tarjeta quedó. "Hay una tarjeta" no le sirve a quien
+                  tiene tres: sin la marca y los últimos cuatro, ante la duda la
+                  cambia — o no la cambia porque no sabe si hace falta. */}
+                  {auto.tieneTarjeta && auto.ultimos4 && (
+                    <span className="text-foreground flex items-center gap-2 text-sm">
+                      <LogoTarjeta marca={auto.marca} />
+                      <span className="tabular-nums">···· {auto.ultimos4}</span>
+                    </span>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={yendo}
+                    onClick={() => void irPorTarjeta()}
+                  >
+                    <CreditCard className="size-4" />
+                    {auto.tieneTarjeta
+                      ? t('settings.walletCardChange')
+                      : t('settings.walletCardAdd')}
+                  </Button>
+                  {auto.tieneTarjeta && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={yendo}
+                      onClick={() => {
+                        if (confirm(t('settings.walletCardRemoveConfirm'))) {
+                          void guardarAuto({ borrarTarjeta: true });
+                        }
+                      }}
+                    >
+                      {t('settings.walletCardRemove')}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Sin tarjeta guardada no se ofrece configurar el disparo: sería
+              prometer un cobro que no se puede hacer. */}
+            {autoVisible && auto.tieneTarjeta && (
+              <div className="mt-4 flex flex-wrap items-end gap-2">
+                <label className="text-sm">
+                  <span className="text-muted-foreground block">
+                    {t('settings.walletAutoAmount')}
+                  </span>
+                  <Input
+                    value={autoMonto}
+                    onChange={(ev) =>
+                      setAutoMonto(ev.target.value.replace(/[^\d]/g, ''))
+                    }
+                    placeholder={
+                      auto.recargaCentavos !== null
+                        ? String(auto.recargaCentavos / 100)
+                        : '10'
+                    }
+                    inputMode="numeric"
+                    className="mt-1 h-9 w-28"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="text-muted-foreground block">
+                    {t('settings.walletAutoThreshold')}
+                  </span>
+                  <Input
+                    value={autoUmbral}
+                    onChange={(ev) =>
+                      setAutoUmbral(ev.target.value.replace(/[^\d]/g, ''))
+                    }
+                    placeholder={
+                      auto.umbralCentavos !== null
+                        ? String(auto.umbralCentavos / 100)
+                        : '1'
+                    }
+                    inputMode="numeric"
+                    className="mt-1 h-9 w-28"
+                  />
+                </label>
+                <Button
+                  size="sm"
+                  disabled={yendo || (!autoMonto && !autoUmbral)}
+                  onClick={() =>
+                    void guardarAuto({
+                      recargaCentavos:
+                        (Number(autoMonto) ||
+                          (auto.recargaCentavos ?? 0) / 100) * 100,
+                      umbralCentavos:
+                        (Number(autoUmbral) ||
+                          (auto.umbralCentavos ?? 0) / 100) * 100,
+                    })
+                  }
+                >
+                  {t('settings.walletAutoSave')}
+                </Button>
+              </div>
+            )}
+            {autoVisible && autoActivo && (
+              <p className="text-muted-foreground mt-3 text-sm">
+                {t('settings.walletAutoOn', {
+                  monto: plata(auto.recargaCentavos ?? 0),
+                  umbral: plata(auto.umbralCentavos ?? 0),
+                })}
+              </p>
+            )}
+          </div>
+        </WalletDisclosure>
+      )}
+
+      <WalletTopupHistory
+        currency={e.moneda}
+        timezone={tz}
+        revision={revision}
+      />
+
       {/* ── El detalle ──────────────────────────────────────────────── */}
-      {e.serviceActivity && <section className="border-border bg-card rounded-xl border p-5">
-        <h3 className="text-sm font-semibold">{t('settings.walletServiceTitle')}</h3>
-        <p className="text-muted-foreground mt-1 text-xs">{t('settings.walletServiceNote')}</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
-          {([
-            ['walletServiceContacts', e.serviceActivity.contacts],
-            ['walletServiceAiContacts', e.serviceActivity.aiContacts],
-            ['walletActivitySent', e.serviceActivity.sent],
-            ['walletServiceComments', e.serviceActivity.comments],
-          ] as const).map(([key, value]) => <div key={key} className="bg-muted/40 rounded-lg p-3"><p className="text-xs text-muted-foreground">{t(`settings.${key}`)}</p><p className="text-xl font-semibold tabular-nums mt-1">{fmt.number(value)}</p></div>)}
-        </div>
-        <div className="overflow-x-auto mt-4"><table className="w-full text-sm">
-          <thead className="text-muted-foreground"><tr><th className="text-left py-2">{t('settings.walletActivityChannel')}</th>
-            {['walletServiceContacts','walletServiceAi','walletServiceAutomations','walletServiceHuman','walletServiceOther','walletActivitySent'].map(key=><th key={key} className="text-right px-3 whitespace-nowrap">{t(`settings.${key}`)}</th>)}
-          </tr></thead>
-          <tbody>{e.serviceActivity.byChannel.map(c=><tr key={c.channel} className="border-t border-border"><td className="py-3 whitespace-nowrap">{channelName(c.channel)}</td>
-            {[c.contacts,c.aiMessages,c.automated,c.human,c.other,c.sent].map((value,i)=><td key={i} className="text-right px-3 tabular-nums">{fmt.number(value)}</td>)}
-          </tr>)}</tbody>
-          <tfoot className="border-t border-border font-semibold"><tr><td className="py-3">{t('settings.walletActivityTotal')}</td>
-            {[e.serviceActivity.contacts,e.serviceActivity.aiMessages,e.serviceActivity.automated,e.serviceActivity.human,e.serviceActivity.other,e.serviceActivity.sent].map((value,i)=><td key={i} className="text-right px-3 tabular-nums">{fmt.number(value)}</td>)}
-          </tr></tfoot>
-        </table></div>
-      </section>}
-      {e.billedActivity&&<section className="border-border bg-card rounded-xl border p-5">
-        <h3 className="text-sm font-semibold">{t('settings.walletActivity')}</h3>
-        <p className="text-muted-foreground mt-1 text-xs">{t('settings.walletActivityNote')}</p>
-        {e.billedActivity.byChannel.some(c=>c.channel==='unattributed')&&<p className="text-muted-foreground mt-2 text-xs">{t('settings.walletServiceUnknownNote')}</p>}
-        <div className="overflow-x-auto mt-4"><table className="w-full text-sm">
-          <thead className="text-muted-foreground"><tr><th className="text-left py-2">{t('settings.walletActivityChannel')}</th>
-            <th className="text-right px-3">{t('settings.walletActivityContacts')}</th><th className="text-right px-3">{t('settings.walletActivityCharges')}</th><th className="text-right">{t('settings.walletActivityCharged')}</th></tr></thead>
-          <tbody>{e.billedActivity.byChannel.map(c=><tr key={c.channel} className="border-t border-border"><td className="py-3">{channelName(c.channel)}</td>
-            <td className="text-right px-3 tabular-nums">{fmt.number(c.contacts)}</td><td className="text-right px-3 tabular-nums">{fmt.number(c.charges)}</td><td className="text-right tabular-nums">{fmt.currency(c.chargedCentavos / 100, e.moneda.toUpperCase())}</td></tr>)}</tbody>
-          <tfoot className="font-semibold border-t border-border"><tr><td className="py-3">{t('settings.walletActivityTotal')}</td><td className="text-right px-3">{fmt.number(e.billedActivity.contacts)}</td><td className="text-right px-3">{fmt.number(e.billedActivity.charges)}</td><td className="text-right">{fmt.currency(e.billedActivity.chargedCentavos / 100, e.moneda.toUpperCase())}</td></tr></tfoot>
-        </table></div>
-      </section>}
+      {e.serviceActivity && (
+        <WalletDisclosure title={t('settings.walletServiceTitle')}>
+          <div className="p-5">
+            <p className="text-muted-foreground mt-1 text-xs">
+              {t('settings.walletServiceNote')}
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {(
+                [
+                  ['walletServiceContacts', e.serviceActivity.contacts],
+                  ['walletServiceAiContacts', e.serviceActivity.aiContacts],
+                  ['walletActivitySent', e.serviceActivity.sent],
+                  ['walletServiceComments', e.serviceActivity.comments],
+                ] as const
+              ).map(([key, value]) => (
+                <div key={key} className="bg-muted/40 rounded-lg p-3">
+                  <p className="text-muted-foreground text-xs">
+                    {t(`settings.${key}`)}
+                  </p>
+                  <p className="mt-1 text-xl font-semibold tabular-nums">
+                    {fmt.number(value)}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-muted-foreground">
+                  <tr>
+                    <th className="py-2 text-left">
+                      {t('settings.walletActivityChannel')}
+                    </th>
+                    {[
+                      'walletServiceContacts',
+                      'walletServiceAi',
+                      'walletServiceAutomations',
+                      'walletServiceHuman',
+                      'walletServiceOther',
+                      'walletActivitySent',
+                    ].map((key) => (
+                      <th
+                        key={key}
+                        className="px-3 text-right whitespace-nowrap"
+                      >
+                        {t(`settings.${key}`)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {e.serviceActivity.byChannel.map((c) => (
+                    <tr key={c.channel} className="border-border border-t">
+                      <td className="py-3 whitespace-nowrap">
+                        {channelName(c.channel)}
+                      </td>
+                      {[
+                        c.contacts,
+                        c.aiMessages,
+                        c.automated,
+                        c.human,
+                        c.other,
+                        c.sent,
+                      ].map((value, i) => (
+                        <td key={i} className="px-3 text-right tabular-nums">
+                          {fmt.number(value)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="border-border border-t font-semibold">
+                  <tr>
+                    <td className="py-3">
+                      {t('settings.walletActivityTotal')}
+                    </td>
+                    {[
+                      e.serviceActivity.contacts,
+                      e.serviceActivity.aiMessages,
+                      e.serviceActivity.automated,
+                      e.serviceActivity.human,
+                      e.serviceActivity.other,
+                      e.serviceActivity.sent,
+                    ].map((value, i) => (
+                      <td key={i} className="px-3 text-right tabular-nums">
+                        {fmt.number(value)}
+                      </td>
+                    ))}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </WalletDisclosure>
+      )}
       <details
         className="group border-border bg-card rounded-xl border"
         open={movimientosAbiertos}
@@ -801,22 +895,42 @@ export function WalletPanel() {
           <ChevronDown className="text-muted-foreground size-4 shrink-0 transition-transform group-open:rotate-180" />
         </summary>
 
-        {concepto && (
-          <div className="border-border flex justify-end border-b px-4 py-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setConcepto(null);
-                setPagina(0);
-              }}
-            >
-              {t('settings.walletClearFilter')}
+        <label className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3 text-sm">
+          <span className="text-muted-foreground">
+            {t('settings.walletMovementFilter')}
+          </span>
+          <select
+            className="border-input bg-background max-w-full rounded-lg border px-3 py-2"
+            value={concepto ?? ''}
+            onChange={(ev) => {
+              setConcepto(ev.target.value || null);
+              setPagina(0);
+            }}
+          >
+            <option value="">{t('settings.walletAllServices')}</option>
+            <option value="recarga">{t('settings.walletTopUp')}</option>
+            <option value="recarga_ajuste">
+              {t('settings.walletTopupAdjustment')}
+            </option>
+            {resumen.porConcepto.map((c) => (
+              <option key={c.concepto} value={c.concepto}>
+                {nombreConcepto(c.concepto)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {movsError ? (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-3 px-5 py-6 text-sm"
+          >
+            <p>{t('settings.walletLoadFailed')}</p>
+            <Button variant="outline" onClick={() => setRevision((v) => v + 1)}>
+              {t('settings.walletRetry')}
             </Button>
           </div>
-        )}
-
-        {!movs ? (
+        ) : movsLoading || !movs ? (
           <div className="flex justify-center py-8">
             <Loader2 className="text-muted-foreground size-4 animate-spin" />
           </div>
@@ -838,11 +952,30 @@ export function WalletPanel() {
                   <p className="text-foreground truncate">
                     {nombreConcepto(m.concepto)}
                   </p>
-                  {movementContext(m.detalle,t)&&<p className="text-xs text-muted-foreground">{movementContext(m.detalle,t)}</p>}
-                  {movementTokens(m.detalle)!==null&&<p className="text-xs text-muted-foreground">{t('settings.walletProcessedTokens',{n:fmt.number(movementTokens(m.detalle)!)})}</p>}
+                  {movementContext(m.detalle, t) && (
+                    <p className="text-muted-foreground text-xs">
+                      {movementContext(m.detalle, t)}
+                    </p>
+                  )}
+                  {movementTokens(m.detalle) !== null && (
+                    <p className="text-muted-foreground text-xs">
+                      {t('settings.walletProcessedTokens', {
+                        n: fmt.number(movementTokens(m.detalle)!),
+                      })}
+                    </p>
+                  )}
                   <p className="text-muted-foreground text-xs">
-                    {fmt.dateTime(m.creadoEn)}
-                    {` · #${m.id.slice(0,8)}`}
+                    {fmt.dateTime(m.creadoEn, {
+                      timeZone: tz,
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      timeZoneName: 'shortOffset',
+                    })}
+                    {` · #${m.id.slice(0, 8)}`}
                     {m.cantidad !== null && m.unidad
                       ? ` · ${fmt.number(m.cantidad)} ${m.unidad}`
                       : ''}
@@ -869,7 +1002,7 @@ export function WalletPanel() {
           </ul>
         )}
 
-        {(pagina > 0 || hayMas) && (
+        {!movsLoading && !movsError && (pagina > 0 || hayMas) && (
           <footer className="border-border flex items-center justify-between border-t px-5 py-3">
             <Button
               size="sm"
@@ -910,63 +1043,65 @@ export function WalletPanel() {
             se cobra. Decirlo es lo único honesto: si no, el primer resumen que
             no coincida con esta tabla parece un error de facturación. */}
         <ul className="border-border space-y-3 border-t px-5 py-4 text-sm">
-          {e.costos.map((c) => {
-            // Tres números posibles, y se elige el más cierto que haya:
-            //   1. lo que ya se le cobró por unidad en este rango,
-            //   2. lo que le sale de verdad según SU consumo,
-            //   3. la tarifa de lista, marcada como estimado.
-            const tar = e.tarifas.find((x) => x.concepto === c.concepto);
-            const cobrado = resumen.porConcepto.find(
-              (x) => x.concepto === c.concepto
-            )?.porUnidadCentavos;
-            const centavos =
-              cobrado ??
-              (e.aCosto || !tar ? c.centavos : tar.precioMilicentavos / 1000);
-            const esMedido =
-              cobrado !== null && cobrado !== undefined ? true : c.medido;
-            const dentroDe = locale === 'en' ? c.dentroDeEn : c.dentroDeEs;
-            return (
-              <li key={c.concepto} className="flex justify-between gap-3">
-                <span className="min-w-0">
-                  <span className="text-foreground">
-                    {locale === 'en' ? c.nombreEn : c.nombreEs}
-                  </span>
-                </span>
-                <span className="text-foreground shrink-0 text-right tabular-nums">
-                  {!esMedido && c.centavos === 0 ? (
-                    t('settings.walletActualUsageRate')
-                  ) : c.cobro === 'por_uso' ? (
-                    <>
-                      {fmt.currency(
-                        centavos / 100,
-                        (e.moneda ?? 'usd').toUpperCase(),
-                        {
-                          maximumFractionDigits: 4,
-                        }
-                      )}{' '}
-                      / {c.unidad}
-                    </>
-                  ) : (
-                    <span className="text-muted-foreground">
-                      {c.cobro === 'sin_cargo'
-                        ? t('settings.walletNoCharge')
-                        : t('settings.walletInsideOf', {
-                            linea: dentroDe ?? '',
-                          })}
+          {e.costos
+            .filter((c) => c.concepto !== 'recarga_ajuste')
+            .map((c) => {
+              // Tres números posibles, y se elige el más cierto que haya:
+              //   1. lo que ya se le cobró por unidad en este rango,
+              //   2. lo que le sale de verdad según SU consumo,
+              //   3. la tarifa de lista, marcada como estimado.
+              const tar = e.tarifas.find((x) => x.concepto === c.concepto);
+              const cobrado = resumen.porConcepto.find(
+                (x) => x.concepto === c.concepto
+              )?.porUnidadCentavos;
+              const centavos =
+                cobrado ??
+                (e.aCosto || !tar ? c.centavos : tar.precioMilicentavos / 1000);
+              const esMedido =
+                cobrado !== null && cobrado !== undefined ? true : c.medido;
+              const dentroDe = locale === 'en' ? c.dentroDeEn : c.dentroDeEs;
+              return (
+                <li key={c.concepto} className="flex justify-between gap-3">
+                  <span className="min-w-0">
+                    <span className="text-foreground">
+                      {locale === 'en' ? c.nombreEn : c.nombreEs}
                     </span>
-                  )}
-                  {c.cobro === 'por_uso' &&
-                    c.concepto !== 'comision_stripe' && (
-                      <span className="text-muted-foreground block text-xs">
-                        {esMedido
-                          ? t('settings.walletYourAverage')
-                          : t('settings.walletEstimate')}
+                  </span>
+                  <span className="text-foreground shrink-0 text-right tabular-nums">
+                    {!esMedido && c.centavos === 0 ? (
+                      t('settings.walletActualUsageRate')
+                    ) : c.cobro === 'por_uso' ? (
+                      <>
+                        {fmt.currency(
+                          centavos / 100,
+                          (e.moneda ?? 'usd').toUpperCase(),
+                          {
+                            maximumFractionDigits: 4,
+                          }
+                        )}{' '}
+                        / {c.unidad}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        {c.cobro === 'sin_cargo'
+                          ? t('settings.walletNoCharge')
+                          : t('settings.walletInsideOf', {
+                              linea: dentroDe ?? '',
+                            })}
                       </span>
                     )}
-                </span>
-              </li>
-            );
-          })}
+                    {c.cobro === 'por_uso' &&
+                      c.concepto !== 'comision_stripe' && (
+                        <span className="text-muted-foreground block text-xs">
+                          {esMedido
+                            ? t('settings.walletYourAverage')
+                            : t('settings.walletEstimate')}
+                        </span>
+                      )}
+                  </span>
+                </li>
+              );
+            })}
         </ul>
       </details>
     </div>

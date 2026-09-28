@@ -44,6 +44,7 @@ export async function generarPropuestas(
   const salida = await completeTextMedido(admin, {
     workspaceId: args.workspaceId,
     concepto: 'ia_asistencia',
+    detalle: { superficie: 'panel', para: 'mejoras' },
     referenciaTipo: args.referenciaTipo,
     referenciaId: args.referenciaId,
     tier: 'premium',

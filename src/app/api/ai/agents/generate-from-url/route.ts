@@ -404,6 +404,7 @@ export async function POST(request: Request) {
         db: admin,
         workspaceId,
         concepto: 'ia_asistencia',
+        detalle: { superficie: 'panel', para: 'generar_agente' },
         origenDeLaClave: clave.source,
       });
       const completion = await client.messages.create({
