@@ -2407,7 +2407,7 @@ function TriggerCard({
                 className="bg-muted text-foreground"
               />
             )}
-            {type === 'payment_rejected' && <PaymentRejectedConfig />}
+            {['payment_rejected', 'payment_pending'].includes(type) && <PaymentRejectedConfig />}
           </div>
         )}
       </div>

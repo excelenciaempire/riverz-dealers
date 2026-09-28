@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { ingestPendingPayments } from './pending'
 import {
   fetchPayments,
   payerName,
@@ -33,6 +34,7 @@ import {
 
 export interface MpSyncResult {
   fetched: number
+  pending: number
   rejected: number
   people: number
   paid: number
@@ -227,6 +229,7 @@ export async function syncWorkspaceRejectedPayments(
   const since = new Date(until.getTime() - args.windowDays * 86_400_000)
 
   const payments = await fetchPayments(args.token, since.toISOString(), until.toISOString())
+  const pending = await ingestPendingPayments(admin, args.workspaceId, payments, args.defaultCountry)
   const rejected = payments.filter((p) => p.status === 'rejected')
   const approved = payments.filter((p) => p.status === 'approved')
 
@@ -277,6 +280,7 @@ export async function syncWorkspaceRejectedPayments(
 
   return {
     fetched: payments.length,
+    pending,
     rejected: rejected.length,
     people: groups.length,
     paid,

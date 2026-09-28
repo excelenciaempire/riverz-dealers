@@ -70,7 +70,7 @@ async function cronHandler(request: Request) {
 
   let ok = 0
   let failed = 0
-  const totals = { rejected: 0, people: 0, paid: 0, inserted: 0 }
+  const totals = { rejected: 0, people: 0, paid: 0, inserted: 0, pending: 0 }
 
   for (const row of rows) {
     // Renueva el token si está por vencer. Mercado Pago da 180 días y sólo
@@ -101,6 +101,7 @@ async function cronHandler(request: Request) {
       totals.people += res.people
       totals.paid += res.paid
       totals.inserted += res.ingested.inserted
+      totals.pending += res.pending
       ok++
     } catch (err) {
       log.captureException(err, { workspaceId: row.workspace_id })

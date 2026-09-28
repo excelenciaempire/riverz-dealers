@@ -82,6 +82,11 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'Pago rechazado (Mercado Pago)',
     pillClass: 'border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300',
   },
+  payment_pending: {
+    label: 'Pago pendiente (Mercado Pago)',
+    labelKey: 'automations.triggerPaymentPending',
+    pillClass: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  },
   voice_call_completed: {
     label: 'Llamada finalizada (Voz IA)',
     pillClass: 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300',

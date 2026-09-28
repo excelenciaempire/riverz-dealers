@@ -99,6 +99,8 @@ export async function upsertWhatsappContact(
     name?: string
     email?: string
     legacyExternalId?: string
+    /** Non-Shopify integrations reuse phone identity without inventing a Shopify purchase. */
+    isShopifyCustomer?: boolean
   },
 ): Promise<string | null> {
   // Sanitize to the canonical E.164-digits form BEFORE lookup/insert. Callers
@@ -182,7 +184,7 @@ export async function upsertWhatsappContact(
   }
 
   if (existing?.id) {
-    if (!(existing as { is_shopify_customer?: boolean }).is_shopify_customer) {
+    if (args.isShopifyCustomer !== false && !(existing as { is_shopify_customer?: boolean }).is_shopify_customer) {
       // No esperamos al resultado — fire-and-forget para no demorar
       // el webhook. Si falla, el siguiente webhook lo intentará.
       void admin
@@ -212,7 +214,7 @@ export async function upsertWhatsappContact(
       phone: phone,
       name: args.name ?? null,
       email: args.email ?? null,
-      is_shopify_customer: true,
+      is_shopify_customer: args.isShopifyCustomer !== false,
     })
     .select('id')
     .single()

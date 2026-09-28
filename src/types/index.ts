@@ -806,6 +806,7 @@ export type AutomationTriggerType =
   // contabilidad a /api/integrations/mercadopago/rejected y lo dispara el
   // cron `mercadopago-recovery` (nunca un webhook en vivo).
   | 'payment_rejected'
+  | 'payment_pending'
   // Fires after a Voice AI call finishes (any terminal status). The
   // trigger_event carries call.outcome/status/duration/summary so a
   // follow-up automation can branch (e.g. no_answer → WhatsApp).

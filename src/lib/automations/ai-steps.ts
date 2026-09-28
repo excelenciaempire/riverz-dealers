@@ -79,6 +79,7 @@ export const AI_TRIGGERS: {
   { value: 'shopify_order_cancelled', que: 'se canceló un pedido' },
   { value: 'shopify_order_refunded', que: 'se reembolsó un pedido' },
   { value: 'payment_rejected', que: 'rechazaron un pago' },
+  { value: 'payment_pending', que: 'un pago de Mercado Pago espera efectivo o transferencia' },
   { value: 'first_inbound_message', que: 'alguien escribe por primera vez' },
   { value: 'new_contact_created', que: 'se creó un contacto nuevo' },
   { value: 'voice_call_completed', que: 'terminó una llamada' },

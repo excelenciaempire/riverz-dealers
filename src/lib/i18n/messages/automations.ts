@@ -285,6 +285,14 @@ export const automations = {
     es: "Pago rechazado (Mercado Pago)",
     en: "Payment declined (Mercado Pago)",
   },
+  triggerPaymentPending: { es: 'Pago pendiente (Mercado Pago)', en: 'Pending payment (Mercado Pago)' },
+  dpPaymentUrl: { es: 'Instrucciones de pago', en: 'Payment instructions' },
+  dpPaymentExpiration: { es: 'Vencimiento del pago', en: 'Payment expiration' },
+  'tpl_pago-pendiente-mercadopago_name': { es: 'Pago pendiente · Mercado Pago', en: 'Pending payment · Mercado Pago' },
+  'tpl_pago-pendiente-mercadopago_desc': {
+    es: 'Recuerda el efectivo o la transferencia pendientes a la hora, a las 6 y a las 24. Se detiene al pagar o vencer, sin duplicar Shopify.',
+    en: 'Reminds buyers about pending cash or bank transfers at 1, 6 and 24 hours. Stops when paid or expired, without duplicating Shopify.',
+  },
   triggerVoiceCallCompleted: {
     es: "Llamada finalizada (Voz IA)",
     en: "Call finished (Voice AI)",

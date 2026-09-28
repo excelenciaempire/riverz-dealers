@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { countryOfPhone } from '@/lib/whatsapp/phone-utils'
 import { freshAccessToken } from './oauth'
+import { fetchPayment } from './client'
+import { ingestPendingPayments } from './pending'
 import { syncWorkspaceRejectedPayments } from './sync'
 
 /**
@@ -32,6 +34,7 @@ export interface NotifyResult {
   deferred?: boolean
   inserted?: number
   updated?: number
+  pending?: number
 }
 
 /** ¿Este aviso es de un pago? Los demás temas son de otros canales. */
@@ -46,6 +49,7 @@ export function isPaymentTopic(kind: string | undefined | null): boolean {
 export async function handlePaymentNotification(
   admin: SupabaseClient,
   sellerId: string,
+  paymentId?: string | null,
 ): Promise<NotifyResult> {
   if (!sellerId) return { ok: true, unidentified: true }
 
@@ -73,6 +77,11 @@ export async function handlePaymentNotification(
     .maybeSingle()
   const phone = (conn as { config?: { display_phone_number?: string } } | null)
     ?.config?.display_phone_number
+  // Notifications can refer to vouchers created weeks ago, outside the rolling
+  // search window. Read that exact resource with this seller's credential.
+  if (paymentId && /^\d+$/.test(paymentId)) {
+    await ingestPendingPayments(admin, workspaceId, [await fetchPayment(token, paymentId)], countryOfPhone(phone) ?? 'AR')
+  }
 
   const res = await syncWorkspaceRejectedPayments(admin, {
     workspaceId,
@@ -80,5 +89,5 @@ export async function handlePaymentNotification(
     windowDays: WINDOW_DAYS,
     defaultCountry: countryOfPhone(phone) ?? 'AR',
   })
-  return { ok: true, inserted: res.ingested.inserted, updated: res.ingested.updated }
+  return { ok: true, inserted: res.ingested.inserted, updated: res.ingested.updated, pending: res.pending }
 }

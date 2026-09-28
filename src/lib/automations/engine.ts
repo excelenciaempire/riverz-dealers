@@ -16,6 +16,7 @@ import type {
   SetContextStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
+import { isPendingReminder, assertPaymentStillPending, claimPendingSequence, assertNoPendingReplacement, pendingPaymentCondition } from './pending-payment'
 import { confirmationDisplayVars } from './confirmation-copy'
 import { purchaseLines, purchaseLineSummary, purchaseConfirmationTemplates } from './purchase-confirmation'
 import { sendPurchasePhotos } from './purchase-photos'
@@ -548,7 +549,12 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
   const confirmedOrderId = input.triggerType === 'shopify_order_confirmed' ? String(input.context?.vars?.order_id ?? '').trim() : ''
   if (input.triggerType === 'shopify_order_confirmed' && !confirmedOrderId) return
   if (!isNewSessionEvent(cfg, input.triggerType, input.context?.vars ?? {})) return
-  const sessionLogId = usesSessionTemplates(cfg)
+  if (input.triggerType === 'payment_pending') {
+    const created = Date.parse(String(input.context?.vars?.payment_created_at ?? ''))
+    const started = Date.parse(String(automation.activation_requested_at ?? automation.created_at))
+    if (!Number.isFinite(created) || !Number.isFinite(started) || created < started) return
+  }
+  const sessionLogId = usesSessionTemplates(cfg) || isPendingReminder(input.triggerType, cfg)
     ? sessionRunId(automation.workspace_id, automation.id, input.triggerType, input.contactId ?? '', input.context?.vars ?? {}) : null
 
   // Belt-and-suspenders: migration 053 makes automation_logs.user_id
@@ -972,12 +978,25 @@ function exigirQueHayaSalido(): never {
 
 async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string> {
   const db = supabaseAdmin()
+  const pendingReminder = isPendingReminder(args.automation.trigger_type,
+    args.automation.trigger_config as Record<string, unknown>, args.context.vars)
+  if (args.contactId && ['send_message','send_template'].includes(step.step_type) &&
+      ['payment_rejected','shopify_abandoned_checkout'].includes(args.automation.trigger_type)) {
+    const since = String(args.context.vars?.rejected_at ?? args.context.vars?.checkout_created_at ?? '')
+    await assertNoPendingReplacement(db, args.automation.workspace_id, args.contactId, since)
+  }
+  if (pendingReminder && ['send_message','send_template'].includes(step.step_type)) {
+    if (!args.contactId) throw new Error('pending reminders need a contact')
+    await assertPaymentStillPending(db, args.automation.workspace_id, args.automation.trigger_type, args.contactId, args.context.vars ?? {})
+    await claimPendingSequence(db, args.automation.workspace_id, args.contactId, args.logId)
+  }
 
   switch (step.step_type) {
     case 'send_message': {
       const cfg = step.step_config as SendMessageStepConfig
       if (!args.contactId) throw new Error('send_message needs a contact')
       if (cfg.voice_note) {
+        if (pendingReminder) throw new StopSessionSequence('pending reminders require an idempotent text or template delivery')
         const conversationId = await resolveVoiceConversationId(args)
         const result = await sendVoiceNote({ workspaceId: args.automation.workspace_id, conversationId,
           config: cfg.voice_note, variables: { ...args.context.vars, 'message.text': args.context.message_text },
@@ -988,11 +1007,17 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       const text = interpolate(cfg.text, args)
       if (!text.trim()) throw new Error('send_message has empty text')
       const conversationId = await resolveConversationId(args)
+      const claim = pendingReminder ? await claimTemplateDelivery(db, {
+        workspaceId: args.automation.workspace_id, conversationId, logId: args.logId!,
+        stepId: step.id, templateName: '', automationName: args.automation.name,
+      }) : null
+      if (claim?.existingMessageId) return `already sent (${claim.existingMessageId}); no replay`
       const { whatsapp_message_id } = await engineSendText({
         workspaceId: args.automation.workspace_id,
         conversationId,
         contactId: args.contactId,
         text,
+        reservedMessageId: claim?.id,
         automationName: args.automation.name,
         reason: motivoDelDisparador(args.automation.trigger_type),
       })
@@ -1212,7 +1237,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         contactId:args.contactId,templateName:cfg.template_name,language:cfg.language??'es',stopAfterInboundAt}) : null
       if(sessionFallback&&!args.logId)throw new Error('session delivery requires a persistent execution')
       const sessionText = delivery?.mode === 'session' ? sessionTemplateText(delivery.template,params,{buttonUrlParam,buttonUrlIndex}) : null
-      const claim = sessionFallback ? await claimTemplateDelivery(db,{workspaceId:args.automation.workspace_id,
+      const claim = sessionFallback || pendingReminder ? await claimTemplateDelivery(db,{workspaceId:args.automation.workspace_id,
         conversationId,logId:args.logId!,stepId:step.id,templateName:cfg.template_name,automationName:args.automation.name}) : null
       if(claim?.existingMessageId)return `already sent (${claim.existingMessageId}); no replay`
       const sendArgs = {
@@ -1909,6 +1934,10 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
       return Boolean(hit) === want
     }
     case 'order_paid': {
+      if (args.automation.trigger_type === 'payment_pending') {
+        const want = (cfg.value ?? 'true').toLowerCase() !== 'false'
+        return pendingPaymentCondition(db, args.automation.workspace_id, args.context.vars ?? {}, want)
+      }
       // ¿El pedido ya figura pagado? Se le pregunta a la tienda AHORA, no al
       // contexto: el webhook guardó el estado que el pedido tenía al crearse
       // y después de una espera ese dato no dice nada. Es la pregunta de los
@@ -1933,6 +1962,7 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
         status === 'paid' ||
         status === 'partially_paid' ||
         (await avisoDePago(db, args.automation.workspace_id, args.contactId))
+      if (!want && !paid && status === 'pending') (args.context.vars ??= {}).pending_payment_reminder = true
       return paid === want
     }
     case 'time_of_day': {

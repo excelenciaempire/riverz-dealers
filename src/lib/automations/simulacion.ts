@@ -34,7 +34,8 @@ export type EscenarioSimulado =
   | 'shopify_order_fulfilled'
   | 'shopify_order_delivered'
   | 'shopify_order_cancelled'
-  | 'payment_rejected';
+  | 'payment_rejected'
+  | 'payment_pending';
 
 export const ESCENARIOS: EscenarioSimulado[] = [
   'shopify_order_created',
@@ -43,6 +44,7 @@ export const ESCENARIOS: EscenarioSimulado[] = [
   'shopify_order_delivered',
   'shopify_order_cancelled',
   'payment_rejected',
+  'payment_pending',
 ];
 
 export interface ProductoDePrueba {
@@ -255,6 +257,11 @@ export function varsDePedido(
       payment_reason_bucket: 'fondos',
       installments: '1',
     });
+  }
+  if (trigger === 'payment_pending') {
+    Object.assign(vars, { payment_gateway: 'mercadopago', financial_status: 'pending',
+      payment_id: '123456789', payment_created_at: new Date().toISOString(),
+      payment_url: 'https://www.mercadopago.com/', payment_expiration: '', payment_method: 'efecty' });
   }
   Object.assign(vars, confirmationDisplayVars(vars, 'es'));
   return vars;

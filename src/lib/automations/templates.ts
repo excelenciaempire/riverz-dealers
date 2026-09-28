@@ -11,6 +11,7 @@ export type TemplateSlug =
   | 'carrito-abandonado'
   | 'pago-rechazado'
   | 'pago-pendiente'
+  | 'pago-pendiente-mercadopago'
   | 'nuevo-pedido'
   | 'enviar-tracking'
   | 'post-survey'
@@ -264,7 +265,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     icon: 'credit-card',
     tags: ['Shopify', 'Transferencia', '1 h · 6 h · 24 h'],
     trigger_type: 'shopify_order_created',
-    trigger_config: {},
+    trigger_config: { pending_payment_reminder: true },
     suggested_template_body:
       'Hola {{customer_name}}, tu pedido {{order_name}} por {{total_price}} quedó reservado a tu nombre y esperando la transferencia.\n\nApenas la hagas, mándanos el comprobante por aquí y lo preparamos el mismo día.\n\n¿Necesitas los datos de la cuenta?',
     steps: [
@@ -518,6 +519,26 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     category: 'soporte', icon: 'package-check', tags: [],
     trigger_type: 'shopify_order_confirmed', trigger_config: retentionTriggerConfig(false), steps: retentionTemplateSeeds(false),
   },
+  'pago-pendiente-mercadopago': {
+    slug: 'pago-pendiente-mercadopago', requiresGateway: 'mercadopago',
+    name: 'Pago pendiente · Mercado Pago',
+    description: 'Recuerda el efectivo o la transferencia pendientes a la hora, a las 6 y a las 24. Se detiene al pagar o vencer, sin duplicar Shopify.',
+    category: 'recordatorios', icon: 'credit-card', tags: ['Mercado Pago', '1 h · 6 h · 24 h'],
+    trigger_type: 'payment_pending', trigger_config: { pending_payment_reminder: true },
+    suggested_template_body: 'Hola {{customer_name}}, tu pago por {{total_price}} {{currency}} sigue pendiente. Puedes consultar el comprobante y las instrucciones aquí: {{payment_url}}. Si ya pagaste, envíanos el comprobante por aquí.',
+    steps: [
+      { step_type: 'wait', step_config: { amount: 1, unit: 'hours', from_trigger_hours: 1 } },
+      { step_type: 'condition', step_config: { subject: 'order_paid', value: 'false' } },
+      { step_type: 'send_template', step_config: { template_name: '', language: 'es', variables: {}, expires_after_hours: 6 }, parent_index: 1, branch: 'yes' },
+      { step_type: 'wait', step_config: { amount: 5, unit: 'hours', from_trigger_hours: 6 }, parent_index: 1, branch: 'yes' },
+      { step_type: 'condition', step_config: { subject: 'order_paid', value: 'false' }, parent_index: 1, branch: 'yes' },
+      { step_type: 'send_template', step_config: { template_name: '', language: 'es', variables: {}, expires_after_hours: 24 }, parent_index: 4, branch: 'yes' },
+      { step_type: 'wait', step_config: { amount: 18, unit: 'hours', from_trigger_hours: 24 }, parent_index: 4, branch: 'yes' },
+      { step_type: 'condition', step_config: { subject: 'order_paid', value: 'false' }, parent_index: 4, branch: 'yes' },
+      { step_type: 'send_template', step_config: { template_name: '', language: 'es', variables: {}, expires_after_hours: 26 }, parent_index: 7, branch: 'yes' },
+      { step_type: 'add_tag', step_config: { tag_id: '' }, parent_index: 7, branch: 'yes' },
+    ],
+  },
 }
 
 /**
@@ -528,6 +549,7 @@ export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
   'carrito-abandonado',
   'pago-rechazado',
   'pago-pendiente',
+  'pago-pendiente-mercadopago',
   'nuevo-pedido',
   'enviar-tracking',
   'postventa-reposicion',
@@ -542,6 +564,7 @@ export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
  * merchant's locale so an English merchant doesn't seed Spanish defaults.
  */
 const SUGGESTED_BODIES_EN: Partial<Record<TemplateSlug, string>> = {
+  'pago-pendiente-mercadopago': 'Hi {{customer_name}}, your {{total_price}} {{currency}} payment is still pending. View your voucher and payment instructions here: {{payment_url}}. If you have already paid, send us your receipt here.',
   'carrito-abandonado':
     'Hi {{customer_name}}, your cart is still ready.\n\nYou can finish your purchase from the button. If shipping, payment, or a question got in the way, we can help here.\n\nWould you like to pick it back up?',
   'pago-rechazado':

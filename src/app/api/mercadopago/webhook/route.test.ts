@@ -35,7 +35,7 @@ it('processes a signed notification for its seller', async () => {
     body: JSON.stringify({ type: 'payment', user_id: 9 }),
   }))
   expect(res.status).toBe(200)
-  expect(mocks.notify).toHaveBeenCalledWith('db', '9')
+  expect(mocks.notify).toHaveBeenCalledWith('db', '9', '123456')
 })
 it('keeps the provider URL validation available without processing payments', () => {
   expect(GET().status).toBe(200)

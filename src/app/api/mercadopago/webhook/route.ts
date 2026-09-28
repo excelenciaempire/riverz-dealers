@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   const sellerId = String(body.user_id ?? url.searchParams.get('user_id') ?? '').trim()
 
   try {
-    return NextResponse.json(await handlePaymentNotification(supabaseAdmin(), sellerId))
+    return NextResponse.json(await handlePaymentNotification(supabaseAdmin(), sellerId, url.searchParams.get('data.id')))
   } catch (err) {
     log.captureException(err, { sellerId })
     // El sync de respaldo lo levanta en la próxima media hora.

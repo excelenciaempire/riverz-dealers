@@ -3,7 +3,7 @@ export function paymentStartedAt(
   vars: Record<string, unknown> | undefined,
   fallback: string
 ): string {
-  for (const key of ['order_created_at', 'rejected_at']) {
+  for (const key of ['order_created_at', 'rejected_at', 'payment_created_at']) {
     const value = vars?.[key];
     if (typeof value === 'string' && Number.isFinite(Date.parse(value)))
       return value;

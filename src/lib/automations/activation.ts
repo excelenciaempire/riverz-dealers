@@ -124,6 +124,13 @@ export async function activationIssuesById(
     triggerConfig: fila.trigger_config,
     steps,
   })
+  if (fila.trigger_type === 'payment_pending') {
+    const connected = await db.from('workspace_integrations').select('id').eq('workspace_id', workspaceId)
+      .eq('provider', 'mercadopago').eq('is_active', true).maybeSingle()
+    if (connected.error) throw connected.error
+    if (!connected.data) issues.push({ path: 'trigger.integration',
+      message: 'Mercado Pago must be connected before activation', key: 'automations.issueMercadoPagoPendiente' })
+  }
   if ((fila.trigger_config as Record<string, unknown> | null)?.requires_integration === 'mercadopago') {
     // La integración todavía no expone un estado reutilizable desde el motor.
     // Mientras este bloqueo esté en el borrador, el flujo no puede activarse

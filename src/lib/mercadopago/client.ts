@@ -17,13 +17,16 @@ export interface MpPayment {
   status_detail?: string | null
   date_created?: string
   date_approved?: string | null
+  date_of_expiration?: string | null
+  live_mode?: boolean
+  transaction_details?: { external_resource_url?: string | null }
   transaction_amount?: number
   currency_id?: string
   installments?: number
   payment_method_id?: string | null
   payment_type_id?: string | null
   external_reference?: string | null
-  payer?: { email?: string | null; first_name?: string | null; last_name?: string | null }
+  payer?: { email?: string | null; first_name?: string | null; last_name?: string | null; phone?: { area_code?: string | null; number?: string | null } }
   additional_info?: {
     payer?: { first_name?: string | null; last_name?: string | null; phone?: { number?: string | null } | null }
   }
@@ -39,6 +42,19 @@ export class MercadoPagoError extends Error {
   }
 }
 
+/** Authoritative status, not the status captured by an earlier notification. */
+export async function fetchPayment(token: string, id: string): Promise<MpPayment> {
+  if (!/^\d+$/.test(id)) throw new Error('invalid Mercado Pago payment id')
+  const res = await fetch(`${API}/v1/payments/${id}`, {
+    headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!res.ok) throw new MercadoPagoError(`payment lookup ${res.status}`, res.status)
+  const payment = await res.json() as MpPayment
+  if (String(payment.id) !== id) throw new Error('payment identity mismatch')
+  return payment
+}
+
 /**
  * Trae los pagos creados entre dos fechas. Pagina hasta agotar.
  *
@@ -51,6 +67,7 @@ export async function fetchPayments(
   sinceIso: string,
   untilIso: string,
   maxPages = 20,
+  externalReference?: string,
 ): Promise<MpPayment[]> {
   const out: MpPayment[] = []
   let offset = 0
@@ -65,6 +82,7 @@ export async function fetchPayments(
       limit: '100',
       offset: String(offset),
     })
+    if (externalReference) qs.set('external_reference', externalReference)
     const res = await fetch(`${API}/v1/payments/search?${qs}`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',

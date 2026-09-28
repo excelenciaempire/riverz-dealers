@@ -125,7 +125,7 @@ export const DATA_POINTS: DataPoint[] = [
     labelKey: 'automations.dpTotal',
     group: 'order',
     valueKind: 'number',
-    triggers: [...ORDER_TRIGGERS, 'shopify_abandoned_checkout', 'payment_rejected'],
+    triggers: [...ORDER_TRIGGERS, 'shopify_abandoned_checkout', 'payment_rejected', 'payment_pending'],
     usableInConditions: true,
     templateVarKey: 'total_price',
     condition: { kind: 'var', varKey: 'total_price' },
@@ -237,7 +237,7 @@ export const DATA_POINTS: DataPoint[] = [
     labelKey: 'automations.dpCurrency',
     group: 'order',
     valueKind: 'text',
-    triggers: [...ORDER_TRIGGERS, 'shopify_abandoned_checkout', 'payment_rejected'],
+    triggers: [...ORDER_TRIGGERS, 'shopify_abandoned_checkout', 'payment_rejected', 'payment_pending'],
     usableInConditions: false,
     templateVarKey: 'currency',
     condition: { kind: 'var', varKey: 'currency' },
@@ -312,7 +312,7 @@ export const DATA_POINTS: DataPoint[] = [
     labelKey: 'automations.dpOrderPaid',
     group: 'order',
     valueKind: 'bool',
-    triggers: ORDER_TRIGGERS,
+    triggers: [...ORDER_TRIGGERS, 'payment_pending'],
     usableInConditions: true,
     condition: { kind: 'order_paid' },
   },
@@ -420,6 +420,16 @@ export const DATA_POINTS: DataPoint[] = [
   },
 
   // ── Pago rechazado (los siembra el cron mercadopago-recovery) ──
+  {
+    id: 'payment_url', labelKey: 'automations.dpPaymentUrl', group: 'order', valueKind: 'text',
+    triggers: ['payment_pending'], usableInConditions: false, templateVarKey: 'payment_url',
+    condition: { kind: 'var', varKey: 'payment_url' },
+  },
+  {
+    id: 'payment_expiration', labelKey: 'automations.dpPaymentExpiration', group: 'order', valueKind: 'text',
+    triggers: ['payment_pending'], usableInConditions: false, templateVarKey: 'payment_expiration',
+    condition: { kind: 'var', varKey: 'payment_expiration' },
+  },
   {
     id: 'payment_reason',
     labelKey: 'automations.dpPaymentReason',

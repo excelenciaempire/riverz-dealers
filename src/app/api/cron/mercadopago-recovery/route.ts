@@ -3,6 +3,7 @@ import { assertCronAuth } from '@/lib/auth/cron'
 import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
+import { dispatchPendingPayments } from '@/lib/mercadopago/pending-dispatch'
 import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
 import { isOptedOut } from '@/lib/whatsapp/opt-out'
 import { recentlyContacted } from '@/lib/outreach/cooldown'
@@ -649,7 +650,8 @@ async function cronHandler(request: Request) {
   try {
     const sent = await sendPass(admin)
     const rec = await recoveryPass(admin)
-    return NextResponse.json({ ...sent, ...rec })
+    const pending = await dispatchPendingPayments(admin, runAutomationsForTrigger)
+    return NextResponse.json({ ...sent, ...rec, ...pending })
   } catch (err) {
     log.captureException(err)
     return serverError(err)

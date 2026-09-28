@@ -33,13 +33,15 @@ export type EscenarioDePrueba =
   | 'shopify_order_fulfilled'
   | 'shopify_order_delivered'
   | 'shopify_order_cancelled'
-  | 'payment_rejected';
+  | 'payment_rejected'
+  | 'payment_pending';
 
 export const ESCENARIOS_DE_PRUEBA: Array<{ id: EscenarioDePrueba; key: string }> = [
   { id: 'mensaje', key: 'assistant.probarEscMensaje' },
   { id: 'shopify_order_created', key: 'assistant.probarEscPedido' },
   { id: 'shopify_abandoned_checkout', key: 'assistant.probarEscCarrito' },
   { id: 'payment_rejected', key: 'assistant.probarEscPagoRechazado' },
+  { id: 'payment_pending', key: 'automations.triggerPaymentPending' },
   { id: 'shopify_order_fulfilled', key: 'assistant.probarEscDespachado' },
   { id: 'shopify_order_delivered', key: 'assistant.probarEscEntregado' },
   { id: 'shopify_order_cancelled', key: 'assistant.probarEscCancelado' },

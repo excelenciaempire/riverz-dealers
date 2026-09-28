@@ -57,6 +57,7 @@ export const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] 
       label: 'automations.triggerShopifyAbandonedCheckout',
     },
     { value: 'payment_rejected', label: 'automations.triggerPaymentRejected' },
+    { value: 'payment_pending', label: 'automations.triggerPaymentPending' },
     {
       value: 'voice_call_completed',
       label: 'automations.triggerVoiceCallCompleted',
