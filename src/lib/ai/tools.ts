@@ -22,6 +22,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { lookupCustomerOrders } from '@/lib/shopify/order-lookup'
 import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
+import { dropiContextForModel } from '@/lib/logistics/dropi-order-evidence'
+import { DEUNA_DROPI_WORKSPACE } from '@/lib/logistics/dropi-release-policy'
 import { claveDeTelefono } from '@/lib/whatsapp/phone-utils'
 import { resolveStoreForLookup, lookupOrderNonShopify } from '@/lib/commerce/order-lookup'
 import { informarPago } from '@/lib/payments/reported-payment'
@@ -1327,6 +1329,19 @@ export async function runTool(
         message: 'No puedo generar links de pago en esta conversación.',
       })
     }
+    if (localOrders.workspaceId === DEUNA_DROPI_WORKSPACE) {
+      // A generic full-order checkout is not a deposit. Until the dedicated
+      // partial-payment ledger and COD adjustment are verified, fail closed.
+      const { data: linked, error } = await localOrders.db.from('orders')
+        .select('dropi_evidence').eq('workspace_id', localOrders.workspaceId)
+        .eq('contact_id', localOrders.contactId).not('dropi_evidence', 'is', null)
+        .not('status', 'in', '(cancelled,refunded,failed)').limit(30)
+      if (error || (linked ?? []).some(row => {
+        const evidence = row.dropi_evidence as { buyer_history?: { classification?: string } } | null
+        return evidence?.buyer_history?.classification === 'risky'
+      })) return JSON.stringify({ ok: false, error: 'dropi_deposit_checkout_required',
+        message: 'No generes un cobro completo ni inventes un enlace para el anticipo. El anticipo del 50% requiere un enlace vinculado al pedido, pago verificado y saldo contra entrega ajustado. Coordina este pago con el equipo sin prometer despacho.' })
+    }
     const input = (toolInput ?? {}) as {
       items?: Array<{ title?: string; quantity?: number; unit_price?: number }>
       customer_email?: string
@@ -2290,7 +2305,7 @@ async function lookupLocalOrders(
     let q = ctx.db
       .from('orders')
       .select(
-        'order_number, currency, total_price, line_items, financial_status, fulfillment_status, status, tracking_number, tracking_company, tracking_url, shipping_status, order_status_url, shipping_address, payment_method, created_at, contact_id, customer_email, customer_phone'
+        'order_number, currency, total_price, line_items, financial_status, fulfillment_status, status, tracking_number, tracking_company, tracking_url, shipping_status, order_status_url, shipping_address, payment_method, created_at, contact_id, customer_email, customer_phone, dropi_evidence, dropi_observed_at'
       )
       .eq('workspace_id', ctx.workspaceId)
       .order('created_at', { ascending: false })
@@ -2346,6 +2361,7 @@ function pedidoLocalParaElModelo(o: Record<string, unknown>): Record<string, unk
   const transportista = typeof o.tracking_company === 'string' ? o.tracking_company : null
   return {
     order_number: o.order_number,
+    dropi: dropiContextForModel(o.dropi_evidence, o.dropi_observed_at),
     created_at: o.created_at,
     status: o.status,
     financial_status: o.financial_status,

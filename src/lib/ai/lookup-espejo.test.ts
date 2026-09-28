@@ -76,6 +76,22 @@ describe('lookup_order en el chat web', () => {
     expect(salida.orders[0].order_number).toBe('#1002')
   })
 
+  it('enriches the same customer order with Dropi without exposing buyer history', async () => {
+    const now = new Date().toISOString()
+    const local = baseCon([{ order_number: '#1002', contact_id: 'c1', dropi_observed_at: now,
+      dropi_evidence: { account_id: '1', shop_id: '2', dropi_order_id: '3', status: 'NOVEDAD',
+        tracking_number: '123', incident_reason: 'DESTINATARIO AUSENTE', total: '110000',
+        product_cost: '50000', shipping_cost: '10000', wallet_net: null, currency: 'COP',
+        buyer_history: { classification: 'risky', buyer_type: 'Frecuente', total: 25,
+          delivered: 3, returned: 21, in_transit: 1, observed_at: now, source: 'dropi_fingerprint_v2' } } }])
+    const result = JSON.parse(await runTool('lookup_order', { order_number: '#1002' }, shopify as never, null, local as never))
+    expect(result.orders).toHaveLength(1)
+    expect(result.orders[0].dropi.incident_reason).toBe('DESTINATARIO AUSENTE')
+    expect(result.orders[0].dropi.buyer_classification).toBe('risky')
+    expect(result.orders[0].dropi).not.toHaveProperty('buyer_history')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
   it('busca ese número con y sin almohadilla', async () => {
     const local = baseCon([{ order_number: '#1002' }])
     await runTool('lookup_order', { order_number: '1002' }, shopify as never, null, local as never)

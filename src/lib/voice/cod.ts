@@ -10,6 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { VoiceCall, VoiceCallOutcome, VoiceConnectionConfig } from '@/types';
 import { resolveShopifyAdmin, appendOrderTags } from '@/lib/shopify/order-tags';
 import { pushOrderToDropi } from '@/lib/integrations/dropi';
+import { DEUNA_DROPI_WORKSPACE } from '@/lib/logistics/dropi-release-policy';
 
 function ctxStr(ctx: Record<string, unknown>, key: string): string {
   const v = ctx?.[key];
@@ -26,6 +27,9 @@ export async function maybeCodWriteback(
 ): Promise<void> {
   // Data-review calls must never dispatch or tag an order as cancelled.
   if (call.context?.cod_writeback === false) return;
+  // This store uses an existing Shopify-linked Dropi order. A voice result alone
+  // cannot satisfy chat review, the quiet period, buyer risk and verified deposit.
+  if (call.workspace_id === DEUNA_DROPI_WORKSPACE) return;
   try {
     const { data: connRow } = await db
       .from('channel_connections')
