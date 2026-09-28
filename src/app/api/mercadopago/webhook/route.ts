@@ -2,21 +2,23 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { handlePaymentNotification, isPaymentTopic } from '@/lib/mercadopago/notify'
 import { getLogger } from '@/lib/log/logger'
+import { validPaymentSignature } from '@/lib/mercadopago/webhook-signature'
 
 const log = getLogger('mercadopago.webhook.app')
 
 /**
  * URL propia para avisos de pago de Mercado Pago.
  *
- * En la práctica los avisos llegan por el webhook de la aplicación de
- * Mercado Libre —una aplicación tiene una sola URL de notificaciones para
- * todos sus temas—, así que esto queda para una cuenta que registre una URL
- * dedicada. El trabajo es el mismo: ver `lib/mercadopago/notify.ts`.
- *
- * Siempre responde 200. Mercado Pago reintenta ante cualquier otra cosa y un
- * reintento no arregla un pago que no nos interesa.
+ * La aplicación de Mercado Pago usa esta URL y su propia firma secreta.
+ * Las conexiones antiguas de Mercado Libre y las URLs por comercio siguen
+ * entrando por sus rutas respectivas. Sólo se procesan avisos auténticos.
  */
 export async function POST(request: Request) {
+  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET ?? ''
+  if (!secret) return NextResponse.json({ error: 'webhook_not_configured' }, { status: 503 })
+  if (!validPaymentSignature(request, secret)) {
+    return NextResponse.json({ error: 'invalid_signature' }, { status: 401 })
+  }
   const body = (await request.json().catch(() => ({}))) as {
     type?: string
     topic?: string
