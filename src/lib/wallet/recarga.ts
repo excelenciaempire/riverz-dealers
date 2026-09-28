@@ -116,9 +116,10 @@ export async function urlDeRecarga(
       tipo: 'recarga_billetera',
       centavos: String(centavos),
       comision: COMISION_REAL,
+      origen: 'manual',
     },
     payment_intent_data: {
-      metadata: { workspace_id: workspaceId, tipo: 'recarga_billetera', comision: COMISION_REAL },
+      metadata: { workspace_id: workspaceId, tipo: 'recarga_billetera', comision: COMISION_REAL, origen: 'manual' },
     },
     success_url: volverA('/ajustes?tab=saldo&recarga=lista'),
     cancel_url: volverA('/ajustes?tab=saldo&recarga=cancelada'),
@@ -155,7 +156,8 @@ export async function acreditarDesdeEvento(
       concepto: 'recarga',
       centavos,
       stripeId: pi.id,
-      detalle: { moneda: pi.currency ?? 'usd', porWebhook: true },
+      detalle: { moneda: pi.currency ?? 'usd', porWebhook: true,
+        origen: pi.metadata.origen === 'automatica' ? 'automatica' : 'manual' },
     })
     // Gross credit is independent of asynchronous processor settlement.
     // A webhook retry records the cost without crediting the payment twice.
@@ -216,7 +218,7 @@ export async function acreditarDesdeEvento(
     concepto: 'recarga',
     centavos,
     stripeId: pago,
-    detalle: { sesion: sesion.id, moneda: sesion.currency ?? 'usd' },
+    detalle: { sesion: sesion.id, moneda: sesion.currency ?? 'usd', origen: 'manual' },
   })
   await descontarComision(db, workspaceId, pago)
   return r.duplicado

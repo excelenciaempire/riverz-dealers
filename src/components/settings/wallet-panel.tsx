@@ -1,6 +1,7 @@
 'use client';
 
 import { LogoTarjeta } from '@/components/billing/logo-tarjeta';
+import { WalletTopupHistory } from './wallet-topup-history';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -58,7 +59,6 @@ interface Estado {
     nombreEn: string;
     centavos: number;
     unidad: string;
-    proveedor: string;
     medido: boolean;
     cobro: 'por_uso' | 'incluido' | 'sin_cargo';
     dentroDeEs?: string;
@@ -435,6 +435,8 @@ export function WalletPanel() {
           </p>
         )}
       </section>
+
+      <WalletTopupHistory currency={e.moneda} timezone={tz} revision={revision} />
 
       {/* ── Recarga automática ──────────────────────────────────────── */}
       {e.puedeRecargar && (
@@ -928,9 +930,6 @@ export function WalletPanel() {
                 <span className="min-w-0">
                   <span className="text-foreground">
                     {locale === 'en' ? c.nombreEn : c.nombreEs}
-                  </span>
-                  <span className="text-muted-foreground block text-xs">
-                    {c.proveedor}
                   </span>
                 </span>
                 <span className="text-foreground shrink-0 text-right tabular-nums">

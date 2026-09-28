@@ -61,4 +61,12 @@ describe('actual Stripe fees', () => {
     await descontarComision(db, 'ws', 'pi_1')
     expect(mocks.mover).not.toHaveBeenCalled()
   })
+  it.each(['automatica', 'manual'])('preserves %s origin when the payment webhook credits first', async origen => {
+    const pi = { ...payment(), metadata: { ...payment().metadata, origen } };
+    mocks.retrieve.mockResolvedValue(pi);
+    await acreditarDesdeEvento(db, event('payment_intent.succeeded', pi));
+    expect(mocks.mover).toHaveBeenCalledWith(db, 'ws', expect.objectContaining({
+      tipo: 'recarga', detalle: expect.objectContaining({ origen }),
+    }));
+  })
 })

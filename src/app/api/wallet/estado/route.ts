@@ -72,10 +72,16 @@ export async function GET(request: Request) {
       // A esta cuenta se le pasa el costo sin margen: la lista de tarifas de
       // abajo es referencia, no lo que se le descuenta.
       aCosto: billetera.cobrarACosto,
-      // Lo que cuesta cada cosa de verdad, con quién lo cobra. La cuenta que
+      // Lo que cuesta cada servicio. La cuenta que
       // paga a costo mira esto, no las tarifas: la tarifa es precio de lista y
       // a ella se le prometió lo contrario.
-      costos: costos.filter(c=>c.concepto!=='comision_stripe'),
+      // Provider identities stay in the private operational catalog, not in
+      // merchant responses. Keep prices, measured usage and inclusion intact.
+      costos: costos.filter(c=>c.concepto!=='comision_stripe').map(c=>({
+        concepto: c.concepto, nombreEs: c.nombreEs, nombreEn: c.nombreEn,
+        centavos: c.centavos, unidad: c.unidad, medido: c.medido, cobro: c.cobro,
+        dentroDeEs: c.dentroDeEs, dentroDeEn: c.dentroDeEn,
+      })),
       // La recarga automática, tal como la ve el comercio.
       auto: {
         tieneTarjeta: billetera.tieneTarjeta,
