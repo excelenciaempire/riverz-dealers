@@ -260,7 +260,7 @@ export async function cancelPendingAutomationsOnInbound(input: {
     if (row.log_id) {
       await appendResults(String(row.log_id), [{
         step_id: String(row.id), step_type: 'wait', status: 'skipped', detail: 'cancelled by inbound reply',
-      }], 'partial', null)
+      }], 'success', null)
     }
   }
   if (!claimed.length) return

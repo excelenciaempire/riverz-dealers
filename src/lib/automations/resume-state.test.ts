@@ -30,7 +30,7 @@ vi.mock('./admin-client', () => ({ supabaseAdmin: () => ({ from: (table: string)
 vi.mock('@/lib/workspaces/owner', () => ({ resolveWorkspaceOwnerUserId: async () => 'owner' }))
 vi.mock('./meta-send', () => ({ engineSendText: vi.fn(), engineSendTemplate: vi.fn() }))
 
-import { cancelPendingByTrigger, resumePendingExecution } from './engine'
+import { cancelPendingAutomationsOnInbound, cancelPendingByTrigger, resumePendingExecution } from './engine'
 import { supabaseAdmin } from './admin-client'
 
 const pending = { id: 'pending', automation_id: 'a', workspace_id: 'w', contact_id: 'c', log_id: 'log',
@@ -47,6 +47,16 @@ beforeEach(() => {
 })
 
 describe('real engine continuation', () => {
+  it('settles an inbound cancellation without leaving an orphan wait alarm', async () => {
+    state.tables.automations[0].trigger_config = { stop_on_inbound: true }
+    Object.assign(state.tables.automation_pending_executions[0], { status: 'pending' })
+    await cancelPendingAutomationsOnInbound({ workspaceId: 'w', contactId: 'c', conversationId: 'cv', messageText: 'Gracias' })
+    expect(state.tables.automation_pending_executions[0].status).toBe('done')
+    expect(state.tables.automation_logs[0]).toMatchObject({ status: 'success', steps_executed: [
+      { status: 'skipped', detail: 'cancelled by inbound reply' },
+    ] })
+    expect(state.reads).not.toContain('automation_steps')
+  })
   it('settles a cart reminder cancelled by purchase without sending or replaying', async () => {
     Object.assign(state.tables.automations[0], { trigger_type: 'shopify_abandoned_checkout' })
     Object.assign(state.tables.automation_pending_executions[0], { status: 'pending' })
