@@ -21,7 +21,7 @@ import type { OutboundText } from '@/lib/channels/types';
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { loadCommentConversation } from '@/lib/comments/hilo';
 import { addCommentContextToPrivateReply } from '@/lib/comments/private-reply-context';
-import { privateConversationAllowsCommentReply } from '@/lib/comments/private-attention';
+import { readPrivateReplyState, privateReplyStateIsCurrent } from '@/lib/comments/private-attention';
 import {
   asksForPrice,
   asksForCurrentOffer,
@@ -389,6 +389,9 @@ export async function maybeInstantOutreach(
     await replyToComment(db, opts);
     return;
   }
+  const privateIdentity = { workspaceId: opts.workspaceId, externalId: opts.contact.external_id, channel: 'instagram' as const };
+  const privateState = await readPrivateReplyState(db, privateIdentity);
+  if (!privateState.allowed) return;
 
   // Enroll (idempotent on campaign_id+contact_id). A returned row means we
   // inserted it now → first contact; empty means they were already enrolled.
@@ -525,6 +528,7 @@ export async function maybeInstantOutreach(
   });
   const personaFields = {
     customer: customer?.brief ?? null,
+    thread: privateState.brief,
     product: productBrain?.brief ?? null,
     personaHint: profile?.persona_hint ?? null,
     openerHint: profile?.opener_hint ?? null,
@@ -546,14 +550,6 @@ export async function maybeInstantOutreach(
   // Auto mode. One private reply per comment across BOTH systems: claim the
   // shared lock first; if the comment-to-DM engine already replied, skip.
   if (opts.commentId) {
-    if (!await privateConversationAllowsCommentReply(db, {
-      workspaceId: opts.workspaceId, externalId: opts.contact.external_id,
-      channel: 'instagram',
-    })) {
-      await db.from('instagram_campaign_recipients').update({ status: 'skipped', error: 'private_attention_owned' })
-        .eq('id', recipientId).eq('status', 'queued');
-      return;
-    }
     const won = await claimCommentPrivateReply(
       db,
       opts.workspaceId,
@@ -648,6 +644,11 @@ export async function maybeInstantOutreach(
 
   try {
     await assertStoredConnectionCanSend(db, connection.id);
+    if (!privateReplyStateIsCurrent(privateState, await readPrivateReplyState(db, privateIdentity))) {
+      await db.from('instagram_campaign_recipients').update({ status: 'skipped', sent_at: null, error: 'private_context_changed' })
+        .eq('id', recipientId).eq('status', 'sent');
+      return;
+    }
     const dmRes = await instagramAdapter.sendText({
       channel: 'instagram',
       connection,
@@ -927,12 +928,19 @@ async function decidirComentario(
     : ('instagram' as const);
   const adapter = isFacebook ? messengerAdapter : instagramAdapter;
 
-  const privateReplyAllowed = () => privateConversationAllowsCommentReply(db, {
-    workspaceId: opts.workspaceId, externalId: opts.contact.external_id!, channel: dmChannel,
-  });
+  const privateIdentity = { workspaceId: opts.workspaceId, externalId: opts.contact.external_id!, channel: dmChannel };
+  const privateState = isTikTok ? null : await readPrivateReplyState(db, privateIdentity);
+  if (privateState && !privateState.revision) return 'comment_contexto_no_disponible';
+  const privateContextCurrent = async () => {
+    if (!privateState) return true;
+    const current = await readPrivateReplyState(db, privateIdentity);
+    return opts.publicOnly
+      ? privateState.revision !== null && privateState.revision === current.revision
+      : privateReplyStateIsCurrent(privateState, current);
+  };
   // Comments have their own switch, but may not overwrite an existing
   // escalated/private conversation with a sales reply from an older comment.
-  if (!isTikTok && !opts.publicOnly && !(await privateReplyAllowed())) {
+  if (privateState && !opts.publicOnly && !privateState.allowed) {
     return 'comment_asignado_a_persona';
   }
 
@@ -1271,12 +1279,12 @@ async function decidirComentario(
       apiKey,
       base: orderStatus
         ? 'Responde su duda sobre el pedido con los datos reales. No vendas nada.'
-        : 'Responde a su comentario, resuelve su duda concreta y ofrécele avanzar con la compra.',
+        : 'Responde la consulta actual con el historial privado reciente. Si ya compró o reclama, atiende ese caso; ofrece comprar sólo si lo está pidiendo.',
       brand,
       links,
       customer:
         [customer?.brief, orderStatus].filter(Boolean).join('\n\n') || null,
-      thread: [postBrief, thread?.brief].filter(Boolean).join('\n\n') || null,
+      thread: [postBrief, thread?.brief, privateState?.brief].filter(Boolean).join('\n\n') || null,
       product: product?.brief ?? null,
       goal: null,
       offer: null,
@@ -1441,8 +1449,8 @@ async function decidirComentario(
     Boolean(connection);
   // Ownership may change during generation. Recheck immediately before any
   // send; do not claim to have written privately when the DM is blocked.
-  if (!isTikTok && !opts.publicOnly && !(await privateReplyAllowed())) {
-    return 'comment_asignado_a_persona';
+  if (!(await privateContextCurrent())) {
+    return 'comment_contexto_actualizado';
   }
   const wonPrivateReply = wantsDm
     ? await claimCommentPrivateReply(
@@ -1476,6 +1484,7 @@ async function decidirComentario(
         contactId: opts.contact.id,
       });
       await assertStoredConnectionCanSend(db, connection.id);
+      if (!(await privateContextCurrent())) return 'comment_contexto_actualizado';
       const dmRes = await adapter.sendText({
         channel: dmChannel,
         connection,
@@ -1519,6 +1528,9 @@ async function decidirComentario(
       try {
         if (!publicConnection) throw new Error('sin conexión de comentarios');
         await assertStoredConnectionCanSend(db, publicConnection.id);
+        // A sent DM changes our own snapshot. Only standalone public replies
+        // still need comparison with the original private context here.
+        if (!dmSent && !(await privateContextCurrent())) return 'comment_contexto_actualizado';
         const res = await getAdapter(commentChannel).sendText({
           channel: commentChannel,
           connection: publicConnection,

@@ -3,7 +3,7 @@ import { instagramAdapter } from '@/lib/channels/instagram/adapter';
 import { assertStoredConnectionCanSend } from '@/lib/channels/send-guard';
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { addCommentContextToPrivateReply } from '@/lib/comments/private-reply-context';
-import { privateConversationAllowsCommentReply } from '@/lib/comments/private-attention';
+import { readPrivateReplyState, privateReplyStateIsCurrent, type PrivateReplyState } from '@/lib/comments/private-attention';
 import {
   sendToSubscriber,
   type MarketingOptin,
@@ -257,13 +257,15 @@ export async function sendCampaignBatch(
     subscription?: MarketingOptin;
     /** Set when the row must be skipped instead of sent (e.g. outside window). */
     skip?: string;
+    privateState?: PrivateReplyState;
   };
   const prepared: Prepared[] = await Promise.all(
     rows.map(async (r): Promise<Prepared> => {
       const contact = Array.isArray(r.contacts) ? r.contacts[0] : r.contacts;
       if (!contact?.external_id) return { id: r.id, contact: null, text: '' };
-      if (!await privateConversationAllowsCommentReply(db, { workspaceId: campaign.workspace_id,
-        externalId: contact.external_id, channel: 'instagram' }))
+      const privateState = await readPrivateReplyState(db, { workspaceId: campaign.workspace_id,
+        externalId: contact.external_id, channel: 'instagram' });
+      if (!privateState.allowed)
         return { id: r.id, contact: null, text: '', skip: 'private_attention_owned' };
       const inbound = await latestInbound(db, contact.id).catch(() => ({
         text: null,
@@ -331,6 +333,7 @@ export async function sendCampaignBatch(
         brand,
         links,
         customer: customer?.brief ?? null,
+        thread: privateState.brief,
         product: productBrain?.brief ?? null,
         goal: campaign.goal ?? null,
         offer: recipientOffer,
@@ -350,6 +353,7 @@ export async function sendCampaignBatch(
         commentId: reach.kind === 'private_reply' ? reach.commentId : undefined,
         commentText: reach.kind === 'private_reply' ? inbound.text : null,
         subscription: subscription ?? undefined,
+        privateState,
       };
     })
   );
@@ -377,9 +381,9 @@ export async function sendCampaignBatch(
       continue;
     }
 
-    if (!await privateConversationAllowsCommentReply(db, { workspaceId: campaign.workspace_id,
-      externalId: p.contact.external_id, channel: 'instagram' })) {
-      await db.from('instagram_campaign_recipients').update({ status: 'skipped', error: 'private_attention_owned' })
+    const privateIdentity = { workspaceId: campaign.workspace_id, externalId: p.contact.external_id, channel: 'instagram' as const };
+    if (!p.privateState || !privateReplyStateIsCurrent(p.privateState, await readPrivateReplyState(db, privateIdentity))) {
+      await db.from('instagram_campaign_recipients').update({ status: 'skipped', error: 'private_context_changed' })
         .eq('id', p.id).eq('status', 'queued');
       continue;
     }
@@ -435,6 +439,11 @@ export async function sendCampaignBatch(
         contactId: p.contact.id,
       });
       await assertStoredConnectionCanSend(db, conn.id);
+      if (!privateReplyStateIsCurrent(p.privateState, await readPrivateReplyState(db, privateIdentity))) {
+        await db.from('instagram_campaign_recipients').update({ status: 'skipped', sent_at: null, error: 'private_context_changed' })
+          .eq('id', p.id).eq('status', 'sent');
+        continue;
+      }
       let dmExternalId: string | null = null;
       if (p.subscription) {
         // Sin ventana abierta: se escribe contra el token de Marketing
