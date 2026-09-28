@@ -31,6 +31,12 @@ import type { Concepto } from '@/lib/wallet/tarifas'
 
 export type AlmacenDeClave = 'platform_keys' | 'platform_ai_settings'
 
+/** Owner-confirmed retired integrations: retain credentials and historical
+ * settlement support, but do not advertise or probe them as active services. */
+export function proveedorActivoEnAdmin(id: string): boolean {
+  return id !== 'apify'
+}
+
 export interface ProveedorConClave {
   id: string
   /** Nombre propio. No se traduce. */
@@ -256,6 +262,23 @@ async function anthropicDelPanel(): Promise<{
   }
 }
 
+/** The provider probe must test the same platform key as the AI engine,
+ * not a stale Render fallback. Never expose this value through an API. */
+export async function leerClaveAnthropicParaSonda(): Promise<string | null> {
+  const { data, error } = await supabaseAdmin().from('platform_ai_settings')
+    .select('anthropic_key_encrypted').eq('id', true).maybeSingle()
+  if (error) throw new Error('platform_anthropic_key_read_failed')
+  if (data?.anthropic_key_encrypted) {
+    try {
+      const key = decrypt(data.anthropic_key_encrypted)
+      if (key) return key
+    } catch {
+      // Match the engine's existing fallback on an unreadable encrypted key.
+    }
+  }
+  return process.env.ANTHROPIC_API_KEY || null
+}
+
 /**
  * El estado de cada llave, para el panel.
  *
@@ -267,7 +290,7 @@ async function anthropicDelPanel(): Promise<{
 export async function leerEstadoDeClaves(): Promise<EstadoDeClave[]> {
   const [panel, anthropic] = await Promise.all([filasDelPanel(), anthropicDelPanel()])
 
-  return PROVEEDORES_CON_CLAVE.map((p) => {
+  return PROVEEDORES_CON_CLAVE.filter((p) => proveedorActivoEnAdmin(p.id)).map((p) => {
     const propia =
       p.almacen === 'platform_ai_settings'
         ? anthropic && {

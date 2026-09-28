@@ -27,7 +27,7 @@
 import { leerCostosFijosConCache, type Fijos } from './costos-fijos'
 import { leerCostoIa, proveedorDeModelo } from './costo-ia'
 import { leerSaldoDeStripe } from './stripe-saldo'
-import { leerEstadoDeClaves, type OrigenDeClave } from './claves'
+import { leerEstadoDeClaves, leerClaveAnthropicParaSonda, type OrigenDeClave } from './claves'
 import { sondaJev } from '@/lib/ai/jev'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 
@@ -421,9 +421,9 @@ async function anthropic(): Promise<Proveedor> {
     url: 'https://console.anthropic.com/settings/billing',
     detalleKey: 'admin.svcTextBot',
   })
-  const key = process.env.ANTHROPIC_API_KEY
-  if (!key) return sinLlave(p, 'ANTHROPIC_API_KEY')
   try {
+    const key = await leerClaveAnthropicParaSonda()
+    if (!key) return sinLlave(p, 'ANTHROPIC_API_KEY')
     const r = await pedir('https://api.anthropic.com/v1/models?limit=1', {
       headers: {
         'x-api-key': key,
