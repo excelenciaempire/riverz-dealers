@@ -203,4 +203,43 @@ WHERE e.processed_at IS NULL AND e.provider='mercadolibre:token' AND e.raw_body:
         WHERE cv.workspace_id=c.workspace_id AND m.channel='mercadolibre'
           AND m.message_id='a:'||split_part(e.raw_body::jsonb->>'resource','/',3))));
 
+-- Reviewed claim notifications reference these two mediation cases. The
+-- successful claims poll fetched their current state AND stored messages
+-- after capture. This closes the notification, never the open mediation.
+UPDATE webhook_events_raw e SET processed_at=now(),
+  last_error='reviewed: claim and latest message recovered by successful claims poll; previous: '||coalesce(e.last_error,'')
+WHERE e.processed_at IS NULL AND e.provider='mercadolibre:token'
+  AND e.raw_body::jsonb->>'topic'='post_purchase'
+  AND split_part(e.raw_body::jsonb->>'resource','/',5) IN ('5583341664','5584226285')
+  AND EXISTS (SELECT 1 FROM channel_connections c WHERE c.channel='mercadolibre'
+    AND c.config->>'seller_id'=e.raw_body::jsonb->>'user_id')
+  AND NOT EXISTS (SELECT 1 FROM channel_connections c WHERE c.channel='mercadolibre'
+    AND c.config->>'seller_id'=e.raw_body::jsonb->>'user_id'
+    AND NOT EXISTS (SELECT 1 FROM ml_claims mc
+      WHERE mc.workspace_id=c.workspace_id AND mc.connection_id=c.id
+        AND mc.claim_id=split_part(e.raw_body::jsonb->>'resource','/',5)
+        AND mc.updated_at>=e.received_at AND mc.type='mediations'
+        AND mc.raw->>'id'=mc.claim_id AND mc.last_message IS NOT NULL
+        AND EXISTS (SELECT 1 FROM cron_runs r WHERE r.name='mercadolibre-claims'
+          AND r.status='ok' AND r.started_at>=e.received_at
+          AND mc.updated_at BETWEEN r.started_at AND r.finished_at)
+        AND EXISTS (SELECT 1 FROM messages m JOIN conversations cv ON cv.id=m.conversation_id
+          WHERE cv.workspace_id=c.workspace_id AND cv.connection_id=c.id
+            AND cv.thread_external_id='claim:'||mc.claim_id
+            AND m.channel='mercadolibre' AND left(m.content_text,500)=mc.last_message)));
+
+-- The single reviewed message-id notification was recovered by the inbox
+-- poll. Require its exact external id in every matching seller workspace.
+UPDATE webhook_events_raw e SET processed_at=now(),
+  last_error='reviewed: exact post-sale message already stored; previous: '||coalesce(e.last_error,'')
+WHERE e.id='86e264a9-5e22-4d77-8079-eba2c43fdc32' AND e.processed_at IS NULL
+  AND e.provider='mercadolibre:token' AND e.raw_body::jsonb->>'topic' LIKE 'messages%'
+  AND EXISTS (SELECT 1 FROM channel_connections c WHERE c.channel='mercadolibre'
+    AND c.config->>'seller_id'=e.raw_body::jsonb->>'user_id')
+  AND NOT EXISTS (SELECT 1 FROM channel_connections c WHERE c.channel='mercadolibre'
+    AND c.config->>'seller_id'=e.raw_body::jsonb->>'user_id'
+    AND NOT EXISTS (SELECT 1 FROM messages m JOIN conversations cv ON cv.id=m.conversation_id
+      WHERE cv.workspace_id=c.workspace_id AND cv.connection_id=c.id AND m.channel='mercadolibre'
+        AND m.message_id=e.raw_body::jsonb->>'resource'));
+
 COMMIT;

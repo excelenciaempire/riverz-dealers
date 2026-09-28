@@ -20,7 +20,7 @@ vi.mock("../admin-client", () => ({
 }));
 
 import { encrypt } from "../encryption";
-import { buildPackEvents, claimAttachmentName, getFreshMLToken, nextPackOffset, handlesMLNotification } from "./adapter";
+import { buildPackEvents, claimAttachmentName, getFreshMLToken, nextPackOffset, handlesMLNotification, resolveNotificationPack } from "./adapter";
 import { MlRateLimitError } from "./rate-limit";
 
 describe('notification topics', () => {
@@ -33,6 +33,39 @@ describe('notification topics', () => {
     for (const topic of ['payments', 'items', 'user_products', 'stock-locations', 'public_candidates']) {
       expect(handlesMLNotification(topic)).toBe(false);
     }
+  });
+});
+
+describe('message notification pack resolution', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const message = { message_resources: [{ name: 'packs', id: '900' }, { name: 'seller', id: '42' }] };
+  it('keeps pack notifications without a lookup', async () => {
+    const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
+    expect(await resolveNotificationPack('/messages/packs/900/sellers/42', '42', 't')).toBe('900');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it.each(['abc123', '/messages/abc123'])('resolves message id %s without marking it read', async resource => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({ messages: [message] }));
+    vi.stubGlobal('fetch', fetcher);
+    expect(await resolveNotificationPack(resource, '42', 't')).toBe('900');
+    expect(fetcher.mock.calls[0][0]).toBe('https://api.mercadolibre.com/messages/abc123?tag=post_sale&mark_as_read=false');
+  });
+  it('also accepts a single-message response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(message)));
+    expect(await resolveNotificationPack('abc123', '42', 't')).toBe('900');
+  });
+  it('does not import a pack belonging to another seller', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(message)));
+    await expect(resolveNotificationPack('abc123', '77', 't')).rejects.toThrow('no unique seller pack');
+  });
+  it('rejects arbitrary resource URLs before fetching', async () => {
+    const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
+    await expect(resolveNotificationPack('https://untrusted.test/token', '42', 't')).rejects.toThrow('unrecognized');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('does not silently acknowledge a failed lookup', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 429 })));
+    await expect(resolveNotificationPack('abc123', '42', 't')).rejects.toBeInstanceOf(MlRateLimitError);
   });
 });
 

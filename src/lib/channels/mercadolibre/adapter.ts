@@ -380,8 +380,7 @@ export const mercadoLibreAdapter: ChannelAdapter = {
     if (n.topic.startsWith("messages") || n.topic === "marketplace_messages") {
       // The resource may be a pack path or a single message. Normalize to the
       // pack conversation and emit buyer-sent messages only.
-      const packId = extractPackId(n.resource);
-      if (!packId) return [];
+      const packId = await resolveNotificationPack(n.resource, sellerId, token);
       return (await buildPackEvents({ connection, packId, sellerId, token })).events;
     }
 
@@ -784,6 +783,37 @@ async function newestClaimMessageHash(claimId: string, token: string): Promise<s
 function extractPackId(resource: string): string | null {
   const m = resource.match(/\/messages\/packs\/([^/]+)/);
   return m ? m[1] : null;
+}
+
+/** New notifications can carry only a message id rather than a pack path. */
+export async function resolveNotificationPack(resource: string, sellerId: string, token: string): Promise<string> {
+  const direct = extractPackId(resource);
+  if (direct) return direct;
+  const match = resource.match(/^(?:\/messages\/)?([a-zA-Z0-9_-]+)$/);
+  if (!match) throw new Error('[mercadolibre] unrecognized message notification resource');
+  // Fixed origin and validated id: never fetch an arbitrary webhook URL.
+  // Neither the lookup nor the subsequent pack read marks messages as read.
+  const res = await fetch(`${ML}/messages/${encodeURIComponent(match[1])}?tag=post_sale&mark_as_read=false`, {
+    headers: { authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(15_000),
+  });
+  throwIfRateLimited(res, 'message notification lookup');
+  if (!res.ok) throw new Error(`[mercadolibre] message notification lookup failed (${res.status})`);
+  type Resource = { id?: string | number; name?: string };
+  type Message = { message_resources?: Resource[] };
+  const payload = await res.json() as Message & { messages?: Message[] };
+  const packs = new Set<string>();
+  for (const message of payload.messages ?? [payload]) {
+    const resources = message.message_resources ?? [];
+    const seller = resources.find(r => r.name === 'seller');
+    if (String(seller?.id ?? '') !== sellerId) continue;
+    for (const r of resources) {
+      const id = String(r.id ?? '');
+      if (r.name === 'packs' && /^\d+$/.test(id)) packs.add(id);
+    }
+  }
+  if (packs.size !== 1) throw new Error('[mercadolibre] message notification has no unique seller pack');
+  return [...packs][0];
 }
 
 /** Tope de descarga por adjunto (10 MB) — igual criterio que el resto de los
