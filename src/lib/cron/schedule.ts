@@ -204,13 +204,6 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     timeoutMs: 300_000,
     retryOnFailure: true,
   },
-  {
-    name: 'instagram-external-enrich',
-    whatKey: 'admin.cronInstagramEnrich',
-    path: '/api/cron/instagram-external-enrich',
-    schedule: '*/10 * * * *',
-    retryOnFailure: true,
-  },
   // El nombre TIENE que ser el que escribe el endpoint (`withCronRun` en
   // /api/flows/cron dice "flows-cron"). Estaba declarado como "flows-sweep" y
   // ese nombre no existía en `cron_runs`: el trabajo corría cada 15 minutos sin
