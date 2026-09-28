@@ -34,10 +34,35 @@ beforeEach(() => {
 it('reads only the revision of the authenticated merchant without caching', async () => {
   const result = await GET();
   expect(result.status).toBe(200);
-  expect(await result.json()).toEqual({ revision: '2026-09-28T12:00:00Z' });
+  const body = await result.json();
+  expect(body.revision).toMatch(/^[a-f0-9]{64}$/);
   expect(mocks.eq).toHaveBeenCalledWith('workspace_id', 'merchant');
-  expect(mocks.select).toHaveBeenCalledWith('updated_at');
+  expect(mocks.select).toHaveBeenCalledWith(
+    'updated_at, saldo_centavos, reservado_centavos, auto_recarga_centavos, auto_umbral_centavos'
+  );
   expect(result.headers.get('Cache-Control')).toBe('no-store');
+});
+it('detects a changed reservation even when the timestamp stays the same', async () => {
+  mocks.read.mockResolvedValue({
+    data: {
+      updated_at: '2026-09-28T12:00:00Z',
+      saldo_centavos: 1000,
+      reservado_centavos: 10,
+    },
+    error: null,
+  });
+  const first = await (await GET()).json();
+  mocks.read.mockResolvedValue({
+    data: {
+      updated_at: '2026-09-28T12:00:00Z',
+      saldo_centavos: 1000,
+      reservado_centavos: 25,
+    },
+    error: null,
+  });
+  const second = await (await GET()).json();
+  expect(second.revision).not.toBe(first.revision);
+  expect(second).not.toHaveProperty('saldo_centavos');
 });
 it('does not read wallet data without authentication', async () => {
   mocks.user.mockResolvedValue({ data: { user: null } });
