@@ -58,6 +58,26 @@ describe('Mercado Pago pending payments', () => {
     await expect(fetchPayment('test-token', '124')).rejects.toThrow('identity mismatch')
     await expect(fetchPayment('test-token', '../123')).rejects.toThrow('invalid')
   })
+  it('never guesses a phone from a truncated contact match list', async () => {
+    const upsert = vi.fn().mockResolvedValue({error:null})
+    const contacts = { select:vi.fn().mockReturnThis(),eq:vi.fn().mockReturnThis(),
+      in:vi.fn().mockResolvedValue({data:[{email:'ana@example.com',phone:'+573001234567'}],count:2,error:null}) }
+    const db={from:(table:string)=>table==='contacts'?contacts:{upsert}} as never
+    await ingestPendingPayments(db,'ws',[{...cash,payer:{email:'ana@example.com'}}],'CO')
+    expect(upsert.mock.calls[0][0][0].phone).toBeNull()
+    contacts.in.mockResolvedValueOnce({data:[{email:'ana@example.com',phone:'+573001234567'}],count:1,error:null})
+    await ingestPendingPayments(db,'ws',[{...cash,payer:{email:'ana@example.com'}}],'CO')
+    expect(upsert.mock.calls[1][0][0].phone).toBe('573001234567')
+  })
+  it('batches large syncs so URL and request limits cannot break existing rejected-payment sync', async () => {
+    const upsert=vi.fn().mockResolvedValue({error:null})
+    const query={update:vi.fn().mockReturnThis(),eq:vi.fn().mockReturnThis(),in:vi.fn().mockResolvedValue({error:null}),upsert}
+    const db={from:()=>query} as never
+    await ingestPendingPayments(db,'ws',Array.from({length:251},(_,id)=>({...cash,id})),'CO')
+    expect(upsert.mock.calls.map(call=>call[0].length)).toEqual([200,51])
+    await ingestPendingPayments(db,'ws',Array.from({length:301},(_,id)=>({...cash,id,status:'approved'})),'CO')
+    expect(query.in.mock.calls.map(call=>call[1].length)).toEqual([100,100,100,1])
+  })
   it('keeps the same execution across webhook/cron replays and status changes', () => {
     const original = sessionRunId('ws','flow','payment_pending','buyer',{ payment_id: '123' })
     expect(sessionRunId('ws','flow','payment_pending','buyer',{ payment_id: '123', financial_status: 'approved' })).toBe(original)

@@ -46,11 +46,13 @@ export async function ingestPendingPayments(db: SupabaseClient, workspaceId: str
   const unique = [...new Map(payments.map(p => [String(p.id), p])).values()]
   const candidates = unique.filter(p => isActionablePending(p) && Number.isFinite(Date.parse(p.date_created ?? '')))
   const emails = [...new Set(candidates.map(p => p.payer?.email?.trim().toLowerCase()).filter((e): e is string => !!e && !e.includes('*')))]
-  let contacts: Array<{ email: string | null; phone: string | null }> = []
-  if (emails.length) {
-    const result = await db.from('contacts').select('email,phone').eq('workspace_id', workspaceId).in('email', emails)
+  const contacts: Array<{ email: string | null; phone: string | null }> = []
+  for (let offset = 0; offset < emails.length; offset += 100) {
+    const result = await db.from('contacts').select('email,phone', {count:'exact'})
+      .eq('workspace_id', workspaceId).in('email', emails.slice(offset, offset + 100))
     if (result.error) throw result.error
-    contacts = result.data ?? []
+    // An incomplete match list must not hide another phone with the same email.
+    if (result.count !== null && result.count <= (result.data?.length ?? 0)) contacts.push(...(result.data ?? []))
   }
   if (candidates.length) {
     const rows = candidates.map(p => ({
@@ -63,8 +65,10 @@ export async function ingestPendingPayments(db: SupabaseClient, workspaceId: str
       external_reference: p.external_reference ?? null, payment_url: paymentInstructionsUrl(p),
       updated_at: new Date().toISOString(),
     }))
-    const result = await db.from('mp_pending_payments').upsert(rows, { onConflict: 'workspace_id,mp_payment_id' })
-    if (result.error) throw result.error
+    for (let offset = 0; offset < rows.length; offset += 200) {
+      const result = await db.from('mp_pending_payments').upsert(rows.slice(offset, offset + 200), { onConflict: 'workspace_id,mp_payment_id' })
+      if (result.error) throw result.error
+    }
   }
   // Stop previously queued payments that have since settled, expired or changed.
   const states = new Map<string, string[]>()
@@ -73,9 +77,11 @@ export async function ingestPendingPayments(db: SupabaseClient, workspaceId: str
     states.set(status, [...(states.get(status) ?? []), String(p.id)])
   }
   for (const [status, ids] of states) {
-    const result = await db.from('mp_pending_payments').update({ status, updated_at: new Date().toISOString() })
-      .eq('workspace_id', workspaceId).in('mp_payment_id', ids)
-    if (result.error) throw result.error
+    for (let offset = 0; offset < ids.length; offset += 100) {
+      const result = await db.from('mp_pending_payments').update({ status, updated_at: new Date().toISOString() })
+        .eq('workspace_id', workspaceId).in('mp_payment_id', ids.slice(offset, offset + 100))
+      if (result.error) throw result.error
+    }
   }
   return candidates.length
 }

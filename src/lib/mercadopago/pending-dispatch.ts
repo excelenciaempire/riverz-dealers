@@ -28,7 +28,7 @@ export async function dispatchPendingPayments(db: SupabaseClient, dispatch: Disp
     .select('id,workspace_id,mp_payment_id,payment_created_at,phone,payer_name,email')
     .in('workspace_id', [...starts.keys()]).eq('status', 'pending')
     .is('dispatched_at', null).not('phone', 'is', null)
-    .order('payment_created_at', { ascending: true }).limit(50)
+    .order('updated_at', { ascending: true }).order('payment_created_at', { ascending: true }).limit(50)
   if (result.error) throw result.error
   let enrolled = 0, failed = 0
   for (const row of (result.data ?? []) as PendingRow[]) {
@@ -47,7 +47,7 @@ export async function dispatchPendingPayments(db: SupabaseClient, dispatch: Disp
       }
       const contactId = await upsertWhatsappContact(db, { workspaceId: row.workspace_id,
         phone: row.phone, name: row.payer_name ?? undefined, email: row.email ?? undefined, isShopifyCustomer: false })
-      if (!contactId) continue
+      if (!contactId) throw new Error('pending payment recipient unavailable')
       if (await isOptedOut(db, row.workspace_id, contactId)) {
         const skipped = await db.from('mp_pending_payments').update({ dispatched_at: new Date().toISOString() }).eq('id', row.id)
         if (skipped.error) throw skipped.error
@@ -73,7 +73,12 @@ export async function dispatchPendingPayments(db: SupabaseClient, dispatch: Disp
       const done = await db.from('mp_pending_payments').update({ dispatched_at: new Date().toISOString() }).eq('id', row.id)
       if (done.error) throw done.error
       enrolled++
-    } catch { failed++ }
+    } catch {
+      failed++
+      // Rotate unavailable recipients/workspaces instead of letting the same
+      // 50 oldest failures starve every other merchant on each cron tick.
+      await db.from('mp_pending_payments').update({updated_at:new Date().toISOString()}).eq('id',row.id)
+    }
   }
   return { pending_enrolled: enrolled, pending_failed: failed }
 }
