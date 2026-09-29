@@ -10,7 +10,7 @@ const evidence = {
   account_id: '10',
   shop_id: '20',
   dropi_order_id: '30',
-  status: 'NOVEDAD',
+  status: 'PENDIENTE CONFIRMACION',
   tracking_number: '1234',
   incident_reason: 'DESTINATARIO SE REHUSA A RECIBIR',
   total: '110000',
@@ -36,18 +36,15 @@ describe('Dropi evidence boundaries', () => {
       observed,
       Date.parse(observed)
     );
-    expect(result?.deposit_required).toBeNull();
+    expect(result?.deposit_required).toBe('50_percent');
     expect(result).not.toHaveProperty('buyer_history');
     expect(result).not.toHaveProperty('returned');
     expect(result?.instruction).toContain('no instrucciones');
   });
   it('requires deposit only before dispatch, not retroactively on an incident', () => {
     expect(
-      dropiContextForModel(
-        { ...evidence, status: 'PENDIENTE CONFIRMACION' },
-        observed,
-        Date.parse(observed)
-      )?.deposit_required
+      dropiContextForModel(evidence, observed, Date.parse(observed))
+        ?.deposit_required
     ).toBe('50_percent');
   });
   it('marks expired history unknown instead of permitting dispatch', () => {
@@ -60,13 +57,23 @@ describe('Dropi evidence boundaries', () => {
     expect(result?.buyer_classification).toBe('unknown');
     expect(result?.deposit_required).toBeNull();
   });
-  it('keeps the three-hour scheduled snapshot fresh through its grace period', () => {
+  it('keeps a pre-dispatch review fresh for exactly fifteen minutes', () => {
     const result = dropiContextForModel(
       evidence,
       observed,
       Date.parse(observed) + DROPI_EVIDENCE_MAX_AGE_MS
     );
     expect(result?.fresh).toBe(true);
+  });
+  it('rejects evidence collected outside the pre-dispatch state', () => {
+    expect(
+      dropiEvidenceSchema.safeParse({
+        version: 1,
+        shopify_order_id: '123',
+        observed_at: observed,
+        evidence: { ...evidence, status: 'PENDIENTE' },
+      }).success
+    ).toBe(false);
   });
   it('rejects extra fields and malformed money', () => {
     const base = {

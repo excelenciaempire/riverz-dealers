@@ -30,7 +30,7 @@ stock and market data. They do not establish DeUna order delivery or payments.
 `dropi-mcp/dropi/transport.py` documents the legacy API headers. Legacy write
 paths marked unverified in that repository are not used for dispatch.
 
-## One canonical order
+## One canonical order and one pre-dispatch review
 
 The signed `/api/internal/dropi/order-evidence` receiver reuses the incident
 bridge signature and server-side DeUna binding. Migration 299 only enriches an
@@ -40,14 +40,22 @@ SQL locks the row, rejects older/repeated observations and conflicting Dropi
 identities. A unique account/Dropi-order index prevents linking to two orders.
 Split Dropi orders mapping to one Shopify order are rejected for explicit review.
 
-`lookup_order` exposes state, guide, incident cause and classification only after
-its existing customer-identity check. Other-store buyer counts are withheld from
-the model. The Windows task refreshes the snapshot after the full accounting
-reconciliation every three hours. Conversation context accepts that snapshot for
-three hours plus a 15-minute completion margin; older evidence is explicitly
-stale. The signed receiver still rejects payloads that were not current when
-submitted. Delivery does not establish payment; guide creation does not establish
-physical dispatch.
+`lookup_order` exposes the pre-dispatch classification only after its existing
+customer-identity check. Other-store buyer counts are withheld from the model.
+The three-hour Windows poll remains responsible for accounting and for detecting
+order changes because Dropi does not provide this bridge with a webhook. It does
+not read every buyer fingerprint on every poll. The fingerprint is read only when
+an existing DeUna order enters `PENDIENTE CONFIRMACION`, before dispatch, and only
+once for that material order revision. A change to customer, address, amount or
+line items invalidates the revision and requires a new review. Leaving that state
+clears the local review marker.
+
+Conversation context accepts the pre-dispatch evidence for 15 minutes; older
+evidence is explicitly stale. The release policy separately requires a provider
+read no older than 60 seconds at the actual confirmation decision. The signed
+receiver rejects evidence for any status other than `PENDIENTE CONFIRMACION`.
+Delivery does not establish payment; guide creation does not establish physical
+dispatch.
 
 ## Release is not activated
 

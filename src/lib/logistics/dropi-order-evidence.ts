@@ -7,7 +7,7 @@ const amount = z
   .nullable();
 const timestamp = z.string().datetime({ offset: true });
 const count = z.number().int().nonnegative().nullable();
-export const DROPI_EVIDENCE_MAX_AGE_MS = 3 * 60 * 60_000 + 15 * 60_000;
+export const DROPI_EVIDENCE_MAX_AGE_MS = 15 * 60_000;
 export const dropiEvidenceSchema = z
   .object({
     version: z.literal(1),
@@ -18,7 +18,7 @@ export const dropiEvidenceSchema = z
         account_id: id,
         shop_id: id,
         dropi_order_id: id,
-        status: z.string().min(1).max(100),
+        status: z.literal('PENDIENTE CONFIRMACION'),
         tracking_number: z.string().max(100).nullable(),
         incident_reason: z.string().max(500).nullable(),
         total: amount,
