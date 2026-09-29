@@ -84,14 +84,17 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     cobro: 'por_uso',
   },
   {
-    // Estimado con Sonnet el 2026-09-17. Lo medido con la caché de una hora
-    // fue 4,95 ¢ (2026-09-17 al 29); con Opus 5 y caché de cinco minutos,
-    // 6,05 ¢ (2026-08-30), y con Haiku 1,44. Es sólo la semilla: en cuanto la
-    // cuenta tiene historia se le muestra SU costo medido.
+    // Medido el 2026-09-29 con el prompt por capas y Sonnet 5.5: 1,30 ¢ por
+    // respuesta en 10 chats reales contra la API, y en producción cerca de
+    // 1 ¢ por petición con lo del agente ya en caché. La primera petición de
+    // un agente sin consultas en la última hora lo escribe y sale de 6 a 12 ¢,
+    // así que una cuenta con poco tráfico paga más. Antes: 4,95 ¢ con la caché
+    // de una hora (2026-09-17 al 29). Es sólo la semilla: en cuanto la cuenta
+    // tiene historia se le muestra SU costo medido.
     concepto: 'ia_respuesta',
     nombreEs: 'Respuestas de la IA',
     nombreEn: 'AI replies',
-    centavos: 2.5,
+    centavos: 1.5,
     unidad: 'respuesta',
     proveedor: 'Anthropic',
     cobro: 'por_uso',
@@ -141,7 +144,7 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     concepto: 'ia_seguimiento',
     nombreEs: 'Seguimientos cuando el cliente se calla',
     nombreEn: 'Follow-ups when the customer goes quiet',
-    centavos: 2.5,
+    centavos: 1.5,
     unidad: 'seguimiento',
     proveedor: 'Anthropic',
     cobro: 'por_uso',

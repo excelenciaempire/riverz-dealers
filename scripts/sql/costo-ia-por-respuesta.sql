@@ -53,3 +53,21 @@ from (
 ) g
 group by rollup(grupo)
 order by grupo nulls last;
+
+-- 3. Desde el prompt por capas (2026-09-29): cada petición, qué escribió a una
+--    hora (lo del agente, en frío), qué a cinco minutos (lo de la persona) y
+--    cuánto leyó. En una cuenta con tráfico casi todas las primeras
+--    peticiones de un chat leen lo del agente en vez de escribirlo.
+with ventana(desde, hasta) as (values (timestamptz '2026-09-29 18:00+00', now()))
+select left(m.workspace_id::text, 8) cuenta,
+       count(*) peticiones,
+       round(avg(m.costo_centavos), 3) centavos_por_peticion,
+       count(*) filter (where (m.detalle->'usage'->'cache_creation'->>'ephemeral_1h_input_tokens')::int > 0) escribe_1h,
+       round(avg((m.detalle->'usage'->'cache_creation'->>'ephemeral_1h_input_tokens')::int)) escritos_1h,
+       round(avg((m.detalle->'usage'->'cache_creation'->>'ephemeral_5m_input_tokens')::int)) escritos_5m,
+       round(avg((m.detalle->'usage'->>'cache_read_input_tokens')::int)) leidos
+from ventana v
+join wallet_movimientos m on m.creado_en >= v.desde and m.creado_en < v.hasta
+where m.concepto = 'ia_respuesta' and m.tipo = 'consumo'
+group by rollup(1)
+order by 1 nulls last;
