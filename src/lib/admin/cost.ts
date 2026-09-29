@@ -21,10 +21,11 @@ interface Rate {
  *
  * Leer de la caché sale una décima parte, con cualquier TTL. Escribirla
  * depende de cuánto dura: un 25% más con la caché de 5 minutos, el doble con
- * la de 1 hora. El asistente usó la de 1 hora del 2026-09-17 al 2026-09-30 y
- * volvió a la de 5 minutos (ver `runWithTools`): su prompt lleva datos de cada
- * cliente, no se comparte entre chats, y pagar el doble por escribirlo salía
- * más caro que no cachear.
+ * la de 1 hora. Del 2026-09-17 al 29 el asistente escribió su prompt entero
+ * con la de 1 hora, aunque llevaba datos de cada cliente y no se compartía
+ * entre chats: pagar el doble salía más caro que no cachear. Desde entonces va
+ * por capas (ver `SystemPorCapas`): lo compartido con la de 1 hora y lo de
+ * cada persona con la de 5 minutos.
  */
 const CACHE_READ = 0.1;
 const CACHE_WRITE_5M = 1.25;
@@ -34,10 +35,10 @@ export type CacheTtl = '5m' | '1h';
 /**
  * Con qué caché se escribió una respuesta del asistente, según cuándo salió.
  *
- * `ai_replies` guarda un solo número de escritura y no dice de qué TTL era.
- * Fuera de esas dos semanas fue la de cinco minutos; tarifar esas filas al
- * doble inflaría un 60% la parte de escritura. Las fechas son las de los
- * despliegues que pusieron y sacaron `ttl: '1h'` en `runWithTools`.
+ * Para las filas de `ai_replies` anteriores a la migración 300, que guardan un
+ * solo número de escritura y no dicen de qué TTL era. Antes de esas dos
+ * semanas fue la de cinco minutos; tarifar esas filas al doble inflaría un 60%
+ * la parte de escritura. Las filas nuevas traen `cache_write_1h_tokens`.
  */
 const CACHE_1H_DESDE = Date.UTC(2026, 8, 17);
 const CACHE_1H_HASTA = Date.UTC(2026, 8, 30);
