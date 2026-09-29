@@ -132,7 +132,7 @@ export async function acumularDia(
   const { data, error } = await db
     .from('ai_replies')
     .select(
-      'workspace_id, conversation_id, prompt_tokens, completion_tokens, cache_read_tokens, cache_write_tokens, model, key_source',
+      'workspace_id, conversation_id, prompt_tokens, completion_tokens, cache_read_tokens, cache_write_tokens, cache_write_1h_tokens, model, key_source',
     )
     .eq('status', 'sent')
     .gte('created_at', desde.toISOString())
@@ -161,6 +161,7 @@ export async function acumularDia(
     completion_tokens: number | null
     cache_read_tokens: number | null
     cache_write_tokens: number | null
+    cache_write_1h_tokens: number | null
     model: string | null
     key_source: string | null
   }[]) {
@@ -187,9 +188,13 @@ export async function acumularDia(
     const usd = costForModel(r.model, r.prompt_tokens ?? 0, r.completion_tokens ?? 0, {
       read: r.cache_read_tokens ?? 0,
       write: r.cache_write_tokens ?? 0,
-      // El asistente escribió la caché de una hora del 2026-09-17 al 30; antes
-      // y después, la de cinco minutos. Se decide por el día que se acumula.
-      ttl: ttlDeCacheDelAsistente(desde),
+      // Desde la migración 300 la fila dice cuánto se escribió con la caché de
+      // una hora. Las anteriores no: el asistente usó la de una hora del
+      // 2026-09-17 al 30 y la de cinco minutos antes, así que se decide por el
+      // día que se acumula.
+      ...(r.cache_write_1h_tokens != null
+        ? { write1h: r.cache_write_1h_tokens }
+        : { ttl: ttlDeCacheDelAsistente(desde) }),
     })
     acc.usd += usd
 

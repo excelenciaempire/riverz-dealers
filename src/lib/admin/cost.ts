@@ -119,15 +119,20 @@ export function costForModel(
    * lectura de caché es la mayor parte de lo que se paga. Se dejan opcionales
    * porque las filas anteriores a la migración 215 no los tienen y no se pueden
    * inventar.
+   *
+   * `write1h` es la parte de `write` que se escribió con la caché de una hora,
+   * cuando se sabe (migración 300). Si no, `ttl` dice de cuál fue toda.
    */
-  cache?: { read?: number; write?: number; ttl?: CacheTtl }
+  cache?: { read?: number; write?: number; ttl?: CacheTtl; write1h?: number }
 ): number {
   const rate = rateFor(model);
-  const cacheWrite = cache?.ttl === '1h' ? CACHE_WRITE_1H : CACHE_WRITE_5M;
+  const write = cache?.write ?? 0;
+  const write1h = Math.min(write, cache?.write1h ?? (cache?.ttl === '1h' ? write : 0));
   return (
     (promptTokens / 1_000_000) * rate.input +
     (completionTokens / 1_000_000) * rate.output +
     ((cache?.read ?? 0) / 1_000_000) * rate.input * CACHE_READ +
-    ((cache?.write ?? 0) / 1_000_000) * rate.input * cacheWrite
+    ((write - write1h) / 1_000_000) * rate.input * CACHE_WRITE_5M +
+    (write1h / 1_000_000) * rate.input * CACHE_WRITE_1H
   );
 }

@@ -83,6 +83,10 @@ describe('el precio de cada proveedor', () => {
     expect(soloLectura).toBeCloseTo(soloPrompt * 0.1, 6)
     expect(soloEscritura).toBeCloseTo(soloPrompt * 1.25, 6)
     expect(escrituraLarga).toBeCloseTo(soloPrompt * 2, 6)
+    // Con el prompt por capas una respuesta escribe con las dos: lo del agente
+    // a una hora y lo de la persona a cinco minutos. Cada parte a su precio.
+    const mixta = costForModel('claude-opus-5', 0, 0, { write: 1_000_000, write1h: 400_000 })
+    expect(mixta).toBeCloseTo(soloPrompt * (0.6 * 1.25 + 0.4 * 2), 6)
   })
 
   it('Sonnet 5.5 se tarifa a lo que cobra Anthropic', () => {

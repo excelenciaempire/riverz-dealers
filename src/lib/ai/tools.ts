@@ -1,5 +1,6 @@
 import { secureSystemPrompt, toolCallAllowed } from './input-security'
 import { toolPermissionKey } from './toolbox'
+import { redactModelSecrets } from '@/lib/security/model-secrets'
 
 /**
  * Tool definitions + agentic loop para el asistente IA.
@@ -2389,13 +2390,108 @@ function pedidoLocalParaElModelo(o: Record<string, unknown>): Record<string, unk
   }
 }
 
+/**
+ * El prompt del asistente partido según con quién se comparte.
+ *
+ * El proveedor cachea por prefijo exacto: lo primero que no cambia se escribe
+ * una vez y las peticiones siguientes lo leen a una décima parte. Por eso va
+ * de lo más compartido a lo menos, y cada capa con la caché que le sirve:
+ *
+ * - `estable`: lo del agente, igual en todos sus chats. Una hora: con una
+ *   consulta cada pocos minutos se escribe una vez por hora y no una por chat.
+ * - `producto`: la ficha del producto del que se habla, igual en todos los
+ *   chats sobre ese producto. Una hora.
+ * - `cliente`: lo de esta persona. Cinco minutos: lo relee el bucle de
+ *   herramientas y la respuesta que sigue.
+ * - `turno`: lo que cambia con cada mensaje. Sin caché.
+ */
+export interface SystemPorCapas {
+  estable: string
+  producto?: string
+  cliente: string
+  turno?: string
+}
+
+/** Los nombres de las herramientas que se le ofrecen al modelo. */
+export function nombresDeHerramientas(tools: readonly Anthropic.ToolUnion[]): string[] {
+  return tools.flatMap((t) => ('name' in t && typeof t.name === 'string' ? [t.name] : []))
+}
+
+/** Por debajo del mínimo que exige el proveedor la marca se ignora. */
+const CACHE_MIN_CHARS = 8000
+
+/**
+ * `system` listo para mandar, con sus marcas de caché.
+ *
+ * La política de seguridad cierra el último bloque: `guardedAnthropicFetch`
+ * la busca ahí y, si no está, agrega un bloque aparte.
+ */
+export function systemConCache(
+  system: string | SystemPorCapas
+): Anthropic.TextBlockParam[] | string {
+  if (typeof system === 'string') {
+    const protegido = secureSystemPrompt(system)
+    return protegido.length >= CACHE_MIN_CHARS
+      ? [{ type: 'text', text: protegido, cache_control: { type: 'ephemeral' } }]
+      : protegido
+  }
+  const capas = [
+    { texto: system.estable, hora: true, cachear: true },
+    { texto: system.producto ?? '', hora: true, cachear: true },
+    { texto: system.cliente, hora: false, cachear: true },
+    { texto: system.turno ?? '', hora: false, cachear: false },
+  ].filter((c) => c.texto.trim())
+  if (capas.length === 0) return secureSystemPrompt('')
+  const largo = capas.reduce((n, c) => n + c.texto.length, 0)
+  return capas.map((c, i): Anthropic.TextBlockParam => {
+    const text =
+      i === capas.length - 1 ? secureSystemPrompt(c.texto) : redactModelSecrets(c.texto)
+    if (!c.cachear || largo < CACHE_MIN_CHARS) return { type: 'text', text }
+    return {
+      type: 'text',
+      text,
+      cache_control: c.hora ? { type: 'ephemeral', ttl: '1h' } : { type: 'ephemeral' },
+    }
+  })
+}
+
+/**
+ * Los mensajes con la marca de cinco minutos en el último del cliente.
+ *
+ * Cada vuelta del bucle de herramientas vuelve a mandar la conversación
+ * entera; con la marca, la vuelta siguiente la lee de caché. Va en una copia y
+ * sólo en el último: las marcas viejas contarían contra el tope de cuatro.
+ */
+export function mensajesConCache(
+  messages: Anthropic.MessageParam[]
+): Anthropic.MessageParam[] {
+  const i = messages.length - 1
+  const ultimo = messages[i]
+  if (!ultimo || ultimo.role !== 'user') return messages
+  const bloques: Anthropic.ContentBlockParam[] =
+    typeof ultimo.content === 'string'
+      ? [{ type: 'text', text: ultimo.content }]
+      : [...ultimo.content]
+  const j = bloques.length - 1
+  const bloque = bloques[j]
+  const marcable =
+    bloque &&
+    (bloque.type === 'text'
+      ? bloque.text.trim().length > 0
+      : bloque.type === 'image' || bloque.type === 'document' || bloque.type === 'tool_result')
+  if (!marcable) return messages
+  bloques[j] = { ...bloque, cache_control: { type: 'ephemeral' } } as Anthropic.ContentBlockParam
+  return [...messages.slice(0, i), { ...ultimo, content: bloques }]
+}
+
 export async function runWithTools(
   client: Anthropic,
   args: {
     model: string
     reasoningEffort?: 'low' | 'high'
     max_tokens: number
-    system: string
+    /** Un texto, o las capas de `SystemPorCapas` para cachear lo compartido. */
+    system: string | SystemPorCapas
     messages: Anthropic.MessageParam[]
     /** Incluye las de SERVIDOR (la busqueda web), que no ejecutamos aca. */
     tools: Anthropic.ToolUnion[]
@@ -2426,6 +2522,9 @@ export async function runWithTools(
    */
   cacheReadTokens: number
   cacheWriteTokens: number
+  /** La parte de `cacheWriteTokens` que se escribió con la caché de una hora,
+   *  que cuesta el doble de la entrada y no 1,25x. */
+  cacheWrite1hTokens: number
   iterations: number
   /**
    * Qué herramientas llamó, en orden y con repeticiones.
@@ -2444,45 +2543,28 @@ export async function runWithTools(
   let promptTokens = 0
   let cacheReadTokens = 0
   let cacheWriteTokens = 0
+  let cacheWrite1hTokens = 0
   let completionTokens = 0
   const herramientas: string[] = []
   let iter = 0
 
-  // El system prompt se manda como bloque cacheable.
+  // El system prompt se manda cacheable.
   //
   // Es el mismo texto en cada vuelta del bucle de herramientas —hasta seis
-  // llamadas por turno— y en cada turno siguiente de la misma conversación:
-  // la persona, el rol, el material de los productos fijados y hasta ochenta
-  // líneas de catálogo no cambian entre "hola" y "¿y en negro?". Sin esto se
-  // pagaba entero todas las veces.
+  // llamadas por turno— y en cada turno siguiente de la misma conversación.
+  // Sin esto se pagaba entero todas las veces.
   //
-  // El corte por largo no es una optimización nuestra: por debajo del mínimo
-  // que exige el proveedor la marca se ignora, así que ponerla ahí sólo
-  // ensucia el pedido. Arriba, la primera llamada cuesta un poco más y las
-  // siguientes una décima parte.
+  // Un texto suelto va entero con la caché de CINCO minutos, no de una hora:
+  // lleva los datos de cada cliente, así que nunca se comparte entre chats, y
+  // el 55% de los chats recibe una sola respuesta. Con la de una hora
+  // (2026-09-17 al 29) la escritura, que cuesta el doble de la entrada, era el
+  // 89% del costo: 4,95 ¢ por respuesta, más que no cachear nada (4,49 ¢).
   //
-  // De CINCO minutos, no de una hora. El prompt lleva los datos de cada
-  // cliente (resumen, contacto, pedidos, notas, el catálogo ordenado según lo
-  // que preguntó), así que nunca se comparte entre chats: lo que se escribe lo
-  // lee, como mucho, el mismo chat. Y el 55% de los chats recibe una sola
-  // respuesta. Con la de una hora (2026-09-17 al 29) la escritura, que cuesta
-  // el doble de la entrada, era el 89% del costo: 4,95 ¢ por respuesta, más que
-  // no cachear nada (4,49 ¢). Con la de cinco minutos, que cuesta 1,25x, los
-  // mismos chats salen 3,43 ¢, porque lo que se reusa es el bucle de
-  // herramientas y la respuesta que sigue al minuto. La de una hora sólo paga
-  // en un bloque que se comparta entre chats.
-  const CACHE_MIN_CHARS = 8000
-  const protectedSystem = secureSystemPrompt(args.system)
-  const system: Anthropic.TextBlockParam[] | string =
-    protectedSystem.length >= CACHE_MIN_CHARS
-      ? [
-          {
-            type: 'text',
-            text: protectedSystem,
-            cache_control: { type: 'ephemeral' },
-          },
-        ]
-      : protectedSystem
+  // Las capas de `SystemPorCapas` sí se comparten: lo del agente y la ficha
+  // del producto van con la de una hora, que es la única que dura entre un
+  // chat y el siguiente, y lo de la persona con la de cinco minutos.
+  const system = systemConCache(args.system)
+  const marcar = typeof args.system === 'string' ? (m: Anthropic.MessageParam[]) => m : mensajesConCache
 
   // Las pausas NO gastan vuelta.
   //
@@ -2508,7 +2590,7 @@ export async function runWithTools(
         model: args.model,
         max_tokens: args.max_tokens,
         system,
-        messages,
+        messages: marcar(messages),
         ...(args.tools.length > 0 ? { tools: args.tools } : {}),
         // Cuánto piensa antes de contestar. `esfuerzo` devuelve {} en Haiku,
         // que rechaza estos dos parámetros con un 400 — así que la misma
@@ -2535,7 +2617,7 @@ export async function runWithTools(
           model: args.model,
           max_tokens: args.max_tokens,
           system,
-          messages,
+          messages: marcar(messages),
           ...(args.tools.length > 0 ? { tools: args.tools } : {}),
         })
       } else {
@@ -2547,6 +2629,7 @@ export async function runWithTools(
     completionTokens += response.usage?.output_tokens ?? 0
     cacheReadTokens += response.usage?.cache_read_input_tokens ?? 0
     cacheWriteTokens += response.usage?.cache_creation_input_tokens ?? 0
+    cacheWrite1hTokens += response.usage?.cache_creation?.ephemeral_1h_input_tokens ?? 0
 
     // El modelo se detuvo a mitad de una herramienta de SERVIDOR (la busqueda
     // web). No hay nada que ejecutar de nuestro lado: se le devuelve lo que
@@ -2575,6 +2658,7 @@ export async function runWithTools(
         completionTokens,
         cacheReadTokens,
         cacheWriteTokens,
+        cacheWrite1hTokens,
         iterations: iter,
         herramientas,
         truncated: false,
@@ -2623,7 +2707,7 @@ export async function runWithTools(
       model: args.model,
       max_tokens: args.max_tokens,
       system,
-      messages,
+      messages: marcar(messages),
     })
   } catch {
     // Si la llamada final falla (timeout/overloaded/etc.), no lanzamos:
@@ -2635,6 +2719,7 @@ export async function runWithTools(
       completionTokens,
       cacheReadTokens,
       cacheWriteTokens,
+      cacheWrite1hTokens,
       iterations: iter + 1,
       herramientas,
       truncated: true,
@@ -2644,6 +2729,7 @@ export async function runWithTools(
   completionTokens += final.usage?.output_tokens ?? 0
   cacheReadTokens += final.usage?.cache_read_input_tokens ?? 0
   cacheWriteTokens += final.usage?.cache_creation_input_tokens ?? 0
+  cacheWrite1hTokens += final.usage?.cache_creation?.ephemeral_1h_input_tokens ?? 0
   const text = final.content
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
     .map((b) => b.text)
@@ -2655,6 +2741,7 @@ export async function runWithTools(
     completionTokens,
     cacheReadTokens,
     cacheWriteTokens,
+    cacheWrite1hTokens,
     iterations: iter + 1,
     herramientas,
     truncated: true,

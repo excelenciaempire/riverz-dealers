@@ -2,10 +2,10 @@
  * Prueba A/B sobre conversaciones reales de un asistente.
  *
  * Corre el MISMO prompt, las MISMAS herramientas y el MISMO bucle que
- * producción (`buildSystemPrompt` más lo que `generateReply` le suma en cada
+ * producción (`armarSystemPrompt` más lo que `systemDelTurno` le suma en cada
  * turno: los bloques de entrega, las políticas de pedidos y el brief del
- * comercio), sobre un dataset de conversaciones reales, y guarda las
- * respuestas lado a lado para juzgarlas.
+ * comercio, en las mismas capas de caché), sobre un dataset de conversaciones
+ * reales, y guarda las respuestas lado a lado para juzgarlas.
  *
  * Compara modelos (`--modelos a,b`) o versiones del prompt: con un solo modelo
  * y `--etiqueta`, las respuestas se guardan con esa etiqueta y `unir.ts` junta
@@ -17,7 +17,7 @@
  *
  * Uso:
  *   npx tsx scripts/eval-modelo/run.ts --env <archivo .env> --agent <agent_id> \
- *     [--modelos claude-sonnet-5-5] [--etiqueta antes] [--limit 40] [--max 52] \
+ *     [--modelos claude-sonnet-5-5] [--etiqueta antes] [--limit 40] [--max 52] [--sin-politicas-de-pedidos] \
  *     [--dataset scripts/eval-modelo/dataset.json] [--output scripts/eval-modelo/resultados.json]
  */
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -28,6 +28,7 @@ iniciar()
 const agentId = arg('--agent', '')
 const models = arg('--modelos', arg('--models', 'claude-sonnet-5-5')).split(',')
 const etiqueta = arg('--etiqueta', '')
+const sinPoliticas = process.argv.includes('--sin-politicas-de-pedidos')
 const limit = Number(arg('--limit', '40'))
 const datasetPath = arg('--dataset', 'scripts/eval-modelo/dataset.json')
 const output = arg('--output', 'scripts/eval-modelo/resultados.json')
@@ -49,10 +50,8 @@ async function main() {
   const { cargarReglas, reglasATexto } = await import('../../src/lib/ai/guidance')
   const { resolveAnthropicKey } = await import('../../src/lib/ai/platform-key')
   const runner = await import('../../src/lib/ai/runner')
-  const { runWithTools } = await import('../../src/lib/ai/tools')
+  const { nombresDeHerramientas, runWithTools } = await import('../../src/lib/ai/tools')
   const { reguladoPorEsfuerzo } = await import('../../src/lib/ai/esfuerzo')
-  const { ORDER_CONVERSATION_POLICY, ORDER_OPERATION_POLICY } = await import('../../src/lib/ai/order-conversation-policy')
-  const { revitalyFeedbackBrief } = await import('../../src/lib/ai/revitaly-channel-policy')
   const { resolveStoreForLookup } = await import('../../src/lib/commerce/order-lookup')
   const { cargarPerfilOperativo } = await import('../../src/lib/operacion/perfil-operativo')
   const { resolveWorkspaceCurrency } = await import('../../src/lib/products/currency')
@@ -129,27 +128,30 @@ async function main() {
           if (!t || t.platform === 'shopify') return null
           return { ...t, customerEmail: null, customerPhone: null }
         })()
+    const tools = runner.construirHerramientas({
+      agent: a, hayContacto: true, shopify, otherStore: otraTienda, voiceCtx: null, topeDescuento,
+    })
     // Los clientes de este comercio son argentinos: el runner resuelve
     // `rioplatense` por el país del cliente. Se fija acá para no pedir el país.
-    // Lo demás es lo que `generateReply` le suma en cada turno.
-    const system =
-      runner.buildSystemPrompt(
+    // Lo demás es lo que `generateReply` le suma en cada turno, en sus capas.
+    const system = runner.systemDelTurno(
+      runner.armarSystemPrompt(
         a, contacto, contacto, null, [],
         { messages: [], rollingSummary: null, idleResetHint: null },
         products, productMatch, shopify, null, businessCurrency, reglas,
         'rioplatense', perfilOperativo, channel
-      ) +
-      runner.bloquesDeEntrega(a, null, channel) +
-      '\n\n' + ORDER_CONVERSATION_POLICY + '\n\n' + ORDER_OPERATION_POLICY +
-      revitalyFeedbackBrief(a.workspace_id, caso.mensaje)
-    const tools = runner.construirHerramientas({
-      agent: a, hayContacto: true, shopify, otherStore: otraTienda, voiceCtx: null, topeDescuento,
-    })
+      ),
+      {
+        agent: a, recoveryContext: null, channel, traspaso: null, inboundText: caso.mensaje,
+        // `--sin-politicas-de-pedidos`: como un agente sin herramientas de pedidos.
+        herramientas: sinPoliticas ? [] : nombresDeHerramientas(tools),
+      }
+    )
     const messages = [...caso.historial, { role: 'user' as const, content: caso.mensaje }]
     const fila: Record<string, unknown> = {
       id: caso.id, channel, mensaje: caso.mensaje, historial: caso.historial,
       respuesta_original: caso.respuesta_original, herramientas_originales: caso.herramientas_originales,
-      system_chars: system.length,
+      system_chars: runner.unirSystem(system).length,
     }
     await Promise.all(models.map(async (model, k) => {
       const t0 = Date.now()

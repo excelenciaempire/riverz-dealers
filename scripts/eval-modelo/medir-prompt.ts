@@ -2,8 +2,9 @@
  * Cuánto pesa cada parte del prompt de un asistente, en tokens.
  *
  * Arma el prompt como producción para un caso del dataset y cuenta con
- * `count_tokens`, que no se cobra: las herramientas, el system entero y cada
- * párrafo del system (proporcional a su largo dentro del total medido).
+ * `count_tokens`, que no se cobra: las herramientas, cada capa del system
+ * (`estable`, `producto`, `cliente`, `turno`) y cada párrafo de más de 150
+ * tokens (proporcional a su largo dentro de la capa medida).
  *
  * Uso:
  *   npx tsx scripts/eval-modelo/medir-prompt.ts --env <archivo .env> --agent <agent_id> [--caso real-01]
@@ -19,8 +20,7 @@ async function main() {
   const { cargarReglas, reglasATexto } = await import('../../src/lib/ai/guidance')
   const { resolveAnthropicKey } = await import('../../src/lib/ai/platform-key')
   const runner = await import('../../src/lib/ai/runner')
-  const { ORDER_CONVERSATION_POLICY, ORDER_OPERATION_POLICY } = await import('../../src/lib/ai/order-conversation-policy')
-  const { secureSystemPrompt } = await import('../../src/lib/ai/input-security')
+  const { nombresDeHerramientas } = await import('../../src/lib/ai/tools')
   const { resolveStoreForLookup } = await import('../../src/lib/commerce/order-lookup')
   const { cargarPerfilOperativo } = await import('../../src/lib/operacion/perfil-operativo')
   const { resolveWorkspaceCurrency } = await import('../../src/lib/products/currency')
@@ -60,39 +60,33 @@ async function main() {
     const t = await resolveStoreForLookup(admin, a.workspace_id)
     return !t || t.platform === 'shopify' ? null : { ...t, customerEmail: null, customerPhone: null }
   })()
-  const system = secureSystemPrompt(
-    runner.buildSystemPrompt(a, contacto, contacto, null, [], { messages: [], rollingSummary: null, idleResetHint: null },
-      products, productMatch, shopify, null, businessCurrency, reglas, 'neutro', perfilOperativo, channel) +
-    runner.bloquesDeEntrega(a, null, channel) + '\n\n' + ORDER_CONVERSATION_POLICY + '\n\n' + ORDER_OPERATION_POLICY
-  )
   const tools = runner.construirHerramientas({ agent: a, hayContacto: true, shopify, otherStore: otraTienda, voiceCtx: null, topeDescuento })
+  const capas = runner.systemDelTurno(
+    runner.armarSystemPrompt(a, contacto, contacto, null, [], { messages: [], rollingSummary: null, idleResetHint: null },
+      products, productMatch, shopify, null, businessCurrency, reglas, 'neutro', perfilOperativo, channel),
+    { agent: a, recoveryContext: null, channel, traspaso: null, inboundText: caso.mensaje, herramientas: nombresDeHerramientas(tools) }
+  )
 
   const model = a.model || 'claude-sonnet-5-5'
   const messages = [{ role: 'user' as const, content: 'hola' }]
   const contar = async (p: { system?: string; tools?: typeof tools }) =>
     (await client.messages.countTokens({ model, messages, ...p })).input_tokens
   const base = await contar({})
-  const conTools = await contar({ tools })
-  const conSystem = await contar({ system })
-  const todo = await contar({ system, tools })
+  const conTools = (await contar({ tools })) - base
   console.log(`agente ${a.name} · ${model} · caso ${caso.id} · producto detectado: ${productMatch?.product_id ?? 'ninguno'} (${productMatch?.via ?? '-'})`)
-  console.log(`herramientas: ${tools.length}, ${conTools - base} tokens`)
-  console.log(`system: ${system.length} caracteres, ${conSystem - base} tokens`)
-  console.log(`total del prefijo: ${todo - base} tokens`)
-
-  const porTool = await Promise.all(tools.map(async (t) => [
-    (t as { name?: string }).name ?? '?', (await contar({ tools: [t] })) - base,
-  ] as const))
-  console.log('\nherramientas, de mayor a menor:')
-  for (const [n, k] of porTool.sort((x, y) => y[1] - x[1])) console.log(`  ${String(k).padStart(6)}  ${n}`)
-
-  const tokSystem = conSystem - base
-  const parrafos = system.split('\n\n')
-  console.log('\nsystem, párrafos de más de 150 tokens (estimado por largo):')
-  for (const p of parrafos) {
-    const est = Math.round((tokSystem * p.length) / system.length)
-    if (est >= 150) console.log(`  ${String(est).padStart(6)}  ${p.slice(0, 90).replace(/\s+/g, ' ')}`)
+  console.log(`herramientas: ${tools.length}, ${conTools} tokens`)
+  for (const nombre of ['estable', 'producto', 'cliente', 'turno'] as const) {
+    const texto = capas[nombre] ?? ''
+    if (!texto.trim()) continue
+    const tokens = (await contar({ system: texto })) - base
+    console.log(`\n${nombre}: ${texto.length} caracteres, ${tokens} tokens`)
+    for (const p of texto.split('\n\n')) {
+      const est = Math.round((tokens * p.length) / texto.length)
+      if (est >= 150) console.log(`  ${String(est).padStart(6)}  ${p.slice(0, 90).replace(/\s+/g, ' ')}`)
+    }
   }
+  const todo = (await contar({ system: runner.unirSystem(capas), tools })) - base
+  console.log(`\ntotal del prefijo (herramientas + system): ${todo} tokens`)
 }
 
 main().catch((e) => { console.error(e); process.exit(1) })

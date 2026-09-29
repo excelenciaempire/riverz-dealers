@@ -1,17 +1,16 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-channel-policy';
 import {emailDispositionForPolicy,emailRedirectText,isEmailChannel,loadEmailPolicy} from './email-policy';
-import { instruccionDeTraspaso } from '@/lib/ai/escalada';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from '@/lib/ai/esfuerzo';
 import { untrustedContext } from '@/lib/ai/input-security';
 import { recortarSalida, salidaParaCliente } from '@/lib/ai/salida';
 import { IG_DM_MAX_CHARS, SURFACE_RULES } from '@/lib/ai/super-agent';
-import { ORDER_CONVERSATION_POLICY, ORDER_OPERATION_POLICY, orderConversationModel } from './order-conversation-policy';
+import { orderConversationModel } from './order-conversation-policy';
 import { recoveryHasExistingOrder } from './recovery-policy';
 import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import {
-  bloquesDeEntrega,
+  armarSystemPrompt,
   buildSystemPrompt,
   construirHerramientas,
   detectInboundProduct,
@@ -20,11 +19,12 @@ import {
   productoUnicoAsignado,
   productosPermitidos,
   splitReplyForMode,
+  systemDelTurno,
 } from '@/lib/ai/runner';
 import { asksForCurrentOffer, asksForPrice } from '@/lib/products/price-integrity';
 import { refreshLivePricing } from '@/lib/shopify/live-pricing';
 import { resolverRegistro } from '@/lib/ai/registro-rioplatense';
-import { runWithTools, type ShopifyToolContext } from '@/lib/ai/tools';
+import { nombresDeHerramientas, runWithTools, type ShopifyToolContext, type SystemPorCapas } from '@/lib/ai/tools';
 import type { AiAgent } from '@/lib/ai/types';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { REGLAS_COMENTARIO_PUBLICO } from '@/lib/channels/publicacion';
@@ -203,8 +203,25 @@ export async function simularRespuesta(
   // respuesta a un comentario y lo que producción averiguó antes. Sin los
   // bloques de pedido: esa superficie no los lleva.
   const comentario = input.superficie === 'comentario';
-  let system = comentario
-    ? buildSystemPrompt(
+
+  // La misma lista que produccion, resuelta por la pizarra del comercio.
+  // `hayContacto` va en true a propósito: lo que hay que previsualizar es lo
+  // que el agente PUEDE hacer, y lo que dejaría huella lo corta `runTool`.
+  const tools = construirHerramientas({
+    agent: a,
+    hayContacto: true,
+    shopify,
+    otherStore: otraTienda,
+    // Nunca se llama por teléfono a nadie desde una prueba.
+    voiceCtx: null,
+    topeDescuento: comentario ? 0 : topeDescuento,
+    ...(comentario ? { modo: 'comentario' as const } : {}),
+  });
+
+  let system: string | SystemPorCapas;
+  if (comentario) {
+    system =
+      buildSystemPrompt(
         a,
         contacto,
         contacto,
@@ -218,8 +235,15 @@ export async function simularRespuesta(
         businessCurrency,
         reglas,
         registro
-      ) + `\n\n## Estás contestando un COMENTARIO\n${SURFACE_RULES}`
-    : buildSystemPrompt(
+      ) + `\n\n## Estás contestando un COMENTARIO\n${SURFACE_RULES}`;
+    if (input.extraBrief?.trim()) {
+      system += `\n\n${untrustedContext('conversation_brief', input.extraBrief.trim())}`;
+    }
+    system += revitalyFeedbackBrief(a.workspace_id, input.message);
+  } else {
+    // Las mismas capas que producción (`systemDelTurno`), con la misma caché.
+    const partes = systemDelTurno(
+      armarSystemPrompt(
         a,
         contacto,
         contacto,
@@ -235,32 +259,29 @@ export async function simularRespuesta(
         registro,
         perfilOperativo,
         input.simulatedChannel
-      ) + bloquesDeEntrega(a, automationContext, input.simulatedChannel) + '\n\n' + ORDER_CONVERSATION_POLICY + '\n\n' + ORDER_OPERATION_POLICY;
-  // El pedido de la prueba es de ejemplo: en la tienda no existe, y buscarlo
-  // terminaba en "no encontré tu pedido", que en vivo nunca pasa porque ahí
-  // el pedido es real. Se contesta con lo que trae el contexto.
-  if (!comentario && automationContext?.order_name) {
-    system +=
-      '\n\n## Prueba\nEl pedido de este contexto es de ejemplo y no está en la tienda. No lo busques con herramientas: contesta con los datos del contexto como si la búsqueda los hubiera devuelto.';
+      ),
+      {
+        agent: a,
+        recoveryContext: automationContext,
+        channel: input.simulatedChannel,
+        traspaso: input.traspaso,
+        inboundText: input.message,
+        herramientas: nombresDeHerramientas(tools),
+      }
+    );
+    // El pedido de la prueba es de ejemplo: en la tienda no existe, y buscarlo
+    // terminaba en "no encontré tu pedido", que en vivo nunca pasa porque ahí
+    // el pedido es real. Se contesta con lo que trae el contexto.
+    if (automationContext?.order_name) {
+      partes.turno = [
+        partes.turno,
+        '## Prueba\nEl pedido de este contexto es de ejemplo y no está en la tienda. No lo busques con herramientas: contesta con los datos del contexto como si la búsqueda los hubiera devuelto.',
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+    }
+    system = partes;
   }
-  if (!comentario && input.traspaso) system += '\n\n' + instruccionDeTraspaso(input.traspaso);
-  if (comentario && input.extraBrief?.trim()) {
-    system += `\n\n${untrustedContext('conversation_brief', input.extraBrief.trim())}`;
-  }
-
-  // La misma lista que produccion, resuelta por la pizarra del comercio.
-  // `hayContacto` va en true a propósito: lo que hay que previsualizar es lo
-  // que el agente PUEDE hacer, y lo que dejaría huella lo corta `runTool`.
-  const tools = construirHerramientas({
-    agent: a,
-    hayContacto: true,
-    shopify,
-    otherStore: otraTienda,
-    // Nunca se llama por teléfono a nadie desde una prueba.
-    voiceCtx: null,
-    topeDescuento: comentario ? 0 : topeDescuento,
-    ...(comentario ? { modo: 'comentario' as const } : {}),
-  });
 
   const client = getAnthropic(apiKey, {
     db: admin,
@@ -284,7 +305,7 @@ export async function simularRespuesta(
           reasoningEffort: 'high' as const,
           max_tokens: 4000 + Math.max(64, Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2))),
         }),
-    system: system + revitalyFeedbackBrief(a.workspace_id, input.message),
+    system,
     messages: [...input.historial, { role: 'user' as const, content: input.message }],
     tools,
     shopify,
