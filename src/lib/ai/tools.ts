@@ -2498,6 +2498,10 @@ export async function runWithTools(
   // llamada infinita.
   let pausas = 0
   while (iter < AGENTIC_LOOP_MAX_ITERS && pausas <= MAX_PAUSAS) {
+    // La vuelta se cuenta al entrar. Se había perdido el 2026-08-30 junto con
+    // el cambio de las pausas, y sin ella el bucle de herramientas no tenía
+    // tope: cada vuelta de más es una petición que paga el comercio.
+    iter += 1
     let response: Anthropic.Message
     try {
       response = await client.messages.create({
