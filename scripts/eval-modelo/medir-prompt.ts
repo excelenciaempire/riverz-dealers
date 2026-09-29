@@ -20,7 +20,6 @@ async function main() {
   const { cargarReglas, reglasATexto } = await import('../../src/lib/ai/guidance')
   const { resolveAnthropicKey } = await import('../../src/lib/ai/platform-key')
   const runner = await import('../../src/lib/ai/runner')
-  const { nombresDeHerramientas } = await import('../../src/lib/ai/tools')
   const { resolveStoreForLookup } = await import('../../src/lib/commerce/order-lookup')
   const { cargarPerfilOperativo } = await import('../../src/lib/operacion/perfil-operativo')
   const { resolveWorkspaceCurrency } = await import('../../src/lib/products/currency')
@@ -64,7 +63,7 @@ async function main() {
   const capas = runner.systemDelTurno(
     runner.armarSystemPrompt(a, contacto, contacto, null, [], { messages: [], rollingSummary: null, idleResetHint: null },
       products, productMatch, shopify, null, businessCurrency, reglas, 'neutro', perfilOperativo, channel),
-    { agent: a, recoveryContext: null, channel, traspaso: null, inboundText: caso.mensaje, herramientas: nombresDeHerramientas(tools) }
+    { agent: a, recoveryContext: null, channel, traspaso: null, inboundText: caso.mensaje }
   )
 
   const model = a.model || 'claude-sonnet-5-5'

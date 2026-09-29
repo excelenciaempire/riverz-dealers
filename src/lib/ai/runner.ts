@@ -164,7 +164,6 @@ import {
   ETIQUETAR_CONTACTO_TOOL,
   LOOKUP_ORDER_TOOL,
   NO_SE_TOOL,
-  nombresDeHerramientas,
   REEMBOLSAR_TOOL,
   REGISTRAR_PAGO_TOOL,
   runWithTools,
@@ -3319,10 +3318,11 @@ export async function contextoDelTurno(
  * Exportada para que "Probar como cliente" y la prueba de calidad armen el
  * mismo prompt que producción.
  *
- * Las políticas de pedidos van sólo a quien puede crear o corregir un pedido
- * (`herramientas` son los nombres de las que se le ofrecen). Son unos 2.100
- * tokens sobre `create_order` y `update_order`, y se mandaban también a
- * agentes que no tienen ninguna de las dos. Sin la lista se mandan siempre.
+ * Las políticas de pedidos van a todos los agentes, también a los que no
+ * tienen `create_order` ni `update_order`. Se probó sacarlas (2026-09-29, 52
+ * casos de Pilar): las faltas leves de "afirma lo que no le consta" subieron
+ * de 11 a 14, porque además de los pedidos dicen "no inventes lo que dice un
+ * audio o una imagen". En la capa estable cuestan una décima parte.
  */
 export function systemDelTurno(
   partes: SystemPorCapas,
@@ -3332,16 +3332,10 @@ export function systemDelTurno(
     channel: Channel;
     traspaso?: string | null;
     inboundText: string;
-    herramientas?: readonly string[];
   }
 ): SystemPorCapas {
-  const tiene = (nombre: string) => !turno.herramientas || turno.herramientas.includes(nombre);
-  const politicas = [
-    tiene('create_order') || tiene('update_order') ? ORDER_CONVERSATION_POLICY : '',
-    tiene('update_order') ? ORDER_OPERATION_POLICY : '',
-  ].filter(Boolean);
   return {
-    estable: [partes.estable, ...politicas].join('\n\n'),
+    estable: partes.estable + '\n\n' + ORDER_CONVERSATION_POLICY + '\n\n' + ORDER_OPERATION_POLICY,
     producto: partes.producto,
     cliente: partes.cliente + bloquesDeEntrega(turno.agent, turno.recoveryContext, turno.channel),
     turno: [
@@ -3564,7 +3558,6 @@ async function generateReply(
     channel: origen.channel,
     traspaso: origen.traspaso,
     inboundText: origen.inboundText,
-    herramientas: nombresDeHerramientas(tools),
   });
   const screenshots: OrderScreenshot[] = [];
   const screenshotRequests = new Map<string, Promise<void>>();

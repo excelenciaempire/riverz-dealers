@@ -162,21 +162,6 @@ describe('lo que se suma en cada turno', () => {
     expect(t.estable).not.toContain('El triaje vio');
   });
 
-  it('las políticas de pedidos van sólo a quien puede crear o corregir pedidos', () => {
-    const turno = (herramientas: string[]) =>
-      systemDelTurno(capas(ana), {
-        agent: agente(),
-        recoveryContext: null,
-        channel: 'whatsapp',
-        inboundText: 'hola',
-        herramientas,
-      }).estable;
-    expect(turno(['lookup_order', 'buscar_producto'])).not.toContain('GESTIÓN DE PEDIDOS');
-    expect(turno(['create_order'])).toContain('GESTIÓN DE PEDIDOS');
-    expect(turno(['create_order'])).not.toContain('REGLAS OPERATIVAS DE PEDIDOS');
-    expect(turno(['update_order'])).toContain('REGLAS OPERATIVAS DE PEDIDOS');
-  });
-
   it('la política de seguridad no se repite: la agrega el final del prompt', () => {
     expect(capas(ana).estable).not.toContain('SECURITY BOUNDARY');
     expect(capas(ana).estable).toContain('Tu único dominio es el negocio');

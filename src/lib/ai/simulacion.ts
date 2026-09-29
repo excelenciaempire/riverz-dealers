@@ -24,7 +24,7 @@ import {
 import { asksForCurrentOffer, asksForPrice } from '@/lib/products/price-integrity';
 import { refreshLivePricing } from '@/lib/shopify/live-pricing';
 import { resolverRegistro } from '@/lib/ai/registro-rioplatense';
-import { nombresDeHerramientas, runWithTools, type ShopifyToolContext, type SystemPorCapas } from '@/lib/ai/tools';
+import { runWithTools, type ShopifyToolContext, type SystemPorCapas } from '@/lib/ai/tools';
 import type { AiAgent } from '@/lib/ai/types';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { REGLAS_COMENTARIO_PUBLICO } from '@/lib/channels/publicacion';
@@ -266,7 +266,6 @@ export async function simularRespuesta(
         channel: input.simulatedChannel,
         traspaso: input.traspaso,
         inboundText: input.message,
-        herramientas: nombresDeHerramientas(tools),
       }
     );
     // El pedido de la prueba es de ejemplo: en la tienda no existe, y buscarlo

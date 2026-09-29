@@ -17,7 +17,7 @@
  *
  * Uso:
  *   npx tsx scripts/eval-modelo/run.ts --env <archivo .env> --agent <agent_id> \
- *     [--modelos claude-sonnet-5-5] [--etiqueta antes] [--limit 40] [--max 52] [--sin-politicas-de-pedidos] \
+ *     [--modelos claude-sonnet-5-5] [--etiqueta antes] [--limit 40] [--max 52] \
  *     [--dataset scripts/eval-modelo/dataset.json] [--output scripts/eval-modelo/resultados.json]
  */
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -28,7 +28,6 @@ iniciar()
 const agentId = arg('--agent', '')
 const models = arg('--modelos', arg('--models', 'claude-sonnet-5-5')).split(',')
 const etiqueta = arg('--etiqueta', '')
-const sinPoliticas = process.argv.includes('--sin-politicas-de-pedidos')
 const limit = Number(arg('--limit', '40'))
 const datasetPath = arg('--dataset', 'scripts/eval-modelo/dataset.json')
 const output = arg('--output', 'scripts/eval-modelo/resultados.json')
@@ -50,7 +49,7 @@ async function main() {
   const { cargarReglas, reglasATexto } = await import('../../src/lib/ai/guidance')
   const { resolveAnthropicKey } = await import('../../src/lib/ai/platform-key')
   const runner = await import('../../src/lib/ai/runner')
-  const { nombresDeHerramientas, runWithTools } = await import('../../src/lib/ai/tools')
+  const { runWithTools } = await import('../../src/lib/ai/tools')
   const { reguladoPorEsfuerzo } = await import('../../src/lib/ai/esfuerzo')
   const { resolveStoreForLookup } = await import('../../src/lib/commerce/order-lookup')
   const { cargarPerfilOperativo } = await import('../../src/lib/operacion/perfil-operativo')
@@ -141,11 +140,7 @@ async function main() {
         products, productMatch, shopify, null, businessCurrency, reglas,
         'rioplatense', perfilOperativo, channel
       ),
-      {
-        agent: a, recoveryContext: null, channel, traspaso: null, inboundText: caso.mensaje,
-        // `--sin-politicas-de-pedidos`: como un agente sin herramientas de pedidos.
-        herramientas: sinPoliticas ? [] : nombresDeHerramientas(tools),
-      }
+      { agent: a, recoveryContext: null, channel, traspaso: null, inboundText: caso.mensaje }
     )
     const messages = [...caso.historial, { role: 'user' as const, content: caso.mensaje }]
     const fila: Record<string, unknown> = {

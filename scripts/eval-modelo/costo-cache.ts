@@ -43,7 +43,7 @@ async function main() {
   const { cargarReglas, reglasATexto } = await import('../../src/lib/ai/guidance')
   const { resolveAnthropicKey } = await import('../../src/lib/ai/platform-key')
   const runner = await import('../../src/lib/ai/runner')
-  const { nombresDeHerramientas, runWithTools } = await import('../../src/lib/ai/tools')
+  const { runWithTools } = await import('../../src/lib/ai/tools')
   const { reguladoPorEsfuerzo } = await import('../../src/lib/ai/esfuerzo')
   const { anthropicUsageCost } = await import('../../src/lib/ai/metered-fetch')
   const { resolverRegistro } = await import('../../src/lib/ai/registro-rioplatense')
@@ -116,7 +116,7 @@ async function main() {
       runner.armarSystemPrompt(a, contacto, primario, primario.shopify_customer_data ?? null, notas,
         { ...contexto, messages: [] }, products, productMatch, shopify, igContext, businessCurrency, reglas,
         registro, perfilOperativo, channel),
-      { agent: a, recoveryContext: null, channel, traspaso: null, inboundText: caso.mensaje, herramientas: nombresDeHerramientas(tools) }
+      { agent: a, recoveryContext: null, channel, traspaso: null, inboundText: caso.mensaje }
     )
     chats.push({ caso, capas, tools, shopify, otraTienda })
   }

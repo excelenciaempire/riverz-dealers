@@ -2412,11 +2412,6 @@ export interface SystemPorCapas {
   turno?: string
 }
 
-/** Los nombres de las herramientas que se le ofrecen al modelo. */
-export function nombresDeHerramientas(tools: readonly Anthropic.ToolUnion[]): string[] {
-  return tools.flatMap((t) => ('name' in t && typeof t.name === 'string' ? [t.name] : []))
-}
-
 /** Por debajo del mínimo que exige el proveedor la marca se ignora. */
 const CACHE_MIN_CHARS = 8000
 
