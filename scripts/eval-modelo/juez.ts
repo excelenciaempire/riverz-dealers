@@ -8,16 +8,16 @@
  * aleatorio por caso.
  *
  * Uso:
- *   node --env-file=.env.local --import tsx scripts/eval-modelo/juez.ts \
+ *   npx tsx scripts/eval-modelo/juez.ts --env <archivo .env> \
  *     --agent <agent_id> [--input scripts/eval-modelo/resultados.json] [--output scripts/eval-modelo/veredicto.json]
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { resolveAnthropicKey } from '../../src/lib/ai/platform-key';
+import { arg, iniciar } from './entorno';
 
-const arg = (name: string, def: string) =>
-  process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : def;
+iniciar();
+
 const agentId = arg('--agent', '');
 const input = arg('--input', 'scripts/eval-modelo/resultados.json');
 const output = arg('--output', 'scripts/eval-modelo/veredicto.json');
@@ -44,11 +44,13 @@ interface Veredicto {
 }
 
 async function main() {
+  const { resolveAnthropicKey } = await import('../../src/lib/ai/platform-key');
   const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
   const { data: agent } = await admin.from('ai_agents').select('workspace_id, api_key_encrypted').eq('id', agentId).maybeSingle();
   if (!agent) throw new Error('agente no encontrado');
   const resolved = await resolveAnthropicKey(admin, { workspaceId: agent.workspace_id, agentKeyEncrypted: agent.api_key_encrypted });
   if (!resolved?.key) throw new Error('sin clave');
+  if (resolved.source === 'agent') throw new Error('la clave es del comercio: estas pruebas no se le cobran a nadie');
   const client = new Anthropic({ apiKey: resolved.key, maxRetries: 3 });
 
   const data = JSON.parse(readFileSync(input, 'utf8')) as {
