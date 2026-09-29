@@ -1,9 +1,10 @@
 /**
- * Junta dos corridas de `run.ts` con `--etiqueta` en un solo archivo para
- * `juez.ts`, caso por caso.
+ * Junta corridas de `run.ts` con `--etiqueta` en un solo archivo para
+ * `juez.ts`, caso por caso. Con tres corridas el juez ve tres respuestas por
+ * caso, en orden aleatorio.
  *
  * Uso:
- *   npx tsx scripts/eval-modelo/unir.ts <antes.json> <despues.json> <salida.json>
+ *   npx tsx scripts/eval-modelo/unir.ts <salida.json> <antes.json> <despues.json> [<otra.json>]
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 
@@ -14,18 +15,29 @@ type Corrida = {
   resultados: Array<Record<string, unknown>>
 }
 
-const [, , rutaA, rutaB, salida] = process.argv
-if (!rutaA || !rutaB || !salida) throw new Error('uso: unir.ts <a.json> <b.json> <salida.json>')
-const a = JSON.parse(readFileSync(rutaA, 'utf8')) as Corrida
-const b = JSON.parse(readFileSync(rutaB, 'utf8')) as Corrida
-const [ka] = a.modelos
-const [kb] = b.modelos
-if (!ka || !kb || ka === kb) throw new Error('cada corrida necesita su propia etiqueta')
+const [, , salida, ...rutas] = process.argv
+if (!salida || rutas.length < 2 || rutas.length > 3) throw new Error('uso: unir.ts <salida.json> <a.json> <b.json> [<c.json>]')
+const corridas = rutas.map((r) => JSON.parse(readFileSync(r, 'utf8')) as Corrida)
+const claves = corridas.map((c) => c.modelos[0])
+if (claves.some((k) => !k) || new Set(claves).size !== claves.length) throw new Error('cada corrida necesita su propia etiqueta')
 
-const deB = new Map(b.resultados.map((r) => [r.id as string, r]))
-const resultados = a.resultados
-  .filter((r) => deB.has(r.id as string))
-  .map((r) => ({ ...r, [kb]: deB.get(r.id as string)![kb], system_chars: { [ka]: r.system_chars, [kb]: deB.get(r.id as string)!.system_chars } }))
+const porId = corridas.map((c) => new Map(c.resultados.map((r) => [r.id as string, r])))
+const resultados = corridas[0].resultados
+  .filter((r) => porId.every((m) => m.has(r.id as string)))
+  .map((r) => {
+    const fila: Record<string, unknown> = { ...r, system_chars: {} }
+    claves.forEach((k, i) => {
+      const otra = porId[i].get(r.id as string)!
+      fila[k] = otra[k]
+      ;(fila.system_chars as Record<string, unknown>)[k] = otra.system_chars
+    })
+    return fila
+  })
 
-writeFileSync(salida, JSON.stringify({ agente: a.agente, modelos: [ka, kb], gasto: { ...a.gasto, ...b.gasto }, resultados }, null, 1))
-console.log(`${resultados.length} casos en ${salida}`)
+writeFileSync(salida, JSON.stringify({
+  agente: corridas[0].agente,
+  modelos: claves,
+  gasto: Object.assign({}, ...corridas.map((c) => c.gasto)),
+  resultados,
+}, null, 1))
+console.log(`${resultados.length} casos, ${claves.join(' / ')}, en ${salida}`)
