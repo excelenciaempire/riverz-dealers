@@ -9,12 +9,12 @@ DeUna's authenticated Dropi account is 455408, shop 404013; Shopify is
 The Contaduria connector authenticates through Dropi BFF and the owner's existing
 DPAPI-protected TOTP. Credentials and TOTP never enter Riverz, payloads or Git.
 
-| Source | Verified purpose |
-| --- | --- |
-| `api-v2.dropi.co/bff/orders/myorders/v2` | Paginated account orders, exact Shopify IDs and shop IDs |
-| Same path plus `/{id}` | Order state, guide, costs, wallet, carrier incident reason |
-| `api-v2.dropi.co/bff/customers/fingerprint/v2` | Buyer classification and delivered/returned/transit counts |
-| `api.dropi.co/api/orders/myorders/client-stats` | Aggregate counts, not sufficient for panel risk classification |
+| Source                                           | Verified purpose                                                          |
+| ------------------------------------------------ | ------------------------------------------------------------------------- |
+| `api-v2.dropi.co/bff/orders/myorders/v2`         | Paginated account orders, exact Shopify IDs and shop IDs                  |
+| Same path plus `/{id}`                           | Order state, guide, costs, wallet, carrier incident reason                |
+| `api-v2.dropi.co/bff/customers/fingerprint/v2`   | Buyer classification and delivered/returned/transit counts                |
+| `api.dropi.co/api/orders/myorders/client-stats`  | Aggregate counts, not sufficient for panel risk classification            |
 | `api.dropi.co/api/orders/getclientclasification` | Legacy completed-order counts; differs from fingerprint including transit |
 
 Fingerprint uses `country_code=CO`, `user_id` from the authenticated order,
@@ -42,8 +42,12 @@ Split Dropi orders mapping to one Shopify order are rejected for explicit review
 
 `lookup_order` exposes state, guide, incident cause and classification only after
 its existing customer-identity check. Other-store buyer counts are withheld from
-the model. Snapshots older than 15 minutes are explicitly stale. Delivery does
-not establish payment; guide creation does not establish physical dispatch.
+the model. The Windows task refreshes the snapshot after the full accounting
+reconciliation every three hours. Conversation context accepts that snapshot for
+three hours plus a 15-minute completion margin; older evidence is explicitly
+stale. The signed receiver still rejects payloads that were not current when
+submitted. Delivery does not establish payment; guide creation does not establish
+physical dispatch.
 
 ## Release is not activated
 
