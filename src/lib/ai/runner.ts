@@ -3977,9 +3977,11 @@ export function armarSystemPrompt(
   // WhatsApp— y el trato de vos es el natural. Lo decide el dato, no una
   // preferencia: ver `ai/registro-rioplatense.ts`.
   //
-  // Depende del país de la persona, así que abre la capa del cliente.
+  // Depende del país de la persona, pero se queda acá arriba: son dos
+  // variantes y en cada comercio casi siempre sale la misma, y la voz
+  // (`voice/context.ts`) recorta el prompt desde el final.
   if (idioma === 'es') {
-    cliente.push(
+    estable.push(
       registro === 'rioplatense'
         ? RIOPLATENSE_TEXTO
         : 'Escribe en español neutro, de tú: "tienes", "recibes", "quieres". Nunca uses voseo rioplatense ("tenés", "recibís", "querés") ni cambies de trato a mitad de la conversación.'

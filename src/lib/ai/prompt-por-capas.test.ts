@@ -96,7 +96,8 @@ function capas(
 }
 
 const ana = { nombre: 'Ana', resumen: 'Preguntó por envíos', notas: ['Pagó por transferencia'], registro: 'rioplatense' as const };
-const luis = { nombre: 'Luis', resumen: null, notas: [], registro: 'neutro' as const };
+const luis = { nombre: 'Luis', resumen: null, notas: [], registro: 'rioplatense' as const };
+const lucia = { nombre: 'Lucía', resumen: null, notas: [], registro: 'neutro' as const };
 
 describe('la capa estable', () => {
   it('sale igual para dos personas distintas del mismo agente', () => {
@@ -115,9 +116,10 @@ describe('la capa estable', () => {
     expect(a.estable).toBe(b.estable);
   });
 
-  it('el trato de tú o de vos va con la persona', () => {
-    expect(capas(ana).cliente).toMatch(/vos/);
-    expect(capas(luis).cliente).toContain('español neutro');
+  it('el trato de tú o de vos es una de sus dos variantes, arriba de todo lo demás', () => {
+    expect(capas(ana).estable).toMatch(/vos/);
+    expect(capas(lucia).estable).toContain('español neutro');
+    expect(capas(ana).estable.indexOf('Responde en')).toBeLessThan(capas(ana).estable.indexOf('Tu único dominio'));
   });
 });
 
