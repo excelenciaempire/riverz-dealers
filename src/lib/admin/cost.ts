@@ -21,9 +21,10 @@ interface Rate {
  *
  * Leer de la caché sale una décima parte, con cualquier TTL. Escribirla
  * depende de cuánto dura: un 25% más con la caché de 5 minutos, el doble con
- * la de 1 hora. El asistente usa la de 1 hora desde 2026-09-17 (ver
- * `runWithTools`): con tráfico de una respuesta por hora, la de 5 minutos se
- * reescribía en el 40% de las respuestas y era el 78% de la factura.
+ * la de 1 hora. El asistente usó la de 1 hora del 2026-09-17 al 2026-09-30 y
+ * volvió a la de 5 minutos (ver `runWithTools`): su prompt lleva datos de cada
+ * cliente, no se comparte entre chats, y pagar el doble por escribirlo salía
+ * más caro que no cachear.
  */
 const CACHE_READ = 0.1;
 const CACHE_WRITE_5M = 1.25;
@@ -34,15 +35,16 @@ export type CacheTtl = '5m' | '1h';
  * Con qué caché se escribió una respuesta del asistente, según cuándo salió.
  *
  * `ai_replies` guarda un solo número de escritura y no dice de qué TTL era.
- * Antes del cambio era la de cinco minutos; tarifar esas filas viejas al doble
- * inflaría un 60% la parte de escritura de todo lo anterior. La fecha es la
- * del despliegue de `ttl: '1h'` en `runWithTools`.
+ * Fuera de esas dos semanas fue la de cinco minutos; tarifar esas filas al
+ * doble inflaría un 60% la parte de escritura. Las fechas son las de los
+ * despliegues que pusieron y sacaron `ttl: '1h'` en `runWithTools`.
  */
 const CACHE_1H_DESDE = Date.UTC(2026, 8, 17);
+const CACHE_1H_HASTA = Date.UTC(2026, 8, 30);
 export function ttlDeCacheDelAsistente(createdAt: string | Date | null | undefined): CacheTtl {
   if (!createdAt) return '5m';
   const t = createdAt instanceof Date ? createdAt.getTime() : Date.parse(createdAt);
-  return Number.isFinite(t) && t >= CACHE_1H_DESDE ? '1h' : '5m';
+  return Number.isFinite(t) && t >= CACHE_1H_DESDE && t < CACHE_1H_HASTA ? '1h' : '5m';
 }
 
 const RATES: Record<string, Rate> = {

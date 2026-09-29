@@ -2461,14 +2461,16 @@ export async function runWithTools(
   // ensucia el pedido. Arriba, la primera llamada cuesta un poco más y las
   // siguientes una décima parte.
   //
-  // De UNA HORA, no de cinco minutos. Un comercio recibe una consulta por hora,
-  // no una por minuto: con la caché corta, el 40% de las respuestas volvía a
-  // escribir el prompt entero (medido en Pilar, septiembre 2026: la escritura
-  // era el 78% de lo que costaba atender). Escribir la de una hora sale el
-  // doble que la de cinco, pero se escribe una vez por hora y no una por
-  // conversación. Quien tarifa esto es `anthropicUsageCost`, que ya separa
-  // `ephemeral_1h_input_tokens`; `costForModel` recibe `ttl: '1h'` donde suma
-  // filas de `ai_replies`.
+  // De CINCO minutos, no de una hora. El prompt lleva los datos de cada
+  // cliente (resumen, contacto, pedidos, notas, el catálogo ordenado según lo
+  // que preguntó), así que nunca se comparte entre chats: lo que se escribe lo
+  // lee, como mucho, el mismo chat. Y el 55% de los chats recibe una sola
+  // respuesta. Con la de una hora (2026-09-17 al 29) la escritura, que cuesta
+  // el doble de la entrada, era el 89% del costo: 4,95 ¢ por respuesta, más que
+  // no cachear nada (4,49 ¢). Con la de cinco minutos, que cuesta 1,25x, los
+  // mismos chats salen 3,43 ¢, porque lo que se reusa es el bucle de
+  // herramientas y la respuesta que sigue al minuto. La de una hora sólo paga
+  // en un bloque que se comparta entre chats.
   const CACHE_MIN_CHARS = 8000
   const protectedSystem = secureSystemPrompt(args.system)
   const system: Anthropic.TextBlockParam[] | string =
@@ -2477,7 +2479,7 @@ export async function runWithTools(
           {
             type: 'text',
             text: protectedSystem,
-            cache_control: { type: 'ephemeral', ttl: '1h' },
+            cache_control: { type: 'ephemeral' },
           },
         ]
       : protectedSystem

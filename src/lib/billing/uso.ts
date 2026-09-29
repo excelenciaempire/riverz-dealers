@@ -187,8 +187,8 @@ export async function acumularDia(
     const usd = costForModel(r.model, r.prompt_tokens ?? 0, r.completion_tokens ?? 0, {
       read: r.cache_read_tokens ?? 0,
       write: r.cache_write_tokens ?? 0,
-      // El asistente escribe la caché de una hora desde 2026-09-17; antes, la
-      // de cinco minutos. Se decide por el día que se está acumulando.
+      // El asistente escribió la caché de una hora del 2026-09-17 al 30; antes
+      // y después, la de cinco minutos. Se decide por el día que se acumula.
       ttl: ttlDeCacheDelAsistente(desde),
     })
     acc.usd += usd

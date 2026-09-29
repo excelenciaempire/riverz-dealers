@@ -78,7 +78,7 @@ describe('el precio de cada proveedor', () => {
     const soloPrompt = costForModel('claude-opus-5', 1_000_000, 0)
     const soloLectura = costForModel('claude-opus-5', 0, 0, { read: 1_000_000 })
     const soloEscritura = costForModel('claude-opus-5', 0, 0, { write: 1_000_000 })
-    // La de una hora, que es la que escribe el asistente, sale el doble.
+    // La de una hora sale el doble.
     const escrituraLarga = costForModel('claude-opus-5', 0, 0, { write: 1_000_000, ttl: '1h' })
     expect(soloLectura).toBeCloseTo(soloPrompt * 0.1, 6)
     expect(soloEscritura).toBeCloseTo(soloPrompt * 1.25, 6)
