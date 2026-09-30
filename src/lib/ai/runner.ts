@@ -1,3 +1,4 @@
+import { withLatitudeTrace } from '@/lib/observability/latitude';
 import { replyWasSuperseded } from './reply-freshness';
 import { inboxCaseIsSpam } from '@/lib/inbox/disposition-server';
 import { emailDispositionForPolicy, emailRedirectText, isEmailChannel, loadEmailPolicy } from './email-policy';
@@ -213,7 +214,10 @@ export async function runAiAgent(
     inboundMessage: Message;
   }
 ): Promise<void> {
-  return withTurnEvidence(() => runAiAgentInner(db,args),state => saveTurnEvidence(db,{ workspaceId:args.workspaceId,conversationId:args.conversation.id,inboundId:args.inboundMessage.id ?? null },state));
+  return withLatitudeTrace('customer-agent-turn', {
+    workspaceId: args.workspaceId, sessionId: args.conversation.id, userId: args.contact.id,
+    channel: args.channel, privateValues: [args.contact.name, args.contact.phone, args.contact.email, args.contact.external_id],
+  }, () => withTurnEvidence(() => runAiAgentInner(db,args),state => saveTurnEvidence(db,{ workspaceId:args.workspaceId,conversationId:args.conversation.id,inboundId:args.inboundMessage.id ?? null },state)));
 }
 
 async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAgent>[1]):Promise<void> {

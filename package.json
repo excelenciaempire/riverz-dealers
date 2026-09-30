@@ -44,6 +44,8 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@latitude-data/telemetry": "^4.1.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.213.0",
     "@sentry/node": "^10.74.0",
     "@sparticuz/chromium": "^153.0.0",
     "@supabase/ssr": "^0.10.3",

@@ -29,6 +29,13 @@ services:
         value: '20'
       - key: NEXT_TELEMETRY_DISABLED
         value: '1'
+      # Server-side AI tracing; credentials are configured in Render.
+      - key: LATITUDE_API_KEY
+        sync: false
+      - key: LATITUDE_PROJECT_SLUG
+        value: riverz-s-project
+      - key: LATITUDE_TRACING_ENABLED
+        value: 'true'
       # Supabase + OAuth secrets se gestionan en el dashboard Render
       # como "Environment Variables" para no exponer en el repo.
       - key: NEXT_PUBLIC_SUPABASE_URL

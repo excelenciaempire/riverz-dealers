@@ -1,3 +1,4 @@
+import { withLatitudeTrace, traceCompatibleCompletion } from '@/lib/observability/latitude';
 import { costForModel, rateFor } from '@/lib/admin/cost';
 import type { BillingContext } from '@/lib/wallet/operacion';
 import { cancelar, liquidar, reservar } from '@/lib/wallet/operacion';
@@ -157,6 +158,15 @@ async function completeOpenAICompat(
   p: OpenAICompatProvider,
   o: CompleteTextOptions
 ): Promise<Completado> {
+  return traceCompatibleCompletion({ workspaceId: o.billing.workspaceId }, {
+    provider: p.name, model: p.model[o.tier], system: o.system, user: o.user,
+  }, () => completeOpenAICompatInner(p, o));
+}
+
+async function completeOpenAICompatInner(
+  p: OpenAICompatProvider,
+  o: CompleteTextOptions
+): Promise<Completado> {
   const rate = rateFor(p.model[o.tier]);
   const id = await reservar(
     o.billing,
@@ -311,6 +321,12 @@ export async function completeText(o: CompleteTextOptions): Promise<string> {
  * gasto. Ahora sale el número exacto.
  */
 export async function completeTextConUso(
+  o: CompleteTextOptions
+): Promise<Completado> {
+  return withLatitudeTrace('text-completion', { workspaceId: o.billing.workspaceId }, () => completeTextConUsoInner(o));
+}
+
+async function completeTextConUsoInner(
   o: CompleteTextOptions
 ): Promise<Completado> {
   const errors: string[] = [];

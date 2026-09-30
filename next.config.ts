@@ -134,7 +134,7 @@ const nextConfig: NextConfig = {
   // dejamos como `require` nativo en el server en vez de bundlearlo —
   // de lo contrario el build de Turbopack falla con "the chunking context
   // does not support external modules".
-  serverExternalPackages: ["@sentry/node", "ffmpeg-static"],
+  serverExternalPackages: ["@sentry/node", "ffmpeg-static", "@latitude-data/telemetry", "@anthropic-ai/sdk", "@opentelemetry/exporter-trace-otlp-http"],
   outputFileTracingIncludes: { '/api/**': ['./node_modules/ffmpeg-static/ffmpeg*'] },
 
   /**

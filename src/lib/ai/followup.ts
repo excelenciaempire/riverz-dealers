@@ -1,3 +1,4 @@
+import { withLatitudeTrace } from '@/lib/observability/latitude';
 import { getAdapter } from '@/lib/channels/registry';
 import {
   assertStoredConnectionCanSend,
@@ -172,6 +173,10 @@ export async function runFollowUp(
     campaignHint?: string | null;
   }
 ): Promise<FollowUpResult> {
+  return withLatitudeTrace('customer-followup', { workspaceId: args.agent.workspace_id, sessionId: args.conversation.id, userId: args.contact.id, channel: args.conversation.channel, agentId: args.agent.id, privateValues: [args.contact.name, args.contact.phone, args.contact.email, args.contact.external_id] }, () => runFollowUpInner(db, args));
+}
+
+async function runFollowUpInner(db: SupabaseClient, args: Parameters<typeof runFollowUp>[1]): Promise<FollowUpResult> {
   const { agent, conversation, contact, connection, silenceHours } = args;
   if (!(await storedConnectionCanSend(db, connection.id))) {
     return { sent: false, reason: 'channel_disconnected' };

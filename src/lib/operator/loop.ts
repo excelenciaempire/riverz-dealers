@@ -1,3 +1,4 @@
+import { withLatitudeTrace } from '@/lib/observability/latitude';
 /**
  * El loop del Operator.
  *
@@ -200,6 +201,10 @@ export async function runOperator(args: {
   /** ¿Alguien pidió detener? Se pregunta entre vueltas. */
   detener?: () => Promise<boolean>;
 }): Promise<OperatorTurn> {
+  return withLatitudeTrace('operator-turn', { workspaceId: args.workspaceId, sessionId: args.threadId, userId: args.userId, channel: 'operator' }, () => runOperatorInner(args));
+}
+
+async function runOperatorInner(args: Parameters<typeof runOperator>[0]): Promise<OperatorTurn> {
   const { db, workspaceId, threadId } = args;
   const emit: EmitFn = args.onEvent ?? (() => {});
 

@@ -69,3 +69,5 @@ __pycache__/
 # Archivos de trabajo que no son del producto
 tmp/
 output/
+# Local observability reports may contain conversation content.
+artifacts/

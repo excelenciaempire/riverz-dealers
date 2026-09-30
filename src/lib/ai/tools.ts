@@ -1,3 +1,4 @@
+import { traceTool } from '@/lib/observability/latitude';
 import { secureSystemPrompt, toolCallAllowed } from './input-security'
 import { toolPermissionKey } from './toolbox'
 import { redactModelSecrets } from '@/lib/security/model-secrets'
@@ -1138,6 +1139,17 @@ export type OtherStoreContext = NonNullable<Awaited<ReturnType<typeof resolveSto
 }
 
 export async function runTool(
+  toolName: string,
+  toolInput: unknown,
+  shopify: ShopifyToolContext | null,
+  voice: VoiceEscalationContext | null = null,
+  localOrders: LocalOrdersContext | null = null,
+  otherStore: OtherStoreContext | null = null
+): Promise<string> {
+  return traceTool(toolName, () => runToolInner(toolName, toolInput, shopify, voice, localOrders, otherStore), toolInput);
+}
+
+async function runToolInner(
   toolName: string,
   toolInput: unknown,
   shopify: ShopifyToolContext | null,

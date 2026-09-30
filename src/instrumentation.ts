@@ -42,6 +42,19 @@ export async function register() {
       })
     }
 
+    if (dsn) {
+      // Carga @sentry/node y ejecuta Sentry.init (ver sentry.server.config.ts).
+      // El import es dinámico para no cargar el paquete sin SENTRY_DSN.
+      // Usamos @sentry/node (no @sentry/nextjs) porque la SDK de Next aún no
+      // soporta Next 16 (peer conflict); el runtime edge no usa @sentry/node.
+      await import('../sentry.server.config')
+      log.info('Sentry initialised', { runtime: 'nodejs' })
+    } else {
+      log.info('Sentry disabled (no SENTRY_DSN)')
+    }
+    const { initLatitudeTracing, flushLatitudeTracing } = await import('@/lib/observability/latitude')
+    await initLatitudeTracing()
+
     // Reloj de los trabajos periódicos. Vive dentro del servicio web porque
     // los Render Cron Jobs cuestan un mínimo de 1 USD/mes cada uno y no tienen
     // plan gratuito; ver src/lib/cron/schedule.ts.
@@ -57,19 +70,10 @@ export async function register() {
       process.once(senal, () => {
         log.info('senal de apagado recibida', { senal })
         stopScheduler()
+        void flushLatitudeTracing()
       })
     }
 
-    if (dsn) {
-      // Carga @sentry/node y ejecuta Sentry.init (ver sentry.server.config.ts).
-      // El import es dinámico para no cargar el paquete sin SENTRY_DSN.
-      // Usamos @sentry/node (no @sentry/nextjs) porque la SDK de Next aún no
-      // soporta Next 16 (peer conflict); el runtime edge no usa @sentry/node.
-      await import('../sentry.server.config')
-      log.info('Sentry initialised', { runtime: 'nodejs' })
-    } else {
-      log.info('Sentry disabled (no SENTRY_DSN)')
-    }
     return
   }
 }

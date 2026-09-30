@@ -1,3 +1,4 @@
+import { withLatitudeTrace } from '@/lib/observability/latitude';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { untrustedContext } from './input-security';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
@@ -85,6 +86,13 @@ export interface SuperAgentInput {
 }
 
 export async function composeSuperAgentReply(
+  db: SupabaseClient,
+  input: SuperAgentInput
+): Promise<string | null> {
+  return withLatitudeTrace('comment-agent-reply', { workspaceId: input.workspaceId, sessionId: `comments:${input.commentContactId}`, userId: input.commentContactId, agentId: input.agentId, channel: input.commentChannel ?? 'ig_comment' }, () => composeSuperAgentReplyInner(db, input));
+}
+
+async function composeSuperAgentReplyInner(
   db: SupabaseClient,
   input: SuperAgentInput
 ): Promise<string | null> {
