@@ -1,4 +1,4 @@
-"""Build the three-page Riverz client summary from the preserved Revitaly audit.
+"""Build the four-page Riverz client summary from the preserved Revitaly audit.
 
 Run from the repo: py -X utf8 scripts/build-revitaly-audit-pdf.py
 Requires reportlab and PyMuPDF. Source customer records remain in ignored output/.
@@ -98,6 +98,38 @@ comment_unanswered_ids = comment_ids - comment_ai_ids - comment_human_ids
 assert (len(comment_messages), len(comment_ids), len(comment_ai_ids),
         len(comment_human_ids), len(comment_unanswered_ids)) == (38, 34, 22, 1, 11)
 assert comment_channels == Counter({'fb_comment': 33, 'ig_comment': 5})
+# One primary topic per readable inbound comment; mixed purchase/skepticism
+# comments are classified by their actionable buying question.
+purchase_comment_ids = {
+    '33d7eb69-0468-4f05-ad4b-6af93de6f1fb', '32abbfcc-a656-4c1c-bc83-29aefa1b1616',
+    'e3df36a6-f297-4b7d-a500-ab45006e80fb', '718c271a-b736-4cbf-99df-e3329c4dcae8',
+    '460c770f-e801-4063-ac40-07cbb6e7b561', 'ffdf5ab3-1f06-4e72-8ca3-880c0564d5b9',
+    '30846626-d40a-4b38-a31c-17c78839274c', 'adc8d481-6318-4805-9fc3-49b2e46b1c99',
+    '09fb1f91-23cb-4945-82db-00d4b59a0cc5', '69522e80-ea45-4737-aa1f-73c65a995cd1',
+}
+delivery_comment_ids = {
+    'a539805c-9884-47c7-b1b0-23a0ed449172', '513440fe-1fb4-464b-84c2-7ce0acd24c58',
+}
+assert (purchase_comment_ids | delivery_comment_ids) <= {m['id'] for m in comment_messages}
+comment_topics = Counter('compra_uso' if m['id'] in purchase_comment_ids else
+                         'entrega' if m['id'] in delivery_comment_ids else 'publicidad'
+                         for m in comment_messages)
+assert comment_topics == Counter({'publicidad': 26, 'compra_uso': 10, 'entrega': 2})
+period_comment_logs = [r for r in source['replies']
+                       if r['conversation_id'] in comment_unanswered_ids
+                       and START <= datetime.fromisoformat(r['created_at']) <= END]
+comment_block_groups = {
+    name: {r['conversation_id'] for r in period_comment_logs if r['skip_reason'] in reasons}
+    for name, reasons in {
+        'saldo': {'comment_sin_saldo'},
+        'error': {'comment_error', 'comment_no_se_pudo_publicar'},
+        'filtro': {'comment_afirma_lo_que_no_sabe', 'comment_spam'},
+    }.items()
+}
+assert [len(comment_block_groups[k]) for k in ['saldo', 'error', 'filtro']] == [5, 4, 2]
+assert set.union(*comment_block_groups.values()) == comment_unanswered_ids
+hidden_unanswered_comments = sum(conversation_by_id[i]['last_message_hidden'] for i in comment_unanswered_ids)
+assert hidden_unanswered_comments == 7
 rate = lambda value: f'{value:.1f}%'.replace('.', ',')
 
 REASONS = [
@@ -262,16 +294,41 @@ for i, (title, body) in enumerate(plan):
     p.proposal(184+i*98, i+1, title, body)
 p.text(42, 786, 'Probar cada acción con casos reales antes de activarla.', size=12.5)
 p.end()
+
+# 4. Actual comment content, response behavior and the causes of silence.
+p.header('Qué se dijo en los comentarios', '26 al 30 de septiembre. Se analizan los 38 comentarios con texto.')
+comment_analysis = [
+    ('26 reacciones a la publicidad',
+     'Hubo ironías, dudas sobre la IA y acusaciones de engaño. Algunas respuestas explicaron el producto; otras fueron saludos genéricos o «Te escribí por privado».'),
+    ('10 consultas de compra y uso',
+     'Preguntaron precio, farmacias, pago contra entrega y uso en mujeres. Se respondieron precios y canales de compra; «Me interesa» e «Info por favor» quedaron sin respuesta.'),
+    ('2 reclamos de entrega',
+     'Un cliente dijo esperar 20 días; otro, 7 días tras una promesa de 24 horas. Se respondió en público, pero resolver el envío requiere seguimiento real; una respuesta no cierra el reclamo.'),
+]
+for i, (title, body) in enumerate(comment_analysis):
+    y = 180+i*119
+    p.box(42, y, 511, 111)
+    p.text(60, y+25, title, 'Semi', 15, width=475)
+    end = p.wrap(60, y+50, body, 475)
+    assert end-18+4 <= y+111-5, (title, end)
+p.text(42, 567, 'Por qué quedaron 11 hilos sin respuesta', 'Serif', 27)
+end = p.wrap(42, 598, '5 se frenaron por saldo, 4 por errores y 2 por filtros que bloquearon críticas. 7 de los 11 estaban ocultos: el total no equivale a 11 consultas pendientes.')
+assert end <= 660
+p.text(42, 684, 'Qué conviene cambiar', 'Serif', 27)
+end = p.wrap(42, 715, 'Responder compra y uso en público; pasar reclamos y datos personales a privado. Confirmar que el privado se envió antes de anunciarlo. Reintentar los fallos y evitar tratar toda crítica como spam.')
+assert end-18+4 <= 791
+p.end()
 p.c.save()
 
 # Validate the brief's scope, pagination, readable text and page geometry.
 doc = pymupdf.open(OUT)
-assert len(doc) == p.page == 3
-assert len(doc.get_toc()) == 3
+assert len(doc) == p.page == 4
+assert len(doc.get_toc()) == 4
 text = '\n'.join(page.get_text() for page in doc)
 normalized_text = re.sub(r'\s+', ' ', text)
 assert all(token in normalized_text for token in ['425', '199', '43', '133', '21,6%', '66,8%', '26 al 30 de septiembre', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.', 'Análisis de comentarios', '38 comentarios con texto', '34 hilos', '11 no tenían respuesta al corte'])
 assert all(removed not in normalized_text for removed in ['Sin motivo de escalamiento', 'Sin escalamiento identificado', '78,4%', '10,1%', 'Qué ocurrió'])
+assert all(token in normalized_text for token in ['Qué se dijo en los comentarios', '26 reacciones a la publicidad', '10 consultas de compra y uso', '2 reclamos de entrega', '5 se frenaron por saldo, 4 por errores y 2 por filtros', '7 de los 11 estaban ocultos'])
 assert all(token in normalized_text for token in ['Parcialmente', 'Puede automatizarse al conectar el banco', 'Una persona aprueba la cancelación o el reembolso', 'la IA no devuelve dinero por su cuenta'])
 assert all(token in normalized_text for token in ['CARRITO25 no funcionó', 'envase rajado con pérdida', 'IA no podía modificarlo'])
 assert 'Por qué se necesita al equipo' not in text and 'pedir el cambio al transportista' not in text
@@ -310,6 +367,8 @@ proof = {'file': str(OUT), 'pages': len(doc), 'periodEscalations': len(cases),
          'readableIncomingComments': len(comment_messages), 'incomingCommentThreads': len(comment_ids),
          'AIAnsweredCommentThreads': len(comment_ai_ids), 'humanAnsweredCommentThreads': len(comment_human_ids),
          'unansweredCommentThreadsAtCutoff': len(comment_unanswered_ids), 'commentChannelCounts': dict(comment_channels),
+         'commentTopics': dict(comment_topics), 'unansweredCommentCauses': {k: len(v) for k, v in comment_block_groups.items()},
+         'hiddenUnansweredCommentThreads': hidden_unanswered_comments,
          'escalationCategories': len(REASONS), 'individualCasesListed': False, 'appendices': False,
          'bodyFontPoints': 13, 'minimumSupportingTextPoints': 12.5,
          'undersizedBodyText': small_body,
