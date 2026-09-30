@@ -13,7 +13,7 @@ Esta lista registra el estado real del trabajo. Una implementación local, una v
 | P0E Accesos y regresión | Implementada | Pruebas de aislamiento y build correctos | Publicada; revisión de salud correcta |
 | B1 Colaboración en bandeja | Implementada | 147 pruebas, lint sin errores y build correctos | Publicada; salud de producción verificada |
 | B2 Seguimiento y herramientas del equipo | Implementada | 569 pruebas, TypeScript, lint de cambios y build correctos | Publicada; salud de producción verificada |
-| B3 Acciones de pedidos | En ejecución: correcciones del servicio de reembolsos | 222 pruebas y build completo correctos; base del servicio | Pendiente |
+| B3 Acciones de pedidos | En ejecución: cancelaciones y reembolsos revisados en la ficha actual; acciones adicionales en desarrollo | 687 pruebas y build completo correctos; esquema 310 verificado | Base del servicio publicada; controles de la ficha en publicación |
 | B4 Comprensión de mensajes y audios | Pendiente | Pendiente | Pendiente |
 | A1 a A3 Superasistente | Pendiente | Pendiente | Pendiente |
 | C1 y C2 Crecimiento | Pendiente | Pendiente | Pendiente |
@@ -66,3 +66,17 @@ B2 publicado: `riverz.co/api/health` devolvió salud `ok`, Supabase y WhatsApp `
 La revisión del servicio compartido de reembolsos encontró que se calculaba sobre los cobros originales sin descontar devoluciones anteriores y que el espejo local marcaba un reembolso parcial como total. La corrección calcula el saldo real por transacción con aritmética decimal exacta, respeta pagos divididos, bloquea importes inválidos y devoluciones en proceso, verifica las transacciones devueltas por Shopify y consulta el estado financiero real antes de actualizar Riverz. Una respuesta HTTP exitosa sin confirmación financiera exige revisión y no se repite automáticamente. Estas correcciones preparan las acciones del panel; por sí solas no completan B3.
 
 Validación de la base B3: **41 archivos y 222 pruebas correctas**, lint de los archivos modificados sin errores y build completo correcto en el worktree aislado. No se crearon reembolsos reales como prueba. Las acciones adicionales del panel siguen en ejecución.
+
+La base B3, commit `37c722fb`, está publicada: salud `ok`, Supabase y WhatsApp `ok`, revisión `75b72c87cf6cee4d9183c650eeed1b3a8111e2e0`, descendiente de ese commit, comprobada el 30 de septiembre a las 06:15 UTC.
+
+Primera entrega de controles B3:
+
+- Cancelar y devolver el saldo cobrado, o devolver un importe parcial o total, dentro de la tarjeta de pedido existente. El panel permanece plegado hasta que se necesita.
+- Vista previa persistente de diez minutos con pedido, saldo, moneda, pago, despacho y motivo. Se comprueban la tienda activa, la asociación local al contacto, su identidad en Shopify, los permisos concedidos y las devoluciones anteriores o pendientes. Un pedido cambiado exige una revisión nueva.
+- Un agente puede preparar; la ejecución requiere confirmación explícita de un administrador vigente. La misma restricción se comprueba antes de consumir aprobaciones financieras existentes. El destinatario de una aprobación por WhatsApp debe seguir siendo el destinatario actual del negocio.
+- Las aprobaciones por MCP conservan el usuario autenticado que creó la llave. No usan el nombre de la llave como UUID de usuario ni aceptan una identidad en los argumentos; se comprueba su rol actual antes de consumir una decisión financiera. Las llaves sin un emisor verificable no pueden autorizar esos movimientos.
+- Un bloqueo persistente por pedido se comparte entre la bandeja y las aprobaciones del superasistente. Un resultado incierto no se repite ni libera automáticamente. Una revisión posterior verifica de nuevo el saldo y registra administrador, motivo y estado observado; una operación que sigue ejecutándose no se libera desde esa revisión.
+- El historial guarda solicitante, aprobador, importe realmente devuelto, moneda, referencia y estado financiero observado. Las aprobaciones existentes también guardan un resultado estructurado. La cancelación se comprueba en Shopify antes de presentarla como realizada; el reembolso es un resultado separado.
+- Contratos estrictos, CSRF, aislamiento por cuenta y contacto, privacidad de buzones personales y control de solo lectura por suscripción. Textos en español e inglés.
+
+Validación: **83 archivos y 687 pruebas correctas**, incluidas diez pruebas de PostgreSQL real con PGlite, autorización previa a la decisión, identidad autenticada del MCP, concurrencia entre canales de aprobación, caducidad, resultados inciertos, cambios de pedido e importes exactos. Lint del nuevo panel, servicios, contratos, APIs y adaptadores sin errores. Build completo correcto en la copia aislada; se instalaron allí sus dependencias para independizarla del entorno compartido. Migración **310** aplicada atómicamente y guard de tablas y RPC comprobado contra Supabase. Las modificaciones de productos, variantes, cantidades y dirección, los borradores de reemplazo, la retención del despacho y el crédito de tienda siguen en desarrollo; esta entrega no completa B3. No se hicieron movimientos financieros reales como prueba.

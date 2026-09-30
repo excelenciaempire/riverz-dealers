@@ -89,6 +89,11 @@ export const unify = {
 } satisfies Namespace;
 
 export const approvals = {
+  decisionUnavailable: { es:'No se pudo consultar la decisión. Reintenta.', en:'Could not load the decision. Try again.' },
+  orderExecutionUnavailable: { es:'No se pudo autorizar esta operación para este pedido. No se ejecutó.', en:'Could not authorize this operation for this order. It was not executed.' },
+  orderResultUnverified: { es:'Verifica el resultado de la operación en Shopify antes de solicitar otra.', en:'Verify the operation’s result in Shopify before requesting another.' },
+  orderExecutionBusy: { es:'Este pedido tiene una operación en curso o sin verificar. Revisa su resultado antes de solicitar otra.', en:'This order has an operation in progress or awaiting verification. Review its result before requesting another.' },
+  orderStoreChanged: { es:'La tienda del pedido no coincide con la conexión activa. No se ejecutó la operación.', en:'The order’s store does not match the active connection. The operation was not executed.' },
   refundAmountInvalid: { es: 'El importe de reembolso no es válido.', en: 'The refund amount is invalid.' },
   refundPending: { es: 'Hay un reembolso en proceso. Revisa su estado en Shopify antes de solicitar otro.', en: 'A refund is pending. Check its status in Shopify before requesting another.' },
   refundAlreadyReturned: { es: 'No queda saldo disponible para reembolsar.', en: 'There is no remaining balance available to refund.' },

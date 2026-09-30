@@ -37,6 +37,7 @@ type ContactSegment = NonNullable<Contact["ai_segment"]>;
 
 interface ContactSidebarProps {
   contact: Contact | null;
+  conversationId?: string;
   /** When provided, renders a close (X) button at the top-right that calls
    *  this — lets the user collapse the panel from the panel itself. */
   onClose?: () => void;
@@ -58,7 +59,7 @@ function CloseButton({ onClose }: { onClose?: () => void }) {
   );
 }
 
-export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
+export function ContactSidebar({ contact, onClose, conversationId }: ContactSidebarProps) {
   const t = useT();
   const { workspace } = useWorkspace();
   const [copied, setCopied] = useState(false);
@@ -286,6 +287,7 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
           <ShopifyContactPanel
             contactEmail={contact.email ?? null}
             contactPhone={contact.phone ?? null}
+            conversationId={conversationId}
           />
 
           {/* Lo que la IA investigó de su perfil de Instagram antes de

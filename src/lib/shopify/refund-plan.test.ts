@@ -13,6 +13,7 @@ describe('refund allocation against real remaining charges', () => {
     expect(planRefund([charge(1, '50.00'), returned(1, '40.00')], 11)).toEqual({ ok: false, error: 'monto_mayor_al_cobrado' })
   })
   it('does not write through pending refunds or unverified transaction histories', () => {
+    expect(planRefund([charge(1,'50.00'),returned(1,'10.00'),returned(1,'10.00')])).toEqual({ ok:false,error:'refund_history_unverified' })
     expect(planRefund([charge(1, '50.00'), returned(1, '10.00', 'pending')])).toEqual({ ok: false, error: 'refund_pending' })
     expect(planRefund([charge(1, '50.00'), returned(2, '10.00')])).toEqual({ ok: false, error: 'refund_history_unverified' })
     expect(planRefund([charge(1, '50.00'), returned(1, '60.00')])).toEqual({ ok: false, error: 'refund_history_unverified' })
@@ -28,6 +29,7 @@ describe('refund allocation against real remaining charges', () => {
     expect(planRefund([charge(1, '50.00'), returned(1, '10.00', 'failure')])).toMatchObject({ ok: true, amount: '50.00' })
     const expected = [{ parent_id: 1, amount: '10.00' }]
     expect(verifiedRefundTransactions([returned(1, '10.00')], expected)).toBe(true)
+    expect(verifiedRefundTransactions([returned(1,'5.00'),returned(1,'5.00')],expected)).toBe(false)
     for (const rows of [[], [returned(1, '10.00', 'pending')], [returned(1, '9.00')], [returned(2, '10.00')]]) expect(verifiedRefundTransactions(rows, expected)).toBe(false)
   })
 })

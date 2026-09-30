@@ -378,7 +378,7 @@ export async function POST(request: Request) {
           let detalle: string
           try {
             detalle = tool.preview
-              ? await tool.preview(args, { label: actor.label })
+              ? await tool.preview(args, { label: actor.label, userId:actor.kind === 'workspace' ? actor.userId ?? null : null })
               : comoTexto(args)
           } catch (err) {
             // Una vista previa que no puede describir lo que haría es la forma
@@ -422,7 +422,7 @@ export async function POST(request: Request) {
       try {
         // La llave que ejecuta viaja hasta la capacidad: es lo que deja
         // registrado QUIÉN aprobó una decisión, y no sólo que se aprobó.
-        const salida = await tool.run(args, { label: actor.label })
+        const salida = await tool.run(args, { label: actor.label, userId:actor.kind === 'workspace' ? actor.userId ?? null : null })
         await anotar({
           actor,
           tool: tool.name,

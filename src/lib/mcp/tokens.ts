@@ -28,6 +28,7 @@ export type McpActor =
       tokenId: string
       label: string
       scope: McpScope
+      userId?: string | null
     }
 
 const PREFIX = 'rvz_'
@@ -80,7 +81,7 @@ export async function resolveActor(
 
   const { data } = await db
     .from('mcp_tokens')
-    .select('id, workspace_id, name, scope')
+    .select('id, workspace_id, name, scope, created_by')
     .eq('token_hash', hashToken(presented))
     .is('revoked_at', null)
     // Los emitidos por OAuth vencen; los pegados a mano no tienen vencimiento.
@@ -92,6 +93,7 @@ export async function resolveActor(
     workspace_id: string
     name: string
     scope: McpScope | null
+    created_by?:string | null
   } | null
   if (!row) return null
 
@@ -109,6 +111,7 @@ export async function resolveActor(
     workspaceId: row.workspace_id,
     tokenId: row.id,
     label: row.name,
+    ...(row.created_by ? { userId:row.created_by } : {}),
     // Una llave sin alcance declarado es de antes de la 159: puede todo, que es
     // lo que podía cuando se creó.
     scope: row.scope ?? 'total',

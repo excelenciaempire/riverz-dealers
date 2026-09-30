@@ -3,7 +3,7 @@ import { resolveShopifyAdmin } from '@/lib/shopify/order-tags'
 import { markOrderPaid } from '@/lib/shopify/mark-paid'
 import { cancelOrder, refundOrder } from '@/lib/shopify/order-cancel'
 import { cancelarPedidoEnLaTienda } from '@/lib/commerce/order-cancel'
-import { APROBACION_PENDIENTE } from './ask'
+import { APROBACION_PENDIENTE,quienDecide } from './ask'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { translate } from '@/lib/i18n/translate'
 
@@ -11,6 +11,7 @@ const REFUND_ERRORS: Record<string, string> = {
   invalid_refund_amount: 'refundAmountInvalid', refund_pending: 'refundPending',
   refund_already_returned: 'refundAlreadyReturned', refund_history_unverified: 'refundHistoryUnverified',
   refund_result_unverified: 'refundResultUnverified',
+  cancel_result_unverified: 'orderResultUnverified',
 }
 
 /**
@@ -38,6 +39,8 @@ export function parseReply(text: string): { decision: Decision; code: string } |
 
 export interface ResolveResult {
   ok: boolean
+  uncertain?: boolean
+  execution?: Record<string,unknown>
   /** Qué contarle a quien contestó. */
   message: string
   approvalId?: string
@@ -94,6 +97,11 @@ export async function resolveByCode(
     return { ok: false, message: 'Esa decisión ya venció. Vuelve a mirarla desde el panel.' }
   }
 
+  if (['cancelar_pedido','reembolsar_pedido'].includes(fila.kind)) {
+    const currentPhone = (await quienDecide(db,fila.workspace_id))?.replace(/\D/g,'').slice(-8)
+    if (currentPhone !== ultimos8) return { ok:false,message:translate(await localeDeCuenta(db,fila.workspace_id),'approvals.orderExecutionUnavailable') }
+  }
+
   return decidir(db, {
     approvalId: fila.id,
     decision: args.decision,
@@ -124,6 +132,18 @@ export async function decidir(
     workspaceId?: string | null
   },
 ): Promise<ResolveResult> {
+  // Authorize financial decisions before changing the pending request, so an
+  // unauthorized teammate cannot consume an approval that an admin still needs.
+  let pendingQuery = db.from('approval_requests').select('kind,workspace_id').eq('id',args.approvalId)
+  if (args.workspaceId) pendingQuery = pendingQuery.eq('workspace_id',args.workspaceId)
+  const pending = await pendingQuery.maybeSingle()
+  if (pending.error) return { ok:false,message:translate(args.workspaceId ? await localeDeCuenta(db,args.workspaceId) : 'es','approvals.decisionUnavailable') }
+  if (pending.data && ['cancelar_pedido','reembolsar_pedido'].includes(pending.data.kind) && args.via === 'panel') {
+    const locale = await localeDeCuenta(db,pending.data.workspace_id)
+    if (!args.decidedBy) return { ok:false,message:translate(locale,'approvals.orderExecutionUnavailable') }
+    const member = await db.from('workspace_members').select('role').eq('workspace_id',pending.data.workspace_id).eq('user_id',args.decidedBy).maybeSingle()
+    if (member.error || !member.data || !['admin','owner'].includes(member.data.role)) return { ok:false,message:translate(locale,'approvals.orderExecutionUnavailable') }
+  }
   let q = db
     .from('approval_requests')
     .update({
@@ -160,11 +180,24 @@ export async function decidir(
     return { ok: true, message: 'Listo, no se hizo nada.', approvalId: fila.id }
   }
 
-  const ejecucion = await ejecutar(db, fila)
+  let ejecucion: ResolveResult
+  if (['cancelar_pedido','reembolsar_pedido'].includes(fila.kind)) {
+    const locale = await localeDeCuenta(db,fila.workspace_id)
+    const lock = await db.rpc('claim_approved_order_execution',{ p_workspace_id:fila.workspace_id,p_order_id:String(fila.payload.order_id ?? ''),p_approval_id:fila.id })
+    if (lock.error || lock.data !== true) {
+      ejecucion = { ok:false,message:translate(locale,lock.error ? 'approvals.orderExecutionUnavailable' : 'approvals.orderExecutionBusy') }
+    } else {
+      try { ejecucion = await ejecutar(db,fila) }
+      catch { ejecucion = { ok:false,uncertain:true,message:translate(locale,'approvals.refundResultUnverified') } }
+      const finished = await db.rpc('finish_approved_order_execution',{ p_workspace_id:fila.workspace_id,p_approval_id:fila.id,p_uncertain:ejecucion.uncertain === true })
+      if (finished.error) ejecucion = { ok:false,uncertain:true,message:translate(locale,'approvals.refundResultUnverified') }
+    }
+  } else ejecucion = await ejecutar(db, fila)
   await db
     .from('approval_requests')
     .update({
       result: ejecucion.message,
+      execution_result: ejecucion.execution ?? null,
       status: ejecucion.ok ? 'aprobada' : 'fallida',
     })
     .eq('id', fila.id)
@@ -284,6 +317,9 @@ async function ejecutar(
         return { ok: true, message: 'El pedido quedó cancelado en la tienda.' }
       }
 
+      if (typeof fila.payload.shop_domain === 'string' && fila.payload.shop_domain.toLowerCase() !== admin.shopDomain.toLowerCase()) {
+        return { ok:false,message:translate(await localeDeCuenta(db,fila.workspace_id),'approvals.orderStoreChanged') }
+      }
       if (!cancelando && fila.payload.amount != null && typeof fila.payload.amount !== 'number') {
         return { ok: false, message: translate(await localeDeCuenta(db, fila.workspace_id), 'approvals.refundAmountInvalid') }
       }
@@ -298,8 +334,9 @@ async function ejecutar(
           })
 
       if (!res.ok) {
+        const execution = { order_id:orderId,shopify_order_id:shopifyOrderId,refund_id:res.refundId ?? null,financial_status:res.financialStatus ?? null }
         const refundErrorKey = REFUND_ERRORS[res.error ?? '']
-        if (refundErrorKey) return { ok: false, message: translate(await localeDeCuenta(db, fila.workspace_id), `approvals.${refundErrorKey}`) }
+        if (refundErrorKey) return { ok: false, execution, uncertain:res.uncertain || res.error === 'refund_result_unverified', message: translate(await localeDeCuenta(db, fila.workspace_id), `approvals.${refundErrorKey}`) }
         // El caso con arreglo se nombra: la tienda se conectó antes de que el
         // set de permisos incluyera escritura y hay que reconectarla.
         if (res.error === 'missing_write_scope') {
@@ -320,7 +357,7 @@ async function ejecutar(
             message: 'El importe pedido supera lo que se cobró de ese pedido. No se devolvió nada.',
           }
         }
-        return { ok: false, message: res.error ?? 'Shopify no aceptó la operación.' }
+        return { ok: false, execution, uncertain:res.uncertain, message: res.error ?? 'Shopify no aceptó la operación.' }
       }
 
       // Cancelar tiene que devolver el dinero, y no se confía en que lo haya
@@ -338,6 +375,8 @@ async function ejecutar(
           const vuelto = await refundOrder(admin, shopifyOrderId, { reason: 'cancelación' })
           if (vuelto.ok) res = vuelto
           else {
+            res.uncertain = vuelto.uncertain || vuelto.error === 'refund_result_unverified'
+            res.refundId = vuelto.refundId
             console.warn(
               `[aprobaciones] pedido ${shopifyOrderId} cancelado pero el reembolso falló:`,
               vuelto.error,
@@ -375,6 +414,9 @@ async function ejecutar(
       const devuelto = res.financialStatus === 'refunded'
       return {
         ok: true,
+        ...(res.uncertain ? { uncertain:true } : {}),
+        execution:{ order_id:orderId,shopify_order_id:shopifyOrderId,cancelled:cancelando,refund_id:res.refundId ?? null,
+          refunded_amount:res.refundedAmount ?? null,currency:res.currency ?? null,financial_status:res.financialStatus ?? null },
         message: cancelando
           ? devuelto
             ? 'Pedido cancelado y dinero devuelto en Shopify.'

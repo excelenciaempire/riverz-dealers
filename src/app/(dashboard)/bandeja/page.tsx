@@ -1106,6 +1106,7 @@ export default function InboxPage() {
             <div className="hidden shrink-0 lg:block">
               <ContactSidebar
                 contact={activeContact}
+                conversationId={activeConversation?.id}
                 onClose={() => setContactPanelOpen(false)}
               />
             </div>
@@ -1119,6 +1120,7 @@ export default function InboxPage() {
               <div className="h-full shrink-0 shadow-xl">
                 <ContactSidebar
                   contact={activeContact}
+                  conversationId={activeConversation?.id}
                   onClose={() => setContactPanelOpen(false)}
                 />
               </div>

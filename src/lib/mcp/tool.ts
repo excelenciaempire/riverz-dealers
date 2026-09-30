@@ -14,6 +14,7 @@ export type Risk = 'lectura' | 'reversible' | 'irreversible'
 /** Quién está llamando, para que quede anotado en lo que se ejecute. */
 export interface McpCaller {
   label: string
+  userId?: string | null
 }
 
 export interface McpTool {
@@ -82,7 +83,7 @@ export function desdeCapacidad(name: string, key: string): McpTool {
   const contexto = (args: Record<string, unknown>, caller?: McpCaller) => ({
     db: supabaseAdmin(),
     workspaceId: workspaceDe(args),
-    actor: { type: 'mcp' as const, id: caller?.label ?? null },
+    actor: { type: 'mcp' as const, id: caller?.label ?? null, userId:caller?.userId ?? null },
   })
 
   return {

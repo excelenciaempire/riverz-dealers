@@ -108,6 +108,7 @@ export class ShopifyAdminClient {
     private readonly shop: string,
     private readonly token: string,
     private readonly apiVersion: string = shopifyApiVersion(),
+    private readonly timeoutMs?: number,
   ) {}
 
   private base(): string {
@@ -121,6 +122,7 @@ export class ShopifyAdminClient {
   ): Promise<T> {
     const res = await fetch(`${this.base()}/graphql.json`, {
       method: 'POST',
+      signal: this.timeoutMs ? AbortSignal.timeout(this.timeoutMs) : undefined,
       headers: {
         'X-Shopify-Access-Token': this.token,
         'Content-Type': 'application/json',
@@ -156,6 +158,7 @@ export class ShopifyAdminClient {
       ? `https://${this.shop}/admin${path}` : `${this.base()}${path}`
     const res = await fetch(url, {
       method: init?.method ?? 'GET',
+      signal: this.timeoutMs ? AbortSignal.timeout(this.timeoutMs) : undefined,
       headers: {
         'X-Shopify-Access-Token': this.token,
         'Content-Type': 'application/json',

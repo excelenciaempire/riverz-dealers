@@ -21,7 +21,7 @@ const WS = '11111111-1111-1111-1111-111111111111';
 
 /** Cliente falso con una sola llave viva en la tabla. */
 function fakeDb(
-  row: { id: string; workspace_id: string; name: string; scope?: string } | null,
+  row: { id: string; workspace_id: string; name: string; scope?: string; created_by?:string } | null,
 ): SupabaseClient {
   return {
     from() {
@@ -113,6 +113,10 @@ describe('resolveActor', () => {
 
   it('una llave que no existe no es nadie', async () => {
     expect(await resolveActor(fakeDb(null), 'rvz_inventada')).toBeNull();
+  });
+  it('preserves the authenticated issuer independently from the key name',async () => {
+    const actor=await resolveActor(fakeDb({ id:'tok-1',workspace_id:WS,name:'fake owner name',scope:'total',created_by:'issuer' }),'rvz_valid')
+    expect(actor).toMatchObject({ kind:'workspace',label:'fake owner name',userId:'issuer' })
   });
 
   it('sin token no es nadie', async () => {

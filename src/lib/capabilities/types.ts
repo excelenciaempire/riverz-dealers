@@ -35,6 +35,8 @@ export interface CapabilityActor {
   type: 'mcp' | 'operator' | 'ui' | 'cron'
   /** Usuario, llave o proceso concreto, cuando se sabe. */
   id?: string | null
+  /** Authenticated key issuer; never a caller-controlled label or tool argument. */
+  userId?: string | null
 }
 
 /**

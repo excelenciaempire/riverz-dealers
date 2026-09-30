@@ -5,6 +5,7 @@ import { ShoppingBag, ExternalLink, Package, Truck, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
+import { CaseOrderActions } from './case-order-actions';
 
 /**
  * Panel Shopify contextual a la derecha del chat. Llama a
@@ -67,9 +68,11 @@ const FULFILLMENT_LABEL_KEY: Record<string, string> = {
 export function ShopifyContactPanel({
   contactEmail,
   contactPhone,
+  conversationId,
 }: {
   contactEmail: string | null;
   contactPhone: string | null;
+  conversationId?: string;
 }) {
   const t = useT();
   const fmt = useFormat();
@@ -252,6 +255,7 @@ export function ShopifyContactPanel({
                       )}
                     </div>
                   </div>
+                  {conversationId && <CaseOrderActions key={`${conversationId}:${o.id}`} conversationId={conversationId} shopifyOrderId={String(o.id)} />}
                 </li>
               );
             })}

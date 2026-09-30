@@ -31,11 +31,12 @@ export interface CancelResult {
   refundId?: string
   refundedAmount?: string
   currency?: string
+  uncertain?: boolean
   error?: string
 }
 
 function client(admin: ShopifyAdmin): ShopifyAdminClient {
-  return new ShopifyAdminClient(admin.shopDomain, admin.accessToken, admin.apiVersion)
+  return new ShopifyAdminClient(admin.shopDomain, admin.accessToken, admin.apiVersion, 30000)
 }
 
 /**
@@ -52,7 +53,7 @@ export async function cancelOrder(
   opts?: { reason?: string; refund?: boolean; restock?: boolean },
 ): Promise<CancelResult> {
   try {
-    const body = await client(admin).rest<{ order?: { financial_status?: string } }>(
+    const body = await client(admin).rest<{ order?: { id?: string | number; cancelled_at?: string | null; financial_status?: string } }>(
       `/orders/${orderId}/cancel.json`,
       {
         method: 'POST',
@@ -68,9 +69,10 @@ export async function cancelOrder(
         },
       },
     )
-    return { ok: true, financialStatus: body.order?.financial_status ?? null }
+    if (!body.order?.cancelled_at || String(body.order.id) !== orderId || !body.order.financial_status) return { ok:false,uncertain:true,error:'cancel_result_unverified' }
+    return { ok: true, financialStatus: body.order.financial_status }
   } catch (err) {
-    return { ok: false, error: traducirError(err) }
+    return { ok: false, error: traducirError(err), uncertain: !(err instanceof ShopifyUnauthorizedError) }
   }
 }
 
@@ -88,32 +90,34 @@ export async function refundOrder(
   orderId: string,
   opts?: { amount?: number; reason?: string },
 ): Promise<CancelResult> {
+  let posted = false
   try {
     const c = client(admin)
     const { transactions } = await c.rest<{ transactions?: RefundTransaction[] }>(`/orders/${orderId}/transactions.json`)
     if (!Array.isArray(transactions)) return { ok: false, error: 'refund_history_unverified' }
     const plan = planRefund(transactions, opts?.amount)
     if (!plan.ok) return plan
+    posted = true
     const response = await c.rest<{ refund?: { id?: string | number; transactions?: RefundTransaction[] } }>(`/orders/${orderId}/refunds.json`, {
       method: 'POST', body: { refund: { note: opts?.reason ?? 'Reembolso solicitado por el cliente', notify: false, transactions: plan.transactions } },
     })
     const refundId = response.refund?.id != null ? String(response.refund.id) : undefined
     if (!refundId || !verifiedRefundTransactions(response.refund?.transactions ?? [], plan.transactions)) {
-      return { ok: false, refundId, error: 'refund_result_unverified' }
+      return { ok: false, refundId, error: 'refund_result_unverified', uncertain: true }
     }
     // Never label a partial refund as a total refund in Riverz's local mirror.
     try {
       const { order } = await c.rest<{ order?: { financial_status?: string; currency?: string } }>(`/orders/${orderId}.json?fields=id,financial_status,currency`)
-      if (!order?.financial_status || !['refunded', 'partially_refunded'].includes(order.financial_status)) {
-        return { ok: false, refundId, error: 'refund_result_unverified' }
+      if (!order?.financial_status || !['refunded', 'partially_refunded'].includes(order.financial_status) || !/^[A-Z]{3}$/.test(order.currency ?? '')) {
+        return { ok: false, refundId, error: 'refund_result_unverified', uncertain: true }
       }
       return { ok: true, refundId, refundedAmount: plan.amount, financialStatus: order.financial_status, currency: order.currency }
     } catch {
-      return { ok: false, refundId, error: 'refund_result_unverified' }
+      return { ok: false, refundId, error: 'refund_result_unverified', uncertain: true }
     }
   } catch (err) {
     // Approval claiming prevents automatic replay; an uncertain response needs provider review.
-    return { ok: false, error: traducirError(err) }
+    return { ok: false, error: traducirError(err), ...(posted ? { uncertain: true } : {}) }
   }
 }
 

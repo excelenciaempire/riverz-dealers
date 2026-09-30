@@ -31,9 +31,12 @@ export function planRefund(transactions: RefundTransaction[], requested?: number
     if (amount === null || !t.id || !t.gateway || available.has(String(t.id))) return { ok: false, error: 'refund_history_unverified' }
     available.set(String(t.id), amount)
   }
+  const seenRefunds = new Set<string>()
   for (const t of transactions.filter(t => t.kind === 'refund')) {
     if (['failure', 'error'].includes(t.status)) continue
     if (t.status !== 'success') return { ok: false, error: 'refund_pending' }
+    if (!t.id || seenRefunds.has(String(t.id))) return { ok:false,error:'refund_history_unverified' }
+    seenRefunds.add(String(t.id))
     const key = String(t.parent_id ?? '')
     const amount = refundMoney(t.amount), previous = available.get(key)
     if (amount === null || previous === undefined || amount > previous) return { ok: false, error: 'refund_history_unverified' }
@@ -58,9 +61,11 @@ export function planRefund(transactions: RefundTransaction[], requested?: number
 export function verifiedRefundTransactions(actual: RefundTransaction[], expected: { parent_id: string | number; amount: string }[]): boolean {
   if (!actual.length || actual.some(t => t.kind !== 'refund' || t.status !== 'success')) return false
   const amounts = new Map<string, bigint>()
+  const seenIds = new Set<string>()
   for (const t of actual) {
     const amount = refundMoney(t.amount)
-    if (amount === null || !t.parent_id) return false
+    if (amount === null || amount <= BigInt(0) || !t.parent_id || !t.id || seenIds.has(String(t.id))) return false
+    seenIds.add(String(t.id))
     const key = String(t.parent_id)
     amounts.set(key, (amounts.get(key) ?? BigInt(0)) + amount)
   }

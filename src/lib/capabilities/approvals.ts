@@ -7,6 +7,7 @@
  * aprobar ejecuta de verdad: marca un pedido como pagado en Shopify.
  */
 import { decidir } from '@/lib/approvals/resolve'
+import { UUID } from '@/lib/inbox/collaboration'
 import type { Capability, CapabilityContext } from './types'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import { cambio, corto, fecha, lista, tabla, tt } from './vistas'
@@ -107,11 +108,12 @@ export const APPROVAL_CAPABILITIES: Capability[] = [
         : `Rechazaría "${a.title}" (${a.kind}) y no se haría nada.`
     },
     async run(ctx, args) {
+      const principal = ctx.actor.type === 'mcp' ? ctx.actor.userId : ctx.actor.id
       return decidir(ctx.db, {
         approvalId: String(args.approval_id),
         decision: args.aprobar ? 'aprobada' : 'rechazada',
         via: 'panel',
-        decidedBy: ctx.actor.id ?? null,
+        decidedBy: typeof principal === 'string' && UUID.test(principal) ? principal : null,
         // Sin la cuenta, un id suelto alcanza para aprobar algo de otra.
         workspaceId: ctx.workspaceId,
       })
