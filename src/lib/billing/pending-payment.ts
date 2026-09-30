@@ -75,11 +75,16 @@ export async function reconcileSubscriptionInvoices(db: SupabaseClient, client: 
     .in('status', ['open', 'uncollectible']).gt('amount_remaining', 0);
   if (error) throw new Error('subscription_invoice_reconciliation_unavailable');
   for (const row of data ?? []) ids.add(row.invoice_id);
+  const failures: string[] = [];
   for (const status of ['open', 'uncollectible'] as const) {
-    for await (const invoice of client.invoices.list({ status, limit: 100 })) ids.add(invoice.id);
+    try {
+      for await (const invoice of client.invoices.list({ status, limit: 100 })) ids.add(invoice.id);
+    } catch {
+      // A failed discovery page must not prevent a known merchant's paid recovery.
+      failures.push(`list_${status}`);
+    }
   }
   let synced = 0;
-  const failures: string[] = [];
   for (const id of ids) {
     try {
       const result = await syncSubscriptionInvoice(db, client, id);

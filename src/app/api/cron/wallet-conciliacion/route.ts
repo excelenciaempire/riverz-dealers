@@ -20,6 +20,15 @@ async function handler(request: Request) {
     throw r;
   }
   const db = supabaseAdmin();
+  let subscriptionPayments = { synced: 0, failures: [] as string[] };
+  if (stripeDisponible()) {
+    try {
+      subscriptionPayments = await reconcileSubscriptionInvoices(db, stripe(), id => aplicarEvento(db,
+        { type: 'customer.subscription.updated', data: { object: { id } } } as unknown as Stripe.Event, false));
+    } catch {
+      subscriptionPayments.failures.push('reconciliation_unavailable');
+    }
+  }
   const since = new Date(Date.now() - 15 * 60000).toISOString();
   const { data: pending, error } = await db
     .from('wallet_operaciones')
@@ -35,15 +44,6 @@ async function handler(request: Request) {
   let released = 0;
   const unresolved = [];
   const paymentFailures: string[] = [];
-  let subscriptionPayments = { synced: 0, failures: [] as string[] };
-  if (stripeDisponible()) {
-    try {
-      subscriptionPayments = await reconcileSubscriptionInvoices(db, stripe(), id => aplicarEvento(db,
-        { type: 'customer.subscription.updated', data: { object: { id } } } as unknown as Stripe.Event, false));
-    } catch {
-      subscriptionPayments.failures.push('reconciliation_unavailable');
-    }
-  }
   for (const op of pending ?? []) {
     if (op.proveedor === 'apify' && typeof op.detalle?.runId === 'string') {
       try {

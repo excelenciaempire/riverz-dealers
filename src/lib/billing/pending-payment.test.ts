@@ -83,16 +83,19 @@ describe('monthly invoices', () => {
     for (const url of ['javascript:alert(1)', 'https://evil.test', 'https://invoice.stripe.com.evil.test', 'http://invoice.stripe.com', 'https://user:pass@invoice.stripe.com']) expect(safeInvoiceUrl(url)).toBeNull();
     expect(safeInvoiceUrl('https://invoice.stripe.com/i/pay/one')).toBe('https://invoice.stripe.com/i/pay/one');
   });
-  it('recovers paid invoices missed by webhooks and continues after another merchant fails', async () => {
+  it.each([false, true])('recovers paid invoices despite another merchant or discovery failure (%s)', async discoveryFails => {
     const f = fixture({ status: 'paid', amount_remaining: 0 });
     const pendingQuery = { select: () => ({ in: () => ({ gt: async () => ({
       data: [{ invoice_id: 'in_bad' }, { invoice_id: 'in_paid' }], error: null,
     }) }) }) };
     const db = { ...f.db, from: (table: string) => table === 'workspace_subscriptions' ? f.db.from(table) : pendingQuery } as unknown as SupabaseClient;
     f.retrieve.mockRejectedValueOnce(new Error('outage'));
-    const client = { invoices: { retrieve: f.retrieve, list: () => (async function* () {})() } } as unknown as Stripe;
+    const client = { invoices: { retrieve: f.retrieve, list: () => (async function* () {
+      if (discoveryFails) throw new Error('discovery unavailable');
+    })() } } as unknown as Stripe;
     const refresh = vi.fn().mockResolvedValue(undefined);
-    expect(await reconcileSubscriptionInvoices(db, client, refresh)).toEqual({ synced: 1, failures: ['in_bad'] });
+    expect(await reconcileSubscriptionInvoices(db, client, refresh)).toEqual({ synced: 1,
+      failures: discoveryFails ? ['list_open', 'list_uncollectible', 'in_bad'] : ['in_bad'] });
     expect(refresh).toHaveBeenCalledWith('sub_1');
   });
 });
