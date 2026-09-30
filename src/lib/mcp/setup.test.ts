@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { translate } from '@/lib/i18n/translate';
 import {
   CHATGPT_SETTINGS_URL,
+  CLAUDE_CONNECTORS_URL,
+  CLAUDE_DESKTOP_URL,
   desktopSetupUrl,
   MCP_SETUP_COMMANDS,
   MCP_URL,
@@ -53,5 +55,16 @@ describe('MCP desktop handoff', () => {
     expect(url.origin).toBe('https://chatgpt.com');
     expect(url.pathname).toBe('/');
     expect(url.hash).toBe('#settings/Connectors');
+  });
+
+  it('routes Claude account setup to connectors and desktop chat to the chat tab', () => {
+    const connectors = new URL(CLAUDE_CONNECTORS_URL);
+    expect(connectors.origin).toBe('https://claude.ai');
+    expect(connectors.pathname).toBe('/customize/connectors');
+    const desktop = new URL(CLAUDE_DESKTOP_URL);
+    expect(desktop.protocol).toBe('claude:');
+    expect(desktop.host).toBe('claude.ai');
+    expect(desktop.pathname).toBe('/new');
+    expect(new URL(desktopSetupUrl('claude', 'Setup')).host).toBe('code');
   });
 });

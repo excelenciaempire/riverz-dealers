@@ -1,5 +1,7 @@
 export const MCP_URL = 'https://riverz.co/api/mcp';
 export const CHATGPT_SETTINGS_URL = 'https://chatgpt.com/#settings/Connectors';
+export const CLAUDE_CONNECTORS_URL = 'https://claude.ai/customize/connectors';
+export const CLAUDE_DESKTOP_URL = 'claude://claude.ai/new';
 
 export const MCP_SETUP_COMMANDS = {
   claude: `claude mcp add --transport http --scope user riverz ${MCP_URL}\nclaude mcp login riverz`,

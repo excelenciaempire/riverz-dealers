@@ -36,4 +36,11 @@ describe('verified MCP connections', () => {
       connectedClients([{ ...token, name: 'Other client' }], now).size
     ).toBe(0);
   });
+
+  it('keeps Claude account and local Claude Code connections distinct', () => {
+    expect([...connectedClients([{ ...token, name: 'Claude' }], now)]).toEqual([
+      'claude-chat',
+    ]);
+    expect([...connectedClients([token], now)]).toEqual(['claude']);
+  });
 });

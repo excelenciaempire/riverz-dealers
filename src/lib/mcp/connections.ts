@@ -1,4 +1,4 @@
-export type McpClient = 'claude' | 'codex' | 'chatgpt';
+export type McpClient = 'claude' | 'claude-chat' | 'codex' | 'chatgpt';
 
 export interface OAuthConnectionToken {
   name: string;
@@ -24,7 +24,8 @@ export function connectedClients(
     )
       continue;
 
-    if (/claude/i.test(token.name)) connected.add('claude');
+    if (/claude[\s_-]*code/i.test(token.name)) connected.add('claude');
+    else if (/claude|anthropic/i.test(token.name)) connected.add('claude-chat');
     else if (/codex/i.test(token.name)) connected.add('codex');
     else if (/chatgpt|openai/i.test(token.name)) connected.add('chatgpt');
   }

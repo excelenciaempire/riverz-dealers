@@ -21,6 +21,8 @@ import {
 import { Button } from '@/components/ui/button';
 import {
   CHATGPT_SETTINGS_URL,
+  CLAUDE_CONNECTORS_URL,
+  CLAUDE_DESKTOP_URL,
   desktopSetupUrl,
   MCP_SETUP_COMMANDS,
   MCP_URL,
@@ -34,6 +36,7 @@ import {
 } from '@/components/ui/dialog';
 
 const CLIENTS = {
+  'claude-chat': { name: 'Claude', command: null },
   claude: {
     name: 'Claude Code',
     command: MCP_SETUP_COMMANDS.claude,
@@ -47,7 +50,11 @@ const CLIENTS = {
 
 type Client = keyof typeof CLIENTS;
 const PROVIDERS = [
-  { name: 'Claude Code', logo: '/logos/claude.ico', clients: ['claude'] },
+  {
+    name: 'Claude',
+    logo: '/logos/claude.ico',
+    clients: ['claude-chat', 'claude'],
+  },
   {
     name: 'OpenAI',
     logo: '/logos/codex.png',
@@ -64,6 +71,10 @@ export function McpOauthConnect() {
   const [connected, setConnected] = useState<Set<McpClient>>(new Set());
   const [statusFailed, setStatusFailed] = useState(false);
   const client = selected ? CLIENTS[selected] : null;
+  const provider = selected
+    ? PROVIDERS.find((entry) => entry.clients.some((id) => id === selected))
+    : null;
+  const isClaudeChat = selected === 'claude-chat';
 
   useEffect(() => {
     let active = true;
@@ -164,19 +175,21 @@ export function McpOauthConnect() {
           <DialogHeader>
             <DialogTitle>
               {t('oauth.connectClient', {
-                client: selected === 'claude' ? 'Claude Code' : 'OpenAI',
+                client: provider?.name ?? '',
               })}
             </DialogTitle>
             <DialogDescription>
-              {t('oauth.clientStartsLogin')}
+              {t(
+                provider?.name === 'Claude'
+                  ? 'oauth.claudeSharedConnection'
+                  : 'oauth.clientStartsLogin'
+              )}
             </DialogDescription>
           </DialogHeader>
-          {selected && selected !== 'claude' && (
+          {provider && (
             <fieldset className="flex gap-2">
-              <legend className="sr-only">
-                {t('oauth.chooseOpenaiClient')}
-              </legend>
-              {(['codex', 'chatgpt'] as const).map((id) => (
+              <legend className="sr-only">{t('oauth.chooseClient')}</legend>
+              {provider.clients.map((id) => (
                 <Button
                   key={id}
                   size="sm"
@@ -213,7 +226,8 @@ export function McpOauthConnect() {
               )}
             </div>
           )}
-          {client?.command && selected && selected !== 'chatgpt' ? (
+          {client?.command &&
+          (selected === 'claude' || selected === 'codex') ? (
             <div className="min-w-0 space-y-4">
               <Button
                 className="h-auto min-h-8 w-full py-2 whitespace-normal"
@@ -282,7 +296,13 @@ export function McpOauthConnect() {
           ) : (
             <ol className="min-w-0 list-decimal space-y-4 pl-5 text-sm">
               <li>
-                <p>{t('oauth.chatgptDeveloperMode')}</p>
+                <p>
+                  {t(
+                    isClaudeChat
+                      ? 'oauth.claudeAddServer'
+                      : 'oauth.chatgptDeveloperMode'
+                  )}
+                </p>
                 <Button
                   className="mt-2 h-auto min-h-8 max-w-full py-2 text-left whitespace-normal"
                   variant="outline"
@@ -292,19 +312,42 @@ export function McpOauthConnect() {
                   }}
                   render={
                     <a
-                      href={CHATGPT_SETTINGS_URL}
+                      href={
+                        isClaudeChat
+                          ? CLAUDE_CONNECTORS_URL
+                          : CHATGPT_SETTINGS_URL
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
                     />
                   }
                   nativeButton={false}
                 >
-                  {t('oauth.copyAndOpenChatgpt')}
+                  {t(
+                    isClaudeChat
+                      ? 'oauth.copyAndOpenClaude'
+                      : 'oauth.copyAndOpenChatgpt'
+                  )}
                   <ExternalLink />
                 </Button>
+                {isClaudeChat && (
+                  <Button
+                    className="mt-2 h-auto min-h-8 max-w-full py-2 whitespace-normal"
+                    variant="outline"
+                    onClick={() => {
+                      setStarted(true);
+                      void copy(MCP_URL);
+                    }}
+                    render={<a href={CLAUDE_DESKTOP_URL} />}
+                    nativeButton={false}
+                  >
+                    <Monitor />
+                    {t('oauth.openDesktop', { client: 'Claude' })}
+                  </Button>
+                )}
               </li>
               <li>
-                <p>{t('oauth.chatgptAddServer')}</p>
+                {!isClaudeChat && <p>{t('oauth.chatgptAddServer')}</p>}
                 <p className="mt-2 font-medium">
                   {t('oauth.serverName')}: Riverz
                 </p>
@@ -329,37 +372,47 @@ export function McpOauthConnect() {
                     role="status"
                     className="text-muted-foreground mt-1 text-xs"
                   >
-                    {t('oauth.urlCopied')}
+                    {t(
+                      isClaudeChat ? 'oauth.claudeUrlCopied' : 'oauth.urlCopied'
+                    )}
                   </p>
                 )}
                 <p className="text-muted-foreground mt-2 text-xs">
                   {t('oauth.authentication')}: OAuth
                 </p>
               </li>
-              <li>{t('oauth.authorizeInBrowser')}</li>
-              <li className="list-none">
-                <details className="-ml-5">
-                  <summary className="text-muted-foreground cursor-pointer">
-                    {t('oauth.noCreateOption')}
-                  </summary>
-                  <p className="text-muted-foreground mt-2 text-xs">
-                    {t('oauth.chatgptAccountRequirement')}
-                  </p>
-                  <Button
-                    className="mt-2"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setCopied(null);
-                      setStarted(false);
-                      setSelected('codex');
-                    }}
-                  >
-                    <Monitor />
-                    {t('oauth.useDesktop')}
-                  </Button>
-                </details>
+              <li>
+                {t(
+                  isClaudeChat
+                    ? 'oauth.claudeAuthorize'
+                    : 'oauth.authorizeInBrowser'
+                )}
               </li>
+              {!isClaudeChat && (
+                <li className="list-none">
+                  <details className="-ml-5">
+                    <summary className="text-muted-foreground cursor-pointer">
+                      {t('oauth.noCreateOption')}
+                    </summary>
+                    <p className="text-muted-foreground mt-2 text-xs">
+                      {t('oauth.chatgptAccountRequirement')}
+                    </p>
+                    <Button
+                      className="mt-2"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setCopied(null);
+                        setStarted(false);
+                        setSelected('codex');
+                      }}
+                    >
+                      <Monitor />
+                      {t('oauth.useDesktop')}
+                    </Button>
+                  </details>
+                </li>
+              )}
             </ol>
           )}
         </DialogContent>

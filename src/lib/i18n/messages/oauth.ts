@@ -24,9 +24,29 @@ export const oauth: Namespace = {
     en: 'Authorize access to Riverz without creating a key.',
   },
   connectClient: { es: 'Conectar {client}', en: 'Connect {client}' },
-  chooseOpenaiClient: {
+  chooseClient: {
     es: 'Conectar desde',
     en: 'Connect from',
+  },
+  claudeSharedConnection: {
+    es: 'La conexión de tu cuenta también funciona en Claude Code con la misma cuenta.',
+    en: 'Your account connection also works in Claude Code with the same account.',
+  },
+  claudeAddServer: {
+    es: 'En Claude, abre Personalizar → Conectores y pulsa + → Agregar conector personalizado.',
+    en: 'In Claude, open Customize → Connectors and select + → Add custom connector.',
+  },
+  copyAndOpenClaude: {
+    es: 'Copiar URL y abrir conectores de Claude',
+    en: 'Copy URL and open Claude connectors',
+  },
+  claudeUrlCopied: {
+    es: 'URL copiada: pégala en Claude.',
+    en: 'URL copied: paste it in Claude.',
+  },
+  claudeAuthorize: {
+    es: 'Pulsa Agregar y luego Conectar. Inicia sesión en Riverz y autoriza el acceso.',
+    en: 'Select Add, then Connect. Sign in to Riverz and authorize access.',
   },
   chatgptWeb: { es: 'ChatGPT web', en: 'ChatGPT web' },
   openDesktop: {
