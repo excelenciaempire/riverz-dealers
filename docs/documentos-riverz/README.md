@@ -4,7 +4,8 @@ Carpeta central con los documentos comerciales, operativos y de investigación c
 
 ## Comercial y demostraciones
 
-- `riverz-propuesta-comercial.pdf`: propuesta comercial brandeada con agentes, automatizaciones, casos de IA, integraciones, preguntas y precios.
+- `riverz-propuesta-comercial.pdf`: propuesta visual de 10 páginas, con conversaciones ilustradas, comparación, oferta y preguntas de la landing.
+- `riverz-guia-detallada-automatizaciones-y-agentes.pdf`: guía de 26 páginas basada en el Word, con índice clicable, 22 automatizaciones, 5 roles y 8 escenarios completos.
 - `Riverzz ejemplos de automatizaciones y agentes de IA.docx`: ejemplos detallados para explicar y demostrar automatizaciones y agentes de IA en ecommerce.
 - `guiones-anuncios-riverz.pdf`: guiones de anuncios para comunicar la propuesta de Riverz.
 
@@ -24,3 +25,6 @@ Carpeta central con los documentos comerciales, operativos y de investigación c
 - `costos-riverz.pdf`: estructura interna de costos.
 
 Última consolidación: 29 de septiembre de 2026.
+
+Los dos PDFs visuales se regeneran con `py -X utf8 scripts/build-riverz-visual-pdfs.py`.
+Los recursos, licencias y fuentes comerciales están documentados en `assets/README.md`.
