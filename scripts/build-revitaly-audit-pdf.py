@@ -81,6 +81,23 @@ automation_rate = 100 * len(automated_ids) / len(customer_ids)
 response_issues = sum(any(e.get('message_id') in period_message_ids for e in c['missed_reply']) for c in reviewed)
 avoidable_blocks = sum(any(e.get('message_id') in period_message_ids for e in c['premature']) for c in reviewed)
 assert (response_issues, avoidable_blocks) == (50, 10)
+# Count readable incoming comments separately from deleted platform records.
+# Replies can be saved as either text or comment; the social thread channel
+# and origin establish which inbox they belong to. A reply is not a resolution.
+conversation_by_id = {c['id']: c for c in source['conversations']}
+comment_messages = [m for m in period_messages
+                    if conversation_by_id[m['conversation_id']]['channel'] in {'fb_comment', 'ig_comment'}
+                    and m['sender_type'] == 'customer'
+                    and (m['content_text'] or '').strip() not in {'', '[deleted]'}]
+comment_ids = {m['conversation_id'] for m in comment_messages}
+comment_channels = Counter(conversation_by_id[m['conversation_id']]['channel'] for m in comment_messages)
+comment_ai_ids = {m['conversation_id'] for m in successful_responses
+                  if m['origin'] == 'comment_ai'} & comment_ids
+comment_human_ids = human_answered_ids & comment_ids
+comment_unanswered_ids = comment_ids - comment_ai_ids - comment_human_ids
+assert (len(comment_messages), len(comment_ids), len(comment_ai_ids),
+        len(comment_human_ids), len(comment_unanswered_ids)) == (38, 34, 22, 1, 11)
+assert comment_channels == Counter({'fb_comment': 33, 'ig_comment': 5})
 rate = lambda value: f'{value:.1f}%'.replace('.', ',')
 
 REASONS = [
@@ -179,11 +196,11 @@ class PDF:
 
 p = PDF()
 
-# 1. One selected reporting period, activity totals and customer-only rates.
+# 1. All attention rates use customer consultations as their denominator.
 p.header('Revitaly. Reporte de atención.', '26 al 30 de septiembre de 2026, hasta las 12:04 de Argentina.')
 for x, value, percentage, label, detail in [
-    (42, str(len(active_ids)), '100%', 'Conversaciones con\nactividad', 'Total del período'),
-    (304, str(len(cases)), rate(inbox_rate), 'Escalamientos\njustificados', 'Necesitaron intervención'),
+    (42, str(len(customer_ids)), '100%', 'Conversaciones con\nconsultas', 'Base de los porcentajes'),
+    (304, str(len(cases)), rate(human_rate), 'Escalamientos\njustificados', 'Necesitaron intervención'),
 ]:
     p.box(x, 182, 249, 138, PALE if x == 42 else CARD)
     p.text(x+17, 226, value, 'Serif', 42, width=145)
@@ -191,7 +208,7 @@ for x, value, percentage, label, detail in [
     end = p.wrap(x+17, 262, label, 215, size=15, leading=19, font='Semi')
     assert end <= 300
     p.text(x+17, 307, detail, width=215)
-end = p.wrap(42, 352, 'El total incluye avisos y mensajes salientes. Los porcentajes de atención se calculan sobre 199 consultas de clientes.')
+end = p.wrap(42, 352, 'Hubo 425 hilos con actividad, incluidos avisos y mensajes salientes. Las 199 conversaciones con consultas son la base de los porcentajes de atención.')
 assert end-18+4 < 411
 p.text(42, 422, 'Atención al cliente', 'Serif', 27)
 p.box(42, 448, 511, 144)
@@ -206,9 +223,10 @@ for i, (label, count, percentage) in enumerate([
     p.text(485, baseline, percentage, 'Semi', 14, width=51)
     if i < 2:
         p.line(496+i*48)
-p.text(42, 641, 'Qué ocurrió', 'Serif', 27)
-p.wrap(42, 672, 'Entregas e información comercial concentraron 25 de los 43 escalamientos (58,1%).')
-end = p.wrap(42, 723, 'También se observaron 50 consultas con respuestas ausentes, tardías o incompletas y 10 bloqueos o derivaciones evitables.')
+p.text(42, 633, 'Análisis de comentarios', 'Serif', 27)
+end = p.wrap(42, 664, '38 comentarios con texto: 33 en Facebook y 5 en Instagram, en 34 hilos. En 22 respondió la IA y en 1 una persona; 11 no tenían respuesta al corte.')
+assert end <= 720
+end = p.wrap(42, 736, 'Hubo consultas de precio y uso, reclamos de entrega y críticas a la publicidad. Algunas se frenaron por saldo o fallos; otras recibieron solo «Te escribí por privado».')
 assert end-18+4 <= 791
 p.end()
 
@@ -252,8 +270,8 @@ assert len(doc) == p.page == 3
 assert len(doc.get_toc()) == 3
 text = '\n'.join(page.get_text() for page in doc)
 normalized_text = re.sub(r'\s+', ' ', text)
-assert all(token in normalized_text for token in ['425', '199', '43', '133', '10,1%', '21,6%', '66,8%', '26 al 30 de septiembre', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.'])
-assert all(removed not in normalized_text for removed in ['Sin motivo de escalamiento', 'Sin escalamiento identificado', '78,4%'])
+assert all(token in normalized_text for token in ['425', '199', '43', '133', '21,6%', '66,8%', '26 al 30 de septiembre', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.', 'Análisis de comentarios', '38 comentarios con texto', '34 hilos', '11 no tenían respuesta al corte'])
+assert all(removed not in normalized_text for removed in ['Sin motivo de escalamiento', 'Sin escalamiento identificado', '78,4%', '10,1%', 'Qué ocurrió'])
 assert all(token in normalized_text for token in ['Parcialmente', 'Puede automatizarse al conectar el banco', 'Una persona aprueba la cancelación o el reembolso', 'la IA no devuelve dinero por su cuenta'])
 assert all(token in normalized_text for token in ['CARRITO25 no funcionó', 'envase rajado con pérdida', 'IA no podía modificarlo'])
 assert 'Por qué se necesita al equipo' not in text and 'pedir el cambio al transportista' not in text
@@ -289,6 +307,9 @@ proof = {'file': str(OUT), 'pages': len(doc), 'periodEscalations': len(cases),
          'responseIssueConversations': response_issues, 'avoidableBlockConversations': avoidable_blocks,
          'genuineInterventionInboxPercent': round(inbox_rate, 1),
          'genuineInterventionPercent': round(human_rate, 1), 'proposedCapabilities': len(plan),
+         'readableIncomingComments': len(comment_messages), 'incomingCommentThreads': len(comment_ids),
+         'AIAnsweredCommentThreads': len(comment_ai_ids), 'humanAnsweredCommentThreads': len(comment_human_ids),
+         'unansweredCommentThreadsAtCutoff': len(comment_unanswered_ids), 'commentChannelCounts': dict(comment_channels),
          'escalationCategories': len(REASONS), 'individualCasesListed': False, 'appendices': False,
          'bodyFontPoints': 13, 'minimumSupportingTextPoints': 12.5,
          'undersizedBodyText': small_body,
