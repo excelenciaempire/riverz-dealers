@@ -15,6 +15,7 @@
  * la marca de escalamiento) y una segunda implementación es una segunda forma
  * de dejar el panel contando mal.
  */
+import { gapCapabilityActor } from '@/lib/ai/gap-knowledge-actions'
 import { CHANNELS } from '@/types'
 import {
   asignarConversacion,
@@ -329,12 +330,7 @@ async function detalle(ctx: CapabilityContext, args: Record<string, unknown>) {
       .select('id, content_text, agent_name, created_at')
       .eq('conversation_id', c.id)
       .maybeSingle(),
-    ctx.db
-      .from('answer_gaps')
-      .select('question, missing, created_at, resolved_at')
-      .eq('conversation_id', c.id)
-      .order('created_at', { ascending: false })
-      .limit(10),
+    ctx.db.rpc('list_visible_answer_gaps',{ p_workspace_id:ctx.workspaceId,p_actor_id:gapCapabilityActor(ctx),p_resolved:true,p_conversation_id:c.id }),
   ])
   const ia = ((ultimaIa.data ?? []) as Array<{
     created_at: string
@@ -415,7 +411,7 @@ async function detalle(ctx: CapabilityContext, args: Record<string, unknown>) {
       : null,
     // Cada hueco es un agujero del conocimiento del producto, y se tapa
     // cargándolo una vez.
-    no_supo_contestar: (huecos.data ?? []) as unknown[],
+    no_supo_contestar: (huecos.data ?? []).slice(0,10) as unknown[],
   }
 }
 

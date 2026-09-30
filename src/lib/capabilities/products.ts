@@ -19,6 +19,8 @@
  * código que corre el editor. Si estuviera duplicada, la copia que se olvidara
  * de recompilar el material dejaría al agente citando la descripción vieja.
  */
+import { gapKnowledgeInput } from '@/lib/ai/gap-knowledge'
+import { gapCapabilityActor,prepareGapKnowledgeReview } from '@/lib/ai/gap-knowledge-actions'
 import { escapeLike } from '@/lib/security/like'
 import { isUuid } from '@/lib/products/slug'
 import { agruparPorPrincipal, type FilaAgrupable } from '@/lib/products/agrupar'
@@ -299,11 +301,26 @@ async function editar(ctx: CapabilityContext, args: Record<string, unknown>) {
  */
 async function responderHueco(ctx: CapabilityContext, args: Record<string, unknown>) {
   const productId = String(args.producto_id ?? '').trim()
-  const pregunta = String(args.pregunta ?? '').trim().slice(0, 300)
-  const respuesta = String(args.respuesta ?? '').trim().slice(0, 2000)
+  const pregunta = String(args.pregunta ?? '').trim()
+  const respuesta = String(args.respuesta ?? '').trim()
   if (!productId) throw new Error('Falta el id del producto.')
   if (!pregunta) throw new Error('Falta la pregunta.')
   if (!respuesta) throw new Error('Falta la respuesta.')
+  if (pregunta.length>500 || respuesta.length>2000) throw new Error('invalid_gap_context')
+
+  const clave=typeof args.hueco_clave==='string' ? args.hueco_clave.trim() : ''
+  if (clave) {
+    const input=gapKnowledgeInput({ action:'preview',key:clave,product_id:productId,question:pregunta,answer:respuesta })
+    if (!input || input.action!=='preview') throw new Error('invalid_gap_context')
+    const userId=gapCapabilityActor(ctx)
+    const reviewed=await prepareGapKnowledgeReview({ ...ctx,userId,locale:ctx.locale ?? 'es' },input)
+    if (reviewed.error) throw new Error(reviewed.error.message)
+    const receipt=reviewed.data as { id:string }
+    if (!receipt?.id) throw new Error('gap_changed')
+    const confirmed=await ctx.db.rpc('confirm_gap_knowledge_review',{ p_workspace_id:ctx.workspaceId,p_actor_id:userId,p_review_id:receipt.id })
+    if (confirmed.error || !confirmed.data?.ok) throw new Error(confirmed.error?.message ?? 'gap_changed')
+    return { producto:productId,pregunta,respuesta,hueco_cerrado:true,knowledge_receipt_id:receipt.id }
+  }
 
   const { data: producto } = await ctx.db
     .from('shopify_products')
@@ -330,26 +347,12 @@ async function responderHueco(ctx: CapabilityContext, args: Record<string, unkno
   })
   if (!res.ok) throw new Error(res.motivo ?? 'no se pudo guardar')
 
-  // Recién ahora se marca resuelto el hueco: si el guardado falla, la pregunta
-  // sigue en la lista. Al revés se perdería y nadie sabría que falta.
-  const clave = typeof args.hueco_clave === 'string' ? args.hueco_clave.trim() : ''
-  if (clave) {
-    await ctx.db
-      .from('answer_gaps')
-      .update({
-        resolved_at: new Date().toISOString(),
-        resolved_by: ctx.actor.type === 'operator' ? (ctx.actor.id ?? null) : null,
-      })
-      .eq('workspace_id', ctx.workspaceId)
-      .eq('question_key', clave)
-      .is('resolved_at', null)
-  }
 
   return {
     producto: (producto as { title?: string }).title ?? productId,
     pregunta,
     respuesta,
-    hueco_cerrado: Boolean(clave),
+    hueco_cerrado: false,
   }
 }
 

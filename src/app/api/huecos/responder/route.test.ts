@@ -1,138 +1,44 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-
-/**
- * La respuesta que faltaba no siempre es de un producto.
- *
- * "Puedo retirar en sucursal?", "hacen factura A?", "cuanto tarda el envio?"
- * son politicas del NEGOCIO: no cambian de un producto a otro, y meterlas en
- * la ficha de uno las hace desaparecer cuando el cliente pregunta por otro.
- *
- * El formulario obligaba a elegir un producto, asi que el comercio elegia uno
- * al azar o se iba a otra pantalla a escribir la regla a mano. La mitad no lo
- * hacia, y la misma pregunta volvia a la semana — que es exactamente lo que
- * esta pantalla existe para evitar.
- */
-
-const escrituras: Array<{ tabla: string; fila: Record<string, unknown> }> = []
-let productoExiste = true
-
-function tabla(nombre: string) {
-  const q: Record<string, unknown> = {}
-  q.select = () => q
-  q.eq = () => q
-  q.is = () => q
-  q.update = (fila: Record<string, unknown>) => {
-    escrituras.push({ tabla: `${nombre}:update`, fila })
-    return q
-  }
-  q.upsert = async (fila: Record<string, unknown>) => {
-    escrituras.push({ tabla: `${nombre}:upsert`, fila })
-    return { error: null }
-  }
-  q.maybeSingle = async () => ({
-    data: nombre === 'shopify_products' && productoExiste
-      ? { id: 'p1', custom_faqs: [] }
-      : null,
-    error: null,
-  })
-  q.then = (ok: (v: unknown) => unknown) =>
-    Promise.resolve({ data: null, error: null }).then(ok)
-  return q
-}
-
-vi.mock('@/lib/channels/admin-client', () => ({
-  supabaseAdmin: () => ({ from: (t: string) => tabla(t) }),
-}))
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: async () => ({
-    auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) },
-  }),
-}))
-vi.mock('@/lib/workspaces/resolve', () => ({
-  resolveWorkspaceIdForUser: async () => 'ws1',
-}))
-vi.mock('@/lib/csrf', () => ({ csrfGuard: async () => null }))
-vi.mock('@/lib/i18n/server', () => ({ getLocale: async () => 'es' }))
-vi.mock('@/lib/products/write', () => ({
-  actualizarProducto: async (_db: unknown, args: Record<string, unknown>) => {
-    escrituras.push({ tabla: 'producto', fila: args })
-    return { ok: true }
-  },
-}))
-
+import { beforeEach,describe,expect,it,vi } from 'vitest'
+const mocks=vi.hoisted(() => ({ rpc:vi.fn(),session:vi.fn(),from:vi.fn(),csrf:vi.fn() }))
+vi.mock('@/lib/ai/gap-knowledge-server',() => ({ gapSession:mocks.session,gapHeaders:{ 'Cache-Control':'private, no-store' },gapError:(e:{message:string}) => Response.json({ error:e.message },{ status:e.message==='gap_changed' ? 409 : e.message==='invalid_gap_context' ? 404 : 502 }) }))
+vi.mock('@/lib/csrf',() => ({ csrfGuard:mocks.csrf }))
 import { POST } from './route'
-
-const pedir = (body: unknown) =>
-  POST(
-    new Request('https://riverz.co/api/huecos/responder', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
-  )
-
+const ws='11111111-1111-4111-8111-111111111111',actor='22222222-2222-4222-8222-222222222222',product='66666666-6666-4666-8666-666666666666',gap='55555555-5555-4555-8555-555555555555',review='77777777-7777-4777-8777-777777777777'
+const input={ action:'preview',key:'delivery',question:'Delivery?',answer:'Only confirmed dates',product_id:product }
+const ctx={ db:{ from:mocks.from,rpc:mocks.rpc },workspaceId:ws,userId:actor,isAdmin:true,locale:'en',t:(k:string) => k }
+const request=(body:unknown) => POST(new Request('https://riverz.co/api/huecos/responder',{ method:'POST',headers:{ 'Content-Type':'application/json' },body:JSON.stringify(body) }))
 beforeEach(() => {
-  escrituras.length = 0
-  productoExiste = true
+ vi.clearAllMocks();mocks.csrf.mockResolvedValue(null);mocks.session.mockResolvedValue(ctx)
+ mocks.rpc.mockImplementation(async(name:string) => name==='list_visible_answer_gaps' ? { data:[{ id:gap,question_key:'delivery',question:'Delivery?' }],error:null } : name==='prepare_gap_knowledge_review' ? { data:{ id:review },error:null } : { data:{ ok:true },error:null })
+ const q={ select:() => q,eq:() => q,maybeSingle:async() => ({ data:{ id:product,workspace_id:ws,title:'Existing product',description:'Keep this',custom_faqs:[] },error:null }) };mocks.from.mockReturnValue(q)
 })
-
-describe('dónde va la respuesta que faltaba', () => {
-  it('una politica del negocio se guarda como REGLA, sin producto', async () => {
-    const r = await pedir({
-      key: 'puedo retirar en sucursal',
-      destino: 'regla',
-      question: '¿Puedo retirar en sucursal?',
-      answer: 'No tenemos puntos de retiro. Se envía por Andreani al domicilio.',
-    })
-    expect(r.status).toBe(200)
-    const regla = escrituras.find((e) => e.tabla === 'agent_guidance:upsert')
-    expect(regla).toBeTruthy()
-    expect(regla?.fila.workspace_id).toBe('ws1')
-    // Vale para toda la cuenta, no para un agente ni un producto.
-    expect(regla?.fila.agent_id).toBeNull()
-    expect(regla?.fila.hacer).toContain('No tenemos puntos de retiro')
-    // Y no toca ningún producto.
-    expect(escrituras.find((e) => e.tabla === 'producto')).toBeUndefined()
-  })
-
-  it('responder dos veces la misma corrige la regla, no la duplica', async () => {
-    await pedir({
-      key: 'puedo retirar en sucursal',
-      destino: 'regla',
-      question: '¿Puedo retirar?',
-      answer: 'No.',
-    })
-    const regla = escrituras.find((e) => e.tabla === 'agent_guidance:upsert')
-    expect(String(regla?.fila.clave)).toBe('hueco_puedo retirar en sucursal')
-  })
-
-  it('sin destino sigue yendo al producto, como siempre', async () => {
-    // Romper el comportamiento viejo al agregar el nuevo seria cambiarle el
-    // significado a las llamadas que ya andan.
-    const r = await pedir({
-      key: 'sirve para piel sensible',
-      product_id: 'p1',
-      question: '¿Sirve para piel sensible?',
-      answer: 'Sí, es apto.',
-    })
-    expect(r.status).toBe(200)
-    expect(escrituras.find((e) => e.tabla === 'producto')).toBeTruthy()
-    expect(escrituras.find((e) => e.tabla === 'agent_guidance:upsert')).toBeUndefined()
-  })
-
-  it('al producto sin producto sigue siendo un error', async () => {
-    const r = await pedir({
-      key: 'k',
-      question: '¿Sirve?',
-      answer: 'Sí.',
-    })
-    expect(r.status).toBe(400)
-  })
-
-  it('la regla NO se cierra si no se pudo guardar', async () => {
-    // Al reves se perderia la pregunta y nadie sabria que falta.
-    const r = await pedir({ key: 'k', destino: 'regla', question: '', answer: 'x' })
-    expect(r.status).toBe(400)
-    expect(escrituras).toHaveLength(0)
-  })
+describe('authorized review before supervised publication',() => {
+ it('prepares the existing product destination by default without publishing or resolving',async() => {
+  const r=await request(input);expect(r.status).toBe(200);expect(await r.json()).toEqual({ review:{ id:review } });expect(r.headers.get('Cache-Control')).toContain('no-store')
+  const args=mocks.rpc.mock.calls.find(c => c[0]==='prepare_gap_knowledge_review')![1];expect(args).toMatchObject({ p_workspace_id:ws,p_actor_id:actor,p_destination:'producto',p_source_ids:[gap],p_expected:{ id:product },p_prepared:{ custom_faqs:[{ q:input.question,a:input.answer }] } });expect(args.p_prepared.training_material).toContain('Keep this');expect(mocks.rpc.mock.calls.some(c => c[0]==='confirm_gap_knowledge_review')).toBe(false)
+ })
+ it('prepares an account-wide rule only for an administrator without requiring a product',async() => {
+  const q={ select:() => q,eq:() => q,maybeSingle:async() => ({ data:null,error:null }) };mocks.from.mockReturnValue(q)
+  expect((await request({ ...input,destino:'regla',product_id:'' })).status).toBe(200)
+  expect(mocks.rpc.mock.calls.find(c => c[0]==='prepare_gap_knowledge_review')![1]).toMatchObject({ p_destination:'regla',p_target_id:null,p_expected:null,p_prepared:{} })
+  mocks.session.mockResolvedValue({ ...ctx,isAdmin:false });mocks.rpc.mockClear();expect((await request({ ...input,destino:'regla' })).status).toBe(403);expect(mocks.rpc).not.toHaveBeenCalled()
+ })
+ it('rejects missing, foreign or changed source questions before preparing knowledge',async() => {
+  expect((await request({ ...input,question:'Different question' })).status).toBe(404);expect(mocks.rpc.mock.calls.some(c => c[0]==='prepare_gap_knowledge_review')).toBe(false)
+  mocks.rpc.mockResolvedValue({ data:[],error:null });expect((await request(input)).status).toBe(404)
+ })
+ it('confirms only the exact receipt in the active session context',async() => {
+  expect((await request({ action:'confirm',review_id:review })).status).toBe(200);expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('confirm_gap_knowledge_review',{ p_workspace_id:ws,p_actor_id:actor,p_review_id:review })
+ })
+ it('does not retry conflicts or present failed publication as successful',async() => {
+  mocks.rpc.mockResolvedValue({ data:null,error:{ message:'gap_changed' } });expect((await request({ action:'confirm',review_id:review })).status).toBe(409);expect(mocks.rpc).toHaveBeenCalledTimes(1)
+ })
+ it('rejects oversized, arbitrary and legacy unreviewed payloads without writing',async() => {
+  for (const body of [{ ...input,answer:'a'.repeat(2001) },{ ...input,destino:'other' },{ ...input,workspace_id:ws },{ action:'confirm',review_id:review,answer:'Different' }]) expect((await request(body)).status).toBe(400)
+  expect((await request({ ...input,action:undefined })).status).toBe(409);expect(mocks.rpc).not.toHaveBeenCalled()
+ })
+ it('preserves CSRF and session denials before any source or catalogue lookup',async() => {
+  mocks.csrf.mockResolvedValue(Response.json({ error:'csrf' },{ status:403 }));expect((await request(input)).status).toBe(403);expect(mocks.session).not.toHaveBeenCalled()
+  mocks.csrf.mockResolvedValue(null);mocks.session.mockResolvedValue({ response:Response.json({ error:'unauthorized' },{ status:401 }) });expect((await request(input)).status).toBe(401);expect(mocks.rpc).not.toHaveBeenCalled()
+ })
 })

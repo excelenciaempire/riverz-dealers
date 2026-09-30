@@ -34,6 +34,28 @@ export const returns = {
 } satisfies Namespace;
 
 export const gaps = {
+  invalid: { es: 'Revisa la pregunta, respuesta y destino.', en: 'Check the question, answer and destination.' },
+  loadFailed: { es: 'No se pudieron cargar las preguntas pendientes.', en: 'Could not load unanswered questions.' },
+  changed: { es: 'Cambió el conocimiento o la pregunta. Actualiza y vuelve a revisar antes de guardar.', en: 'The knowledge or question changed. Refresh and review again before saving.' },
+  notFound: { es: 'La pregunta o su origen ya no está disponible para ti.', en: 'The question or its source is no longer available to you.' },
+  readOnly: { es: 'El negocio está en modo de lectura.', en: 'The business is in read-only mode.' },
+  adminRequired: { es: 'Publicar una regla para todo el negocio requiere un administrador.', en: 'Publishing a business-wide rule requires an administrator.' },
+  reviewRequired: { es: 'Actualiza la página para guardar la respuesta con la revisión actual.', en: 'Refresh the page to save the answer with the current review.' },
+  confirmationFailed: { es: 'No se confirmó el guardado. Actualiza la lista antes de repetir.', en: 'Saving was not confirmed. Refresh the list before trying again.' },
+  history: { es: 'Respuestas guardadas y su origen', en: 'Saved answers and their sources' },
+  noHistory: { es: 'No hay respuestas registradas con este historial.', en: 'No answers recorded with this history yet.' },
+  historyOrigin: { es: 'Respuesta humana · {n} registros de origen', en: 'Human answer · {n} source records' },
+  openTarget: { es: 'Abrir conocimiento', en: 'Open knowledge' },
+  openSource: { es: 'Ver conversación de origen', en: 'View source conversation' },
+  partial: { es: 'Se muestran los 500 registros accesibles más recientes. Las frecuencias corresponden a esta muestra.', en: 'Showing the latest 500 accessible records. Frequencies cover this sample.' },
+  permanent: { es: 'Guarda solo información que sirva para futuras consultas. Una excepción de este cliente se responde en su conversación.', en: 'Save only information suitable for future questions. Answer a customer-specific exception in their conversation.' },
+  reviewTitle: { es: 'Se guardará en: {target}', en: 'Will be saved in: {target}' },
+  replaces: { es: 'Sustituirá estas respuestas:', en: 'Will replace these answers:' },
+  reviewSources: { es: 'Cierra {n} registros revisados. Las preguntas nuevas permanecen pendientes.', en: 'Closes {n} reviewed records. New questions remain pending.' },
+  reviewExpires: { es: 'Revisión válida hasta {date}.', en: 'Review valid until {date}.' },
+  notSent: { es: 'Esto guarda conocimiento. No envía un mensaje al cliente.', en: 'This saves knowledge. It does not send a customer message.' },
+  confirmReview: { es: 'Confirmar y guardar', en: 'Confirm and save' },
+  reviewAnswer: { es: 'Revisar respuesta', en: 'Review answer' },
   title: { es: "Lo que no supo contestar", en: "What it could not answer" },
   hint: {
     es: "Carga la respuesta en su conocimiento y dejan de aparecer.",
@@ -59,8 +81,8 @@ export const gaps = {
   },
   saveAnswer: { es: "Guardar", en: "Save" },
   answered: {
-    es: "Listo. El agente ya sabe contestarla.",
-    en: "Done. The agent can answer it now.",
+    es: "Respuesta guardada en el conocimiento del asistente.",
+    en: "Answer saved in the assistant's knowledge.",
   },
   saveFailed: { es: "No se pudo guardar.", en: "Could not save." },
 } satisfies Namespace;

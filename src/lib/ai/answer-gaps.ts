@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { createHash } from 'node:crypto'
 
 /**
  * Lo que el agente no supo contestar.
@@ -33,22 +34,23 @@ export interface HuecoCtx {
  * que el agente no sabe contestar.
  */
 export function claveDePregunta(texto: string): string {
-  return texto
+  const normalized = texto
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 200)
+  return normalized.length<=200 ? normalized : `${normalized.slice(0,167)} ${createHash('sha256').update(normalized).digest('hex').slice(0,32)}`
 }
 
 export async function registrarHueco(
   ctx: HuecoCtx,
   input: { pregunta?: string; falta?: string },
 ): Promise<string> {
-  const pregunta = (input.pregunta ?? '').trim().slice(0, 500)
-  if (pregunta.length < 3) {
+  const pregunta = typeof input.pregunta==='string' ? input.pregunta.trim().slice(0,500) : ''
+  const falta = typeof input.falta==='string' ? input.falta.trim().slice(0,300) : ''
+  if (pregunta.length < 3 || !claveDePregunta(pregunta)) {
     return JSON.stringify({
       ok: false,
       message: 'Di cuál fue la pregunta que no pudiste contestar.',
@@ -63,16 +65,17 @@ export async function registrarHueco(
     channel: ctx.channel ?? null,
     question: pregunta,
     question_key: claveDePregunta(pregunta),
-    missing: (input.falta ?? '').trim().slice(0, 300) || null,
+    missing: falta || null,
   })
   if (error) {
-    console.error('[huecos] no se pudo anotar:', error.message)
+    console.error('[huecos] no se pudo anotar la pregunta')
+    return JSON.stringify({ ok:false,message:'No se pudo guardar la pregunta. No afirmes que quedó anotada ni inventes una respuesta.' })
   }
 
   // Y se le pasa a una persona. Anotar el hueco sin traspasar dejaría a la
   // clienta esperando una respuesta que el agente ya dijo que no tiene.
   if (ctx.conversationId) {
-    await ctx.db
+    const handoff=await ctx.db
       .from('conversations')
       .update({
         status: 'pending',
@@ -83,13 +86,16 @@ export async function registrarHueco(
         // para descubrir en qué se trabó (migración 201).
         needs_human_summary: [
           `Preguntó: "${pregunta.slice(0, 240)}"`,
-          (input.falta ?? '').trim() ? `Le faltaba: ${(input.falta ?? '').trim().slice(0, 240)}` : '',
+          falta ? `Le faltaba: ${falta.slice(0,240)}` : '',
         ]
           .filter(Boolean)
           .join('\n'),
       })
       .eq('id', ctx.conversationId)
       .eq('workspace_id', ctx.workspaceId)
+      .select('id')
+      .maybeSingle()
+    if (handoff.error || !handoff.data) return JSON.stringify({ ok:true,handoff_confirmed:false,message:'La pregunta quedó guardada, pero no se confirmó el traspaso al equipo. No prometas que alguien ya la recibió ni una fecha de respuesta.' })
   }
 
   return JSON.stringify({

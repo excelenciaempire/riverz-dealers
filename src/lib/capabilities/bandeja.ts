@@ -12,6 +12,7 @@
  * lista de lo que le falta saber al negocio, ordenada por lo que más preguntan.
  * Se tapa cargando el dato una vez.
  */
+import { gapCapabilityActor } from '@/lib/ai/gap-knowledge-actions'
 import { hoursWaiting } from './predicates'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import { cambio, corto, fecha, lista, tabla, tablero, tt } from './vistas'
@@ -115,20 +116,12 @@ async function devoluciones(ctx: CapabilityContext, args: Record<string, unknown
 
 async function huecos(ctx: CapabilityContext, args: Record<string, unknown>) {
   const limite = Math.min(Number(args.limite) || 30, 100)
-  let q = ctx.db
-    .from('answer_gaps')
-    .select('id, question, missing, channel, created_at, resolved_at, conversation_id')
-    .eq('workspace_id', ctx.workspaceId)
-    .order('created_at', { ascending: false })
-    .limit(limite)
-  // Por defecto sólo lo que sigue sin respuesta: lo ya cargado no es trabajo.
-  if (args.incluir_resueltos !== true) q = q.is('resolved_at', null)
-
-  const { data, error } = await q
+  const { data,error }=await ctx.db.rpc('list_visible_answer_gaps',{ p_workspace_id:ctx.workspaceId,p_actor_id:gapCapabilityActor(ctx),p_resolved:args.incluir_resueltos===true })
   if (error) throw new Error(error.message)
 
-  const filas = (data ?? []) as unknown as Array<{
+  const filas = (data ?? []).slice(0,limite) as unknown as Array<{
     id: string
+    question_key: string
     question: string | null
     missing: string | null
     channel: string | null
@@ -153,6 +146,7 @@ async function huecos(ctx: CapabilityContext, args: Record<string, unknown>) {
     mas_pedido: masPedido,
     huecos: filas.map((f) => ({
       hueco_id: f.id,
+      hueco_clave:f.question_key,
       pregunta: f.question,
       que_falta: f.missing,
       canal: f.channel,
