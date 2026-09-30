@@ -32,6 +32,35 @@ const ws = checked(
   await db.from('workspaces').select('owner_id').eq('id', workspaceId).single()
 );
 if (ws.owner_id !== receipt.userId) throw new Error('Ownership mismatch');
+if (process.argv.includes('--runtime-verified')) {
+  const proof = JSON.parse(
+    readFileSync('tmp/presentation-runtime-verification.json', 'utf8')
+  );
+  if (
+    !proof.runtimeProtected ||
+    !proof.providerBlocked ||
+    proof.workspaceId !== workspaceId ||
+    Date.now() - Date.parse(proof.checkedAt) > 600000
+  )
+    throw new Error('Fresh runtime verification required');
+  if (process.argv.includes('--enable-display-only')) {
+    checked(
+      await db
+        .from('workspaces')
+        .update({ motor_apagado_at: null, motor_apagado_por: null })
+        .eq('id', workspaceId)
+        .eq('owner_id', receipt.userId)
+    );
+    console.log(
+      JSON.stringify({
+        workspaceId,
+        visualMotorEnabled: true,
+        runtimeProtected: true,
+      })
+    );
+    process.exit(0);
+  }
+}
 
 const firstNames = [
   'Ana',
@@ -286,6 +315,7 @@ for (const item of audit) {
         company: 'Nativa Store',
         channel: item.channel,
         ai_summary: `Consulta de ${topic.toLowerCase()}.`,
+        external_id: `contact-${item.contactId.slice(0, 12)}`,
       })
       .eq('id', item.contactId)
       .eq('workspace_id', workspaceId)
@@ -317,7 +347,11 @@ for (const item of audit) {
   checked(
     await db
       .from('comments_meta')
-      .update({ post_id: `post-${item.conversationId.slice(0, 8)}` })
+      .update({
+        post_id: `post-${item.conversationId.slice(0, 8)}`,
+        parent_comment_id: `comment-${item.conversationId.slice(0, 8)}`,
+        permalink: `https://nativa.example/publicaciones/${item.conversationId.slice(0, 8)}`,
+      })
       .in(
         'message_id',
         messages.map((message) => message.id)
@@ -370,6 +404,25 @@ checked(
     })
     .eq('workspace_id', workspaceId)
 );
+for (const product of checked(
+  await db
+    .from('shopify_products')
+    .select('id,title')
+    .eq('workspace_id', workspaceId)
+)) {
+  const handle = product.title
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, '-');
+  checked(
+    await db
+      .from('shopify_products')
+      .update({ handle })
+      .eq('id', product.id)
+      .eq('workspace_id', workspaceId)
+  );
+}
 checked(
   await db
     .from('channel_connections')
@@ -388,6 +441,7 @@ checked(
     .from('workspaces')
     .update({
       name: 'Nativa Store',
+      slug: 'nativa-store',
       ...(process.argv.includes('--runtime-verified')
         ? { motor_apagado_at: null, motor_apagado_por: null }
         : {}),
