@@ -10,6 +10,10 @@ const ctx:CapabilityContext={ db:{ rpc:mocks.rpc,from:mocks.from } as unknown as
 const product='66666666-6666-4666-8666-666666666666',receipt='77777777-7777-4777-8777-777777777777'
 beforeEach(() => { vi.clearAllMocks();mocks.prepare.mockResolvedValue({ data:{ id:receipt },error:null });mocks.rpc.mockResolvedValue({ data:{ ok:true },error:null }) })
 describe('one supervised writer for the editor, Operator and MCP',() => {
+ it('requires the existing confirmation boundary before publishing generated gap answers',() => {
+  const cap=PRODUCT_CAPABILITIES.find(c => c.key==='productos.responder_hueco')!
+  expect(cap.risk).toBe('irreversible');expect(cap.inerte).not.toBe(true);expect(cap.preview).toBeTypeOf('function')
+ })
  it('uses the authenticated MCP issuer, never a caller label as the author',() => {
   expect(gapCapabilityActor(ctx)).toBe('authenticated-issuer');expect(() => gapCapabilityActor({ ...ctx,actor:{ type:'mcp',id:'forged-user-label' } })).toThrow('invalid_gap_context')
  })

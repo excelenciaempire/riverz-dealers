@@ -44,7 +44,7 @@ export const gaps = {
   confirmationFailed: { es: 'No se confirmó el guardado. Actualiza la lista antes de repetir.', en: 'Saving was not confirmed. Refresh the list before trying again.' },
   history: { es: 'Respuestas guardadas y su origen', en: 'Saved answers and their sources' },
   noHistory: { es: 'No hay respuestas registradas con este historial.', en: 'No answers recorded with this history yet.' },
-  historyOrigin: { es: 'Respuesta humana · {n} registros de origen', en: 'Human answer · {n} source records' },
+  historyOrigin: { es: 'Respuesta revisada · {n} registros de origen', en: 'Reviewed answer · {n} source records' },
   openTarget: { es: 'Abrir conocimiento', en: 'Open knowledge' },
   openSource: { es: 'Ver conversación de origen', en: 'View source conversation' },
   partial: { es: 'Se muestran los 500 registros accesibles más recientes. Las frecuencias corresponden a esta muestra.', en: 'Showing the latest 500 accessible records. Frequencies cover this sample.' },

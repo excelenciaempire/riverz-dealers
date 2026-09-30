@@ -474,7 +474,9 @@ export const PRODUCT_CAPABILITIES: Capability[] = [
       'Carga la respuesta que la IA no supo dar. Queda en las preguntas frecuentes del producto, que es lo que el agente lee verbatim, así que la próxima vez la contesta él. Si se pasa la clave del hueco (la que devuelve bandeja.huecos), además lo marca resuelto. La misma pregunta cargada dos veces se reemplaza, no se duplica.',
     descriptionEn:
       'Loads the answer the AI could not give. It lands in the product FAQs, which the agent reads verbatim, so next time it answers on its own. If the gap key is passed (the one bandeja.huecos returns), it also marks it resolved. The same question loaded twice is replaced, not duplicated.',
-    risk: 'reversible',
+    // Persistent answers become future customer-facing knowledge. A generated
+    // answer must pass the existing Operator/MCP confirmation boundary.
+    risk: 'irreversible',
     schema: {
       type: 'object',
       properties: {
