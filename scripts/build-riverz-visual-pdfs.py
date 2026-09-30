@@ -428,46 +428,19 @@ GUIDE_AUTOMATIONS = [
         ('Encuesta después de la entrega', 'Pregunta cómo fue la experiencia y registra la respuesta del cliente.'),
         ('Solicitud de reseña', 'Invita a compartir la experiencia. Si hay un problema pendiente, primero ofrece atención.'),
         ('Acompañamiento de uso', 'Envía recomendaciones de uso en los días acordados y responde las dudas que surjan.'),
-        ('Reposición', 'Ofrece volver a pedir según la fecha de compra y la duración esperada del producto.'),
-        ('Recompra', 'Retoma el contacto con una propuesta acorde al producto y la cantidad que el cliente compró.'),
-        ('Reactivación de clientes', 'Vuelve a conversar con clientes inactivos usando su historial. Respeta su preferencia de contacto.'),
+        ('Reposición', 'Recuerda reponer un producto cuando está por acabarse, según su duración y la última compra.'),
+        ('Recompra', 'Invita a realizar otra compra con productos relacionados con lo que el cliente eligió.'),
+        ('Reactivación de clientes', 'Retoma el contacto con quienes llevan tiempo sin comprar, usando su historial.'),
         ('Cambio o devolución', 'Recopila pedido y motivo para que tu equipo revise la solicitud según las condiciones de la tienda.'),
     ]),
 ]
 
 GUIDE_ROLES = [
-    ('Ventas', 'Asesora y ayuda a comprar.', 'cart', [
-        'Entiende lo que busca el cliente, aunque no sepa el nombre del producto.',
-        'Pregunta por uso, talla, preferencias o presupuesto.',
-        'Compara productos, precios, variantes y disponibilidad.',
-        'Responde dudas sobre envío, garantía y formas de pago.',
-        'Recomienda complementos cuando tienen sentido para la compra.',
-        'Prepara el pedido o facilita el enlace para comprar.',
-    ]),
-    ('Recuperación', 'Continúa una compra que quedó pendiente.', 'clock', [
-        'Pregunta qué impidió terminar la compra.',
-        'Distingue dudas de producto, costos de envío y problemas de pago.',
-        'Ayuda a retomar el carrito o reintentar el pago.',
-        'Recibe comprobantes para revisar pagos por transferencia.',
-        'Adapta los mensajes a lo que el cliente ya respondió.',
-        'Deja de hacer seguimiento cuando la compra se confirma.',
-    ]),
-    ('Postventa', 'Acompaña al cliente después de comprar.', 'parcel', [
-        'Consulta el estado del pedido y comparte la guía disponible.',
-        'Pide solo los datos necesarios para encontrar la orden.',
-        'Ayuda con correcciones de dirección, cambios o cancelaciones.',
-        'Explica las condiciones de garantía y devolución.',
-        'Recopila fotos y detalles de daños, demoras o productos incorrectos.',
-        'Entrega un resumen al equipo si el caso necesita una persona.',
-    ]),
-    ('Retención y recompras', 'Mantiene la relación con quien ya compró.', 'chat', [
-        'Sugiere reposición según el producto y la fecha de compra.',
-        'Diferencia compras de una unidad y compras por volumen.',
-        'Recomienda complementos relacionados con el historial.',
-        'Atiende respuestas a promociones y campañas.',
-        'Pregunta por la experiencia y acompaña dudas de uso.',
-        'Respeta las solicitudes de no recibir más mensajes.',
-    ]),
+    ('Ventas', 'Asesora, recomienda complementos y ayuda a crear pedidos.', 'cart'),
+    ('Recuperación', 'Resuelve lo que frenó una compra y facilita retomarla.', 'clock'),
+    ('Postventa', 'Atiende consultas de pedidos, cambios, garantías y devoluciones.', 'parcel'),
+    ('Retención y recompras', 'Usa el historial para proponer una nueva compra relevante.', 'chat'),
+    ('General y supervisor', 'Dirige cada consulta y detecta cuándo necesita atención de tu equipo.', 'check'),
 ]
 
 GUIDE_DEEP_CASES = [
@@ -478,8 +451,7 @@ GUIDE_DEEP_CASES = [
         ('ai', 'El set de cuidado diario puede encajar: trae una crema y un limpiador. También puedes elegir solo la crema.'),
         ('client', 'Prefiero el set. ¿Tienen presentación para regalo?'),
         ('ai', 'Sí, podemos añadir el empaque de regalo. Te comparto el enlace del set para que elijas esa opción.'),
-    ], [('Lo que hace el asistente', 'Pregunta, compara opciones del catálogo y acompaña la decisión de compra.'),
-        ('Lo que recibe el cliente', 'Una recomendación relacionada con lo que pidió y una forma de avanzar.')]),
+    ]),
     ('Pago rechazado', 'whatsapp', [
         ('ai', 'Tu compra quedó pendiente. ¿Te puedo ayudar a terminarla?'),
         ('client', 'La tarjeta no pasó. ¿Puedo hacer una transferencia?'),
@@ -487,8 +459,7 @@ GUIDE_DEEP_CASES = [
         ('client', 'Listo, ya transferí. Aquí está el comprobante.'),
         ('ai', 'Gracias. Lo recibí y envié a revisión. Te avisaremos cuando el pago esté confirmado.'),
         ('client', 'Perfecto, quedo pendiente.'),
-    ], [('Cómo empieza', 'El seguimiento se inicia solo si la compra sigue pendiente.'),
-        ('Cómo continúa', 'El asistente atiende la alternativa de pago y prepara la revisión del comprobante.')]),
+    ]),
     ('Producto dañado', 'gmail', [
         ('client', 'Me llegó el pedido, pero uno de los productos está dañado.'),
         ('ai', 'Lamento que haya llegado así. ¿Me compartes el número de pedido y una foto del producto?'),
@@ -496,25 +467,16 @@ GUIDE_DEEP_CASES = [
         ('ai', 'Gracias. ¿El daño es solo en el empaque o también en el producto?'),
         ('client', 'El envase está roto. Quisiera un reemplazo.'),
         ('ai', 'Ya reuní los detalles y envié tu solicitud al equipo para revisar el reemplazo. No necesitas volver a explicar el caso.'),
-    ], [('Lo que hace el asistente', 'Escucha, solicita información útil y prepara la solicitud de solución.'),
-        ('Lo que recibe tu equipo', 'Pedido, foto, descripción del daño y preferencia del cliente en un mismo caso.')]),
-]
-
-GUIDE_BRIEF_CASES = [
-    ('Carrito abandonado', 'El cliente responde: «No sé si llega a tiempo». El asistente pregunta por la ciudad, explica el plazo disponible y ayuda a retomar la compra.'),
-    ('Pago por transferencia pendiente', 'El cliente dice: «Ya pagué». El asistente recibe el comprobante y prepara la revisión; evita seguir reclamando un pago que ya fue confirmado.'),
-    ('Consulta de un pedido', 'El cliente pregunta: «¿Dónde está mi compra?». El asistente identifica la orden, explica el estado y comparte el seguimiento disponible.'),
-    ('Encuesta y reseña', 'Tras la entrega, pregunta cómo fue la experiencia. Puede invitar a dejar una reseña o continuar la atención si el cliente comunica un problema.'),
-    ('Reposición y recompra', 'El cliente dice: «Quiero el mismo de la última vez». El asistente usa el historial para confirmar presentación y cantidad y facilitar otra compra.'),
+    ]),
 ]
 
 GUIDE_SECTIONS = [
-    ('Cómo trabajan juntos', 'Automatizaciones y asistentes de IA.', 2, '02'),
-    ('El equipo de asistentes', 'Cinco roles para acompañar a tus clientes.', 3, '03-04'),
-    ('22 automatizaciones', 'Seguimientos antes y después de comprar.', 5, '05-08'),
-    ('Conversaciones y escenarios', 'Tres conversaciones completas y cinco ejemplos breves.', 9, '09-12'),
-    ('Canales, campañas y llamadas', 'Más formas de atender e iniciar conversaciones.', 13, '13'),
-    ('Personalización y control', 'Tu marca, tus condiciones y tu equipo.', 14, '14'),
+    ('El equipo de asistentes', 'Asistentes', 2, '02'),
+    ('Una conversación de venta', 'Una conversación', 3, '03'),
+    ('22 automatizaciones', 'Automatizaciones', 4, '04-07'),
+    ('Recuperación y postventa', 'Más conversaciones', 8, '08-09'),
+    ('Canales, campañas y llamadas', 'Canales y campañas', 10, '10'),
+    ('Personalización y control', 'Tu marca y tu equipo', 11, '11'),
 ]
 
 def guide():
@@ -529,49 +491,33 @@ def guide():
     p.header('Guía de capacidades', 'Automatizaciones y asistentes\npara tu ecommerce.',
              'Descubre cómo Riverz puede vender, recuperar compras y acompañar a tus clientes con conversaciones en lenguaje natural.')
     p.image(ASSETS/'riverz-flota-original.png',42,220,511,341)
-    p.note(585,'Una flota adaptada a tu marca.',
-           '22 ejemplos de automatización, 5 roles de IA y 8 escenarios para explorar lo que puedes delegar.',83)
-    p.wrap(42,705,'En esta guía verás qué puede hacer cada asistente, cómo continúa una conversación y qué seguimientos podemos preparar para tu tienda.',511,size=12,leading=17,max_lines=3)
+    p.note(585,'Nosotros lo dejamos listo.',
+           'Conectamos los canales y configuramos los asistentes y las automatizaciones por ti.',83)
+    for i,(_,label,_,pages) in enumerate(GUIDE_SECTIONS):
+        x=42+(i%2)*263;y=692+(i//2)*28
+        p.text(x+4,y+17,label,'Sans',10.5,INK,width=188)
+        p.text(x+205,y+17,pages,'Semi',9,MUTED,width=39)
+        p.c.linkRect('',f'guide-{i}',(x,H-y-24,x+248,H-y),relative=0,thickness=0)
     p.text(42,783,'Conversaciones ilustrativas; productos y pedidos son ejemplos ficticios.','Sans',10,MUTED)
     p.end()
 
     section(0)
-    p.header('Cómo trabaja Riverz','Seguimiento automático.\nConversaciones con contexto.',
-             'La automatización inicia o continúa una tarea. El asistente entiende las respuestas y ayuda al cliente a avanzar.')
+    p.header('Asistentes y automatizaciones','Cada asistente\ntiene un trabajo.',
+             'El cliente conversa con sus propias palabras. Riverz responde según su intención y el contexto.')
     for i,(title,body,kind) in enumerate([
         ('Automatización','Escribe ante una compra pendiente, un pedido nuevo o una entrega.','clock'),
         ('Asistente de IA','Atiende preguntas, pide información y adapta la respuesta a la conversación.','chat')]):
-        x=42+i*263;p.box(x,219,248,130);p.pictogram(kind,x+15,234,30)
+        x=42+i*263;p.box(x,219,248,119);p.pictogram(kind,x+15,234,30)
         p.text(x+58,255,title,'Semi',11.4,INK,width=174)
         p.wrap(x+15,285,body,218,size=11.8,leading=16,max_lines=3)
-    p.text(42,389,'EXPLORA LAS CAPACIDADES DE RIVERZ','Semi',9.5,MUTED)
-    for i,(title,body,page,pages) in enumerate(GUIDE_SECTIONS[1:],1):
-        y=410+(i-1)*72;p.box(42,y,511,61)
-        p.text(59,y+25,title,'Serif',21,INK,width=421)
-        p.text(59,y+46,body,'Sans',10.5,INK,width=422)
-        p.text(499,y+25,pages,'Semi',9.5,MUTED)
-        p.c.linkRect('',f'guide-{i}',(42,H-y-61,553,H-y),relative=0,thickness=0)
+    for i,(title,body,kind) in enumerate(GUIDE_ROLES):
+        y=362+i*80;p.box(42,y,511,70);p.pictogram(kind,58,y+19,30)
+        p.text(106,y+28,title,'Serif',21,INK)
+        p.wrap(106,y+51,body,429,size=11.5,leading=15,max_lines=1)
     p.end()
 
     section(1)
-    for batch in range(2):
-        p.header('El equipo de asistentes',
-                 ['Ventas y recuperación.','Postventa y recompras.'][batch],
-                 'Cada especialista tiene un trabajo. El cliente conversa con sus propias palabras y puede cambiar de tema.')
-        for offset,(title,summary,kind,items) in enumerate(GUIDE_ROLES[batch*2:batch*2+2]):
-            y=210+offset*236;p.box(42,y,511,220)
-            p.pictogram(kind,58,y+17,30)
-            p.text(106,y+32,title,'Serif',24,INK)
-            p.text(106,y+54,summary,'Sans',11.4,MUTED,width=429)
-            for j,body in enumerate(items):
-                yy=y+81+j*22;p.circle(62,yy-4,2.5,INK)
-                p.wrap(76,yy,body,457,size=11.1,leading=14,max_lines=1)
-        if batch==0:
-            p.wrap(42,726,'En las páginas 9 a 11 puedes leer conversaciones completas y ver cómo estas capacidades se convierten en atención al cliente.',511,size=11.5,leading=17,color=MUTED,max_lines=3)
-        else:
-            p.note(692,'Agente general y supervisor',
-                   'Recibe y dirige las consultas al especialista adecuado. Conserva el contexto, detecta urgencia o molestia y señala conversaciones que necesitan atención.',94)
-        p.end()
+    client_conversation(p,0)
 
     section(2)
     for group_index,(title,rows) in enumerate(GUIDE_AUTOMATIONS):
@@ -591,28 +537,11 @@ def guide():
         p.end()
 
     section(3)
-    for i,(title,channel,messages,notes) in enumerate(GUIDE_DEEP_CASES):
-        p.header(f'Conversación {i+1} de 3',title+'.',
-                 'Ejemplo ilustrativo de una conversación que continúa según lo que el cliente responde.')
-        end=p.chat(42,205,511,messages,title='Ejemplo de conversación',channel=channel,size=11.5)
-        y=max(end+24,638)
-        for heading,body in notes:
-            p.text(42,y,heading,'Semi',11.3,INK)
-            y=p.wrap(42,y+21,body,511,size=11.5,leading=16,color=MUTED,max_lines=2)+20
-        assert y<=797,(title,y)
-        p.end()
-
-    p.header('Más escenarios','Otras conversaciones\nque puede atender.',
-             'El seguimiento y las respuestas cambian con la situación del cliente.')
-    for i,(title,body) in enumerate(GUIDE_BRIEF_CASES):
-        y=210+i*109;p.box(42,y,511,97)
-        p.text(60,y+28,title,'Serif',21,INK)
-        p.wrap(60,y+53,body,475,size=11.5,leading=16,max_lines=3)
-    p.end()
+    client_conversation(p,1)
+    client_conversation(p,2)
 
     section(4)
-    p.header('Canales y alcance','Chats, comentarios,\ncampañas y llamadas.',
-             'Riverz puede responder y acompañar a tus clientes en distintas formas de contacto.')
+    p.header('Canales y alcance','Chats, comentarios,\ncampañas y llamadas.')
     for i,(title,body,channel) in enumerate([
         ('Chats y correo','WhatsApp, Instagram, Messenger, correo y chat web: asesoría, dudas de compra y atención de pedidos.','whatsapp'),
         ('Comentarios en redes','Precio, disponibilidad o envíos en Facebook, Instagram y TikTok. Los pedidos y datos personales se atienden por privado.','instagram'),
@@ -640,20 +569,23 @@ def guide():
         p.wrap(299,y+19,body,254,size=10.8,leading=14,max_lines=2)
     p.text(42,404,'ACORDAMOS QUÉ RESUELVE LA IA Y QUÉ REVISA TU EQUIPO','Semi',9.1,MUTED)
     decisions=[
-        ('Descuentos','Usa los beneficios aprobados; las condiciones especiales se revisan.'),
-        ('Pagos','Recibe comprobantes; un pago sin confirmar queda pendiente de revisión.'),
-        ('Pedidos','Los cambios, cancelaciones y devoluciones siguen las condiciones de tu tienda.'),
-        ('Casos sensibles','Reclamos delicados, reembolsos y excepciones pasan a la persona responsable.'),
-        ('Atención humana','Si el cliente pide una persona o falta información, se entrega el caso con contexto.'),
-        ('Preferencias de contacto','Si el cliente pide que no le escriban, se detiene el seguimiento.'),
+        ('Decisiones de tu tienda','Descuentos, cambios, cancelaciones y devoluciones siguen las condiciones que definas.'),
+        ('Revisión de tu equipo','Tú eliges qué pagos, reembolsos y excepciones necesitan revisión. Si falta información o el cliente pide una persona, se entrega el caso con contexto.'),
+        ('Preferencias del cliente','Si pide que no le escriban, se detiene el seguimiento.'),
     ]
     for i,(title,body) in enumerate(decisions):
-        y=424+i*44;p.line(42,y+36,553,y+36)
-        p.text(42,y+15,title,'Semi',10.6,INK,width=151)
-        p.wrap(207,y+15,body,346,size=10.6,leading=13,max_lines=2)
-    p.note(708,'Nosotros lo dejamos preparado.',
-           'Revisamos tus canales y herramientas, elegimos los primeros seguimientos y probamos respuestas contigo. Las acciones disponibles se acuerdan según tu tienda.',80)
+        y=429+i*87;p.box(42,y,511,77)
+        p.text(60,y+27,title,'Semi',12,INK)
+        p.wrap(60,y+49,body,475,size=11.5,leading=16,max_lines=2)
+    p.wrap(42,751,'Las acciones disponibles se acuerdan según los canales y herramientas que use tu tienda.',511,size=11,leading=15,color=MUTED,max_lines=2)
     p.end();p.finish();return p.path
+
+def client_conversation(p,index):
+    title,channel,messages=GUIDE_DEEP_CASES[index]
+    p.header(f'Conversación {index+1} de 3',title+'.')
+    end=p.chat(42,218,511,messages,title='Ejemplo de conversación',channel=channel,size=13)
+    assert end<789,(title,end)
+    p.end()
 
 
 def verify(path,expected):
@@ -668,18 +600,16 @@ def verify(path,expected):
                         assert pg.rect.contains(pymupdf.Rect(s['bbox'])),(i,s)
                         assert not any(c in s['text'] for c in ['\ufffd','\x00'])
         pg.get_pixmap(matrix=pymupdf.Matrix(1.6,1.6),alpha=False).save(target/f'page-{i+1:02}.png')
-    if expected==14:
+    if expected==11:
         assert all(name in alltext for _,rows in automation_groups for name,_ in rows)
         assert all(body in alltext.replace('\n',' ') for _,rows in GUIDE_AUTOMATIONS for _,body in rows)
         assert [[name for name,_ in rows] for _,rows in GUIDE_AUTOMATIONS] == [[name for name,_ in rows] for _,rows in automation_groups]
-        assert all(s['title'] in alltext for s in scenarios)
-        assert all(title in alltext for title,_,_,_ in GUIDE_ROLES)
-        assert 'Agente general y supervisor' in alltext
-        assert len(GUIDE_DEEP_CASES)==3 and all(len(messages)>=6 for _,_,messages,_ in GUIDE_DEEP_CASES)
-        assert len(GUIDE_BRIEF_CASES)==5
-        assert all(body in alltext.replace('\n',' ') for _,_,messages,_ in GUIDE_DEEP_CASES for _,body in messages)
-        assert all(body in alltext.replace('\n',' ') for _,body in GUIDE_BRIEF_CASES)
-        assert len(alltext.split())<2200
+        assert len(GUIDE_ROLES)==5 and all(title in alltext for title,_,_ in GUIDE_ROLES)
+        assert len(GUIDE_DEEP_CASES)==3 and all(len(messages)>=6 for _,_,messages in GUIDE_DEEP_CASES)
+        assert all(body in alltext.replace('\n',' ') for _,_,messages in GUIDE_DEEP_CASES for _,body in messages)
+        assert len(alltext.split())<1500
+        assert 'Nosotros lo dejamos listo.' in d[0].get_text()
+        assert GUIDE_DEEP_CASES[0][0] in d[2].get_text()
         forbidden=['apoyo para el video','qué mostrar','documento original','promesa del anuncio',
                    'demostración','detalles técnicos','integración','flujo','webhook',
                    'Supabase','saldo','credenciales','US$','guion','Qué decir','Busca el problema']
@@ -691,8 +621,8 @@ def verify(path,expected):
         # The linked index must remain useful after editorial changes.
         toc=d.get_toc();assert len(toc)==6
         assert [entry[2] for entry in toc]==[row[2] for row in GUIDE_SECTIONS],toc
-        links=d[1].get_links();assert len(links)==5
-        for link,(_,_,page,_) in zip(links,GUIDE_SECTIONS[1:]):
+        links=d[0].get_links();assert len(links)==6
+        for link,(_,_,page,_) in zip(links,GUIDE_SECTIONS):
             kind,destination=d.xref_get_key(link['xref'],'Dest')
             assert kind=='array' and re.search(r'\[\s*'+str(d.page_xref(page-1))+r'\s+0\s+R\b',destination),destination
     else:
@@ -715,7 +645,7 @@ if __name__=='__main__':
     report={}
     if not args.guide_only:
         report['commercial']=verify(commercial(),10)
-    report.update({'guide':verify(guide(),14),'recipes':22,'full_scenarios':3,'brief_scenarios':5,'agent_roles':5,
+    report.update({'guide':verify(guide(),11),'recipes':22,'full_scenarios':3,'agent_roles':5,
             'source_sha256':hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
             'audience':'Clientes de ecommerce; sin instrucciones internas ni notas de grabación.',
             'illustrations':['riverz-flota-original.png','riverz-control-humano.png']})
