@@ -4,10 +4,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { UUID } from '@/lib/inbox/collaboration'
 import { redactModelSecrets } from '@/lib/security/model-secrets'
 import type { SourceObservation,ToolObservation,TurnEvidence } from './turn-evidence-contract'
-type State={ id:string;agentId:string | null;evidence:TurnEvidence;status:'sent'|'skipped'|'failed'|'unknown';messageId:string | null;messageIds:string[];reason:string | null }
+type State={ id:string;agentId:string | null;evidence:TurnEvidence;status:'sent'|'skipped'|'failed'|'unknown';messageId:string | null;messageIds:string[];reason:string | null;additionalSources:SourceObservation[] }
 const scope=new AsyncLocalStorage<State>()
 export async function withTurnEvidence<T>(fn:() => Promise<T>,save:(state:State) => Promise<void>):Promise<T> {
-  const state:State={ id:randomUUID(),agentId:null,evidence:{ version:1,rules:[],sources:[],tools:[],truncated:false },status:'unknown',messageId:null,messageIds:[],reason:null }
+  const state:State={ id:randomUUID(),agentId:null,evidence:{ version:1,rules:[],sources:[],tools:[],truncated:false },status:'unknown',messageId:null,messageIds:[],reason:null,additionalSources:[] }
   return scope.run(state,async() => {
     try { return await fn() }
     finally { if (state.evidence.rules.length || state.evidence.sources.length || state.evidence.tools.length) await save(state) }
@@ -18,9 +18,19 @@ export function observeContext(agentId:string,rules:{ id:string;live_revision?:n
   try {
     state.agentId=UUID.test(agentId) ? agentId : null
     state.evidence.rules=rules.filter(rule => rule && UUID.test(rule.id)).slice(0,50).map(rule => ({ id:rule.id,revision:Number.isInteger(rule.live_revision) && rule.live_revision!>0 ? rule.live_revision! : null,title:redactModelSecrets(typeof rule.titulo==='string' ? rule.titulo : '').slice(0,120) }))
-    state.evidence.sources=sources.filter(source => source && UUID.test(source.id)).slice(0,100).map(source => ({ kind:source.kind,id:source.id,...(typeof source.title==='string' && source.title ? { title:redactModelSecrets(source.title).slice(0,120) } : {}) }))
-    if (rules.length>50 || sources.length>100) state.evidence.truncated=true
+    const combined=[...state.additionalSources,...sources]
+    state.evidence.sources=combined.filter(source => source && UUID.test(source.id)).slice(0,100).map(source => ({ kind:source.kind,id:source.id,...(typeof source.title==='string' && source.title ? { title:redactModelSecrets(source.title).slice(0,120) } : {}) }))
+    if (rules.length>50 || combined.length>100) state.evidence.truncated=true
   } catch { state.evidence.truncated=true }
+}
+/** Sources prepared by case context survive the later main-context observation. */
+export function observeAdditionalSources(sources:SourceObservation[],truncated=false) {
+  const state=scope.getStore();if (!state) return
+  const safe=sources.filter(source => source && UUID.test(source.id)).map(source => ({ kind:source.kind,id:source.id,...(source.title ? { title:redactModelSecrets(source.title).slice(0,120) } : {}) }))
+  const additional=[...new Map([...state.additionalSources,...safe].map(source => [`${source.kind}:${source.id}`,source])).values()]
+  const observed=[...new Map([...state.evidence.sources,...safe].map(source => [`${source.kind}:${source.id}`,source])).values()]
+  state.additionalSources=additional.slice(0,100);state.evidence.sources=observed.slice(0,100)
+  if (truncated || additional.length>100 || observed.length>100) state.evidence.truncated=true
 }
 /** A tool response is evidence of a response, not proof of a business effect. */
 export function publicToolStatus(raw:string):ToolObservation['status'] {

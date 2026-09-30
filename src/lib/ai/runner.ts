@@ -6,6 +6,7 @@ import { revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-ch
 import { revitalyTransferReply } from './revitaly-transfer';
 import type { OtherStoreContext } from '@/lib/ai/tools';
 import { UNTRUSTED_CONTENT_POLICY, untrustedContext } from './input-security';
+import { loadCaseGapContext } from './case-gap-context';
 import { captureCustomerOrder, orderScreenshotMessageId, type OrderScreenshot } from './order-screenshot';
 import {
   aiTextMessageId,
@@ -3281,6 +3282,8 @@ export async function contextoDelTurno(
   const extras: string[] = [
     'Ante dudas sobre un pedido existente, consulta lookup_order y aclara antes de escalar. Si necesita ver colores, tallas o comparar pedidos, solicita include_screenshot con cada número concreto. No asumas que el último pedido reemplaza al primero. Pregunta cuál conservar y confirma referencias, cantidades y tallas con una pregunta concreta; un sí responde solo a la última pregunta inequívoca. No crees otro pedido ni prometas despacho por mostrar una captura. No confundas confirmación del cliente con pago verificado o despacho ejecutado.',
   ];
+  const caseAnswers=await loadCaseGapContext(db,agent.workspace_id,origen.conversationId,agent.id).catch(() => null);
+  if (caseAnswers) extras.push(caseAnswers);
   if (contact.channel === 'instagram' || contact.channel === 'ig_comment') {
     const ig = await loadInstagramContext(db, primaryContact.id).catch(
       () => null

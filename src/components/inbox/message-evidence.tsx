@@ -8,13 +8,17 @@ import type { TurnEvidence } from '@/lib/ai/turn-evidence-contract'
 import { toolPermissionKey } from '@/lib/ai/toolbox'
 import { SUFIJO } from '@/components/ai/tool-switchboard'
 type View={ receipts:{ id:string;status:string;reason:string | null;evidence:TurnEvidence;created_at:string }[];legacy:{ id:string;status:string;skip_reason:string | null;tools_used:string[] | null;model:string | null;created_at:string }[];truncated:boolean }
+type CaseSource={ id:string;question_snapshot:string;answer:string;revision:number;created_at:string;actor_id:string | null }
 export function MessageEvidence({ conversationId,messageId }: { conversationId:string;messageId:string }) {
   const { t }=useLocale(),fmt=useFormat()
   const [view,setView]=useState<View | null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[open,setOpen]=useState(false)
   const controller=useRef<AbortController | null>(null)
-  useEffect(() => () => controller.current?.abort(),[])
+  const sourceController=useRef<AbortController | null>(null)
+  const [source,setSource]=useState<CaseSource | null>(null),[sourceBusy,setSourceBusy]=useState(false),[sourceError,setSourceError]=useState(false)
+  useEffect(() => () => { controller.current?.abort();sourceController.current?.abort() },[])
   async function toggle(next:boolean) {
     setOpen(next);controller.current?.abort();controller.current=null;setView(null);setError('');setBusy(false)
+    sourceController.current?.abort();setSource(null);setSourceError(false);setSourceBusy(false)
     if (!next) return
     const c=new AbortController();controller.current=c;setBusy(true)
     try {
@@ -23,6 +27,15 @@ export function MessageEvidence({ conversationId,messageId }: { conversationId:s
       if (!c.signal.aborted) setView(data)
     } catch(e) { if (!c.signal.aborted) setError(e instanceof Error ? e.message : t('inbox.evidenceFailed')) }
     finally { if (!c.signal.aborted) setBusy(false);if (controller.current===c) controller.current=null }
+  }
+  async function openCaseSource(id:string) {
+    sourceController.current?.abort();const c=new AbortController();sourceController.current=c;setSource(null);setSourceError(false);setSourceBusy(true)
+    try {
+      const response=await fetch(`/api/conversations/${conversationId}/knowledge-answers/source?answer_id=${encodeURIComponent(id)}`,{ cache:'no-store',signal:c.signal }),data=await response.json()
+      if (!response.ok || data.scope!=='case_only' || !data.source?.id) throw new Error('unavailable')
+      if (!c.signal.aborted) setSource(data.source)
+    } catch { if (!c.signal.aborted) setSourceError(true) }
+    finally { if (!c.signal.aborted) setSourceBusy(false);if (sourceController.current===c) sourceController.current=null }
   }
   function reason(code:string | null) {
     if (!code) return null
@@ -48,7 +61,7 @@ export function MessageEvidence({ conversationId,messageId }: { conversationId:s
               {row.evidence.rules.length ? row.evidence.rules.map(rule => <p key={rule.id} className="mt-1">{rule.title} · {rule.revision ? t('reglas.versionNumber',{ n:fmt.number(rule.revision) }) : t('inbox.evidenceVersionUnknown')}</p>) : <p>{t('inbox.evidenceNoRules')}</p>}
             </details>
             <details><summary className="cursor-pointer">{t('inbox.evidenceSources')}</summary><p className="mt-1 text-muted-foreground">{t('inbox.evidenceSourcesHint')}</p>
-              {row.evidence.sources.map((source,index) => <p key={`${source.kind}:${source.id}`} className="mt-1"><a className="underline" href={source.kind==='catalogue' ? `/productos/${source.id}` : `#msg-${source.id}`}>{source.kind==='catalogue' ? source.title || t('inbox.evidenceProduct') : t('inbox.evidenceMessage',{ n:fmt.number(index+1) })}</a></p>)}
+              {row.evidence.sources.map((entry,index) => <p key={`${entry.kind}:${entry.id}`} className="mt-1">{entry.kind==='case_answer' ? <button type="button" className="text-left underline" onClick={() => void openCaseSource(entry.id)}>{t('inbox.evidenceCaseAnswer')}{entry.title ? ` · ${entry.title}` : ''}</button> : <a className="underline" href={entry.kind==='catalogue' ? `/productos/${entry.id}` : `#msg-${entry.id}`}>{entry.kind==='catalogue' ? entry.title || t('inbox.evidenceProduct') : t('inbox.evidenceMessage',{ n:fmt.number(index+1) })}</a>}</p>)}
             </details>
             <details open><summary className="cursor-pointer">{t('inbox.evidenceTools')}</summary><p className="mt-1 text-muted-foreground">{t('inbox.evidenceToolsHint')}</p>
               {row.evidence.tools.length ? row.evidence.tools.map(tool => <p key={tool.sequence} className="mt-1">{fmt.number(tool.sequence)}. {toolName(tool.name)} · {t(`inbox.evidenceTool_${tool.status}`)}</p>) : <p>{t('inbox.evidenceNoTools')}</p>}
@@ -62,6 +75,8 @@ export function MessageEvidence({ conversationId,messageId }: { conversationId:s
           </div>)}
         </details>}
         {view.truncated && <p>{t('inbox.evidenceTruncated')}</p>}
+        {sourceBusy && <p role="status">{t('inbox.understandingWorking')}</p>}{sourceError && <p role="alert">{t('inbox.evidenceCaseUnavailable')}</p>}
+        {source && <article className="space-y-1 rounded border p-2"><p className="font-medium">{source.question_snapshot}</p><p className="whitespace-pre-wrap break-words">{source.answer}</p><p className="text-muted-foreground">{t('gaps.caseRevision',{ n:fmt.number(source.revision) })} · {fmt.dateTime(source.created_at)}</p><p className="text-muted-foreground">{t('inbox.evidenceCaseScope')}</p></article>}
       </div>}
     </PopoverContent>
   </Popover>

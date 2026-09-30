@@ -22,9 +22,11 @@ vi.mock('@/lib/channels/admin-client', () => ({
   }),
 }));
 
-import { armarSystemPrompt, buildSystemPrompt, systemDelTurno, unirSystem, type ProductRow } from './runner';
+import { armarSystemPrompt, buildSystemPrompt, contextoDelTurno, systemDelTurno, unirSystem, type ProductRow } from './runner';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { mensajesConCache, runWithTools, systemConCache } from './tools';
 import { UNTRUSTED_CONTENT_POLICY } from './input-security';
+import { buildCaseGapContext } from './case-gap-context';
 import type { AiAgent } from './types';
 
 const agente = (extra: Partial<AiAgent> = {}) =>
@@ -66,7 +68,7 @@ const contexto = (resumen: string | null) =>
 
 function capas(
   persona: { nombre: string; resumen: string | null; notas: string[]; registro: 'neutro' | 'rioplatense' },
-  opciones: { products?: ProductRow[]; match?: string | null; agent?: AiAgent } = {}
+  opciones: { products?: ProductRow[]; match?: string | null; agent?: AiAgent; caseContext?: string | null } = {}
 ) {
   const contacto = {
     id: `c-${persona.nombre}`,
@@ -86,7 +88,7 @@ function capas(
     opciones.products ?? catalogo,
     opciones.match ? { product_id: opciones.match, score: 1, confidence: 'high', via: 'text' } as never : null,
     { config: null, canCreateOrders: true } as never,
-    null,
+    opciones.caseContext ?? null,
     'ARS',
     'Regla del comercio: envío gratis desde dos unidades.',
     persona.registro,
@@ -100,6 +102,18 @@ const luis = { nombre: 'Luis', resumen: null, notas: [], registro: 'rioplatense'
 const lucia = { nombre: 'Lucía', resumen: null, notas: [], registro: 'neutro' as const };
 
 describe('la capa estable', () => {
+  it('loads the team answer from the actual case and assistant when preparing a real turn', async () => {
+    const rpc=vi.fn().mockResolvedValue({ data:[{ id:'77777777-7777-4777-8777-777777777777',gap_id:'55555555-5555-4555-8555-555555555555',question:'Delivery?',answer:'Pickup Thursday in this case.',revision:1,created_at:'2026-09-30T12:00:00Z',actor_id:null }],error:null });
+    const contact={ channel:'gmail' } as never;
+    const actual=await contextoDelTurno({ rpc } as unknown as SupabaseClient,agente(),contact,contact,{ conversationId:'44444444-4444-4444-8444-444444444444',channel:'gmail' });
+    expect(actual).toContain('Pickup Thursday in this case.');expect(rpc).toHaveBeenCalledExactlyOnceWith('load_case_gap_model_context',{ p_workspace_id:'w1',p_conversation_id:'44444444-4444-4444-8444-444444444444',p_agent_id:'a1' });
+  });
+  it('keeps case answers out of the shared business/product cache and other customers', () => {
+    const fact = buildCaseGapContext([{ id:'77777777-7777-4777-8777-777777777777',gap_id:'55555555-5555-4555-8555-555555555555',question:'Delivery?',answer:'Exception reserved for Ana only.',revision:1,created_at:'2026-09-30T12:00:00Z',actor_id:null }]).text;
+    const reviewed=capas(ana,{ match:'p1',caseContext:fact }),ordinary=capas(luis,{ match:'p1' });
+    expect(reviewed.estable).toBe(ordinary.estable);expect(reviewed.producto).toBe(ordinary.producto);expect(reviewed.cliente).toContain('Exception reserved for Ana only.');expect(ordinary.cliente).not.toContain('Exception reserved for Ana only.');
+    const blocks=systemConCache(reviewed) as Anthropic.TextBlockParam[];expect(blocks.at(-1)?.text.endsWith(UNTRUSTED_CONTENT_POLICY)).toBe(true);
+  });
   it('sale igual para dos personas distintas del mismo agente', () => {
     const a = capas(ana, { match: 'p1' });
     const b = capas(luis);

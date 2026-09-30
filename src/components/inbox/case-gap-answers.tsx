@@ -73,6 +73,7 @@ export function CaseGapAnswers({ conversationId }: { conversationId: string }) {
     <summary className="cursor-pointer font-medium">{t('gaps.caseTitle')}</summary>
     <div className="mt-2 space-y-2">
       <p className="text-muted-foreground">{t('gaps.caseScope')}</p>
+      <p className="text-muted-foreground">{t('gaps.caseContextUse')}</p>
       {failed ? <div role="alert"><p>{t('gaps.loadFailed')}</p><Button variant="ghost" size="sm" onClick={() => void reload()}>{t('common.retry')}</Button></div>
         : rows === null ? <Loader2 className="size-4 animate-spin" /> : rows.length === 0 ? <p>{t('gaps.caseEmpty')}</p> : <>
           {partial && <p role="status">{t('gaps.casePartial')}</p>}

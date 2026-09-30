@@ -5,6 +5,9 @@ import type { Namespace } from "./types";
  * reactions, moderation, contact + Shopify panels, templates and search.
  */
 export const inbox = {
+  evidenceCaseAnswer: { es:'Respuesta revisada para este caso',en:'Reviewed answer for this case' },
+  evidenceCaseUnavailable: { es:'Esta fuente ya no está disponible para ti.',en:'This source is no longer available to you.' },
+  evidenceCaseScope: { es:'Versión preparada como contexto de este caso. No demuestra que se aplicó a una afirmación concreta ni que se ejecutó una acción.',en:'Version prepared as context for this case. It does not prove application to a particular claim or execution of an action.' },
   evidenceTitle: { es:'Actividad del superasistente',en:'Assistant activity' },
   evidenceFailed: { es:'No se pudo consultar la actividad de este mensaje.',en:'Could not retrieve activity for this message.' },
   evidenceNotRecorded: { es:'No hay un registro detallado para este mensaje. Esto no demuestra que no se usaran reglas o herramientas.',en:'No detailed record exists for this message. This does not prove that no rules or tools were used.' },

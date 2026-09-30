@@ -34,6 +34,7 @@ export const returns = {
 } satisfies Namespace;
 
 export const gaps = {
+  caseContextUse: { es: 'Cuando vuelva a responder en este caso, el asistente puede consultar estas respuestas. Guardarlas no cambia quién atiende la conversación.', en: 'When it replies in this case again, the assistant can consult these answers. Saving them does not change who handles the conversation.' },
   caseNoticeTitle: { es: 'Riverz: pregunta pendiente para el equipo', en: 'Riverz: question awaiting the team' },
   caseNoticeBody: { es: 'Hay una pregunta pendiente de revisión. Ábrela y responde dentro de Riverz: {url}. Este aviso no recibe respuestas por WhatsApp.', en: 'A question needs review. Open it and answer inside Riverz: {url}. This notice does not accept WhatsApp replies.' },
   caseNoticeDisabled: { es: 'Los nuevos avisos de preguntas por WhatsApp están reservados para la comparación.', en: 'New WhatsApp question notices are reserved for comparison.' },

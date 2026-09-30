@@ -12,4 +12,5 @@ module.exports=(async() => {
   if (r.ok || result?.code!=='P0001' || result?.message!=='invalid_gap_context') throw new Error(`Case question notice RPC unavailable: ${name} (HTTP ${r.status}).`);
  }
  console.log('Internal question notice schema and RPCs verified.');
+ await (await import('./check-case-gap-context-schema.cjs')).default;
 })().catch(e => { console.error(e.message);process.exitCode=1; });
