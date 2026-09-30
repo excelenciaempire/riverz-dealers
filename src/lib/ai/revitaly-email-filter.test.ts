@@ -28,3 +28,18 @@ it('keeps repeated unresolved inquiries for the team instead of looping redirect
  expect(disposition({...base,text:'Mi pedido no llegó',alreadyRedirected:true})).toBe('review');
  expect(disposition({...base,text:'Gracias',alreadyRedirected:true})).toBe('ignore');
 });
+it.each(['gmail','outlook','zoho'])('reads a customer request in the subject on %s',channel=>{
+ expect(disposition({...base,channel,subject:'Mi pedido no ha llegado, hago el reclamo?',text:'Obtener Outlook para Android'})).toBe('customer');
+ expect(disposition({...base,channel,subject:'When will my order arrive?',text:''})).toBe('customer');
+ expect(disposition({...base,channel,subject:'El envío llegó con pérdida de shampoo',text:'Enviado desde mi iPhone'})).toBe('customer');
+});
+it('does not turn an old notification subject into a new request',()=>{
+ expect(disposition({...base,subject:'Re: Confirmación de pedido #1530',text:'Enviado desde mi iPhone'})).toBe('review');
+ expect(disposition({...base,subject:'Mi pedido no llegó',text:'Gracias'})).toBe('ignore');
+ expect(disposition({...base,subject:'Re: El envío del pedido #1530 está en camino',text:''})).toBe('review');
+ expect(disposition({...base,from:'no-reply@proveedor.com',subject:'Mi pedido no llegó',text:''})).toBe('ignore');
+});
+it('preserves legal and repeated-inquiry handoff when the request is in the subject',()=>{
+ expect(disposition({...base,subject:'Mi pedido no llegó: carta documento',text:'Enviado desde mi iPhone'})).toBe('review');
+ expect(disposition({...base,subject:'Mi pedido no llegó',text:'',alreadyRedirected:true})).toBe('review');
+});

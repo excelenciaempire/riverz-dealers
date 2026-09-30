@@ -503,6 +503,7 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
         ? null
         : await detectarEscalada({
             mensaje: textoEntrante,
+            textoCliente: [args.inboundMessage.content_text ?? '', enrichedInbound?.media_transcription ?? ''].filter(Boolean).join('\n'),
             // El hilo lo lee el clasificador sólo si hace falta; se pide acá para
             // no armar un contexto caro en cada mensaje.
             hilo: await ultimosTurnos(db, args.conversation.id),

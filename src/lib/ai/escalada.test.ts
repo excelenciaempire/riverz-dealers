@@ -11,6 +11,23 @@ it('keeps escalation internal while owning customer service in first person', ()
 });
 
 describe('señalDura', () => {
+  it('does not treat an image observation as a customer refund request', async () => {
+    await expect(detectarEscalada({
+      mensaje: '[Imagen]\n[Imagen analizada]: Pedido confirmado. Botón visible: solicitar reembolso.',
+      textoCliente: '[Imagen]', hilo: [], hayPedido: false,
+      db: {} as never, workspaceId: 'w1',
+    })).resolves.toBeNull();
+    await expect(detectarEscalada({
+      mensaje: '[Imagen]\n[Imagen analizada]: Pedido confirmado.',
+      textoCliente: 'Quiero el reembolso de mi pedido', hilo: [], hayPedido: false,
+      db: {} as never, workspaceId: 'w1',
+    })).resolves.toMatchObject({clase:'devolucion'});
+    await expect(detectarEscalada({
+      mensaje: '[Audio]\n[Audio transcrito]: Me cobraron dos veces',
+      textoCliente: '[Audio]\nMe cobraron dos veces', hilo: [], hayPedido: false,
+      db: {} as never, workspaceId: 'w1',
+    })).resolves.toMatchObject({clase:'cobro'});
+  });
   it('asks what to correct before escalating an existing order', async () => {
     for (const mensaje of ['CORREGIR', ' correct ']) {
       await expect(

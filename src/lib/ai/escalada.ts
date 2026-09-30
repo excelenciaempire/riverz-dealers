@@ -229,6 +229,8 @@ export function pagoAsistido(ctx: Pick<ContextoEscalada, 'mensaje'>): Escalada |
 export interface ContextoEscalada {
   /** Lo último que dijo la persona. */
   mensaje: string;
+  /** Actual customer caption/audio, separate from generated image observations. */
+  textoCliente?: string;
   /** Los últimos turnos, del más viejo al más nuevo, ya en texto plano. */
   hilo?: string[];
   /** Si el hilo ya está mirando un pedido concreto. */
@@ -599,7 +601,9 @@ async function clasificarConHaiku(ctx: ContextoEscalada): Promise<Escalada | nul
 export async function detectarEscalada(
   ctx: ContextoEscalada,
 ): Promise<Escalada | null> {
-  const dura = señalDura(ctx.mensaje);
+  // OCR may describe a refund button on an order page. That is evidence to
+  // interpret in context, not a customer request to refund the order.
+  const dura = señalDura(ctx.textoCliente ?? ctx.mensaje);
   if (dura) return dura;
   // A correction button carries no change details. Ask before classifying.
   if (/^(corregir|correct)$/i.test(ctx.mensaje.trim())) return null;
