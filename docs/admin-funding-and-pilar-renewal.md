@@ -45,10 +45,20 @@ The subscription now uses an explicit fixed-price schedule, with no discounts:
 - November 29 onward: USD 399. The schedule releases after December 29,
   retaining that monthly price.
 
-The correction remains **open and unpaid**. Its original Link authorization
-was closed. The only attached card had a successful off-session SetupIntent,
-but the bank rejected the corrective payment (`card_declined`,
-`reenter_transaction`). The saved card is configured for subsequent renewals.
+On September 30, the owner waived September's USD 99 correction by agreement.
+The admin's **Mark as paid → Waive by agreement** action was used in production.
+Credit note `cn_1ULVyYL0pSUS73AdAtAN2n2I` settled the invoice to **paid**, with
+zero remaining debt and USD 99 credited. No card payment or revenue was invented:
+`amount_paid` remains zero. The actor and reason are recorded in Stripe and the
+admin audit log. No customer email was sent by the settlement action.
+
+Pilar remains active, with the same plan, balance billing model, USD 22.55 wallet
+balance, motor and suspension settings, and renewal schedule. The October 29
+preview still totals USD 99; November 29 onward remains USD 399. The database
+write and payment-recovery gates both confirmed access, with no pending invoice.
+The original Link authorization was closed; the bank had rejected the earlier
+corrective payment (`card_declined`, `reenter_transaction`). The saved card is
+still configured for subsequent renewals.
 The correction uses stable idempotency keys and never creates a second invoice
 on a repeated run. The original zero-dollar invoice remains unchanged.
 
@@ -56,8 +66,19 @@ on a repeated run. The original zero-dollar invoice remains unchanged.
 the reviewed schedule and correction, checking the account, amount and next
 invoice before requesting collection. It requires `STRIPE_SECRET_KEY` through
 the environment. A fresh payment authorization is required to collect the
-unpaid invoice; no merchant message was sent.
+unpaid invoice; no merchant message was sent. The September correction has now
+been waived: do not rerun this historical collection script to collect it.
 
 Managed fixed-price schedule events update the agreed amount in Riverz when
 the USD 99 phase advances to USD 399. Ordinary negotiated subscriptions retain
 their existing overrides.
+
+The admin settlement action applies to one displayed pending invoice, with its
+confirmed amount and currency. It supports external payments (`paid_out_of_band`)
+and agreements (a full pre-payment credit note), requires an audit reason, checks
+workspace/customer/subscription ownership against Stripe, and holds the account's
+existing billing lease. A successful retry reconciles the already-paid invoice
+without a second credit or payment. Plan, future prices, schedule, wallet and AI
+settings are not edited. CSRF, admin authentication and rate limiting protect
+the route. Verification: 106 tests, scoped TypeScript, ESLint, production build,
+and the real production button returning HTTP 200.
