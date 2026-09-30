@@ -98,10 +98,15 @@ export async function POST(request: Request) {
     workspace_id?: string;
     cupon?: string | null;
     primer_mes_sin_cargo?: boolean;
+    primer_mes_sin_descuento?: boolean;
   } | null;
   const workspaceId = body?.workspace_id;
   if (!workspaceId) {
     return NextResponse.json({ error: 'falta la cuenta' }, { status: 400 });
+  }
+  if ((body?.primer_mes_sin_descuento !== undefined && typeof body.primer_mes_sin_descuento !== 'boolean') ||
+      (body?.primer_mes_sin_descuento && (body.primer_mes_sin_cargo || body.cupon))) {
+    return NextResponse.json({ error: translate(await getLocale(), 'admin.billingFirstMonthInvalid') }, { status: 400 });
   }
   if (!stripeDisponible()) {
     return NextResponse.json(
@@ -121,17 +126,19 @@ export async function POST(request: Request) {
 
   // Regalar el primer mes es regalar plata: queda en la auditoría como el cupón.
   const primerMesSinCargo = body?.primer_mes_sin_cargo === true;
+  const primerMesSinDescuento = body?.primer_mes_sin_descuento === true;
   const cupon = primerMesSinCargo ? null : body?.cupon || null;
   try {
     const url = await urlDeCheckout(db, workspaceId, s, await duenoDe(db, workspaceId), {
       cupon,
       primerMesSinCargo,
+      primerMesSinDescuento,
     });
     await recordAdminAction(gate.actor, request, {
       action: 'update.billing_subscription',
       targetType: 'workspace',
       targetId: workspaceId,
-      meta: { linkDePago: true, cupon, primerMesSinCargo },
+      meta: { linkDePago: true, cupon, primerMesSinCargo, primerMesSinDescuento },
     });
     return NextResponse.json({ url });
   } catch (e) {

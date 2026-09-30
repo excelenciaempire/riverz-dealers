@@ -112,6 +112,16 @@ describe('link de pago', () => {
     expect(sesion.discounts).toEqual([{ coupon: 'riverz-first-month-35-usd-39900-v2' }])
   })
 
+  it.each(['saldo', 'oficial'] as const)('charges the full first month for %s when the admin chooses no discount', async model => {
+    const merchant = model === 'saldo' ? saldo : cuenta({ stripeCustomerId: 'cus_full', precioAcuerdoCentavos: 5000 });
+    await urlDeCheckout(db, 'w1', merchant, quien, { primerMesSinDescuento: true });
+    const session = mocks.createSession.mock.calls[0][0];
+    expect(session.discounts).toBeUndefined();
+    expect(session.subscription_data.trial_period_days).toBeUndefined();
+    expect(session.line_items[0].price_data.unit_amount).toBe(merchant.precioAcuerdoCentavos);
+    expect(mocks.retrieveCoupon).not.toHaveBeenCalled();
+  })
+
   it.each([
     ['new-balance-merchant-a', 'cus_new_a', 39900, true],
     ['new-balance-merchant-b', 'cus_new_b', 29900, false],

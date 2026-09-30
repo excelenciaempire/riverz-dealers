@@ -1232,6 +1232,13 @@ export const admin = {
   },
   billingFirstMonthFree: { es: 'Sin cargo', en: 'Free' },
   billingFullPrice: { es: 'Precio completo', en: 'Full price' },
+  billingFirstMonthNoDiscount: { es: 'Sin descuento', en: 'No discount' },
+  billingFirstMonthInvalid: { es: 'Selecciona una sola opción para el primer mes.', en: 'Select one option for the first month.' },
+  billingAgreementSection: { es: 'Plan y mensualidad', en: 'Plan and monthly fee' },
+  billingMonthlyFeeUsd: { es: 'Mensualidad (US$)', en: 'Monthly fee (US$)' },
+  billingContactsIncluded: { es: 'Contactos incluidos', en: 'Included contacts' },
+  billingAdvancedOptions: { es: 'Opciones avanzadas', en: 'Advanced options' },
+  billingAdjustBalance: { es: 'Ajustar saldo', en: 'Adjust balance' },
   billingFirstMonthSummary: {
     es: 'Primer mes {first}; después {regular} al mes.',
     en: 'First month {first}; then {regular} per month.',

@@ -161,7 +161,7 @@ export async function urlDeCheckout(
    * arranca con un mes de prueba y el primer cobro es la mensualidad
    * completa, sin la promoción.
    */
-  opciones?: { cupon?: string | null; primerMesSinCargo?: boolean },
+  opciones?: { cupon?: string | null; primerMesSinCargo?: boolean; primerMesSinDescuento?: boolean },
 ): Promise<string> {
   const locale = await localeDeCuenta(db, workspaceId)
   await attachAffiliateWorkspace(db, workspaceId)
@@ -176,8 +176,9 @@ export async function urlDeCheckout(
   }
   const customer = await clienteDe(db, workspaceId, s, quien.email, quien.nombre)
   const items = lineItemsDeSuscripcion(s, locale)
-  const sinCargo = opciones?.primerMesSinCargo === true
-  const coupon = sinCargo
+  const sinDescuento = opciones?.primerMesSinDescuento === true
+  const sinCargo = !sinDescuento && opciones?.primerMesSinCargo === true
+  const coupon = sinCargo || sinDescuento
     ? null
     : opciones?.cupon || (eligibleForFirstMonthOffer(s) ? await couponForFirstMonth(s.precioAcuerdoCentavos, s.plan.moneda) : null)
 

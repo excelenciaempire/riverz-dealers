@@ -599,6 +599,9 @@ function BloqueBilletera({
           </Muted>
         </p>
       </div>
+      <details className="group border-t border-border pt-3">
+        <summary className="cursor-pointer text-xs font-medium text-foreground">{t('admin.billingAdjustBalance')}</summary>
+      <div className="mt-3 space-y-3">
       <div className="flex flex-wrap items-end gap-2">
         <Campo label={t('admin.walletAdjustment')}>
           <select className={INPUT} value={direction} disabled={guardando}
@@ -633,6 +636,8 @@ function BloqueBilletera({
           onChange={e => { setReason(e.target.value); operationId.current = null; }} />
       </Campo>
       {direction === 'remove' && <p className="text-xs text-muted-foreground">{t('admin.walletAvailable', { amount: usd(available) })}</p>}
+      </div>
+      </details>
     </div>
   );
 }
@@ -914,7 +919,8 @@ function FormularioCuenta({
   return (
     <>
       {externoShopify && <p className="text-sm text-amber-600">{t('admin.billingShopifyManaged')}</p>}
-      <fieldset disabled={guardando || generandoLink || externoShopify} className="space-y-2 disabled:opacity-60">
+      <fieldset disabled={guardando || generandoLink || externoShopify} aria-label={t('admin.billingAgreementSection')} className="space-y-3 rounded-xl border border-border p-3 disabled:opacity-60">
+        <h3 className="text-sm font-medium">{t('admin.billingAgreementSection')}</h3>
         <div className="grid gap-4 sm:grid-cols-2">
           <Campo label={t("admin.billingModel")}>
             <select
@@ -947,7 +953,7 @@ function FormularioCuenta({
               </select>
             </Campo>
           ) : (
-            <Campo label={t("admin.billingMonthlyFee")}>
+            <Campo label={t("admin.billingMonthlyFeeUsd")}>
               <input
                 className={INPUT}
                 inputMode="decimal"
@@ -977,7 +983,7 @@ function FormularioCuenta({
           )}
           {oficial && (
             <>
-              <Campo label={t("admin.billingOwnPrice")}>
+              <Campo label={t("admin.billingMonthlyFeeUsd")}>
                 <input
                   className={INPUT}
                   inputMode="decimal"
@@ -988,7 +994,7 @@ function FormularioCuenta({
                   onChange={(e) => setF({ ...f, precio: e.target.value })}
                 />
               </Campo>
-              <Campo label={t("admin.billingOwnIncluded")}>
+              <Campo label={t("admin.billingContactsIncluded")}>
                 <input
                   className={INPUT}
                   inputMode="numeric"
@@ -1024,7 +1030,6 @@ function FormularioCuenta({
         antesDeArmar={guardarPendiente}
         onGenerando={onGenerandoLink}
       />
-      {cuenta.tieneSuscripcion && <BillingGraceEditor account={cuenta} disabled={guardando || generandoLink} onChanged={onChanged} />}
       <InvoiceSettlement key={cuenta.pendingInvoice?.id ?? 'none'} account={cuenta} disabled={guardando || generandoLink} onChanged={onChanged} />
       {f.modelo === "saldo" && cuenta.modeloCobro === "saldo" ? (
         <BloqueBilletera
@@ -1037,7 +1042,11 @@ function FormularioCuenta({
           {t("admin.billingModelOfficialNote")}
         </p>
       ) : null}
-      <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+      {cuenta.tieneSuscripcion && <details className="rounded-xl border border-border p-3" open={cuenta.readOnly === true}>
+        <summary className="cursor-pointer text-sm font-medium">{t('admin.billingAdvancedOptions')}</summary>
+        <div className="mt-3"><BillingGraceEditor account={cuenta} disabled={guardando || generandoLink} onChanged={onChanged} /></div>
+      </details>}
+      <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border bg-background py-4">
         {error && <p className="mr-auto text-xs text-destructive">{error}</p>}
         <button
           type="button"
@@ -1199,6 +1208,7 @@ function EstadoDelPago({ cuenta }: { cuenta: CuentaDelNegocio }) {
 
 /** Valor del selector para el link cuyo primer mes no se cobra. */
 const PRIMER_MES_SIN_CARGO = "primer-mes-sin-cargo";
+const PRIMER_MES_SIN_DESCUENTO = "primer-mes-sin-descuento";
 
 /**
  * El cobro de la cuenta: si ya paga en Stripe y, si todavía no, su link.
@@ -1245,10 +1255,11 @@ function Cobro({
   const [armando, setArmando] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const sinCargo = primerMes === PRIMER_MES_SIN_CARGO;
+  const sinDescuento = primerMes === PRIMER_MES_SIN_DESCUENTO;
   const para = `${trato}|${primerMes}`;
   const url = link?.para === para ? link.url : null;
   // Lo que se cobra el primer mes. Con un cupón de Stripe lo dice el cupón.
-  const primero = sinCargo ? 0 : !primerMes && conPromo ? firstMonthCents(mensualidadCentavos) : null;
+  const primero = sinCargo ? 0 : sinDescuento ? mensualidadCentavos : !primerMes && conPromo ? firstMonthCents(mensualidadCentavos) : null;
   const pedirCupones = disponible && cupones === null;
 
   useEffect(() => {
@@ -1280,8 +1291,9 @@ function Cobro({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           workspace_id: cuenta.workspaceId,
-          cupon: sinCargo ? null : primerMes || null,
+          cupon: sinCargo || sinDescuento ? null : primerMes || null,
           primer_mes_sin_cargo: sinCargo,
+          primer_mes_sin_descuento: sinDescuento,
         }),
       });
       const d = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
@@ -1321,8 +1333,9 @@ function Cobro({
                   <option value="">
                     {conPromo
                       ? t("admin.billingFirstMonthPromo", { percent: FIRST_MONTH_DISCOUNT_PERCENT })
-                      : t("admin.billingFullPrice")}
+                      : t("admin.billingFirstMonthNoDiscount")}
                   </option>
+                  {conPromo && <option value={PRIMER_MES_SIN_DESCUENTO}>{t("admin.billingFirstMonthNoDiscount")}</option>}
                   <option value={PRIMER_MES_SIN_CARGO}>{t("admin.billingFirstMonthFree")}</option>
                   {(cupones ?? []).map((c) => (
                     <option key={c.id} value={c.id}>
