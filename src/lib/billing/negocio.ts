@@ -89,6 +89,7 @@ export interface CuentaDelNegocio {
   graceUntil?: string | null
   readOnly?: boolean
   invoiceUrl?: string | null
+  pendingInvoice?: { id: string; amountRemaining: number; currency: string } | null
   reservadoCentavos?: number
   // ── Billetera ──
   /** Lo que le queda. Puede ser negativo dentro del descubierto. */

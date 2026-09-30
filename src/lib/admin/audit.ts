@@ -114,6 +114,7 @@ export type AdminAction =
   | 'view.fixed_costs'
   | 'update.billing_plan'
   | 'update.billing_subscription'
+  | 'update.billing_invoice_settlement'
   // Cargar saldo a mano y prender el corte por saldo. Regalar saldo es regalar
   // plata, y dejar a una cuenta sin IA es tocarle la operacion: las dos tienen
   // que poder rastrearse hasta quien las hizo.

@@ -18,6 +18,7 @@ import {
 } from "@/lib/billing/first-month-offer";
 import type { Tarifa } from "@/lib/wallet/tarifas";
 import { BillingGraceEditor } from '../_components/billing-grace-editor';
+import { InvoiceSettlement } from '../_components/invoice-settlement';
 import {
   useAdminData,
   PageHeader,
@@ -1024,6 +1025,7 @@ function FormularioCuenta({
         onGenerando={onGenerandoLink}
       />
       {cuenta.tieneSuscripcion && <BillingGraceEditor account={cuenta} disabled={guardando || generandoLink} onChanged={onChanged} />}
+      <InvoiceSettlement key={cuenta.pendingInvoice?.id ?? 'none'} account={cuenta} disabled={guardando || generandoLink} onChanged={onChanged} />
       {f.modelo === "saldo" && cuenta.modeloCobro === "saldo" ? (
         <BloqueBilletera
           cuenta={cuenta}

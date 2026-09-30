@@ -42,7 +42,7 @@ export async function GET(request: Request) {
       leerNegocio(db, { desde: from, hasta: to }),
       listarTarifas(db),
     ]);
-    const invoices = await db.from('workspace_billing_invoices').select('workspace_id,grace_until,hosted_invoice_url')
+    const invoices = await db.from('workspace_billing_invoices').select('workspace_id,invoice_id,status,amount_remaining,currency,grace_until,hosted_invoice_url')
       .in('status', ['open','uncollectible']).gt('amount_remaining', 0).lte('unpaid_since', new Date().toISOString())
       .order('grace_until');
     if (invoices.error) throw invoices.error;
@@ -52,6 +52,10 @@ export async function GET(request: Request) {
         ? new Date(Date.parse(account.vencidaDesde) + (account.graceHours ?? 24) * 3_600_000).toISOString() : null);
       account.readOnly = account.graceUntil != null && Date.parse(account.graceUntil) <= Date.now();
       account.invoiceUrl = safeInvoiceUrl(invoice?.hosted_invoice_url);
+      const payable = invoices.data?.find(i => i.workspace_id === account.workspaceId && i.status === 'open');
+      account.pendingInvoice = payable ? {
+        id: payable.invoice_id, amountRemaining: payable.amount_remaining, currency: payable.currency,
+      } : null;
     }
     return { planes, negocio, tarifas, diasDePrueba: DIAS_DE_PRUEBA };
   });

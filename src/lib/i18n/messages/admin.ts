@@ -2,6 +2,20 @@ import type { Namespace } from './types';
 
 /** Panel de plataforma (riverz.co/admin) — solo equipo Riverz. */
 export const admin = {
+  billingMarkPaid: { es: 'Marcar como pagada', en: 'Mark as paid' },
+  billingPendingInvoice: { es: 'Factura pendiente: {amount}', en: 'Pending invoice: {amount}' },
+  billingSettlementMethod: { es: 'Cómo se salda', en: 'Settlement method' },
+  billingExternalPayment: { es: 'Pago recibido fuera de Stripe', en: 'Payment received outside Stripe' },
+  billingWaiveAgreement: { es: 'Exonerar por acuerdo', en: 'Waive by agreement' },
+  billingSettlementReason: { es: 'Motivo o referencia', en: 'Reason or reference' },
+  billingWaiveConfirm: { es: 'Exonera solo esta factura. Conserva el plan y los próximos cobros.', en: 'Waives this invoice only. Keeps the plan and future charges.' },
+  billingExternalConfirm: { es: 'Registra un pago ya recibido. No cobra la tarjeta.', en: 'Records a payment already received. Does not charge the card.' },
+  billingSettlementCancel: { es: 'Cancelar', en: 'Cancel' },
+  billingSettlementConfirm: { es: 'Confirmar y saldar', en: 'Confirm and settle' },
+  billingSettling: { es: 'Saldando…', en: 'Settling…' },
+  billingSettlementInvalid: { es: 'Selecciona una factura e indica el motivo.', en: 'Select an invoice and enter the reason.' },
+  billingSettlementChanged: { es: 'La factura cambió o no pertenece a esta cuenta. Actualiza el panel.', en: 'The invoice changed or does not belong to this account. Refresh the dashboard.' },
+  billingSettlementFailed: { es: 'No se pudo confirmar la factura saldada. Actualiza el panel antes de volver a intentar.', en: 'Could not confirm the settled invoice. Refresh the dashboard before retrying.' },
   fundingTitle: { es: 'Cuánto recargar', en: 'How much to top up' },
   fundingHorizon: { es: 'Días de cobertura', en: 'Coverage days' },
   fundingCriterion: { es: 'Objetivo de recarga', en: 'Top-up goal' },
