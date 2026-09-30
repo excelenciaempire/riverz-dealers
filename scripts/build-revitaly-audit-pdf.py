@@ -186,7 +186,7 @@ REASONS = [
     ('Demora o disputa de entrega', 'Entregas demoradas o disputadas', 15,
      'Reclamaron pedidos que no llegaron, falta de guía y demoras de despacho. Un pedido figuraba enviado, pero Andreani no lo registraba.'),
     ('Dato o decisión no verificada', 'Información o decisión comercial', 10,
-     'CARRITO25 no funcionó y la web mostró falta de stock. Hubo dudas sobre el producto, puntos de retiro y propuestas de canje.'),
+     'Reportaron un cupón CARRITO25 rechazado y falta de stock. Hubo dudas sobre el producto, puntos de retiro y propuestas de canje.'),
     ('Cancelación o reembolso', 'Cancelaciones y reembolsos', 5,
      'Pidieron cancelar o recuperar dinero por pedidos sin envío y direcciones incorrectas. Algunos insistieron tras ser enviados a WhatsApp.'),
     ('Acreditación o cobro', 'Pagos y cobros por verificar', 5,
@@ -284,36 +284,20 @@ p = PDF()
 
 # 1. All attention rates use customer consultations as their denominator.
 p.header('Revitaly. Reporte de atención.', '26 al 30 de septiembre de 2026, hasta las 12:04 de Argentina.')
-for x, value, percentage, label, detail in [
-    (42, str(len(customer_ids)), '100%', 'Conversaciones con\nconsultas', 'Base de los porcentajes'),
-    (304, str(len(cases)), rate(human_rate), 'Escalamientos\njustificados', 'Necesitaron intervención'),
-]:
-    p.box(x, 182, 249, 138, PALE if x == 42 else CARD)
-    p.text(x+17, 226, value, 'Serif', 42, width=145)
-    p.text(x+164, 223, percentage, 'Semi', 20, width=68)
-    end = p.wrap(x+17, 262, label, 215, size=15, leading=19, font='Semi')
-    assert end <= 300
-    p.text(x+17, 307, detail, width=215)
-end = p.wrap(42, 352, 'Hubo 425 hilos con actividad, incluidos avisos y mensajes salientes. Las 199 conversaciones con consultas son la base de los porcentajes de atención.')
-assert end-18+4 < 411
-p.text(42, 422, 'Atención al cliente', 'Serif', 27)
-p.box(42, 448, 511, 144)
-for i, (label, count, percentage) in enumerate([
-    ('Conversaciones con consultas', len(customer_ids), '100%'),
-    ('Automatizadas: respondidas solo por IA', len(automated_ids), rate(automation_rate)),
-    ('Con escalamiento justificado', len(cases), rate(human_rate)),
+p.text(42, 179, 'Atención al cliente', 'Serif', 27)
+for i, (value, percentage, label, detail) in enumerate([
+    (len(customer_ids), '100%', 'Conversaciones con consultas', 'Base de los porcentajes'),
+    (len(automated_ids), rate(automation_rate), 'Automatizadas: respondidas solo por IA', 'Sin respuesta humana registrada en el período'),
+    (len(cases), rate(human_rate), 'Escalamientos justificados', 'Casos que necesitaron intervención humana'),
 ]):
-    baseline = 478+i*48
-    p.text(60, baseline, label, 'Sans', 13, width=355)
-    p.text(436, baseline, str(count), 'Semi', 14, width=35)
-    p.text(485, baseline, percentage, 'Semi', 14, width=51)
-    if i < 2:
-        p.line(496+i*48)
-p.text(42, 629, 'Análisis de comentarios', 'Serif', 27)
-p.image(ASSETS / 'riverz-control-humano.png', 42, 650, 174, 134)
-end = p.wrap(232, 661, '38 comentarios con texto, en 34 hilos: 33 en Facebook y 5 en Instagram.', width=321)
-end = p.wrap(232, end+8, '22 hilos con respuesta de IA y 1 humana. 11 sin respuesta al corte; 5 recuperados después.', width=321)
-end = p.wrap(232, end+8, 'Detalle de temas y sentimiento en la página 4.', width=321, color=MUTED)
+    y = 205+i*176
+    p.box(42, y, 511, 157, PALE if i == 1 else CARD)
+    p.text(62, y+101, str(value), 'Serif', 64, width=140)
+    end = p.wrap(225, y+43, label, 304, size=18, leading=22, font='Semi')
+    assert end <= y+89
+    p.text(225, y+101, percentage, 'Semi', 30, width=230)
+    p.text(225, y+133, detail, 'Sans', 12.5, width=304)
+end = p.wrap(42, 754, 'Hubo 425 hilos con actividad, incluidos avisos y mensajes salientes. Las 199 conversaciones con consultas son la base de estos porcentajes.', size=13, leading=17)
 assert end-18+4 <= 791
 p.end()
 
@@ -342,44 +326,45 @@ plan = [
      'Puede automatizarse al conectar el banco o la billetera. Riverz compara el dinero recibido con el pedido; las diferencias o los cobros sin compra identificada pasan al equipo.'),
     ('Cancelar pedidos y devolver dinero',
      'Parcialmente: al habilitar la gestión, Riverz prepara pedido, monto y motivo. Una persona aprueba la cancelación o el reembolso; la IA no devuelve dinero por su cuenta.'),
-    ('Responder más y escalar mejor',
-     'Sí, con información vigente y recibiendo datos antes de pausar. Riverz responde precios, stock y guías; resume las excepciones comerciales y los reclamos legales, que decide el equipo.'),
+    ('Responder con datos verificados',
+     'Sí, habilitando la consulta de precios, stock y cupones en Shopify. Riverz explica por qué un código no aplica y deriva excepciones comerciales con un resumen. Los reclamos legales los decide una persona.'),
 ]
 for i, (title, body) in enumerate(plan):
     p.proposal(184+i*98, i+1, title, body)
 p.text(42, 786, 'Probar cada acción con casos reales antes de activarla.', size=12.5)
 p.end()
 
-# 4. Primary tone, actual topics and verified recovery, without personal data.
-p.header('Sentimiento de los comentarios', '38 comentarios con texto. Porcentajes sobre esta base, redondeados.')
-p.box(42, 176, 511, 170)
-p.image(sentiment_image(), 57, 184, 150, 150)
-p.text(112, 258, '38', 'Serif', 34, width=58)
+# 4. All comment content belongs on this last page. No recovery/incident block.
+p.header('Análisis de comentarios', '26 al 30 de septiembre, hasta las 12:04 de Argentina.')
+p.image(ASSETS / 'riverz-control-humano.png', 42, 174, 135, 80)
+p.text(197, 192, '38 comentarios con texto, en 34 hilos.', 'Semi', 14, width=356)
+p.text(197, 216, '33 en Facebook y 5 en Instagram.', width=356)
+p.text(197, 240, '22 hilos con respuesta de IA y 1 humana.', width=356)
+p.text(42, 279, 'Sentimiento', 'Serif', 25)
+p.box(42, 294, 511, 154)
+p.image(sentiment_image(), 57, 303, 135, 135)
+p.text(108, 379, '38', 'Serif', 32, width=58)
 for i, (label, ids, color) in enumerate(sentiment_groups):
-    y = 205+i*36
+    y = 323+i*34
     p.box(232, y-10, 10, 10, HexColor(color), 3)
     p.text(252, y, label, 'Sans', 13, width=202)
     p.text(473, y, f'{len(ids)} · {round(100*len(ids)/38)}%', 'Semi', 13, width=66)
-end = p.wrap(42, 370, 'Las críticas se concentran en la publicidad y su credibilidad. Este tono no mide satisfacción tras usar el producto; la ironía ambigua se clasifica aparte.')
-assert end <= 428
+end = p.wrap(42, 472, 'Las críticas se concentran en la publicidad y su credibilidad. El tono no mide satisfacción tras usar el producto; las bromas ambiguas se clasifican aparte.', leading=17)
+assert end <= 529
 comment_analysis = [
-    ('26 · Publicidad', 'Dudas sobre la IA y promesas del anuncio. Conviene explicar el producto y evitar resultados garantizados.'),
-    ('10 · Compra y uso', '«Precio?» y «Me interesa». Preguntaron uso, farmacias y pago. Dos consultas omitidas ya tienen respuesta.'),
-    ('2 · Entregas', 'Esperas de 7 y 20 días. Hubo respuesta pública; resolver el envío requiere seguimiento real.'),
+    ('26 · Publicidad', 'Cuestionaron anuncios hechos con IA y promesas de crecimiento. Hubo ironías y acusaciones de engaño.'),
+    ('10 · Compra y uso', 'Consultaron precio, farmacias, pago contra entrega y uso en mujeres. También preguntaron por grasa y foliculitis.'),
+    ('2 · Entregas', 'Dos compradores esperaban 7 y 20 días. Uno mencionó una promesa de entrega en 24 horas.'),
 ]
 for i, (title, body) in enumerate(comment_analysis):
-    x, y = 42+i*173, 434
+    x, y = 42+i*173, 535
     p.box(x, y, 165, 159)
     p.text(x+12, y+25, title, 'Semi', 14, width=141)
     end = p.wrap(x+12, y+49, body, 141, leading=17)
     assert end-17+4 <= y+159-6, (title, end)
-end = p.wrap(42, 619, 'Al corte: 11 hilos sin respuesta, por saldo (5), fallos (4) y filtros (2), incluidos comentarios ocultos.', leading=17)
-assert end <= 657
-p.text(42, 684, '5 respuestas recuperadas', 'Serif', 27)
-end = p.wrap(42, 711, 'Se respondieron los 4 comentarios con error y 1 consulta bloqueada por saldo; verificados en Meta y la bandeja. Los otros 6 hilos siguen ocultos. Envíos: 30/9, de 19:20 a 19:30 (Argentina).', leading=17)
-assert end <= 766
-end = p.wrap(42, 773, 'Corregido el envío. Recuperación automática con verificación para evitar duplicados y anuncios de privados que no se enviaron.', size=12.5, leading=16)
-assert end-16+4 <= 796
+p.text(42, 727, 'Cómo respondió la IA', 'Serif', 25)
+end = p.wrap(42, 749, 'Respondió precios y canales de compra, pero algunas respuestas fueron genéricas o solo anunciaron un privado. Conviene resolver dudas en público y llevar pedidos y datos personales a privado.', leading=17)
+assert end-17+4 <= 791
 p.end()
 p.c.save()
 
@@ -389,11 +374,15 @@ assert len(doc) == p.page == 4
 assert len(doc.get_toc()) == 4
 text = '\n'.join(page.get_text() for page in doc)
 normalized_text = re.sub(r'\s+', ' ', text)
-assert all(token in normalized_text for token in ['425', '199', '43', '133', '21,6%', '66,8%', '26 al 30 de septiembre', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.', 'Análisis de comentarios', '38 comentarios con texto', '34 hilos', '11 sin respuesta al corte'])
+assert all(token in normalized_text for token in ['425', '199', '43', '133', '21,6%', '66,8%', '26 al 30 de septiembre', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.', 'Análisis de comentarios', '38 comentarios con texto', '34 hilos'])
 assert all(removed not in normalized_text for removed in ['Sin motivo de escalamiento', 'Sin escalamiento identificado', '78,4%', '10,1%', 'Qué ocurrió'])
-assert all(token in normalized_text for token in ['Sentimiento de los comentarios', '26 · Publicidad', '10 · Compra y uso', '2 · Entregas', '5 respuestas recuperadas', 'no mide satisfacción', 'Recuperación automática'])
+assert all(token in normalized_text for token in ['Sentimiento', '26 · Publicidad', '10 · Compra y uso', '2 · Entregas', 'Cómo respondió la IA', 'no mide satisfacción'])
+assert all(token not in normalized_text for token in ['5 respuestas recuperadas', 'Corregido el envío', 'Recuperación automática', 'Al corte: 11', 'sin respuesta al corte', 'recuperados después'])
+assert 'comentari' not in doc[0].get_text().lower()
+assert all('Análisis de comentarios' not in page.get_text() for page in list(doc)[:-1])
+assert 'Análisis de comentarios' in doc[-1].get_text()
 assert all(token in normalized_text for token in ['Parcialmente', 'Puede automatizarse al conectar el banco', 'Una persona aprueba la cancelación o el reembolso', 'la IA no devuelve dinero por su cuenta'])
-assert all(token in normalized_text for token in ['CARRITO25 no funcionó', 'envase rajado con pérdida', 'IA no podía modificarlo'])
+assert all(token in normalized_text for token in ['cupón CARRITO25 rechazado', 'envase rajado con pérdida', 'IA no podía modificarlo', 'foliculitis'])
 assert 'Por qué se necesita al equipo' not in text and 'pedir el cambio al transportista' not in text
 assert all(removed not in normalized_text for removed in ['mejoras', 'Mejoras', 'Validado en producción', 'RESULTADOS', 'ESCALAMIENTOS REALES', 'PLAN PROPUESTO', 'GUÍA DE CAPACIDADES', 'riverz.co |', '135 casos', '2.098', '24,2%'])
 assert '66,2%' not in text and '21,1%' not in text
