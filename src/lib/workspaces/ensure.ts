@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { commerceWorkspaceForUser } from '@/lib/admin/commerce-session'
 
 /**
  * App-level, idempotent fallback for workspace provisioning.
@@ -34,6 +35,10 @@ export async function ensureWorkspace(
   // is exactly the "already has one" condition we must not duplicate.
   const existing = await resolveWorkspaceIdForUser(admin, userId)
   if (existing) return existing
+
+  // A stale/deleted admin selection is not a newly registered merchant.
+  // Never create another workspace for the delegated owner as a recovery.
+  if (await commerceWorkspaceForUser(userId)) return null
 
   // Name = COALESCE(metadata workspace_name, email local-part + "'s workspace")
   // — mirrors the trigger in migration 013 (lines ~307-313).
