@@ -35,21 +35,35 @@ export async function recordBroadcastConversation(
     whatsappMessageId,
   } = args;
 
+  // Replaying a confirmed receipt repairs recording after a crash without moving
+  // an already recorded message out of its original (even closed) thread.
+  if (whatsappMessageId && workspaceId) {
+    const recorded = await db.from('messages')
+      .select('id,conversation:conversations!inner(workspace_id,contact_id)')
+      .eq('message_id', whatsappMessageId)
+      .eq('conversation.workspace_id', workspaceId)
+      .eq('conversation.contact_id', contactId).limit(1);
+    if (recorded.error) throw new Error('broadcast_conversation_unavailable');
+    if (recorded.data?.length) return;
+  }
+
   // Find an existing open WhatsApp conversation for this contact, else create.
   // Soft-delete (migración 085): never reuse a thread the user deleted from
   // the bandeja — without this filter the send would land in an invisible
   // (deleted) row, or, when that row is `closed`, slip past `.neq(status)` and
   // resurrect the contact as a fresh live thread. Skipping deleted rows makes
   // the broadcast open a new VISIBLE thread instead, matching findOrCreate.
-  const { data: existing } = await db
+  let query = db
     .from('conversations')
     .select('id')
     .eq('contact_id', contactId)
     .eq('channel', 'whatsapp')
     .is('deleted_at', null)
-    .neq('status', 'closed')
-    .limit(1)
-    .maybeSingle();
+    .neq('status', 'closed');
+  if (workspaceId) query = query.eq('workspace_id', workspaceId);
+  if (connectionId) query = query.eq('connection_id', connectionId);
+  const { data: existing, error: lookupError } = await query.limit(1).maybeSingle();
+  if (lookupError) throw new Error('broadcast_conversation_unavailable');
 
   let conversationId = existing?.id as string | undefined;
 
@@ -75,7 +89,7 @@ export async function recordBroadcastConversation(
 
   const now = new Date().toISOString();
 
-  await db.from('messages').insert({
+  const inserted = await db.from('messages').insert({
     conversation_id: conversationId,
     channel: 'whatsapp',
     sender_type: 'agent',
@@ -88,6 +102,10 @@ export async function recordBroadcastConversation(
     origin: 'broadcast',
     origin_name: args.broadcastName ?? null,
   });
+
+  // A concurrent repair may have inserted the same message. Preserve its timestamp.
+  if (inserted.error?.code === '23505') return;
+  if (inserted.error) throw new Error('broadcast_conversation_unavailable');
 
   // Bump conversation summary. last_sender_type 'agent' keeps it out of the
   // "needs reply" set until the customer responds.

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   workspace: 'workspace-a' as string | null,
   contacts: [] as Array<Record<string, unknown>>,
+  recipients: [] as Array<Record<string, unknown>>,
   writes: [] as Array<{ table: string; value: unknown }>,
   send: vi.fn(),
 }));
@@ -14,8 +15,10 @@ vi.mock('@/lib/supabase/client', () => ({
     auth: { getSession: async () => ({ data: { session: { user: { id: 'owner' } } } }) },
     from(table: string) {
       const chain = {
+        testTable: table,
         select: () => chain, eq: () => chain, in: () => chain, order: () => chain, range: () => chain,
         insert(value: unknown) { state.writes.push({ table, value }); return chain; },
+        update(value: unknown) { state.writes.push({ table, value }); return chain; },
         single: async () => ({ data: { id: 'campaign-a' }, error: null }),
         then(resolve: (value: unknown) => unknown) { return Promise.resolve({ data: [], error: null }).then(resolve); },
       };
@@ -25,7 +28,10 @@ vi.mock('@/lib/supabase/client', () => ({
 }));
 vi.mock('@/lib/supabase/paginate', () => ({
   chunk: (rows: unknown[]) => [rows],
-  fetchAllRows: vi.fn().mockImplementation(async () => state.contacts),
+  fetchAllRows: vi.fn().mockImplementation(async (make: (from: number, to: number) => { testTable: string }) => {
+    const table = make(0, 999).testTable;
+    return table === 'contacts' ? state.contacts : table === 'broadcast_recipients' ? state.recipients : [];
+  }),
 }));
 vi.mock('@/lib/broadcasts/conversations', () => ({ recordBroadcastConversation: vi.fn() }));
 vi.mock('@/lib/segments/resolve', () => ({ resolveSegment: vi.fn() }));
@@ -44,6 +50,7 @@ const payload = {
 beforeEach(() => {
   state.workspace = 'workspace-a';
   state.contacts = [{ id: 'contact-a', workspace_id: 'workspace-a', phone: '15555550100' }];
+  state.recipients = [{ id: 'recipient-a', contact: state.contacts[0] }];
   state.writes = [];
   state.send.mockClear();
 });
@@ -62,5 +69,23 @@ describe('campaign workspace persistence', () => {
     await expect(useBroadcastSending().createAndSendBroadcast(payload)).rejects.toThrow('workspace_required');
     expect(state.writes).toEqual([]);
     expect(state.send).not.toHaveBeenCalled();
+  });
+
+  it('sends only persisted ids to the protected batch endpoint and leaves result writes to the server', async () => {
+    state.send.mockResolvedValue(new Response(JSON.stringify({ results: [{ recipient_id: 'recipient-a', status: 'sent' }] })));
+    await useBroadcastSending().createAndSendBroadcast({ ...payload, scheduledAt: null });
+    expect(state.send).toHaveBeenCalledTimes(1);
+    expect(state.send.mock.calls[0][0]).toBe('/api/broadcasts/send-batch');
+    expect(JSON.parse(state.send.mock.calls[0][1].body)).toEqual({ broadcast_id: 'campaign-a', recipient_ids: ['recipient-a'], finalize: true });
+    expect(state.writes.filter(w => w.table === 'broadcast_recipients')).toHaveLength(1);
+    expect(state.writes.filter(w => w.table === 'broadcasts')).toHaveLength(1);
+  });
+
+  it('preserves uncertain responses as pending work for recovery without resending or marking recipients failed', async () => {
+    state.send.mockRejectedValue(new Error('response interrupted'));
+    await useBroadcastSending().createAndSendBroadcast({ ...payload, scheduledAt: null });
+    expect(state.send).toHaveBeenCalledTimes(1);
+    expect(state.writes.filter(w => w.table === 'broadcast_recipients')).toHaveLength(1);
+    expect(state.writes.at(-1)?.value).toMatchObject({ status: 'scheduled', scheduled_at: expect.any(String) });
   });
 });

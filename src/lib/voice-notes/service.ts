@@ -1,4 +1,5 @@
 import { resolveHumanAttention } from '@/lib/inbox/human-attention';
+import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils';
 import { randomUUID } from 'crypto';
 import { parseBuffer } from 'music-metadata';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
@@ -149,6 +150,7 @@ export async function prepareVoiceNote(
 }
 
 export async function sendVoiceNote(args: {
+  expectedRecipient?: { contactId: string; phone: string };
   workspaceId: string;
   conversationId: string;
   config: VoiceNoteConfig;
@@ -191,6 +193,9 @@ export async function sendVoiceNote(args: {
     .maybeSingle();
   if (!contact || !connection || connection.channel !== channel)
     throw new Error('voiceNotes.conversationMissing');
+  if (args.expectedRecipient && (contact.id !== args.expectedRecipient.contactId ||
+    sanitizePhoneForMeta(String(contact.phone ?? '')) !== args.expectedRecipient.phone))
+    throw new Error('voiceNotes.contextChanged');
   let initialInbound: string | undefined;
   const check = async () => {
     await assertStoredConnectionCanSend(db, connection.id);

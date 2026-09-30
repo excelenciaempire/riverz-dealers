@@ -203,6 +203,7 @@ export async function sendTextMessage(
 }
 
 export interface SendTemplateMessageArgs {
+  signal?: AbortSignal
   phoneNumberId: string
   accessToken: string
   to: string
@@ -297,6 +298,7 @@ export async function sendTemplateMessage(
   }
 
   const response = await fetch(url, {
+    signal: args.signal,
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

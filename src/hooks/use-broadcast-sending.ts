@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Contact, MessageTemplate } from '@/types';
-import { recordBroadcastConversation } from '@/lib/broadcasts/conversations';
-import { renderTemplateBody } from '@/lib/whatsapp/template-render';
 import { resolveSegment } from '@/lib/segments/resolve';
 import { escapeLike } from '@/lib/security/like';
 import { chunk, fetchAllRows } from '@/lib/supabase/paginate';
@@ -79,9 +77,8 @@ function sleep(ms: number) {
 }
 
 interface BroadcastApiResult {
-  phone: string;
-  status: 'sent' | 'failed';
-  whatsapp_message_id?: string;
+  recipient_id: string;
+  status: 'sent' | 'failed' | 'deferred' | 'skipped';
   error?: string;
 }
 
@@ -527,177 +524,45 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       // ── Step 4: Fetch recipients (joined contact) for the send loop
       if (!payload.template) throw new Error('template_required');
       setProgress(30);
-      const { data: recipients, error: recipientsFetchError } = await supabase
-        .from('broadcast_recipients')
-        .select('*, contact:contacts(*)')
-        .eq('broadcast_id', broadcast.id);
+      const recipients = await fetchAllRows<{
+        id: string;
+        contact: Contact | null;
+      }>((from, to) => supabase.from('broadcast_recipients').select('*, contact:contacts(*)')
+        .eq('broadcast_id', broadcast.id).order('id', { ascending: true }).range(from, to));
 
-      if (recipientsFetchError || !recipients) {
-        throw new Error('Failed to fetch broadcast recipients');
-      }
-
-      // Best-effort: resolve the workspace's WhatsApp connection once so
-      // "create conversations" can stamp connection_id. Null is fine.
-      let connectionId: string | null = null;
-      if (payload.createConversations) {
-        const wsId = recipients.find((r) => r.contact?.workspace_id)?.contact
-          ?.workspace_id as string | undefined;
-        if (wsId) {
-          const { data: conn } = await supabase
-            .from('channel_connections')
-            .select('id')
-            .eq('workspace_id', wsId)
-            .eq('channel', 'whatsapp')
-            .limit(1)
-            .maybeSingle();
-          connectionId = (conn?.id as string | undefined) ?? null;
-        }
-      }
-
-      let failedCount = 0;
+      let deferred = recipients.length === 0;
       const totalRecipients = recipients.length;
-
       for (let i = 0; i < recipients.length; i += SEND_BATCH_SIZE) {
         const batch = recipients.slice(i, i + SEND_BATCH_SIZE);
-
-        const apiRecipients = batch
-          .filter((r) => r.contact?.phone)
-          .map((r) => ({
-            phone: r.contact!.phone as string,
-            params: r.contact
-              ? resolveVariables(
-                  payload.variables,
-                  r.contact,
-                  customValueIndex.get(r.contact.id),
-                )
-              : [],
-          }));
-
-        if (apiRecipients.length === 0) continue;
-
         try {
-          const res = await fetchWithCsrf('/api/whatsapp/broadcast', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              recipients: apiRecipients,
-              template_name: payload.template.name,
-              template_language: payload.template.language ?? 'en_US',
-            }),
+          const res = await fetchWithCsrf('/api/broadcasts/send-batch', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ broadcast_id: broadcast.id, recipient_ids: batch.map(r => r.id), finalize: i+batch.length===recipients.length }),
           });
-
+          if (!res.ok) { deferred = true; break; }
           const data = await res.json();
-
-          if (!res.ok) {
-            throw new Error(data.error || 'Broadcast API request failed');
-          }
-
-          const resultsByPhone = new Map<string, BroadcastApiResult>();
-          for (const r of (data.results ?? []) as BroadcastApiResult[]) {
-            resultsByPhone.set(r.phone, r);
-          }
-
+          const results = Array.isArray(data.results) ? data.results as BroadcastApiResult[] : [];
+          const byId = new Map(results.map(r => [r.recipient_id, r]));
           for (const recipient of batch) {
-            const phone = recipient.contact?.phone;
-            const result = phone ? resultsByPhone.get(phone) : undefined;
-
-            if (!result) {
-              failedCount++;
-              await supabase
-                .from('broadcast_recipients')
-                .update({
-                  status: 'failed',
-                  error_message: 'No phone number on contact',
-                })
-                .eq('id', recipient.id);
-              continue;
-            }
-
-            if (result.status === 'sent') {
-              await supabase
-                .from('broadcast_recipients')
-                .update({
-                  status: 'sent',
-                  sent_at: new Date().toISOString(),
-                  whatsapp_message_id: result.whatsapp_message_id ?? null,
-                  error_message: null,
-                })
-                .eq('id', recipient.id);
-
-              if (payload.createConversations && recipient.contact?.id) {
-                try {
-                  await recordBroadcastConversation(supabase, {
-                    contactId: recipient.contact.id,
-                    workspaceId: recipient.contact.workspace_id ?? null,
-                    connectionId,
-                    templateName: payload.template.name,
-                    // Texto REAL que recibió esta persona. Antes se guardaba
-                    // el cuerpo crudo con {{1}} {{2}} sin sustituir (idéntico
-                    // para todos), y la IA lee el historial como contexto: al
-                    // responder la campaña, le llegaban los marcadores en vez
-                    // del mensaje. Los params ya se resuelven para el envío;
-                    // aquí reusamos exactamente los mismos.
-                    bodyPreview: payload.template.body_text
-                      ? renderTemplateBody(
-                          payload.template.body_text,
-                          recipient.contact
-                            ? resolveVariables(
-                                payload.variables,
-                                recipient.contact,
-                                customValueIndex.get(recipient.contact.id),
-                              )
-                            : [],
-                        )
-                      : payload.template.name,
-                    whatsappMessageId: result.whatsapp_message_id ?? null,
-                    broadcastName: payload.name ?? null,
-                  });
-                } catch (convErr) {
-                  console.error('[broadcast] conversation create failed:', convErr);
-                }
-              }
-            } else {
-              failedCount++;
-              await supabase
-                .from('broadcast_recipients')
-                .update({
-                  status: 'failed',
-                  error_message: result.error ?? 'Unknown error',
-                })
-                .eq('id', recipient.id);
-            }
+            const result = byId.get(recipient.id);
+            if (!result || result.status === 'deferred') deferred = true;
           }
-        } catch (err) {
-          for (const recipient of batch) {
-            failedCount++;
-            await supabase
-              .from('broadcast_recipients')
-              .update({
-                status: 'failed',
-                error_message: err instanceof Error ? err.message : 'Unknown error',
-              })
-              .eq('id', recipient.id);
-          }
+        } catch {
+          // An interrupted response cannot prove failure or authorize a resend.
+          deferred = true; break;
         }
-
-        const progressPct =
-          30 + Math.round(((i + batch.length) / totalRecipients) * 60);
-        setProgress(progressPct);
-
-        if (i + SEND_BATCH_SIZE < recipients.length) {
-          await sleep(SEND_BATCH_DELAY_MS);
-        }
+        setProgress(30 + Math.round(((i + batch.length) / totalRecipients) * 60));
+        if (deferred) break;
+        if (i + SEND_BATCH_SIZE < recipients.length) await sleep(SEND_BATCH_DELAY_MS);
       }
 
       // ── Step 5: Finalize status ───────────────────────────────────
       // Aggregate counts are maintained by the DB trigger (migration
       // 003); we only flip the final status here.
       setProgress(95);
-      const finalStatus = failedCount === totalRecipients ? 'failed' : 'sent';
-      await supabase
-        .from('broadcasts')
-        .update({ status: finalStatus })
-        .eq('id', broadcast.id);
+      if (deferred) await supabase.from('broadcasts')
+        .update({ status: 'scheduled', scheduled_at: new Date(Date.now()+60000).toISOString() })
+        .eq('id', broadcast.id).eq('status', 'sending');
 
       setProgress(100);
       return broadcast.id;

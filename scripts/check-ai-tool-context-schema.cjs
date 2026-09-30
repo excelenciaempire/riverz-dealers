@@ -7,4 +7,5 @@ module.exports=(async() => {
  const r=await fetch(`${base}/rpc/save_ai_tool_context_policy`,{ method:'POST',headers,body:JSON.stringify({ p_id:null,p_workspace_id:null,p_actor_id:null,p_agent_id:null,p_expected_revision:null,p_policy:null }),signal:AbortSignal.timeout(15000) }),result=await r.json().catch(() => null);
  if (r.ok || result?.code!=='P0001' || result?.message!=='invalid_tool_context') throw new Error(`Contextual tool policy RPC unavailable (HTTP ${r.status}).`);
  console.log('Contextual tool permission schema and RPC verified.');
+ await (await import('./check-broadcast-delivery-schema.cjs')).default;
 })().catch(e => { console.error(e.message);process.exitCode=1; });

@@ -23,6 +23,16 @@ const BASE_ARGS = {
 } as const;
 
 describe('sendTemplateMessage — intent guard', () => {
+  it('passes the campaign timeout signal to its single provider request', async () => {
+    const signal = new AbortController().signal;
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ messages: [{ id: 'wamid.test' }] })));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      expect(await sendTemplateMessage({ phoneNumberId: 'test', accessToken: 'test', to: '573003364305', templateName: 'hello', signal })).toMatchObject({ messageId: 'wamid.test' });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0][1].signal).toBe(signal);
+    } finally { vi.unstubAllGlobals(); }
+  });
   it('does not call Meta when a dispatch template carries a cancellation correction', async () => {
     const fetchMock = vi.fn(neverFetch);
     vi.stubGlobal('fetch', fetchMock);

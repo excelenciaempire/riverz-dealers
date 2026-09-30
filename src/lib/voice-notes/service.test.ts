@@ -87,7 +87,7 @@ beforeEach(() => {
             }
           : table === 'contacts'
             ? contactWorkspace === q.filters.workspace_id
-              ? { id: 'contact', name: 'José', workspace_id: contactWorkspace }
+              ? { id: 'contact', name: 'José', workspace_id: contactWorkspace, phone: '573003364305' }
               : null
             : table === 'channel_connections'
               ? {
@@ -166,6 +166,13 @@ describe('voice note delivery guards', () => {
       conversation_id: 'conversation',
       sender_type: 'customer',
     });
+  });
+  it('checks a campaign reservation destination before audio generation or transport', async () => {
+    for (const expectedRecipient of [{ contactId: 'other-contact', phone: '573003364305' }, { contactId: 'contact', phone: 'different-phone' }]) {
+      await expect(sendVoiceNote({ ...args, expectedRecipient })).rejects.toThrow('voiceNotes.contextChanged');
+    }
+    expect(mocks.tts).not.toHaveBeenCalled();
+    expect(mocks.send).not.toHaveBeenCalled();
   });
   it('honors opt-out before generation', async () => {
     mocks.gate.mockResolvedValue({ allow: false, barrier: 'baja' });

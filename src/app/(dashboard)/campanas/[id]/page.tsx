@@ -6,6 +6,7 @@ import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { createClient } from '@/lib/supabase/client';
 import { idColumn } from '@/lib/short-id';
 import { Broadcast, BroadcastRecipient, RecipientStatus } from '@/types';
+import { broadcastDeliveryError } from '@/lib/broadcasts/delivery-errors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -323,7 +324,7 @@ export default function BroadcastDetailPage() {
       r.delivered_at ?? '',
       r.read_at ?? '',
       r.replied_at ?? '',
-      r.error_message ?? '',
+      broadcastDeliveryError(r.error_message, t),
     ]);
     const csv = toCsv([header, ...rows]);
     const safeName = broadcast.name.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
@@ -723,7 +724,7 @@ export default function BroadcastDetailPage() {
                       </TableCell>
                       {statusFilter === 'failed' && (
                         <TableCell className="max-w-xs truncate text-xs italic text-muted-foreground">
-                          {recipient.error_message ?? t('broadcasts.noMetaDetail')}
+                          {broadcastDeliveryError(recipient.error_message, t) || t('broadcasts.noMetaDetail')}
                         </TableCell>
                       )}
                     </TableRow>

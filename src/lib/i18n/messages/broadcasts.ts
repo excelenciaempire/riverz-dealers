@@ -2,6 +2,22 @@ import type { Namespace } from "./types";
 
 /** Broadcasts / campaigns: list, detail, and the 4-step send wizard. */
 export const broadcasts = {
+  deliveryInvalid: { es: "No se encontró un destinatario autorizado de esta campaña.", en: "An authorized recipient for this campaign could not be found." },
+  deliveryUnavailable: { es: "No se pudo comprobar el envío. Se conserva pendiente sin repetirlo.", en: "The send could not be verified. It remains pending without being repeated." },
+  deliveryUncertain: { es: "Resultado incierto. Revisa el proveedor antes de enviar nuevamente.", en: "Uncertain outcome. Review the provider before sending again." },
+  deliveryRejected: { es: "El proveedor rechazó el envío.", en: "The provider rejected the send." },
+  deliveryChanged: { es: "El contenido cambió después de preparar el envío. Revisa la campaña.", en: "The content changed after preparing the send. Review the campaign." },
+  deliveryDuplicate: { es: "Este número ya tiene un intento de envío en esta campaña.", en: "This number already has a send attempt in this campaign." },
+  deliveryPendingConfirmation: { es: "Hay un envío en curso sin confirmación. No se repetirá.", en: "A send is in progress without confirmation. It will not be repeated." },
+  deliveryPaused: { es: "El envío permanece pendiente hasta que pueda continuar.", en: "The send remains pending until it can continue." },
+  deliveryOptedOut: { es: "El contacto solicitó no recibir mensajes.", en: "The contact requested no further messages." },
+  deliveryExcluded: { es: "El contacto está excluido de esta campaña.", en: "The contact is excluded from this campaign." },
+  deliveryTemplateUnavailable: { es: "La plantilla de este negocio e idioma no está aprobada o es ambigua.", en: "The template for this business and language is not approved or is ambiguous." },
+  deliveryMarketingUnavailable: { es: "No se envía esta plantilla de marketing a este destino.", en: "This marketing template is not sent to this destination." },
+  deliveryVariables: { es: "Las variables no coinciden con la plantilla aprobada.", en: "The variables do not match the approved template." },
+  deliveryInvalidPhone: { es: "El número no es válido.", en: "The phone number is invalid." },
+  deliveryAlreadySent: { es: "El destinatario ya tiene un envío registrado. No se repetirá.", en: "The recipient already has a recorded send. It will not be repeated." },
+  deliveryNotPending: { es: "El destinatario no está pendiente de envío.", en: "The recipient is not pending a send." },
   // ── Shared actions ──
   back: { es: "Atrás", en: "Back" },
   next: { es: "Siguiente", en: "Next" },
