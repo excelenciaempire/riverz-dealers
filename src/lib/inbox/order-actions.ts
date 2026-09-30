@@ -12,6 +12,7 @@ import { commitReviewedOrderItems } from '@/lib/shopify/reviewed-order-items'
 import type { OrderItemDisplay } from '@/lib/shopify/order-items-contract'
 import { createReplacementDraft,inspectReplacementDraft } from '@/lib/shopify/replacement-draft'
 import { applyReviewedFulfillmentHold,inspectFulfillmentHold,FULFILLMENT_HOLD_SCOPES,type FulfillmentHoldQuote } from '@/lib/shopify/fulfillment-hold'
+import { issueReviewedStoreCredit,inspectStoreCredit,STORE_CREDIT_SCOPES } from '@/lib/shopify/store-credit'
 import { caseOrderAction, type CaseOrderAction, type CaseOrderOperation } from './order-action-contract'
 
 interface LocalOrder { id: string; shopify_order_id: string; shop_domain: string; order_number: string | null; platform:string }
@@ -26,7 +27,7 @@ interface ProviderOrder {
   tags?:string
 }
 export class CaseOrderError extends Error {}
-export async function caseOrderSnapshot(db: SupabaseClient, workspaceId: string, contactId: string, orderId: string, action: CaseOrderAction | null, options?:{ shippingOnly?:boolean; replacement?:boolean; hold?:boolean }) {
+export async function caseOrderSnapshot(db: SupabaseClient, workspaceId: string, contactId: string, orderId: string, action: CaseOrderAction | null, options?:{ shippingOnly?:boolean; replacement?:boolean; hold?:boolean; credit?:boolean }) {
   const local = await db.from('orders').select('id,shopify_order_id,shop_domain,order_number,platform').eq('id',orderId).eq('workspace_id',workspaceId).eq('contact_id',contactId).maybeSingle()
   if (local.error) throw new CaseOrderError('orderUnavailable')
   const order = local.data as LocalOrder | null
@@ -43,13 +44,16 @@ export async function caseOrderSnapshot(db: SupabaseClient, workspaceId: string,
   const email = contact.data?.email?.trim().toLowerCase(), phone = normPhone(contact.data?.phone)
   const replacement=action?.type === 'replacement' || options?.replacement === true
   const hold=action?.type === 'hold' || options?.hold === true
-  const emailMatches = !!email && (replacement ? [live.customer?.email] : [live.email,live.contact_email,live.customer?.email]).some(value => value?.trim().toLowerCase() === email)
-  const phoneMatches = !!phone && (replacement ? [live.customer?.phone] : [live.phone,live.customer?.phone,live.shipping_address?.phone,live.billing_address?.phone]).some(value => normPhone(value) === phone)
+  const credit=action?.type === 'credit' || options?.credit === true
+  const emailMatches = !!email && (replacement || credit ? [live.customer?.email] : [live.email,live.contact_email,live.customer?.email]).some(value => value?.trim().toLowerCase() === email)
+  const phoneMatches = !!phone && (replacement || credit ? [live.customer?.phone] : [live.phone,live.customer?.phone,live.shipping_address?.phone,live.billing_address?.phone]).some(value => normPhone(value) === phone)
   if (contact.error || !contact.data || !emailMatches && !phoneMatches) throw new CaseOrderError('orderIdentityUnknown')
-  if (!currentAppInstallation?.accessScopes.some(scope => hold ? FULFILLMENT_HOLD_SCOPES.includes(scope.handle) : scope.handle === (replacement ? 'write_draft_orders' : 'write_orders'))) throw new CaseOrderError(hold ? 'orderHoldScopeMissing' : replacement ? 'orderDraftScopeMissing' : 'orderScopeMissing')
+  if (credit) {
+    if (!STORE_CREDIT_SCOPES.every(required => currentAppInstallation?.accessScopes.some(scope => scope.handle===required))) throw new CaseOrderError('orderCreditScopeMissing')
+  } else if (!currentAppInstallation?.accessScopes.some(scope => hold ? FULFILLMENT_HOLD_SCOPES.includes(scope.handle) : scope.handle === (replacement ? 'write_draft_orders' : 'write_orders'))) throw new CaseOrderError(hold ? 'orderHoldScopeMissing' : replacement ? 'orderDraftScopeMissing' : 'orderScopeMissing')
   if (action?.type === 'items' && !currentAppInstallation.accessScopes.some(scope => scope.handle === 'write_order_edits')) throw new CaseOrderError('orderItemsScopeMissing')
   if ((action?.type === 'cancel' || action?.type === 'address' || action?.type === 'items' || action?.type === 'hold') && !shippingChangeAllowed(live)) throw new CaseOrderError('orderAlreadyShipped')
-  const shippingOnly = action?.type === 'address' || options?.shippingOnly === true || replacement || hold
+  const shippingOnly = action?.type === 'address' || options?.shippingOnly === true || replacement || hold || credit
   const { transactions } = shippingOnly || action?.type === 'items' ? { transactions:[] as RefundTransaction[] } : await client.rest<{ transactions?: RefundTransaction[] }>(`/orders/${order.shopify_order_id}/transactions.json`)
   if (!Array.isArray(transactions)) throw new CaseOrderError('orderBalanceUnknown')
   const plan = planRefund(transactions, action?.type === 'refund' ? action.amount ?? undefined : undefined)
@@ -98,6 +102,7 @@ export async function uncertainCaseOrderSnapshot(db:SupabaseClient,workspaceId:s
   let itemsOnly = false
   let replacementOnly=false, draftId:string | undefined, holdQuote:FulfillmentHoldQuote | undefined
   let actionType:CaseOrderAction['type'] | 'financial'='financial'
+  let creditOnly=false,transactionId:string | undefined
   if (lock.data.source_kind === 'inbox') {
     const stored = await db.from('inbox_order_actions').select('action,result,preview').eq('id',lock.data.source_id).eq('workspace_id',workspaceId).eq('order_id',orderId).maybeSingle()
     const action = caseOrderAction(stored.data?.action)
@@ -111,8 +116,17 @@ export async function uncertainCaseOrderSnapshot(db:SupabaseClient,workspaceId:s
       holdQuote=stored.data?.preview?.hold
       if (!holdQuote) throw new CaseOrderError('orderConflict')
     }
+    creditOnly=action.type === 'credit'
+    transactionId=typeof stored.data?.result?.credit_transaction_id==='string' ? stored.data.result.credit_transaction_id : undefined
   }
-  const snapshot = await caseOrderSnapshot(db,workspaceId,contactId,orderId,null,{ shippingOnly:shippingOnly || itemsOnly || replacementOnly || !!holdQuote,...(replacementOnly ? { replacement:true } : {}),...(holdQuote ? { hold:true } : {}) })
+  const snapshot = await caseOrderSnapshot(db,workspaceId,contactId,orderId,null,{ shippingOnly:shippingOnly || itemsOnly || replacementOnly || !!holdQuote || creditOnly,...(replacementOnly ? { replacement:true } : {}),...(holdQuote ? { hold:true } : {}),...(creditOnly ? { credit:true } : {}) })
+  if (creditOnly) {
+    const observed=await inspectStoreCredit(snapshot.admin,snapshot.live,transactionId)
+    if (!observed) throw new CaseOrderError('orderCreditReviewRequired')
+    delete snapshot.preview.shipping_address
+    snapshot.preview.credit_current=observed
+    snapshot.fingerprint=createHash('sha256').update(JSON.stringify({ order:snapshot.fingerprint,credit:observed })).digest('hex')
+  }
   if (holdQuote) {
     const observed=await inspectFulfillmentHold(snapshot.admin,snapshot.local.shopify_order_id,holdQuote)
     if (!observed) throw new CaseOrderError('orderHoldReviewRequired')
@@ -175,6 +189,12 @@ export async function executeCaseOrderAction(db: SupabaseClient, workspaceId: st
       const response=await applyReviewedFulfillmentHold(current.admin,current.local.shopify_order_id,operation.preview.hold,operation.id,operation.action.reason)
       status=response.ok ? 'completed' : response.uncertain ? 'uncertain' : 'failed'
       result=response.ok ? { hold_handle:response.handle,preparations:response.preparations,hold_receipts:response.receipts } : { error:response.error,hold_receipts:response.receipts ?? [] }
+    } else if (operation.action.type === 'credit') {
+      if (!operation.preview.credit) throw new CaseOrderError('orderConflict')
+      mutationStarted=true
+      const response=await issueReviewedStoreCredit(current.admin,current.live,operation.action.amount,operation.preview.credit)
+      status=response.ok ? 'completed' : response.uncertain ? 'uncertain' : 'failed'
+      result=response.ok ? { credit_transaction_id:response.receipt.id,credit_receipt:response.receipt } : { error:response.error,credit_transaction_id:response.transactionId ?? null }
     } else {
       // The reviewed amount is immutable, including a request for the whole remaining balance.
       mutationStarted = true

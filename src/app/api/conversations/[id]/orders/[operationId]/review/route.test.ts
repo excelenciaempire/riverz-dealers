@@ -21,7 +21,7 @@ describe('reconciliation of the actual reviewed operation',() => {
     expect(m.rpc).toHaveBeenCalledWith('review_order_execution',expect.objectContaining({ p_actor_id:'admin',p_snapshot:{ amount:'25.00',currency:'USD',action_type:'refund',fingerprint } }))
   })
   it('requires a client that showed the correct address, items, replacement or hold review',async () => {
-    for (const kind of ['address','items','replacement','hold']) {
+    for (const kind of ['address','items','replacement','hold','credit']) {
       m.snapshot.mockResolvedValue({ source_id:source,action_type:kind,snapshot:{ fingerprint,preview:{} } })
       expect((await POST(request(),route)).status).toBe(409)
       expect((await POST(request({ ...body,action_type:'refund' }),route)).status).toBe(409)

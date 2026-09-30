@@ -13,8 +13,8 @@ Esta lista registra el estado real del trabajo. Una implementación local, una v
 | P0E Accesos y regresión | Implementada | Pruebas de aislamiento y build correctos | Publicada; revisión de salud correcta |
 | B1 Colaboración en bandeja | Implementada | 147 pruebas, lint sin errores y build correctos | Publicada; salud de producción verificada |
 | B2 Seguimiento y herramientas del equipo | Implementada | 569 pruebas, TypeScript, lint de cambios y build correctos | Publicada; salud de producción verificada |
-| B3 Acciones de pedidos | En ejecución: cancelaciones, reembolsos, dirección y cambios de productos, variantes y cantidades en la ficha actual; acciones adicionales en desarrollo | 796 pruebas, lint de cambios y build completo correctos; esquema 310 verificado | Cancelaciones, reembolsos y dirección publicados; productos en publicación |
-| B4 Comprensión de mensajes y audios | Pendiente | Pendiente | Pendiente |
+| B3 Acciones de pedidos | Implementadas en la ficha: reembolsos, cancelaciones, dirección, artículos, reposiciones, retenciones compatibles y crédito de tienda | 852 pruebas, lint de cambios y build completo correctos; esquema 310 verificado | Todas salvo crédito verificadas en producción; crédito en publicación |
+| B4 Comprensión de mensajes y audios | En ejecución: revisión de transcripciones y resúmenes existentes | Pendiente | Pendiente |
 | A1 a A3 Superasistente | Pendiente | Pendiente | Pendiente |
 | C1 y C2 Crecimiento | Pendiente | Pendiente | Pendiente |
 | O1 a O5 Autoservicio y operación | Pendiente | Pendiente | Pendiente |
@@ -129,4 +129,20 @@ Quinta entrega B3, retenci?n de preparaci?n en Shopify:
 - La revisi?n consulta las preparaciones originales, incluso si despu?s se cerraron o cambiaron; se vincula a cada estado observado. Tambi?n exige un cliente que muestre la revisi?n correcta de direcci?n, art?culos, reposici?n o retenci?n. Una pantalla antigua que solo conoce saldos financieros no puede liberar esos bloqueos; las revisiones financieras anteriores siguen siendo compatibles.
 - Historial de la vista previa, administrador, estado comprobado y referencias. Textos en espa?ol e ingl?s, con la navegaci?n y los m?dulos existentes conservados.
 
-Validaci?n de retenci?n: **102 archivos y 837 pruebas correctas**, incluidos preparaci?n ajena, cambios de ubicaci?n, despacho iniciado, listas paginadas, permisos, retenci?n ajena, ejecuci?n parcial, respuesta perdida, identificaci?n de acci?n y revisi?n con una pantalla antigua. Lint de los cambios sin errores y build completo correcto en la copia aislada. La suite final se ejecut? sin compilaci?n simult?nea, con cuatro procesos: una prueba existente de credenciales hab?a excedido cinco segundos bajo carga y pas? sin modificar su l?mite. Reutiliza el esquema 310, sin migraci?n nueva. No se retuvieron preparaciones reales como prueba. El cr?dito de tienda sigue en desarrollo; B3 todav?a no est? completo.
+Validación de retención: **102 archivos y 837 pruebas correctas**, incluidos preparación ajena, cambios de ubicación, despacho iniciado, listas paginadas, permisos, retención ajena, ejecución parcial, respuesta perdida, identificación de acción y revisión con una pantalla antigua. Lint de los cambios sin errores y build completo correcto en la copia aislada. La suite final se ejecutó sin compilación simultánea, con cuatro procesos: una prueba existente de credenciales había excedido cinco segundos bajo carga y pasó sin modificar su límite. Reutiliza el esquema 310, sin migración nueva. No se retuvieron preparaciones reales como prueba. El crédito de tienda seguía en desarrollo en esta entrega.
+
+Retenciones publicadas: salud `ok`, Supabase y WhatsApp `ok`, revisión `288ae920831ac4e736109b71dc7740e711e3fc10`, comprobada el 30 de septiembre a las 09:51 UTC.
+
+Sexta entrega B3, crédito de tienda:
+
+- Vista previa sobre el perfil actual del cliente, con cuenta, saldo, moneda, importe explícito y saldo estimado. No emite fondos. Exige los permisos reales de cuentas y transacciones de crédito, una moneda compatible y las nuevas cuentas de cliente de Shopify.
+- Confirmación por administrador con revisión del cliente, moneda, importe y disponibilidad del crédito en el checkout. Shopify no expone en esta consulta el interruptor del checkout: el administrador debe confirmar que su tienda admite ese medio. Emite crédito sin caducidad; no devuelve efectivo, cancela el pedido ni lo marca reembolsado.
+- Verifica antes de emitir que la cuenta y el saldo revisados siguen vigentes. Usa un solo intento y el bloqueo persistente del pedido. Comprueba después la transacción real, su propietario, importe, moneda y ausencia de caducidad; distingue el saldo después de esa transacción del saldo actual, que puede cambiar por otros movimientos.
+- Una respuesta perdida queda incierta y no se reemite automáticamente. La revisión muestra el saldo real y, cuando no hay referencia, los últimos veinte créditos. Un importe parecido no identifica la operación. La revisión humana registra el estado observado y libera el bloqueo sin presentar la operación original como completada.
+- Panel e historial en español e inglés, con confirmación y revisión específicas de crédito; las pantallas antiguas que muestran únicamente reembolsos no pueden confirmarlo. Conserva los módulos, campañas, plantillas y navegación actuales.
+
+Validación de crédito: **103 archivos y 852 pruebas correctas**, lint de los archivos modificados sin errores y build completo correcto en la copia aislada. Incluye contratos de importe, cuenta ajena, compatibilidad, permisos, cambios de saldo, recibos incorrectos, respuesta perdida y atribución de transacciones. Reutiliza el esquema 310; no requiere migración nueva. No se emitió crédito real como prueba.
+
+Permisos publicados y verificados en Shopify: versiones activas `riverz-reviewed-credit-0930`, pública `1149540302849` y legacy `1149541318657`. Se conservan la configuración vigente y la extensión de chat. Publicar permisos no modifica automáticamente los permisos de tokens instalados: el servidor comprueba lo realmente concedido.
+
+Las acciones contextuales manuales B3 están implementadas y validadas. El despliegue de crédito se comprueba después del push. Esta entrega no completa los bloques posteriores del plan ni incorpora estas acciones nuevas automáticamente a las herramientas del superasistente.

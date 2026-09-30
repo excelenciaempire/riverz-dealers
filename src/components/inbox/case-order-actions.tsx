@@ -11,19 +11,20 @@ import type { ReviewedOrderItem,OrderItemDisplay } from '@/lib/shopify/order-ite
 import { CaseOrderItemsForm } from './case-order-items-form'
 import type { ReplacementDraftState } from '@/lib/shopify/replacement-draft'
 import type { HoldPreparation } from '@/lib/shopify/fulfillment-hold'
+import type { StoreCreditReceipt,ObservedStoreCredit } from '@/lib/shopify/store-credit'
 
 interface State { orders: { id:string; shopify_order_id:string }[]; history:CaseOrderOperation[]; locks:{ order_id:string; status:string }[]; actors:Record<string,string | null>; can_execute:boolean }
 interface Review { source_id:string; action_type:CaseOrderOperation['action']['type'] | 'financial'; fingerprint:string; preview:CaseOrderOperation['preview'] }
 const PAYMENT:Record<string,string>={ paid:'financialPaid',pending:'financialPending',refunded:'financialRefunded',partially_refunded:'financialPartiallyRefunded',voided:'financialVoided',authorized:'financialAuthorized' }
 const SHIPMENT:Record<string,string>={ fulfilled:'fulfillmentFulfilled',partial:'fulfillmentPartial',restocked:'fulfillmentRestocked','':'fulfillmentUnfulfilled' }
-const ACTION_LABEL = { refund:'orderRefund',cancel:'orderCancel',address:'orderAddress',items:'orderItems',replacement:'orderReplacement',hold:'orderHold' }
+const ACTION_LABEL = { refund:'orderRefund',cancel:'orderCancel',address:'orderAddress',items:'orderItems',replacement:'orderReplacement',hold:'orderHold',credit:'orderCredit' }
 const ADDRESS_FIELDS = { address1:'orderAddress1',address2:'orderAddress2',city:'orderAddressCity',province:'orderAddressProvince',zip:'orderAddressZip' } as const
 const EMPTY_ADDRESS:OrderShippingAddress = { address1:'',address2:'',city:'',province:'',zip:'',countryCode:'' }
 export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversationId:string; shopifyOrderId:string }) {
   const t = useT(), fmt = useFormat(), csrf = useFetchWithCsrf(), { locale } = useLocale()
   const [open,setOpen] = useState(false), [state,setState] = useState<State | null>(null)
   const [error,setError] = useState<string | null>(null), [busy,setBusy] = useState(false)
-  const [action,setAction] = useState<'refund' | 'cancel' | 'address' | 'items' | 'replacement' | 'hold'>('refund'), [amount,setAmount] = useState(''), [reason,setReason] = useState('')
+  const [action,setAction] = useState<'refund' | 'cancel' | 'address' | 'items' | 'replacement' | 'hold' | 'credit'>('refund'), [amount,setAmount] = useState(''), [reason,setReason] = useState('')
   const [items,setItems] = useState<ReviewedOrderItem[] | null>(null)
   const [address,setAddress] = useState<OrderShippingAddress>(EMPTY_ADDRESS), [addressReady,setAddressReady] = useState(false)
   const [addressRevision,setAddressRevision] = useState(0)
@@ -67,7 +68,7 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
     setBusy(true); setError(null)
     try {
       const r = await csrf(endpoint,{ method:'POST',headers:{ 'Content-Type':'application/json' },body:JSON.stringify({ id:crypto.randomUUID(),order_id:local.id,
-        action:{ type:action,reason,...(action === 'refund' ? { amount:amount.trim() ? Number(amount) : null } : action === 'address' ? { address } : ['items','replacement'].includes(action) ? { items } : {}) } }) })
+        action:{ type:action,reason,...(action === 'credit' ? { amount:Number(amount) } : action === 'refund' ? { amount:amount.trim() ? Number(amount) : null } : action === 'address' ? { address } : ['items','replacement'].includes(action) ? { items } : {}) } }) })
       const data = await r.json()
       if (!r.ok) throw new Error(data.error ?? t('inbox.orderUnavailable'))
       setPreview(data.operation); setConfirmed(false)
@@ -154,6 +155,23 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
     </div>)}</div>
   }
   function holdPreview(op:CaseOrderOperation) { return op.preview.hold ? <div className="space-y-2">{preparations(op.preview.hold.preparations)}<p>{t('inbox.orderHoldExplanation')}</p></div> : null }
+  function creditPreview(op:CaseOrderOperation) {
+    const quote=op.preview.credit
+    return quote ? <div className="space-y-1"><p className="font-medium">{quote.customer_name}</p>
+      <p>{t('inbox.orderCreditAmount')}: {displayAmount(quote.amount,quote.currency)}</p><p>{t('inbox.orderCreditBalance')}: {displayAmount(quote.balance,quote.currency)}</p>
+      <p>{t('inbox.orderCreditEstimatedBalance')}: {displayAmount(quote.estimated_balance_after,quote.currency)}</p><p>{t('inbox.orderCreditExplanation')}</p></div> : null
+  }
+  function creditReceipt(value:StoreCreditReceipt) {
+    return <div className="space-y-1"><p>{t('inbox.orderCreditIssued')}: {displayAmount(value.amount,value.currency)}</p>
+      <p>{t('inbox.orderCreditBalanceAfter')}: {displayAmount(value.balance_after,value.currency)}</p><p>{fmt.dateTime(value.created_at)} · {value.id.split('/').pop()}</p>
+      {value.expires_at && <p>{t('inbox.orderCreditExpiry',{ date:fmt.dateTime(value.expires_at) })}</p>}</div>
+  }
+  function creditObserved(value:ObservedStoreCredit) {
+    return <div className="space-y-2"><p className="font-medium">{value.customer_name}</p><p>{t('inbox.orderCreditBalance')}: {displayAmount(value.balance,value.currency)}</p>
+      {value.receipt ? creditReceipt(value.receipt) : <><p>{t('inbox.orderCreditUnknownReceipt')}</p><details><summary className="cursor-pointer">{t('inbox.orderCreditRecent')}</summary>
+        <ul className="space-y-2">{value.recent_credits.map(item => <li key={item.id} className="rounded-md border p-2">{creditReceipt(item)}</li>)}</ul>
+        {value.more_credits && <p>{t('inbox.orderCreditMore')}</p>}</details></>}</div>
+  }
   return <details className="mt-2 border-t pt-2" onToggle={e => { setOpen(e.currentTarget.open); if (!e.currentTarget.open) setAddressReady(false) }}>
     <summary className="cursor-pointer text-xs font-medium">{t('inbox.orderActions')}</summary>
     {open && <div className="mt-2 space-y-2 text-xs">
@@ -164,12 +182,13 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
       {review && <div className="space-y-2 rounded-md border p-2">
         <p className="font-medium">{review.preview.order_name}</p>
         <p>{payment(review.preview.financial_status)} · {shipment(review.preview.fulfillment_status)}</p>
-        {review.preview.shipping_address ? <p>{t('inbox.orderAddressApplied')}: {addressText(review.preview.shipping_address)}</p> : !review.preview.item_current && !review.preview.draft_current && !review.preview.hold_current && <p>{t('inbox.orderAvailableBalance')}: {review.preview.amount === null ? t('inbox.orderNoRefund') : displayAmount(Number(review.preview.amount),review.preview.currency)}</p>}
+        {review.preview.shipping_address ? <p>{t('inbox.orderAddressApplied')}: {addressText(review.preview.shipping_address)}</p> : !review.preview.item_current && !review.preview.draft_current && !review.preview.hold_current && !review.preview.credit_current && <p>{t('inbox.orderAvailableBalance')}: {review.preview.amount === null ? t('inbox.orderNoRefund') : displayAmount(Number(review.preview.amount),review.preview.currency)}</p>}
         {review.preview.item_current && <>{itemList(review.preview.item_current.items)}<p>{displayAmount(Number(review.preview.item_current.total),review.preview.item_current.currency)}</p></>}
         {review.preview.draft_current && draftState(review.preview.draft_current)}
         {review.preview.hold_current && preparations(review.preview.hold_current)}
+        {review.preview.credit_current && creditObserved(review.preview.credit_current)}
         <label className="block">{t('inbox.orderReconcileReason')}<Input value={reviewReason} maxLength={300} onChange={e => setReviewReason(e.target.value)} className="mt-1 h-8 text-xs" /></label>
-        <label className="flex items-start gap-2"><input type="checkbox" checked={reviewConfirmed} onChange={e => setReviewConfirmed(e.target.checked)} /><span>{t(review.preview.hold_current ? 'inbox.orderHoldReconcileConfirm' : review.preview.draft_current ? 'inbox.orderDraftReconcileConfirm' : review.preview.item_current ? 'inbox.orderItemsReconcileConfirm' : review.preview.shipping_address ? 'inbox.orderAddressReconcileConfirm' : 'inbox.orderReconcileConfirm')}</span></label>
+        <label className="flex items-start gap-2"><input type="checkbox" checked={reviewConfirmed} onChange={e => setReviewConfirmed(e.target.checked)} /><span>{t(review.preview.credit_current ? 'inbox.orderCreditReconcileConfirm' : review.preview.hold_current ? 'inbox.orderHoldReconcileConfirm' : review.preview.draft_current ? 'inbox.orderDraftReconcileConfirm' : review.preview.item_current ? 'inbox.orderItemsReconcileConfirm' : review.preview.shipping_address ? 'inbox.orderAddressReconcileConfirm' : 'inbox.orderReconcileConfirm')}</span></label>
         <Button size="sm" disabled={busy || !reviewConfirmed || !reviewReason.trim()} onClick={() => void reconcile()}>{t('inbox.orderReconcileSave')}</Button>
       </div>}
       {state && state.orders.length === 0 && <p className="text-muted-foreground">{t('inbox.orderNotFound')}</p>}
@@ -180,8 +199,10 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
           <option value="items">{t('inbox.orderItems')}</option>
           <option value="replacement">{t('inbox.orderReplacement')}</option>
           <option value="hold">{t('inbox.orderHold')}</option>
+          <option value="credit">{t('inbox.orderCredit')}</option>
         </select></label>
         {action === 'refund' && <label className="block">{t('inbox.orderAmount')}<Input type="number" min="0" step="any" value={amount} onChange={e => setAmount(e.target.value)} placeholder={t('inbox.orderFullBalance')} className="mt-1 h-8 text-xs" /></label>}
+        {action === 'credit' && <label className="block">{t('inbox.orderCreditAmount')}<Input type="number" min="0" step="any" value={amount} onChange={e => setAmount(e.target.value)} className="mt-1 h-8 text-xs" /></label>}
         {action === 'address' && <fieldset className="space-y-2" disabled={!addressReady || busy}>
           {Object.entries(ADDRESS_FIELDS).map(([field,label]) => <label key={field} className="block">{t(`inbox.${label}`)}<Input value={address[field as keyof typeof ADDRESS_FIELDS]} maxLength={field === 'zip' ? 32 : 255} onChange={e => setAddress(previous => ({ ...previous,[field]:e.target.value }))} className="mt-1 h-8 text-xs" /></label>)}
           <label className="block">{t('inbox.orderAddressCountry')}<select className="mt-1 w-full rounded-md border bg-background p-2" value={address.countryCode} onChange={e => setAddress(previous => ({ ...previous,countryCode:e.target.value }))}>
@@ -191,18 +212,18 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
         {action === 'address' && !addressReady && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setAddressRevision(previous => previous+1)}>{t('inbox.actionRetry')}</Button>}
         {['items','replacement'].includes(action) && localOrderId && <CaseOrderItemsForm key={`${localOrderId}-${action}`} endpoint={`${endpoint}/${localOrderId}/items${action === 'replacement' ? '?mode=replacement' : ''}`} onChange={setItems} />}
         <label className="block">{t('inbox.orderReason')}<Input maxLength={300} value={reason} onChange={e => setReason(e.target.value)} className="mt-1 h-8 text-xs" /></label>
-        <Button size="sm" variant="outline" disabled={busy || state.locks.length > 0 || !reason.trim() || (action === 'refund' && !!amount.trim() && !(Number(amount)>0)) || (action === 'address' && (!addressReady || !address.address1.trim() || !address.city.trim() || !address.countryCode)) || (['items','replacement'].includes(action) && !items)} onClick={() => void prepare()}>{t('inbox.orderPreview')}</Button>
+        <Button size="sm" variant="outline" disabled={busy || state.locks.length > 0 || !reason.trim() || (action === 'credit' && (!amount.trim() || !(Number(amount)>0))) || (action === 'refund' && !!amount.trim() && !(Number(amount)>0)) || (action === 'address' && (!addressReady || !address.address1.trim() || !address.city.trim() || !address.countryCode)) || (['items','replacement'].includes(action) && !items)} onClick={() => void prepare()}>{t('inbox.orderPreview')}</Button>
       </>}
       {preview && <div className="space-y-2 rounded-md bg-muted/40 p-2">
         <p className="font-medium">{preview.preview.order_name} · {t(`inbox.${ACTION_LABEL[preview.action.type]}`)}</p>
         <p>{payment(preview.preview.financial_status)} · {shipment(preview.preview.fulfillment_status)}</p>
-        {preview.action.type === 'hold' ? holdPreview(preview) : preview.action.type === 'replacement' ? replacementPreview(preview) : preview.action.type === 'address' ? addressPreview(preview) : preview.action.type === 'items' ? itemPreview(preview) : <p>{money(preview)}</p>}<p className="break-words">{preview.action.reason}</p>
+        {preview.action.type === 'credit' ? creditPreview(preview) : preview.action.type === 'hold' ? holdPreview(preview) : preview.action.type === 'replacement' ? replacementPreview(preview) : preview.action.type === 'address' ? addressPreview(preview) : preview.action.type === 'items' ? itemPreview(preview) : <p>{money(preview)}</p>}<p className="break-words">{preview.action.reason}</p>
         <p className="text-muted-foreground">{t(`inbox.orderStatus.${preview.status}`)}</p>
         {typeof preview.result?.error === 'string' && <p role="alert">{t(`inbox.${preview.result.error}`)}</p>}
         {preview.status === 'preview' && <>
           <p className="text-muted-foreground">{t('inbox.orderPreviewExpires',{ date:fmt.dateTime(preview.expires_at) })}</p>
           {state?.can_execute ? <>
-            <label className="flex items-start gap-2"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} /><span>{t(preview.action.type === 'hold' ? 'inbox.orderHoldConfirm' : preview.action.type === 'replacement' ? 'inbox.orderDraftConfirm' : preview.action.type === 'items' ? 'inbox.orderItemsConfirm' : preview.action.type === 'address' ? 'inbox.orderAddressConfirm' : 'inbox.orderConfirm')}</span></label>
+            <label className="flex items-start gap-2"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} /><span>{t(preview.action.type === 'credit' ? 'inbox.orderCreditConfirm' : preview.action.type === 'hold' ? 'inbox.orderHoldConfirm' : preview.action.type === 'replacement' ? 'inbox.orderDraftConfirm' : preview.action.type === 'items' ? 'inbox.orderItemsConfirm' : preview.action.type === 'address' ? 'inbox.orderAddressConfirm' : 'inbox.orderConfirm')}</span></label>
             <Button size="sm" disabled={!confirmed || busy} onClick={() => void execute()}>{t('inbox.orderExecute')}</Button>
           </> : <p>{t('inbox.orderApprovalForbidden')}</p>}
         </>}
@@ -219,6 +240,8 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
           {op.action.type === 'replacement' && !!op.result?.draft && draftState(op.result!.draft as ReplacementDraftState)}
           {op.action.type === 'hold' && holdPreview(op)}
           {op.action.type === 'hold' && Array.isArray(op.result?.preparations) && preparations(op.result!.preparations as HoldPreparation[])}
+          {op.action.type === 'credit' && creditPreview(op)}
+          {op.action.type === 'credit' && !!op.result?.credit_receipt && creditReceipt(op.result!.credit_receipt as StoreCreditReceipt)}
           {op.status === 'completed' && shippingAddress(op.result?.shipping_after) && <p>{t('inbox.orderAddressApplied')}: {addressText(shippingAddress(op.result?.shipping_after))}</p>}
           <p>{t(`inbox.orderStatus.${op.status}`)}</p><p className="text-muted-foreground">{fmt.dateTime(op.created_at)}</p>
           {typeof op.result?.refunded_amount === 'string' && <p>{t('inbox.orderActualRefund')}: {displayAmount(Number(op.result.refunded_amount),typeof op.result.currency === 'string' ? op.result.currency : op.preview.currency)}</p>}

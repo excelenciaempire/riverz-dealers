@@ -54,4 +54,12 @@ describe('explicit human financial confirmation',() => {
     m.execute.mockResolvedValue({ status:'completed' })
     expect((await POST(request({ confirmed:true,action_type:'hold' }),route)).status).toBe(200)
   })
+  it('requires a credit-aware confirmation and never interprets an old refund confirmation as credit consent',async () => {
+    m.stored.mockResolvedValue({ data:{ action:{ type:'credit' } },error:null })
+    expect((await POST(request({ confirmed:true }),route)).status).toBe(409)
+    expect((await POST(request({ confirmed:true,action_type:'refund' }),route)).status).toBe(409)
+    expect(m.execute).not.toHaveBeenCalled()
+    m.execute.mockResolvedValue({ status:'completed' })
+    expect((await POST(request({ confirmed:true,action_type:'credit' }),route)).status).toBe(200)
+  })
 })

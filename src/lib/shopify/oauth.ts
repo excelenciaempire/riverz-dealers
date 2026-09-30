@@ -72,6 +72,9 @@ const PUBLIC_SCOPES = [
   'read_draft_orders',
   // Reviewed replacements calculate and create drafts; reading alone cannot enable that action.
   'write_draft_orders',
+  'read_store_credit_accounts',
+  'read_store_credit_account_transactions',
+  'write_store_credit_account_transactions',
 ];
 
 const LEGACY_ONLY_SCOPES = [

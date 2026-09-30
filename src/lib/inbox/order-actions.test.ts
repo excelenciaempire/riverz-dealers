@@ -1,7 +1,7 @@
 import { beforeEach,describe,it,expect,vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CaseOrderAction,CaseOrderOperation } from './order-action-contract'
-const m=vi.hoisted(() => ({ rest:vi.fn(),gql:vi.fn(),refund:vi.fn(),cancel:vi.fn(),mirror:vi.fn(),address:vi.fn(),validate:vi.fn(),items:vi.fn(),replacement:vi.fn(),draft:vi.fn(),hold:vi.fn(),observedHold:vi.fn() }))
+const m=vi.hoisted(() => ({ rest:vi.fn(),gql:vi.fn(),refund:vi.fn(),cancel:vi.fn(),mirror:vi.fn(),address:vi.fn(),validate:vi.fn(),items:vi.fn(),replacement:vi.fn(),draft:vi.fn(),hold:vi.fn(),observedHold:vi.fn(),credit:vi.fn(),observedCredit:vi.fn() }))
 vi.mock('@/lib/shopify/order-tags',() => ({ resolveShopifyAdmin:async () => ({ shopDomain:'test.myshopify.com',accessToken:'test',apiVersion:'2025-10' }) }))
 vi.mock('@/lib/shopify/admin-client',() => ({ ShopifyAdminClient:class { rest=m.rest; graphql=m.gql } }))
 vi.mock('@/lib/shopify/order-cancel',() => ({ refundOrder:m.refund,cancelOrder:m.cancel }))
@@ -10,6 +10,7 @@ vi.mock('@/lib/shopify/order-shipping-address',() => ({ updateOrderShippingAddre
 vi.mock('@/lib/shopify/reviewed-order-items',() => ({ commitReviewedOrderItems:m.items }))
 vi.mock('@/lib/shopify/replacement-draft',() => ({ createReplacementDraft:m.replacement,inspectReplacementDraft:m.draft }))
 vi.mock('@/lib/shopify/fulfillment-hold',() => ({ applyReviewedFulfillmentHold:m.hold,inspectFulfillmentHold:m.observedHold,FULFILLMENT_HOLD_SCOPES:['write_merchant_managed_fulfillment_orders','write_third_party_fulfillment_orders'] }))
+vi.mock('@/lib/shopify/store-credit',() => ({ issueReviewedStoreCredit:m.credit,inspectStoreCredit:m.observedCredit,STORE_CREDIT_SCOPES:['read_store_credit_accounts','read_store_credit_account_transactions','write_store_credit_account_transactions'] }))
 import { caseOrderSnapshot,executeCaseOrderAction,uncertainCaseOrderSnapshot } from './order-actions'
 const live={ id:100,name:'#100',updated_at:'2026-09-30',currency:'USD',financial_status:'paid',fulfillment_status:null,cancelled_at:null,total_price:'100.00',fulfillments:[],email:'customer@example.com' }
 const transactions=[{ id:1,kind:'sale',status:'success',amount:'100.00',gateway:'card' }]
@@ -30,11 +31,12 @@ function fixture(privateContext?:{ lock:{ source_id:string; source_kind:string; 
       then:(done:(value:unknown) => unknown) => Promise.resolve({ error:null }).then(done) }
     return q
   } } as unknown as SupabaseClient
-  const prepare=async (action:CaseOrderAction={ type:'refund',amount:25,reason:'Damage' },quote?:CaseOrderOperation['preview']['item_change'],replacement?:CaseOrderOperation['preview']['replacement'],hold?:CaseOrderOperation['preview']['hold']) => {
+  const prepare=async (action:CaseOrderAction={ type:'refund',amount:25,reason:'Damage' },quote?:CaseOrderOperation['preview']['item_change'],replacement?:CaseOrderOperation['preview']['replacement'],hold?:CaseOrderOperation['preview']['hold'],credit?:CaseOrderOperation['preview']['credit']) => {
     const snapshot=await caseOrderSnapshot(db,'ws','contact','local',action)
     if (quote) snapshot.preview.item_change=quote
     if (replacement) snapshot.preview.replacement=replacement
     if (hold) snapshot.preview.hold=hold
+    if (credit) snapshot.preview.credit=credit
     operation={ id:'op',order_id:'local',requested_by:'agent',approved_by:'admin',action,preview:snapshot.preview,fingerprint:snapshot.fingerprint,
       status:'preview',expires_at:'2026-10-01',created_at:'2026-09-30',approved_at:null,result:null }
   }
@@ -48,6 +50,52 @@ beforeEach(() => {
   m.items.mockReset()
   m.replacement.mockReset(); m.draft.mockReset()
   m.hold.mockReset(); m.observedHold.mockReset()
+  m.credit.mockReset(); m.observedCredit.mockReset()
+})
+
+describe('reviewed credit execution',() => {
+  const action:CaseOrderAction={ type:'credit',amount:5.25,reason:'Goodwill' }
+  const state={ customer_id:'gid://shopify/Customer/22',customer_name:'Ana',account_id:'gid://shopify/StoreCreditAccount/33',balance:'10.00',currency:'USD',accounts_version:'NEW_CUSTOMER_ACCOUNTS' }
+  const quote={ ...state,fingerprint:'d'.repeat(64),amount:'5.25',estimated_balance_after:'15.25' }
+  const receipt={ id:'gid://shopify/StoreCreditAccountCreditTransaction/44',customer_id:state.customer_id,account_id:state.account_id,amount:'5.25',currency:'USD',balance_after:'15.25',current_balance:'15.25',created_at:'2026-09-30T10:00:00Z',expires_at:null }
+  function enable() {
+    m.gql.mockResolvedValue({ currentAppInstallation:{ accessScopes:['read_store_credit_accounts','read_store_credit_account_transactions','write_store_credit_account_transactions'].map(handle => ({ handle })) } })
+    m.rest.mockResolvedValue({ order:{ ...live,fulfillment_status:'fulfilled',customer:{ id:22,email:'customer@example.com' } } })
+  }
+  it('requires all credit scopes and a verified current customer, without using an old order email',async () => {
+    const f=fixture()
+    m.rest.mockResolvedValue({ order:{ ...live,customer:{ id:22,email:'customer@example.com' } } })
+    await expect(caseOrderSnapshot(f.db,'ws','contact','local',action)).rejects.toThrow('orderCreditScopeMissing')
+    enable(); expect((await caseOrderSnapshot(f.db,'ws','contact','local',action)).preview.amount).toBeNull()
+    m.rest.mockResolvedValue({ order:{ ...live,customer:{ id:22,email:'foreign@example.com' } } })
+    await expect(caseOrderSnapshot(f.db,'ws','contact','local',action)).rejects.toThrow('orderIdentityUnknown')
+    expect(m.credit).not.toHaveBeenCalled()
+  })
+  it('issues once with the immutable amount and receipt, without refunding or changing the payment mirror',async () => {
+    enable(); const f=fixture(); await f.prepare(action,undefined,undefined,undefined,quote)
+    m.credit.mockResolvedValue({ ok:true,receipt })
+    expect(await f.run()).toMatchObject({ status:'completed',result:{ credit_transaction_id:receipt.id,credit_receipt:receipt } })
+    await f.run(); expect(m.credit).toHaveBeenCalledTimes(1)
+    expect(m.credit).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({ customer:{ id:22,email:'customer@example.com' } }),5.25,quote)
+    expect(m.refund).not.toHaveBeenCalled(); expect(m.cancel).not.toHaveBeenCalled(); expect(m.mirror).not.toHaveBeenCalled()
+  })
+  it('keeps lost issuance uncertain and reconciles actual credit history without repeating issuance',async () => {
+    enable(); const f=fixture(); await f.prepare(action,undefined,undefined,undefined,quote)
+    m.credit.mockResolvedValue({ ok:false,uncertain:true,error:'orderResultUnverified',transactionId:receipt.id })
+    expect(await f.run()).toMatchObject({ status:'uncertain',result:{ credit_transaction_id:receipt.id } }); await f.run()
+    expect(m.credit).toHaveBeenCalledTimes(1)
+    const review=fixture({ lock:{ source_id:'op',source_kind:'inbox',status:'uncertain' },action,result:{ credit_transaction_id:receipt.id } })
+    const observed={ ...state,receipt,recent_credits:[],more_credits:false }
+    m.observedCredit.mockResolvedValue(observed)
+    const first=await uncertainCaseOrderSnapshot(review.db,'ws','contact','local')
+    expect(first).toMatchObject({ action_type:'credit',snapshot:{ preview:{ credit_current:observed } } }); expect(first.snapshot.preview.shipping_address).toBeUndefined()
+    expect(m.observedCredit).toHaveBeenCalledWith(expect.anything(),expect.anything(),receipt.id)
+    m.observedCredit.mockResolvedValue({ ...observed,balance:'20.00' })
+    expect((await uncertainCaseOrderSnapshot(review.db,'ws','contact','local')).snapshot.fingerprint).not.toBe(first.snapshot.fingerprint)
+    m.observedCredit.mockResolvedValue(null)
+    await expect(uncertainCaseOrderSnapshot(review.db,'ws','contact','local')).rejects.toThrow('orderCreditReviewRequired')
+    expect(review.rpc).not.toHaveBeenCalled()
+  })
 })
 
 describe('reviewed hold execution',() => {

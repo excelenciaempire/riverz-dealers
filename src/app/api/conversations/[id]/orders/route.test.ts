@@ -1,11 +1,12 @@
 import { beforeEach,describe,expect,it,vi } from 'vitest'
-const m=vi.hoisted(() => ({ context:vi.fn(),snapshot:vi.fn(),prepare:vi.fn(),replacement:vi.fn(),hold:vi.fn(),prior:vi.fn(),rpc:vi.fn() }))
+const m=vi.hoisted(() => ({ context:vi.fn(),snapshot:vi.fn(),prepare:vi.fn(),replacement:vi.fn(),hold:vi.fn(),credit:vi.fn(),prior:vi.fn(),rpc:vi.fn() }))
 vi.mock('@/lib/inbox/server-context',() => ({ inboxConversation:m.context }))
 vi.mock('@/lib/csrf',() => ({ csrfGuard:async () => null }))
 vi.mock('@/lib/inbox/order-actions',() => ({ caseOrderSnapshot:m.snapshot,CaseOrderError:class extends Error {} }))
 vi.mock('@/lib/shopify/reviewed-order-items',() => ({ prepareReviewedOrderItems:m.prepare }))
 vi.mock('@/lib/shopify/replacement-draft',() => ({ prepareReplacementDraft:m.replacement }))
 vi.mock('@/lib/shopify/fulfillment-hold',() => ({ prepareFulfillmentHold:m.hold }))
+vi.mock('@/lib/shopify/store-credit',() => ({ prepareStoreCredit:m.credit }))
 import { POST } from './route'
 const input={ id:'11111111-1111-4111-8111-111111111111',order_id:'22222222-2222-4222-8222-222222222222',action:{ type:'items',reason:'Size change',items:[{ variantId:'222',quantity:2,free:false }] } }
 const route={ params:Promise.resolve({ id:'conversation' }) }
@@ -20,6 +21,7 @@ beforeEach(() => {
   m.prepare.mockReset().mockResolvedValue({ ok:true,quote })
   m.replacement.mockReset().mockResolvedValue({ ok:true,quote:{ total:'44.00',currency:'USD' } })
   m.hold.mockReset().mockResolvedValue({ ok:true,quote:{ fingerprint:'hold',preparations:[] } })
+  m.credit.mockReset().mockResolvedValue({ ok:true,quote:{ fingerprint:'credit',amount:'5.25',currency:'USD' } })
 })
 describe('persistent reviewed item previews',() => {
   it('checks subscription permission before any staged Shopify mutation',async () => {
@@ -68,5 +70,11 @@ describe('persistent reviewed item previews',() => {
     expect(await r.json()).toMatchObject({ can_execute:false,operation:{ preview:{ hold:{ fingerprint:'hold' } } } })
     expect(m.hold).toHaveBeenCalledWith(expect.anything(),'100')
     expect(m.prepare).not.toHaveBeenCalled(); expect(m.replacement).not.toHaveBeenCalled()
+  })
+  it('stores a credit review without issuing funds or preparing any other Shopify mutation',async () => {
+    const r=await post({ ...input,action:{ type:'credit',amount:5.25,reason:'Goodwill' } })
+    expect(await r.json()).toMatchObject({ can_execute:false,operation:{ preview:{ credit:{ amount:'5.25',currency:'USD' } } } })
+    expect(m.credit).toHaveBeenCalledWith(expect.anything(),undefined,5.25)
+    expect(m.prepare).not.toHaveBeenCalled(); expect(m.replacement).not.toHaveBeenCalled(); expect(m.hold).not.toHaveBeenCalled()
   })
 })

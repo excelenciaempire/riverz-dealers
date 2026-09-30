@@ -28,11 +28,11 @@ export async function POST(request:Request,route:Context) {
   const body = await request.json().catch(() => null)
   if (!body || body.confirmed !== true || !UUID.test(body.source_id ?? '') || typeof body.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(body.fingerprint) ||
     typeof body.reason !== 'string' || !body.reason.trim() || body.reason.length>300 || Object.keys(body).some(k => !['source_id','fingerprint','confirmed','reason','action_type'].includes(k)) ||
-    body.action_type!==undefined && !['financial','refund','cancel','address','items','replacement','hold'].includes(body.action_type)) return NextResponse.json({ error:ctx.t('teamInvalid') },{ status:400 })
+    body.action_type!==undefined && !['financial','refund','cancel','address','items','replacement','hold','credit'].includes(body.action_type)) return NextResponse.json({ error:ctx.t('teamInvalid') },{ status:400 })
   try {
     const { source_id,action_type,snapshot } = await uncertainCaseOrderSnapshot(ctx.db,ctx.workspaceId,ctx.conversation.contact_id,ctx.orderId)
     if (source_id !== body.source_id || snapshot.fingerprint !== body.fingerprint) throw new CaseOrderError('orderChanged')
-    if (body.action_type!==undefined && body.action_type!==action_type || ['address','items','replacement','hold'].includes(action_type) && body.action_type!==action_type) throw new CaseOrderError('orderConflict')
+    if (body.action_type!==undefined && body.action_type!==action_type || ['address','items','replacement','hold','credit'].includes(action_type) && body.action_type!==action_type) throw new CaseOrderError('orderConflict')
     const saved = await ctx.db.rpc('review_order_execution',{ p_workspace_id:ctx.workspaceId,p_conversation_id:ctx.conversation.id,p_order_id:ctx.orderId,
       p_actor_id:ctx.userId,p_source_id:body.source_id,p_reason:body.reason.trim(),p_snapshot:{ ...snapshot.preview,action_type,fingerprint:snapshot.fingerprint } })
     if (saved.error) throw new CaseOrderError('orderConflict')

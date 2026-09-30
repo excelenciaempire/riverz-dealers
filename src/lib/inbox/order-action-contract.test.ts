@@ -43,4 +43,10 @@ describe('bounded human order requests',() => {
     expect(caseOrderAction(action)).toEqual(action)
     for (const extra of [{ ids:['gid://shopify/FulfillmentOrder/999'] },{ release:true },{ notifyMerchant:true },{ amount:10 }]) expect(caseOrderAction({ ...action,...extra })).toBeNull()
   })
+  it('requires an explicit positive credit amount without customer, currency or expiry overrides',() => {
+    const action={ type:'credit',amount:5.25,reason:'Goodwill' }
+    expect(caseOrderAction(action)).toEqual(action)
+    for (const amount of [null,undefined,'5.25',0,-1,Infinity,0.0000001]) expect(caseOrderAction({ ...action,amount })).toBeNull()
+    for (const extra of [{ customerId:'foreign' },{ currency:'EUR' },{ expiresAt:'2026-10-01' }]) expect(caseOrderAction({ ...action,...extra })).toBeNull()
+  })
 })
