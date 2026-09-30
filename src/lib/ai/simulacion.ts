@@ -1,5 +1,6 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-channel-policy';
+import { revitalyTransferReply } from './revitaly-transfer';
 import {emailDispositionForPolicy,emailRedirectText,isEmailChannel,loadEmailPolicy} from './email-policy';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from '@/lib/ai/esfuerzo';
 import { untrustedContext } from '@/lib/ai/input-security';
@@ -123,6 +124,17 @@ export async function simularRespuesta(
     const redirect=emailRedirectText(policy,a.language);
     if(redirect)return {reply:redirect,chunks:[redirect],herramientas:[],usage:{input_tokens:0,output_tokens:0,iterations:0}};
   }
+  const reglasCrudas = await cargarReglas(admin, a.workspace_id, a.id);
+  const transferReply = !input.traspaso && input.superficie !== 'comentario' ? revitalyTransferReply({
+    workspaceId: a.workspace_id, agentId: a.id, channel: input.simulatedChannel,
+    language: a.language, inbound: input.message, rules: reglasCrudas,
+  }) : null;
+  if (transferReply) {
+    const reply = ensureRevitalyIntroduction({ workspaceId: a.workspace_id, channel: input.simulatedChannel,
+      language: a.language, text: transferReply, hasPriorReply: input.historial.some(m => m.role === 'assistant') });
+    return { reply, chunks: splitReplyForMode(reply, a.response_mode),
+      herramientas: [], usage: { input_tokens: 0, output_tokens: 0, iterations: 0 } };
+  }
   const resolvedKey = await resolveAnthropicKey(admin, {
     workspaceId: a.workspace_id,
     agentKeyEncrypted: a.api_key_encrypted,
@@ -148,12 +160,11 @@ export async function simularRespuesta(
   if (asksForCurrentOffer(input.message) && productMatch) {
     priceVerified = (await refreshLivePricing(admin, productMatch.product_id)).ok;
   }
-  const [products, businessCurrency, permitidos, reglasCrudas, topeDescuento, perfilOperativo] =
+  const [products, businessCurrency, permitidos, topeDescuento, perfilOperativo] =
     await Promise.all([
       loadProductCatalog(admin, a, a.workspace_id, productMatch),
       resolveWorkspaceCurrency(admin, a.workspace_id),
       productosPermitidos(admin, a, a.workspace_id),
-      cargarReglas(admin, a.workspace_id, a.id),
       topeDeDescuento(admin, a.workspace_id).catch(() => 0),
       cargarPerfilOperativo(admin, a.workspace_id),
     ]);

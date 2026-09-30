@@ -2,6 +2,7 @@ import { replyWasSuperseded } from './reply-freshness';
 import { inboxCaseIsSpam } from '@/lib/inbox/disposition-server';
 import { emailDispositionForPolicy, emailRedirectText, isEmailChannel, loadEmailPolicy } from './email-policy';
 import { revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-channel-policy';
+import { revitalyTransferReply } from './revitaly-transfer';
 import type { OtherStoreContext } from '@/lib/ai/tools';
 import { UNTRUSTED_CONTENT_POLICY, untrustedContext } from './input-security';
 import { captureCustomerOrder, orderScreenshotMessageId, type OrderScreenshot } from './order-screenshot';
@@ -3393,6 +3394,20 @@ async function generateReply(
     ? emailRedirectText(await loadEmailPolicy(db, agent.workspace_id), agent.language) : null;
   // The normal runner still applies billing, opt-out, freshness and approval gates.
   if (redirect) return { text: redirect, promptTokens: 0, completionTokens: 0, herramientas: [] };
+  const reglasCrudas = await cargarReglas(db, agent.workspace_id, agent.id);
+  const transferReply = !origen.traspaso ? revitalyTransferReply({
+    workspaceId: agent.workspace_id, agentId: agent.id, channel: origen.channel,
+    language: agent.language, inbound: origen.inboundText, rules: reglasCrudas,
+  }) : null;
+  if (transferReply) {
+    observeContext(agent.id, reglasCrudas, origen.inboundId ? [{ kind: 'message', id: origen.inboundId }] : []);
+    return {
+      text: ensureRevitalyIntroduction({ workspaceId: agent.workspace_id, channel: origen.channel,
+        language: agent.language, text: transferReply,
+        hasPriorReply: Boolean(context.rollingSummary) || context.messages.some(m => m.role === 'assistant') }),
+      promptTokens: 0, completionTokens: 0, herramientas: [],
+    };
+  }
   if (agent.provider !== 'anthropic') {
     throw new Error(`Provider ${agent.provider} not implemented`);
   }
@@ -3416,7 +3431,6 @@ async function generateReply(
     detalle: {para:'respuesta',conversacion:origen.conversationId,canal:origen.channel,agente:agent.id},
   });
   const igContext = await contextoDelTurno(db, agent, contact, primaryContact, origen);
-  const reglasCrudas = await cargarReglas(db, agent.workspace_id, agent.id);
   const reglas = reglasATexto(reglasCrudas);
   const perfilOperativo = await cargarPerfilOperativo(db, agent.workspace_id);
   // De vos o de tú, según de dónde sea el CLIENTE. Sirve en todos los canales:
