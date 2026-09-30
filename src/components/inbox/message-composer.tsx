@@ -30,6 +30,7 @@ import { VoiceNoteComposer } from '@/components/voice/voice-note-editor';
 import { supportsVoiceNotes } from '@/lib/voice-notes/channels';
 
 import { AttachmentPreview } from './attachment-preview';
+import { OutgoingTranslation } from './conversation-understanding';
 import { MAX_ATTACHMENTS, selectAttachments, sendAttachmentQueue } from './attachment-queue';
 
 /** Alto maximo del compositor: 4 lineas. Mas alla de eso desplaza. */
@@ -779,6 +780,7 @@ export function MessageComposer({
         </div>
       )}
 
+      <OutgoingTranslation key={conversationId} conversationId={conversationId} draft={text} onApply={setText} disabled={sessionExpired || sending || improving || drafting} />
       <div className="relative flex items-end gap-2">
         {supportsVoiceNotes(channel) && <VoiceNoteComposer key={conversationId} channel={channel} conversationId={conversationId} disabled={sessionExpired || sending} />}
         {canAttachMedia && (

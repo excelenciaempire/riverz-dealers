@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { cn } from "@/lib/utils";
+import { MessageUnderstanding } from './conversation-understanding';
 import type { Message, MessageReaction, MessageAttachment } from "@/types";
 import {
   Clock,
@@ -1305,6 +1306,7 @@ export function MessageBubble({
               </p>
             )}
             <MessageContent message={message} contactName={contactName} contactPhone={contactPhone} />
+            <MessageUnderstanding key={message.id} message={message} />
           </>
         )}
         <div

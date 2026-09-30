@@ -490,6 +490,7 @@ export interface MessageAttachment {
   mime_type?: string;
   name?: string;
   size?: number;
+  evidence?: { version:1; kind:'audio' | 'image'; text:string };
 }
 
 export interface Message {

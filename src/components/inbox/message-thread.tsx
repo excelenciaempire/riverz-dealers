@@ -46,6 +46,7 @@ import type { OpinionIa } from "./opinion-ia";
 import { MessageActions } from "./message-actions";
 import { MessageComposer } from "./message-composer";
 import { ConversationCollaboration } from './conversation-collaboration';
+import { ConversationUnderstanding } from './conversation-understanding';
 import { checkReplyCollision } from '@/lib/inbox/collision';
 import { PendingReplyCard } from "./pending-reply-card";
 import { VoiceCallCard } from "./voice-call-view";
@@ -2019,6 +2020,7 @@ export function MessageThread({
       {/* Voice conversations are a call log: show the call card + transcript,
           no composer (you can't type a reply to a phone call). */}
       <ConversationCollaboration key={conversation.id} conversationId={conversation.id} composing={composing} />
+      <ConversationUnderstanding key={`understanding-${conversation.id}`} conversationId={conversation.id} />
       {conversation.channel === "voice" ? (
         <VoiceCallCard conversationId={conversation.id} />
       ) : mlThreadKind(conversation.channel, conversation.thread_external_id) ===
