@@ -163,7 +163,7 @@ class PDF:
 p = PDF()
 
 # 1. Cumulative recorded responses, genuine intervention and published fixes.
-p.header('Resultados', 'Revitaly. Atención y mejoras.', 'Lo respondido por IA y cuándo se necesitó al equipo.')
+p.header('Resultados', 'Revitaly. Atención y mejoras.', '')
 for x, value, label, detail in [
     (42, str(answered), 'Conversaciones\nrespondidas', f'{len(private)} respuestas de IA'),
     (216, str(len(public)), 'Respuestas a\ncomentarios', f'En {public_threads} conversaciones'),
@@ -174,21 +174,21 @@ for x, value, label, detail in [
     end = p.wrap(x+16, 255, label, 131, size=12.5, leading=17, font='Semi')
     assert end <= 289
     p.text(x+16, 298, detail, size=12.5, width=131)
-p.text(42, 345, 'Respuestas registradas al 30 de septiembre, 12:04 de Argentina.', size=12.5)
-end = p.wrap(42, 378, 'Se revisaron 2.098 conversaciones: 559 eran consultas de clientes. En 135, la intervención del equipo estaba justificada: 24,2% de las consultas y 6,4% de toda la bandeja.')
+p.text(42, 345, 'Corte: 30 de septiembre, 12:04 de Argentina.', size=12.5)
+end = p.wrap(42, 378, '2.098 conversaciones revisadas. El porcentaje considera solo consultas de clientes.')
 assert end-18+4 < 457
 p.text(42, 466, 'Tres mejoras ya publicadas', 'Serif', 27)
 p.simple(486, 'Transferencias',
-         'Envía titular, CVU y alias configurados cuando se los piden, sin exigir primero elegir un pack o dar la dirección.', 87)
+         'Envía titular, CVU y alias sin exigir pack ni dirección.', 87)
 p.simple(582, 'Consultas por correo',
-         'Reconoce la consulta en el asunto, incluso si el cuerpo del correo está vacío o contiene solo una firma.', 87)
+         'Responde preguntas del asunto aunque el correo no tenga texto.', 87)
 p.simple(678, 'Capturas de pantalla',
-         'Distingue lo que pide el cliente de los botones de una captura y evita escalar por un reembolso que nadie solicitó.', 87)
-p.text(42, 787, 'Publicado y validado: 76 pruebas y comprobación en producción.', size=12.5)
+         'Un botón de reembolso en una captura no provoca un escalamiento.', 87)
+p.text(42, 787, 'Validado en producción.', size=12.5)
 p.end()
 
 # 2. The complete escalation analysis, grouped instead of listing customers.
-p.header('Escalamientos reales', 'Por qué se necesita al equipo.', '135 hilos históricos, agrupados por su motivo principal.')
+p.header('Escalamientos reales', 'Por qué se escala a humano', '135 casos históricos, por motivo principal.')
 for i, (category, title, count, why) in enumerate(REASONS):
     y = 182+i*70
     p.box(42, y, 511, 63, CARD, 11)
@@ -196,28 +196,28 @@ for i, (category, title, count, why) in enumerate(REASONS):
     p.text(520, y+24, str(count), 'Serif', 25)
     end = p.wrap(60, y+47, why, 475)
     assert end-18+4 <= y+63-8, (title, end, y+63)
-p.wrap(42, 764, 'Los 135 hilos no son pendientes actuales: incluyen casos resueltos y reclamos repetidos en distintos canales.', size=12.5)
+p.wrap(42, 764, 'Histórico, no pendientes actuales. Puede incluir reclamos repetidos entre canales.', size=12.5)
 p.end()
 
 # 3. Six concrete customer-facing capabilities, covering all eight reasons.
-p.header('Plan propuesto', 'Que la IA también resuelva.', 'Acciones que proponemos habilitar con las reglas del comercio.')
+p.header('Plan propuesto', 'Plan de acción', 'Acciones a habilitar según las reglas del comercio.')
 plan = [
     ('Editar direcciones de pedidos',
-     'En Shopify, cambiar calle, número, piso o código postal antes del despacho, tras confirmar los datos con el cliente. Si ya salió, pedir el cambio al transportista.'),
-    ('Seguir entregas y anticipar demoras',
-     'Consultar Andreani, explicar dónde está el pedido y avisar si se retrasa. Ante una entrega disputada, reunir los datos y pedir revisión. Así el cliente no tiene que insistir para recibir novedades.'),
+     'En Shopify, cambiar calle, número, piso o código postal tras confirmar los datos con el cliente. Una vez despachado, no se modifica la dirección.'),
+    ('Seguimiento y avisos de demora',
+     'Consultar Andreani, avisar demoras y explicar dónde está el pedido. Si la entrega se disputa, reunir los datos y escalar.'),
     ('Resolver faltantes y daños',
-     'Pedir fotos y comprobar lo comprado. Con reglas de reposición acordadas, crear el pedido de reemplazo y enviar su seguimiento; pasar solo las excepciones al equipo.'),
+     'Verificar fotos y pedido. Si la política de reposición lo permite, crear el pedido de reemplazo y enviar su seguimiento.'),
     ('Confirmar pagos y enviar facturas',
-     'Conectar banco o billetera para comprobar el ingreso y compararlo con el pedido. Obtener o emitir la factura en el sistema del comercio y enviarla al cliente.'),
+     'Conectar banco o billetera para verificar el pago y asociarlo al pedido. Conectar el sistema de facturación para emitir o reenviar la factura.'),
     ('Cancelar pedidos y devolver dinero',
-     'Conectar la tienda con el medio de pago para cancelar pedidos o devolver dinero cuando las condiciones del comercio lo permitan. Las excepciones necesitan aprobación.'),
+     'Conectar la tienda y el medio de pago. Cancelar o reembolsar según las condiciones del comercio; pedir aprobación para excepciones.'),
     ('Responder más y escalar mejor',
-     'Usar precios, stock, promociones y guías actualizados. Recibir correo, pedido y fotos antes de pausar. Entregar un resumen al equipo para excepciones comerciales o reclamos legales.'),
+     'Usar precios, stock, promociones y guías actualizados. Recibir los datos solicitados antes de pausar. Enviar al equipo un resumen de excepciones o reclamos legales.'),
 ]
 for i, (title, body) in enumerate(plan):
     p.proposal(184+i*98, i+1, title, body)
-p.text(42, 786, 'Activar por etapas y probar cada acción con casos reales del cliente.', size=12.5)
+p.text(42, 786, 'Probar cada acción con casos reales antes de activarla.', size=12.5)
 p.end()
 p.c.save()
 
@@ -226,7 +226,9 @@ doc = pymupdf.open(OUT)
 assert len(doc) == p.page == 3
 assert len(doc.get_toc()) == 3
 text = '\n'.join(page.get_text() for page in doc)
-assert all(token in text for token in ['186', '27', '838 respuestas de IA', '24,2%', '6,4%', '135 hilos', '76 pruebas', 'Editar direcciones', 'crear el pedido de reemplazo'])
+normalized_text = re.sub(r'\s+', ' ', text)
+assert all(token in normalized_text for token in ['186', '27', '838 respuestas de IA', '24,2%', '135 casos', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'crear el pedido de reemplazo', 'Una vez despachado, no se modifica la dirección.'])
+assert 'Por qué se necesita al equipo' not in text and 'pedir el cambio al transportista' not in text
 assert '66,2%' not in text and '21,1%' not in text
 assert round(human_rate, 1) == 24.2 and round(inbox_rate, 1) == 6.4
 assert not re.search(r'\b[0-9a-f]{8}-[0-9a-f]{4}-', text)
