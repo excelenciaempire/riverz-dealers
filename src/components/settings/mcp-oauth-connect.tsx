@@ -83,10 +83,12 @@ export function McpOauthConnect() {
         ? window.setInterval(() => void check(), 4000)
         : null;
     window.addEventListener('focus', check);
+    window.addEventListener('mcp-connections-changed', check);
     return () => {
       active = false;
       if (timer !== null) window.clearInterval(timer);
       window.removeEventListener('focus', check);
+      window.removeEventListener('mcp-connections-changed', check);
     };
   }, [selected, selectedConnected]);
 
@@ -183,6 +185,7 @@ export function McpOauthConnect() {
             ) : (
               <>
                 <ol className="text-muted-foreground list-decimal space-y-2 pl-5 text-sm">
+                  <li>{t('oauth.chatgptQuickOpen')}</li>
                   <li>{t('oauth.chatgptQuickAdd')}</li>
                   <li>{t('oauth.chatgptQuickAuthorize')}</li>
                 </ol>
@@ -256,7 +259,21 @@ export function McpCodingSetup() {
             key={id}
             className="border-border rounded-lg border p-3 text-sm"
           >
-            <summary className="cursor-pointer font-medium">{name}</summary>
+            <summary className="cursor-pointer font-medium">
+              <span className="inline-flex items-center gap-2 align-middle">
+                <Image
+                  src={
+                    id === 'claude' ? '/logos/claude.ico' : '/logos/codex.png'
+                  }
+                  alt=""
+                  width={20}
+                  height={20}
+                  unoptimized
+                  className="size-5 rounded-sm"
+                />
+                {name}
+              </span>
+            </summary>
             <div className="mt-3 space-y-3">
               {id === 'claude' && (
                 <p className="text-muted-foreground text-xs">

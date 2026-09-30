@@ -60,12 +60,12 @@ describe('MCP desktop handoff', () => {
     expect(url.hash).toBe('#settings/Connectors');
   });
 
-  it('opens the ChatGPT creation dialog with its supported hash parameter', () => {
+  it('keeps ChatGPT on the plugin page with the Add action available', () => {
     const url = new URL(CHATGPT_INSTALL_URL);
     expect(url.origin).toBe('https://chatgpt.com');
-    const [route, query] = url.hash.split('?');
-    expect(route).toBe('#settings/Connectors');
-    expect(new URLSearchParams(query).get('create-connector')).toBe('true');
+    expect(url.pathname).toBe('/plugins');
+    expect(url.hash).toBe('');
+    expect(url.searchParams.get('create-connector')).toBe('true');
   });
 
   it('prefills the actual Claude connector form without credentials', () => {

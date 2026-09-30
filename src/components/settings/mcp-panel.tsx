@@ -114,6 +114,7 @@ export function McpPanel() {
       );
       if (!res.ok) throw new Error('failed');
       toast.success(t('settings.mcpRevoked'));
+      window.dispatchEvent(new Event('mcp-connections-changed'));
       void load();
     } catch {
       toast.error(t('settings.mcpRevokeFailed'));

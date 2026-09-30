@@ -37,9 +37,13 @@ export const oauth: Namespace = {
     es: 'En el formulario que se abre, escribe Riverz como nombre y pega la dirección de abajo.',
     en: 'In the form that opens, enter Riverz as the name and paste the address below.',
   },
+  chatgptQuickOpen: {
+    es: 'Si no se abre el formulario, en ChatGPT pulsa Agregar → Crear MCP App.',
+    en: 'If the form does not open, in ChatGPT select Add → Create MCP App.',
+  },
   chatgptQuickAuthorize: {
-    es: 'Elige OAuth, pulsa Crear e inicia sesión en Riverz para autorizar el acceso.',
-    en: 'Choose OAuth, select Create and sign in to Riverz to authorize access.',
+    es: 'Deja OAuth seleccionado, confirma que quieres continuar y pulsa Crear. Autoriza tu cuenta de Riverz.',
+    en: 'Keep OAuth selected, confirm you want to continue and select Create. Authorize your Riverz account.',
   },
   connectionReturn: {
     es: 'Al terminar, vuelve aquí para comprobar la conexión.',
