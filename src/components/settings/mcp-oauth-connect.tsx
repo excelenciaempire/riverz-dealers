@@ -165,7 +165,7 @@ export function McpOauthConnect() {
             )}
           </div>
           {client?.command ? (
-            <ol className="list-decimal space-y-4 pl-5 text-sm">
+            <ol className="min-w-0 list-decimal space-y-4 pl-5 text-sm">
               <li>
                 <p>{t('oauth.runCommand')}</p>
                 <pre className="border-border bg-muted/40 mt-2 overflow-x-auto rounded-lg border p-3 text-xs leading-relaxed">
@@ -188,7 +188,7 @@ export function McpOauthConnect() {
               <li>{t('oauth.authorizeInBrowser')}</li>
             </ol>
           ) : (
-            <ol className="list-decimal space-y-4 pl-5 text-sm">
+            <ol className="min-w-0 list-decimal space-y-4 pl-5 text-sm">
               <li>
                 <p>{t('oauth.chatgptDeveloperMode')}</p>
                 <Button
