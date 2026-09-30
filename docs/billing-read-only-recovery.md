@@ -63,6 +63,8 @@ paid/void invoice history and debt amounts are preserved. Six-hour and one-hour
 reminders have a unique deadline key, so extending grace cancels old deadlines
 and permits reminders for the new deadline without reporting a payment.
 The new worker activates deadline uniqueness after the rolling deployment.
+Migration 316 preserves old deliveries in an archived schedule scope when grace
+changes, including extending a deadline and later restoring its previous value.
 
 The merchant editor in `/admin/negocio?tab=cuentas` keeps billing changes separate
 from grace changes. Stripe approves the agreement before local publication;

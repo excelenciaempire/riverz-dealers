@@ -11,12 +11,12 @@ beforeAll(async () => {
     CREATE TABLE wallet_accounts(workspace_id uuid PRIMARY KEY REFERENCES workspaces,saldo_centavos bigint DEFAULT 0,bloquear_sin_saldo boolean DEFAULT false,descubierto_centavos int DEFAULT 200,cobrar_a_costo boolean DEFAULT false,auto_recarga_centavos bigint,auto_umbral_centavos bigint,updated_at timestamptz DEFAULT now());
     CREATE TABLE wallet_movimientos(id uuid DEFAULT gen_random_uuid(),workspace_id uuid,tipo text,concepto text,centavos bigint,saldo_despues_centavos bigint,costo_centavos numeric,cantidad numeric,referencia_tipo text,referencia_id text,detalle jsonb,stripe_id text,creado_por uuid,creado_en timestamptz DEFAULT now());
     CREATE TABLE admin_audit_log(actor_id uuid,actor_email text NOT NULL,action text,target_type text,target_id text,meta jsonb);
-    CREATE TABLE workspace_billing_notices(id uuid DEFAULT gen_random_uuid(),workspace_id uuid,invoice_id text,phase text,channel text,recipient text,status text,UNIQUE(workspace_id,invoice_id,phase,channel,recipient));
+    CREATE TABLE workspace_billing_notices(id uuid DEFAULT gen_random_uuid(),workspace_id uuid,invoice_id text,phase text,channel text,recipient text,status text,lease_id uuid,lease_until timestamptz,UNIQUE(workspace_id,invoice_id,phase,channel,recipient));
     INSERT INTO billing_plans(id,activo,orden) VALUES('00000000-0000-4000-8000-000000000099',true,1);
     INSERT INTO workspaces(id) VALUES('${ws}');
     INSERT INTO workspace_subscriptions(workspace_id,estado) VALUES('${ws}','activa');
     INSERT INTO wallet_accounts(workspace_id,saldo_centavos) VALUES('${ws}',10000);`);
-  for (const file of ['253_wallet_provider_usage.sql','263_modelo_cobro_oficial.sql','274_billing_byok.sql','294_wallet_financial_costs.sql','305_subscription_payment_grace.sql','315_per_merchant_billing_policy.sql']) {
+  for (const file of ['253_wallet_provider_usage.sql','263_modelo_cobro_oficial.sql','274_billing_byok.sql','294_wallet_financial_costs.sql','305_subscription_payment_grace.sql','315_per_merchant_billing_policy.sql','316_billing_grace_notice_cycles.sql']) {
     try { await db.exec(readFileSync('supabase/migrations/'+file,'utf8')); }
     catch (e) { const err=e as Error & { position?: string; internalPosition?: string; internalQuery?: string }; throw new Error(file+': '+err.message+' at '+err.position+' '+err.internalPosition+' '+err.internalQuery); }
   }
@@ -71,6 +71,17 @@ describe('atomic merchant billing policies',()=>{
       values('${ws}','in_policy','reminder6','email','owner@example.com','deadline-72');`);
     await expect(db.exec(`insert into workspace_billing_notices(workspace_id,invoice_id,phase,channel,recipient,schedule_key)
       values('${ws}','in_policy','reminder6','email','owner@example.com','deadline-72')`)).rejects.toThrow('billing_notice_schedule_unique');
+  });
+  it('does not suppress a new pause notice when grace is extended and then restored',async()=>{
+    await invoice('in_cycles','open',49);
+    await db.exec(`insert into workspace_billing_notices(workspace_id,invoice_id,phase,channel,recipient,status,schedule_key)
+      values('${ws}','in_cycles','paused','email','owner@example.com','sent','original-deadline');`);
+    await db.query('select admin_set_billing_grace($1,72,$2,48,$3)',[ws,actor,'admin@example.com']);
+    expect(String(await value("select schedule_key from workspace_billing_notices where invoice_id='in_cycles'"))).toMatch(/^previous:/);
+    await db.query('select admin_set_billing_grace($1,48,$2,72,$3)',[ws,actor,'admin@example.com']);
+    await db.exec(`insert into workspace_billing_notices(workspace_id,invoice_id,phase,channel,recipient,status,schedule_key)
+      values('${ws}','in_cycles','paused','email','owner@example.com','pending','original-deadline');`);
+    expect(Number(await value("select count(*) from workspace_billing_notices where invoice_id='in_cycles'"))).toBe(2);
   });
   it('deducts available funds exactly once and writes the audit in the same transaction',async()=>{
     await db.exec(`update workspace_subscriptions set modelo_cobro='saldo' where workspace_id='${ws}'; update wallet_accounts set reservado_centavos=1000 where workspace_id='${ws}';`);
