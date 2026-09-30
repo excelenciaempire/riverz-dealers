@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { McpOauthConnect } from './mcp-oauth-connect';
 
 interface TokenRow {
   id: string;
@@ -155,6 +156,8 @@ export function McpPanel() {
       </CardHeader>
 
       <CardContent className="space-y-6">
+        <McpOauthConnect />
+
         {/* ── Paso 1 ─────────────────────────────────────────────── */}
         <Paso n={1} titulo={t('settings.mcpStep1')}>
           <div className="flex flex-wrap gap-2">

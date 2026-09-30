@@ -5,6 +5,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import Link from '@/components/i18n/locale-link';
 import { useT } from '@/hooks/use-locale';
 import { signupsOpen } from '@/lib/auth/signups';
+import { safeNextPath } from '@/lib/auth/redirect';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,7 +45,7 @@ export default function LoginPage() {
 
       // Hard navigation so the browser picks up the freshly set session
       // cookies and the dashboard hydrates with a logged-in user.
-      window.location.href = '/panel';
+      window.location.href = safeNextPath(new URLSearchParams(window.location.search).get('next'));
     } catch {
       setError(t('auth.loginConnectionError'));
     } finally {

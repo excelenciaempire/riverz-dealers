@@ -48,7 +48,7 @@ export async function GET() {
   try {
     const { data, error } = await supabaseAdmin()
       .from('mcp_tokens')
-      .select('id, name, prefix, scope, created_at, last_used_at')
+      .select('id, name, prefix, scope, created_at, last_used_at, origin, client_id, expires_at')
       .eq('workspace_id', ctx.workspaceId)
       .is('revoked_at', null)
       .order('created_at', { ascending: false })

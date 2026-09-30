@@ -21,3 +21,16 @@ export function safeRedirectTo(input: string | undefined): string | undefined {
     return undefined;
   }
 }
+
+/** Preserve OAuth parameters after password login; accept only local paths. */
+export function safeNextPath(input: string | null | undefined): string {
+  if (
+    !input ||
+    !input.startsWith('/') ||
+    input.startsWith('//') ||
+    /[\\\u0000-\u001f\u007f]/.test(input)
+  ) {
+    return '/panel';
+  }
+  return input;
+}
