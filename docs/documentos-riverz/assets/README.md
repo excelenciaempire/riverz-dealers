@@ -5,7 +5,7 @@ El Word original permanece intacto; el generador lee sus ejemplos y presenta la 
 en lenguaje para clientes. Las notas internas de grabación no se incluyen.
 Para actualizar solo la guía, usa `py -X utf8 scripts/build-riverz-visual-pdfs.py --guide-only`.
 La guía tiene 11 páginas y se organiza por capacidades. Incluye 22 automatizaciones,
-un mapa de 5 roles y 3 conversaciones completas, además de comentarios, campañas
+un mapa de 5 roles y 6 conversaciones breves en 3 páginas, además de campañas
 y llamadas. La primera conversación aparece en la página 7, después de explicar
 las automatizaciones. No se repiten las
 automatizaciones en listas de funciones de los agentes o escenarios resumidos.
@@ -26,9 +26,9 @@ notas editoriales y no se añaden al PDF para clientes.
 4. Recuperación: continúa con la compra que quedó pendiente.
 5. Pedidos y logística: pasa a lo que ocurre después de confirmar una compra.
 6. Postventa y retención: completa el recorrido con atención y nuevas compras.
-7. Conversación de venta: muestra cómo el asistente adapta la recomendación al cliente.
-8. Conversación de pago: muestra cómo atiende un obstáculo y entrega el comprobante a revisión.
-9. Conversación de postventa: muestra cómo reúne información y entrega un caso al equipo.
+7. Venta y recuperación: muestra una recomendación adaptada y cómo resuelve la duda que frenó un carrito.
+8. Pedidos y postventa: muestra el seguimiento de una orden y una solicitud de reemplazo entregada al equipo.
+9. Recompras y comentarios: muestra una reposición con cambio de cantidad y el paso de un comentario al privado.
 10. Canales y alcance: amplía los ejemplos a comentarios, campañas y llamadas.
 11. Personalización y control: cierra con cómo se adapta a la marca y qué decide el equipo.
 

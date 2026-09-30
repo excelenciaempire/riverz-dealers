@@ -445,38 +445,56 @@ GUIDE_ROLES = [
     ('General y supervisor', 'Dirige cada consulta y detecta cuándo necesita atención de tu equipo.', 'check'),
 ]
 
-GUIDE_DEEP_CASES = [
+GUIDE_CHAT_CASES = [
     ('Recomendación antes de comprar', 'instagram', [
-        ('client', 'Busco un regalo, pero no sé cuál elegir.'),
-        ('ai', 'Claro. ¿Para quién es y qué tipo de productos le gustan?'),
-        ('client', 'Para mi hermana. Le gustan las cremas, pero quiero algo sencillo.'),
-        ('ai', 'El set de cuidado diario puede encajar: trae una crema y un limpiador. También puedes elegir solo la crema.'),
-        ('client', 'Prefiero el set. ¿Tienen presentación para regalo?'),
-        ('ai', 'Sí, podemos añadir el empaque de regalo. Te comparto el enlace del set para que elijas esa opción.'),
+        ('client', 'Busco un regalo de cuidado facial.'),
+        ('ai', '¿Prefieres un producto o un set?'),
+        ('client', 'Un set sencillo, con empaque de regalo.'),
+        ('ai', 'El set diario incluye crema y limpiador. Puedes añadir el empaque de regalo al comprar.'),
     ]),
-    ('Pago rechazado', 'whatsapp', [
-        ('ai', 'Tu compra quedó pendiente. ¿Te puedo ayudar a terminarla?'),
-        ('client', 'La tarjeta no pasó. ¿Puedo hacer una transferencia?'),
-        ('ai', 'Sí, esa opción está disponible. Te comparto los datos de pago asociados a tu pedido.'),
-        ('client', 'Listo, ya transferí. Aquí está el comprobante.'),
-        ('ai', 'Gracias. Lo recibí y envié a revisión. Te avisaremos cuando el pago esté confirmado.'),
-        ('client', 'Perfecto, quedo pendiente.'),
+    ('Recuperación de un carrito', 'whatsapp', [
+        ('ai', 'Tu carrito sigue pendiente. ¿Te ayudo a terminar la compra?'),
+        ('client', 'No sé cuánto tarda el envío a Medellín.'),
+        ('ai', 'Tarda de 2 a 3 días hábiles. Te comparto tu carrito para que puedas retomarlo.'),
+        ('client', 'Gracias, con ese plazo sí me sirve.'),
+    ]),
+    ('Seguimiento de un pedido', 'whatsapp', [
+        ('client', '¿Dónde está mi pedido?'),
+        ('ai', '¿Me compartes el número de pedido?'),
+        ('client', 'Es el 1048.'),
+        ('ai', 'El pedido 1048 ya fue despachado. Tu guía es 785421; te comparto el seguimiento.'),
     ]),
     ('Producto dañado', 'gmail', [
-        ('client', 'Me llegó el pedido, pero uno de los productos está dañado.'),
+        ('client', 'La crema llegó con el envase roto. Quisiera un reemplazo.'),
         ('ai', 'Lamento que haya llegado así. ¿Me compartes el número de pedido y una foto del producto?'),
         ('client', 'Es el pedido 1048. Te adjunto la foto.'),
-        ('ai', 'Gracias. ¿El daño es solo en el empaque o también en el producto?'),
-        ('client', 'El envase está roto. Quisiera un reemplazo.'),
-        ('ai', 'Ya reuní los detalles y envié tu solicitud al equipo para revisar el reemplazo. No necesitas volver a explicar el caso.'),
+        ('ai', 'Gracias. Envié tu solicitud y la foto al equipo para revisar el reemplazo.'),
     ]),
+    ('Recompra y reposición', 'whatsapp', [
+        ('ai', '¿Tu crema está por acabarse? Puedo ayudarte a pedirla de nuevo.'),
+        ('client', 'Sí, pero esta vez quiero dos.'),
+        ('ai', 'Claro, te comparto la opción para llevar dos de la misma crema.'),
+        ('client', 'Perfecto, gracias.'),
+    ]),
+    ('De un comentario al mensaje privado', 'instagram', [
+        ('client', '¿Tienen el set de cuidado diario?'),
+        ('ai', '¡Hola! Sí, está disponible. Escríbenos por privado y te ayudamos.'),
+        ('client', 'Hola, vengo del comentario. ¿Hacen envíos a Cali?'),
+        ('ai', '¡Hola! Sí, enviamos a Cali. ¿Quieres el set para ti o para regalo?'),
+    ]),
+]
+
+GUIDE_CHAT_PAGES = [
+    ('Venta y recuperación', (0,1)),
+    ('Pedidos y postventa', (2,3)),
+    ('Recompras y comentarios', (4,5)),
 ]
 
 GUIDE_SECTIONS = [
     ('El equipo de asistentes', 'Asistentes', 2, '02'),
     ('22 automatizaciones', 'Automatizaciones', 3, '03-06'),
-    ('Una conversación de venta', 'Una conversación', 7, '07'),
-    ('Recuperación y postventa', 'Más conversaciones', 8, '08-09'),
+    ('Venta y recuperación: conversaciones', 'Conversaciones', 7, '07'),
+    ('Pedidos, postventa, recompras y comentarios', 'Más conversaciones', 8, '08-09'),
     ('Canales, campañas y llamadas', 'Canales y campañas', 10, '10'),
     ('Personalización y control', 'Tu marca y tu equipo', 11, '11'),
 ]
@@ -531,11 +549,11 @@ def guide():
         p.end()
 
     section(2)
-    client_conversation(p,0)
+    client_conversations(p,0)
 
     section(3)
-    client_conversation(p,1)
-    client_conversation(p,2)
+    client_conversations(p,1)
+    client_conversations(p,2)
 
     section(4)
     p.header('Canales y alcance','Chats, comentarios,\ncampañas y llamadas.')
@@ -544,14 +562,11 @@ def guide():
         ('Comentarios en redes','Precio, disponibilidad o envíos en Facebook, Instagram y TikTok. Los pedidos y datos personales se atienden por privado.','instagram'),
         ('Campañas a tu base de clientes','Novedades, promociones o reposición según el historial e interés. Si alguien responde, el asistente continúa la conversación.',None),
         ('Llamadas con un agente de voz','Conversaciones en lenguaje natural para confirmar pedidos, aclarar datos de entrega y hacer seguimiento.',None)]):
-        y=213+i*102;p.box(42,y,511,91)
+        y=213+i*130;p.box(42,y,511,117)
         if channel:p.icon(channel,59,y+19,22)
         else:p.pictogram('chat',58,y+17,28)
         p.text(99,y+29,title,'Serif',21,INK,width=434)
         p.wrap(99,y+53,body,434,size=11.3,leading=15,max_lines=3)
-    p.chat(42,633,511,[('client','¿Hacen envíos a Medellín?'),
-                      ('ai','¡Hola! Sí, enviamos a Medellín. Escríbenos por privado y te ayudamos con tu compra.')],
-           'Ejemplo: comentario en una publicación',channel='instagram',size=11)
     p.end()
 
     section(5)
@@ -577,12 +592,15 @@ def guide():
     p.wrap(42,751,'Las acciones disponibles se acuerdan según los canales y herramientas que use tu tienda.',511,size=11,leading=15,color=MUTED,max_lines=2)
     p.end();p.finish();return p.path
 
-def client_conversation(p,index):
-    title,channel,messages=GUIDE_DEEP_CASES[index]
-    p.header(f'Conversación {index+1} de 3',title+'.')
-    end=p.chat(42,218,511,messages,title='Ejemplo de conversación',channel=channel,size=13)
-    assert end<789,(title,end)
-    p.text(42,783,'Conversación ilustrativa; productos y pedidos son ejemplos ficticios.','Sans',10,MUTED)
+def client_conversations(p,index):
+    heading,case_indices=GUIDE_CHAT_PAGES[index]
+    p.header('Conversaciones',heading+'.')
+    y=178
+    for case_index in case_indices:
+        title,channel,messages=GUIDE_CHAT_CASES[case_index]
+        y=p.chat(42,y,511,messages,title=title,channel=channel,size=12)+24
+    assert y<772,(heading,y)
+    p.text(42,783,'Conversaciones ilustrativas; productos y pedidos son ejemplos ficticios.','Sans',10,MUTED)
     p.end()
 
 
@@ -603,8 +621,12 @@ def verify(path,expected):
         assert all(body in alltext.replace('\n',' ') for _,rows in GUIDE_AUTOMATIONS for _,body in rows)
         assert [[name for name,_ in rows] for _,rows in GUIDE_AUTOMATIONS] == [[name for name,_ in rows] for _,rows in automation_groups]
         assert len(GUIDE_ROLES)==5 and all(title in alltext for title,_,_ in GUIDE_ROLES)
-        assert len(GUIDE_DEEP_CASES)==3 and all(len(messages)>=6 for _,_,messages in GUIDE_DEEP_CASES)
-        assert all(body in alltext.replace('\n',' ') for _,_,messages in GUIDE_DEEP_CASES for _,body in messages)
+        assert len(GUIDE_CHAT_CASES)==6 and all(len(messages)==4 for _,_,messages in GUIDE_CHAT_CASES)
+        assert all(body in alltext.replace('\n',' ') for _,_,messages in GUIDE_CHAT_CASES for _,body in messages)
+        assert [case_index for _,indices in GUIDE_CHAT_PAGES for case_index in indices]==list(range(6))
+        for page_index,(_,indices) in enumerate(GUIDE_CHAT_PAGES,start=6):
+            assert all(GUIDE_CHAT_CASES[i][0] in d[page_index].get_text() for i in indices)
+            assert len([b for b in d[page_index].get_text('dict')['blocks'] if b['type']==1])==2
         assert len(alltext.split())<1500
         cover=d[0].get_text().replace('\n',' ').strip()
         assert cover == ('Automatizaciones y asistentes para tu ecommerce. '
@@ -613,7 +635,7 @@ def verify(path,expected):
         assert all(pg.get_text(clip=pymupdf.Rect(0,0,W,66)).strip()=='riverz' for pg in list(d)[1:])
         # Explain capabilities in purchase order before showing conversations.
         expected_titles=['Cada asistente',*[title for title,_ in GUIDE_AUTOMATIONS],
-                         *[title for title,_,_ in GUIDE_DEEP_CASES],
+                         *[title for title,_ in GUIDE_CHAT_PAGES],
                          'Chats, comentarios,','Tu marca define la atención.']
         assert len(expected_titles)==len(d)-1
         assert all(title in pg.get_text() for title,pg in zip(expected_titles,list(d)[1:]))
@@ -650,7 +672,7 @@ if __name__=='__main__':
     report={}
     if not args.guide_only:
         report['commercial']=verify(commercial(),10)
-    report.update({'guide':verify(guide(),11),'recipes':22,'full_scenarios':3,'agent_roles':5,
+    report.update({'guide':verify(guide(),11),'recipes':22,'chat_examples':6,'chat_pages':3,'agent_roles':5,
             'source_sha256':hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
             'audience':'Clientes de ecommerce; sin instrucciones internas ni notas de grabación.',
             'illustrations':['riverz-flota-original.png','riverz-control-humano.png']})
