@@ -5,6 +5,7 @@ import type { AutomationContext } from '@/lib/automations/engine'
 import { assertCronAuth } from '@/lib/auth/cron'
 import { withCronRun } from "@/lib/cron/heartbeat";
 import { serverError } from '@/lib/api/errors'
+import { drainAutomationEvents, enqueueScheduledAutomations } from '@/lib/automations/event-worker'
 
 /**
  * Drain due `automation_pending_executions` rows. Hit every minute by
@@ -26,6 +27,12 @@ async function cronHandler(request: Request) {
   }
 
   const admin = supabaseAdmin()
+  let events: { processed: number; failed: number }
+  let scheduled: number
+  try {
+    scheduled = await enqueueScheduledAutomations(admin)
+    events = await drainAutomationEvents(admin)
+  } catch (error) { return serverError(error) }
   const { data: due, error } = await admin
     .from('automation_pending_executions')
     .select('*, automations!inner(is_active,deleted_at)')
@@ -37,10 +44,9 @@ async function cronHandler(request: Request) {
     .limit(50)
 
   if (error) return serverError(error)
-  if (!due || due.length === 0) return NextResponse.json({ processed: 0 })
 
   let processed = 0
-  for (const row of due) {
+  for (const row of due ?? []) {
     const { data: claim } = await admin
       .from('automation_pending_executions')
       .update({ status: 'running' })
@@ -64,7 +70,7 @@ async function cronHandler(request: Request) {
     processed++
   }
 
-  return NextResponse.json({ processed })
+  return NextResponse.json({ processed, scheduled, events }, { status: events.failed ? 207 : 200 })
 }
 
 /** Registra la corrida en cron_runs con duración y resultado reales. */

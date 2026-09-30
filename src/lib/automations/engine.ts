@@ -73,6 +73,9 @@ import { prepareTrackingEvidence } from '@/lib/tracking/prepare-evidence'
 // ------------------------------------------------------------
 
 export interface AutomationContext {
+  /** Trusted ancestry from the event queue, separate from editable step vars. */
+  automation_chain?: string[]
+  event_id?: string
   /** Raw message text, for keyword_match + message_content conditions. */
   message_text?: string
   /** Conversation the event belongs to, if any. */
@@ -356,6 +359,8 @@ export async function runAutomationById(input: {
   automationId: string
   contactId: string
   context?: AutomationContext
+  workspaceId?: string
+  eventType?: AutomationTriggerType
 }): Promise<{ executed: boolean; reason?: string }> {
   try {
     const db = supabaseAdmin()
@@ -365,8 +370,18 @@ export async function runAutomationById(input: {
       .eq('id', input.automationId)
       .is('deleted_at', null)
       .maybeSingle()
-    if (error || !data) return { executed: false, reason: 'not_found' }
+    if (error) throw new Error(error.message)
+    if (!data) return { executed: false, reason: 'not_found' }
     const automation = data as Automation
+    if (input.workspaceId && input.workspaceId !== automation.workspace_id) return { executed: false, reason: 'workspace_mismatch' }
+    if (input.eventType && (input.eventType !== automation.trigger_type ||
+      !matchesEventConfig(input.eventType, (automation.trigger_config ?? {}) as Record<string, unknown>, input.context))) return { executed: false, reason: 'event_mismatch' }
+    const contact = await db.from('contacts').select('id').eq('id', input.contactId)
+      .eq('workspace_id', automation.workspace_id).maybeSingle()
+    if (contact.error) throw new Error(contact.error.message)
+    if (!contact.data) return { executed: false, reason: 'contact_mismatch' }
+    const chain = input.context?.automation_chain ?? []
+    if (chain.includes(automation.id) || chain.length >= 8) return { executed: false, reason: 'event_cycle' }
     if (!automation.is_active) return { executed: false, reason: 'inactive' }
     // Los crons de encuesta y de reactivación entran por acá y no por
     // `runAutomationsForTrigger`, así que la pregunta del motor tiene que
@@ -591,7 +606,7 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
     .from('automation_logs')
     .insert({
       automation_id: automation.id,
-      ...(sessionLogId ? {id:sessionLogId} : confirmedOrderId ? { id: confirmedOrderLogId(automation.workspace_id, automation.id, confirmedOrderId) } : {}),
+       ...(input.context?.event_id ? { id: input.context.event_id } : sessionLogId ? {id:sessionLogId} : confirmedOrderId ? { id: confirmedOrderLogId(automation.workspace_id, automation.id, confirmedOrderId) } : {}),
       workspace_id: automation.workspace_id,
       user_id: ownerUserId,
       contact_id: input.contactId ?? null,
@@ -603,6 +618,7 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
     .single()
 
   if (logErr || !log) {
+    if (input.context?.event_id) throw new Error(logErr?.message ?? 'Cannot record queued automation execution')
     if ((confirmedOrderId || sessionLogId) && logErr?.code === '23505') return
     console.error('[automations] cannot create log:', logErr)
     return
@@ -1309,23 +1325,23 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
     case 'add_tag': {
       const cfg = step.step_config as TagStepConfig
       if (!args.contactId || !cfg.tag_id) throw new Error('add_tag needs contact + tag_id')
-      await db
-        .from('contact_tags')
-        .upsert(
-          { contact_id: args.contactId, tag_id: cfg.tag_id },
-          { onConflict: 'contact_id,tag_id', ignoreDuplicates: true },
-        )
+      const added = await db.rpc('automation_attach_tag', {
+        p_workspace_id: args.automation.workspace_id, p_contact_id: args.contactId,
+        p_tag_id: cfg.tag_id, p_chain: [...(args.context.automation_chain ?? []), args.automation.id],
+      })
+      if (added.error) throw new Error(added.error.message)
       return `tag ${cfg.tag_id} added`
     }
 
     case 'remove_tag': {
       const cfg = step.step_config as TagStepConfig
       if (!args.contactId || !cfg.tag_id) throw new Error('remove_tag needs contact + tag_id')
-      await db
+      const removed = await db
         .from('contact_tags')
         .delete()
         .eq('contact_id', args.contactId)
         .eq('tag_id', cfg.tag_id)
+      if (removed.error) throw new Error(removed.error.message)
       return `tag ${cfg.tag_id} removed`
     }
 

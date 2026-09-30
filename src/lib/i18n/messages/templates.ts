@@ -69,6 +69,14 @@ export const templates = {
 
   // ── Builder ──
   newTemplate: { es: "Nueva plantilla", en: "New template" },
+  aiWrite: { es: "Escribir con IA", en: "Write with AI" },
+  aiDraftHelp: { es: "Revisa el borrador antes de enviarlo a Meta.", en: "Review the draft before submitting it to Meta." },
+  aiBrief: { es: "Qué quieres comunicar", en: "What you want to communicate" },
+  aiBriefPlaceholder: { es: "Recordar el pago de un pedido, sin promociones", en: "Remind a customer about an order payment, without promotions" },
+  aiDraft: { es: "Borrador", en: "Draft" },
+  aiGenerate: { es: "Generar", en: "Generate" },
+  aiApply: { es: "Usar borrador", en: "Use draft" },
+  aiFailed: { es: "No se pudo generar el borrador.", en: "Could not generate the draft." },
   fieldName: { es: "Nombre", en: "Name" },
   namePlaceholder: { es: "recordatorio_constancia", en: "reminder_followup" },
   fieldLanguage: { es: "Idioma", en: "Language" },

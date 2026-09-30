@@ -8,6 +8,10 @@ import type { Namespace } from "./types";
  * anota, alguien resuelve.
  */
 export const returns = {
+  viewAll: { es: 'Ver todas', en: 'View all' },
+  loadFailed: { es: 'No se pudieron cargar las devoluciones.', en: 'Could not load returns.' },
+  unauthorized: { es: 'Inicia sesión para continuar.', en: 'Sign in to continue.' },
+  invalidContact: { es: 'El contacto no es válido.', en: 'Invalid contact.' },
   title: { es: "Devoluciones", en: "Returns" },
   subtitle: {
     es: "Lo que pidieron devolver o cambiar desde una conversación.",
@@ -85,6 +89,7 @@ export const unify = {
 } satisfies Namespace;
 
 export const approvals = {
+  viewAll: { es: 'Ver todas', en: 'View all' },
   title: { es: "Esperando tu sí", en: "Waiting on you" },
   subtitle: {
     es: "Lo que el agente preparó y no hace hasta que decidas.",
@@ -95,6 +100,10 @@ export const approvals = {
   reject: { es: "Rechazar", en: "Decline" },
   done: { es: "Listo.", en: "Done." },
   failed: { es: "No se pudo.", en: "Could not do it." },
+  loadFailed: { es: "No se pudieron cargar las aprobaciones.", en: "Could not load approvals." },
+  invalidDecision: { es: "Selecciona aprobar o rechazar.", en: "Choose approve or decline." },
+  unauthorized: { es: "Inicia sesión para decidir.", en: "Sign in to decide." },
+  noWorkspace: { es: "No tienes acceso a este negocio.", en: "You do not have access to this business." },
 } satisfies Namespace;
 
 /**

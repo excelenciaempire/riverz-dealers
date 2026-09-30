@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import Link from '@/components/i18n/locale-link';
 import { toast } from 'sonner';
 import { CheckCircle2, Loader2, ShieldQuestion } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
@@ -31,21 +33,30 @@ interface Aprobacion {
 }
 
 export default function AprobacionesPage() {
+  return <Suspense fallback={<Loader2 className="m-6 size-5 animate-spin" />}><AprobacionesContent /></Suspense>;
+}
+
+function AprobacionesContent() {
+  const contactId = useSearchParams().get('contact_id');
   const t = useT();
   const format = useFormat();
   const fetchWithCsrf = useFetchWithCsrf();
   const [items, setItems] = useState<Aprobacion[] | null>(null);
   const [decidiendo, setDecidiendo] = useState<string | null>(null);
+  const [errorCarga, setErrorCarga] = useState(false);
 
   const cargar = useCallback(async () => {
+    setErrorCarga(false);
     try {
-      const res = await fetch('/api/approvals', { cache: 'no-store' });
+      const res = await fetch(`/api/approvals${contactId ? `?contact_id=${encodeURIComponent(contactId)}` : ''}`, { cache: 'no-store' });
       const json = await res.json();
-      setItems(res.ok ? (json.approvals ?? []) : []);
+      if (!res.ok) throw new Error('load_failed');
+      setItems(json.approvals ?? []);
     } catch {
+      setErrorCarga(true);
       setItems([]);
     }
-  }, []);
+  }, [contactId]);
 
   useEffect(() => {
     void cargar();
@@ -57,10 +68,10 @@ export default function AprobacionesPage() {
       const res = await fetchWithCsrf(`/api/approvals/${id}/decide`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision }),
+        body: JSON.stringify({ aprobar: decision === 'aprobada' }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok || json?.ok === false) throw new Error(json?.message);
+      if (!res.ok || json?.ok === false) throw new Error(json?.message ?? json?.error);
       // Se saca de la lista y se muestra lo que de verdad pasó: "aprobado" no
       // es lo mismo que "hecho" — el reembolso puede haberlo rechazado Shopify,
       // y enterarse por la clienta sería lo peor.
@@ -85,10 +96,16 @@ export default function AprobacionesPage() {
     <div className="mx-auto w-full max-w-2xl space-y-4 p-4 sm:p-6">
       <div>
         <h1 className="text-lg font-semibold text-foreground">{t('approvals.title')}</h1>
+        {contactId && <Link href="/aprobaciones" className="text-xs underline">{t('approvals.viewAll')}</Link>}
         <p className="mt-0.5 text-sm text-muted-foreground">{t('approvals.subtitle')}</p>
       </div>
 
-      {items.length === 0 ? (
+      {errorCarga ? (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border p-4">
+          <p className="text-sm">{t('approvals.loadFailed')}</p>
+          <Button variant="outline" onClick={() => void cargar()}>{t('common.retry')}</Button>
+        </div>
+      ) : items.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-border py-14 text-center">
           <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
           <p className="text-sm text-muted-foreground">{t('approvals.empty')}</p>
@@ -114,7 +131,7 @@ export default function AprobacionesPage() {
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={decidiendo === a.id}
+                disabled={decidiendo !== null}
                 onClick={() => decidir(a.id, 'rechazada')}
               >
                 {t('approvals.reject')}
@@ -122,7 +139,7 @@ export default function AprobacionesPage() {
               <Button
                 type="button"
                 size="sm"
-                disabled={decidiendo === a.id}
+                disabled={decidiendo !== null}
                 onClick={() => decidir(a.id, 'aprobada')}
               >
                 {decidiendo === a.id ? (

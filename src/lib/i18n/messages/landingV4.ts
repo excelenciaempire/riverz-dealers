@@ -635,6 +635,10 @@ export const landingV4 = {
     es: '{total} ÷ {contacts} ≈ {amount} USD por contacto',
     en: '{total} ÷ {contacts} ≈ {amount} USD per contact',
   },
+  pricingPerContact: {
+    es: '{amount} centavos de USD por contacto al mes',
+    en: '{amount} US cents per contact per month',
+  },
   pricingEverythingIncluded: {
     es: 'Incluido en todos los planes:',
     en: 'Included in every plan:',

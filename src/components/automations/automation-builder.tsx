@@ -2402,6 +2402,7 @@ function TriggerCard({
               />
             )}
             {type === 'time_based' && (
+              <div className="space-y-2">
               <Input
                 placeholder={t('automations.cronOrTimePlaceholder')}
                 value={(config.schedule as string) ?? ''}
@@ -2410,6 +2411,19 @@ function TriggerCard({
                 }
                 className="bg-muted text-foreground"
               />
+                <Input
+                  aria-label={t('automations.scheduleTimezone')}
+                  placeholder={t('automations.workspaceTimezone')}
+                  value={(config.timezone as string) ?? ''}
+                  onChange={(e) => {
+                    const next = { ...config }
+                    if (e.target.value.trim()) next.timezone = e.target.value.trim()
+                    else delete next.timezone
+                    onConfigChange(next)
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">{t('automations.scheduleAudience')}</p>
+              </div>
             )}
             {type === 'payment_pending' && <p className="text-muted-foreground text-xs">{t('automations.mpPendingCoverage')}</p>}
             {['payment_rejected', 'payment_pending'].includes(type) && <MercadoPagoConfig />}

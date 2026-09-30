@@ -259,8 +259,8 @@ function vistaAtribucion(
 
   const cerro = (r.quien_lo_cerro ?? {}) as Record<string, { orders: number; revenue: number }>
   for (const [quien, clave] of [
-    ['ai', 'vCerroIa'],
-    ['human', 'vCerroPersona'],
+    ['ia', 'vCerroIa'],
+    ['humano', 'vCerroPersona'],
   ] as const) {
     const d = cerro[quien]
     if (!d) continue

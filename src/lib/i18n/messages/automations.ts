@@ -2,6 +2,11 @@ import type { Namespace } from "./types";
 
 /** Automations: list/gallery, builder canvas, trigger/step config, detail + run logs. */
 export const automations = {
+  issueSchedule: { es: 'Usa HH:mm o una expresión cron válida de 5 campos.', en: 'Use HH:mm or a valid five-field cron expression.' },
+  issueTimezone: { es: 'Usa una zona horaria válida, por ejemplo America/Bogota.', en: 'Use a valid time zone, such as America/New_York.' },
+  scheduleTimezone: { es: 'Zona horaria', en: 'Time zone' },
+  workspaceTimezone: { es: 'Zona horaria del negocio', en: 'Business time zone' },
+  scheduleAudience: { es: 'Se ejecuta para los contactos del público seleccionado. Sin segmento, incluye a todos.', en: 'Runs for contacts in the selected audience. Without a segment, it includes everyone.' },
   'tpl_postventa-reposicion_name': { es: 'Recompras', en: 'Reorders' },
   'tpl_postventa-reposicion_desc': {
     es: 'Empieza con el pago acreditado o la confirmación del cliente en contra entrega. Envía los mensajes en los días configurados; la IA gestiona las respuestas.',

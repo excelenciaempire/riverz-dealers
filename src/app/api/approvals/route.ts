@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { serverError } from '@/lib/api/errors'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 /**
  * GET /api/approvals — las decisiones que están esperando a esta cuenta.
@@ -16,18 +18,23 @@ import { serverError } from '@/lib/api/errors'
  * El workspace sale de la SESIÓN y nunca del pedido. Se lee con la clave de
  * servicio porque las aprobaciones no tienen políticas de RLS para el comercio.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const locale = await getLocale()
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: translate(locale, 'approvals.unauthorized') }, { status: 401 })
 
   const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id)
   if (!workspaceId) return NextResponse.json({ approvals: [] })
 
   try {
-    const { data, error } = await supabaseAdmin()
+    const contactId = new URL(request.url).searchParams.get('contact_id')
+    if (contactId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contactId)) {
+      return NextResponse.json({ error: translate(locale, 'approvals.loadFailed') }, { status: 400 })
+    }
+    let query = supabaseAdmin()
       .from('approval_requests')
       .select('id, kind, title, body, payload, created_at, expires_at')
       .eq('workspace_id', workspaceId)
@@ -35,7 +42,9 @@ export async function GET() {
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
       .limit(20)
-    if (error) return serverError(error)
+    if (contactId) query = query.eq('contact_id', contactId)
+    const { data, error } = await query
+    if (error) return serverError(error, translate(locale, 'approvals.loadFailed'))
     // Un pago puede llegar como texto, audio y comprobante. La decisión es
     // una sola por pedido: mostrar cada intento como si fuera otra aprobación
     // repetía la misma acción y enterraba los casos realmente distintos.
@@ -60,6 +69,6 @@ export async function GET() {
     })
     return NextResponse.json({ approvals })
   } catch (err) {
-    return serverError(err)
+    return serverError(err, translate(locale, 'approvals.loadFailed'))
   }
 }

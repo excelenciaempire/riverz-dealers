@@ -190,6 +190,8 @@ export async function proponerCancelacion(
       `Si aceptas, se cancela en la tienda, vuelve el stock y se devuelve lo cobrado.`,
     payload: {
       order_id: p.id,
+      contact_id: ctx.contactId,
+      conversation_id: ctx.conversationId ?? null,
       shopify_order_id: p.shopify_order_id,
       shop_domain: p.shop_domain,
       reason: motivo || 'customer',
@@ -274,6 +276,8 @@ export async function proponerReembolso(
       `El pedido NO se cancela: sólo se devuelve el dinero.`,
     payload: {
       order_id: p.id,
+      contact_id: ctx.contactId,
+      conversation_id: ctx.conversationId ?? null,
       shopify_order_id: p.shopify_order_id,
       shop_domain: p.shop_domain,
       amount: monto,

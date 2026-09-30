@@ -2,6 +2,7 @@ import { CONDITION_SUBJECTS, type AutomationTriggerType } from '@/types'
 import { abTestValidationError } from './template-ab-test'
 import { validVoiceConfig } from '@/lib/voice-notes/types'
 import { eventEntries } from './event-entries'
+import { validAutomationSchedule, validAutomationTimezone } from './schedule'
 
 // ------------------------------------------------------------
 // Pre-flight config validation for automations about to be activated.
@@ -267,8 +268,11 @@ export function validateTriggerForActivation(
       })
     }
   } else if (triggerType === 'time_based') {
-    if (!nonEmpty(cfg.schedule)) {
-      issues.push({ path: 'trigger.schedule', message: 'schedule is required' })
+    if (!validAutomationSchedule(cfg.schedule)) {
+      issues.push({ path: 'trigger.schedule', message: nonEmpty(cfg.schedule) ? 'invalid schedule' : 'schedule is required', key: 'automations.issueSchedule' })
+    }
+    if (cfg.timezone !== undefined && !validAutomationTimezone(cfg.timezone)) {
+      issues.push({ path: 'trigger.timezone', message: 'invalid timezone', key: 'automations.issueTimezone' })
     }
   } else if (triggerType === 'tag_added') {
     if (!nonEmpty(cfg.tag_id)) {

@@ -57,12 +57,8 @@ export type AiStepType = (typeof AI_STEP_TYPES)[number]
 /**
  * Los disparadores que puede elegir, con nombre entendible y qué le falta.
  *
- * **No están todos los del lienzo, y es a propósito.** `tag_added` y
- * `time_based` se ofrecen en la pantalla pero hoy no hay nada en el repo que
- * los dispare: no existe un solo `runAutomationsForTrigger({ triggerType:
- * 'tag_added' })`. Ofrecerlos acá sería entregar exactamente la falla que este
- * archivo viene a arreglar — algo que se crea, se puede prender, y no corre
- * nunca. Entran el día que exista quien los llame.
+ * Etiquetas y horarios usan la cola persistente drenada por el cron del motor.
+ * El Operador conserva el mismo formato y validación que el editor manual.
  */
 export const AI_TRIGGERS: {
   value: AutomationTriggerType
@@ -70,6 +66,8 @@ export const AI_TRIGGERS: {
   /** Qué hay que completar para poder prenderla. */
   pide?: string
 }[] = [
+  { value: 'tag_added', que: 'se añade una etiqueta al contacto', pide: 'etiqueta: nombre de una etiqueta existente' },
+  { value: 'time_based', que: 'llega un horario programado', pide: 'horario: HH:mm o cron de 5 campos; zona_horaria opcional (IANA), por defecto la del negocio' },
   { value: 'shopify_abandoned_checkout', que: 'alguien dejó un carrito sin comprar' },
   { value: 'shopify_order_created', que: 'entró un pedido nuevo' },
   { value: 'shopify_order_paid', que: 'se pagó un pedido' },
@@ -256,6 +254,9 @@ export const AI_STEPS_SCHEMA = {
     },
     palabras: { type: 'array', items: { type: 'string' }, description: 'Para keyword_match.' },
     coincidencia: { type: 'string', enum: ['exact', 'contains'] },
+    etiqueta: { type: 'string', description: 'Para tag_added: nombre de una etiqueta existente.' },
+    horario: { type: 'string', description: 'Para time_based: HH:mm o cron de 5 campos. Usa un segmento si no debe incluir todos los contactos.' },
+    zona_horaria: { type: 'string', description: 'Zona IANA para time_based. Si no se indica, usa la del negocio.' },
     pasos: { type: 'array', items: AI_PASO_SCHEMA },
   },
   required: ['nombre', 'disparador', 'pasos'],
@@ -840,6 +841,9 @@ export interface AiEntradaPlan {
   dias?: number
   palabras?: string[]
   coincidencia?: string
+  etiqueta?: string
+  horario?: string
+  zona_horaria?: string
   pasos?: AiPaso[]
 }
 
@@ -898,6 +902,12 @@ function configDeDisparador(
   problemas: ValidationIssue[],
 ): Record<string, unknown> {
   switch (disparador) {
+    case 'tag_added': {
+      const name = texto(e.etiqueta)
+      if (!name) problemas.push({ path: 'etiqueta', message: 'falta el nombre de una etiqueta existente' })
+      return name ? { tag_name: name } : {}
+    }
+    case 'time_based': return { schedule: texto(e.horario), ...(texto(e.zona_horaria) ? { timezone: texto(e.zona_horaria) } : {}) }
     case 'customer_inactive':
     case 'post_delivery_feedback': {
       const dias = Number(e.dias)
@@ -1040,7 +1050,7 @@ export function planDesdeIA(entrada: AiEntradaPlan): {
   // se va a poder prender nunca y crearla así sería crear algo muerto.
   const issues = activationIssues({
     triggerType: disparador,
-    triggerConfig: disparadorConfig,
+    triggerConfig: disparadorConfig.tag_name ? { ...disparadorConfig, tag_id: '00000000-0000-4000-8000-000000000000' } : disparadorConfig,
     steps: simularResolucion(pasos) as never,
   })
 

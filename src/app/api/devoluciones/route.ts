@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { csrfGuard } from '@/lib/csrf';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * Las devoluciones y los cambios que abrió el agente.
@@ -31,10 +33,15 @@ async function contexto() {
 }
 
 export async function GET(request: Request) {
+  const locale = await getLocale();
   const ctx = await contexto();
-  if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!ctx) return NextResponse.json({ error: translate(locale, 'returns.unauthorized') }, { status: 401 });
 
   const estado = new URL(request.url).searchParams.get('estado');
+  const contactId = new URL(request.url).searchParams.get('contact_id');
+  if (contactId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contactId)) {
+    return NextResponse.json({ error: translate(locale, 'returns.invalidContact') }, { status: 400 });
+  }
   let q = ctx.admin
     .from('returns')
     .select(
@@ -44,9 +51,10 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: false })
     .limit(200);
   if (estado && (ESTADOS as readonly string[]).includes(estado)) q = q.eq('status', estado);
+  if (contactId) q = q.eq('contact_id', contactId);
 
   const { data, error } = await q;
-  if (error) return NextResponse.json({ error: 'read_failed' }, { status: 502 });
+  if (error) return NextResponse.json({ error: translate(locale, 'returns.loadFailed') }, { status: 502 });
 
   const filas = (data ?? []) as Array<Record<string, unknown>>;
   // Lo que espera una decisión va primero, aunque sea más viejo: es la lista de

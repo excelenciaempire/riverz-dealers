@@ -31,6 +31,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useT } from "@/hooks/use-locale";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { OperationLinks } from './operation-links';
 
 type ContactSegment = NonNullable<Contact["ai_segment"]>;
 
@@ -273,6 +274,7 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
           <div className="mt-3">
             <CommerceLinkButton contactId={contact.id} />
           </div>
+          <OperationLinks contactId={contact.id} />
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />

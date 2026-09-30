@@ -19,6 +19,7 @@ export function eventEntries(config: Record<string, unknown>): AutomationEntry[]
 export function matchesEventConfig(type: string, config: Record<string, unknown>, ctx?: AutomationContext): boolean {
   const platform = String(ctx?.vars?.platform ?? '').trim()
   if (Array.isArray(config.platforms) && config.platforms.length && platform && !config.platforms.includes(platform)) return false
+  if (type === 'tag_added') return typeof config.tag_id === 'string' && !!config.tag_id && config.tag_id === ctx?.tag_id
   if (type !== 'keyword_match') return true
   if (!Array.isArray(config.keywords) || !config.keywords.length) return false
   const text = String(ctx?.message_text ?? '')

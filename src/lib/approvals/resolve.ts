@@ -126,6 +126,7 @@ export async function decidir(
     })
     .eq('id', args.approvalId)
     .eq('status', APROBACION_PENDIENTE)
+    .gt('expires_at', new Date().toISOString())
   if (args.workspaceId) q = q.eq('workspace_id', args.workspaceId)
   const { data, error } = await q
     .select('id, workspace_id, kind, payload, title')

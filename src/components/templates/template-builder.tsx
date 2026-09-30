@@ -37,6 +37,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { WhatsappPreview } from '@/components/templates/whatsapp-preview';
+import { TemplateAiDraft } from '@/components/templates/template-ai-draft';
 import {
   extractVariables,
   normalizeTemplateName,
@@ -504,8 +505,13 @@ export function TemplateBuilder() {
 
             {/* Message */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <Label className="text-foreground">{t('templates.fieldMessage')}</Label>
+                <TemplateAiDraft language={language} category={category} onApply={(draft) => {
+                  setBodyText(draft);
+                  setSamples({});
+                  setFields({});
+                }} />
                 <button
                   type="button"
                   onClick={insertVariable}

@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import Link from '@/components/i18n/locale-link';
 import { toast } from 'sonner';
 import { Loader2, PackageOpen } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
@@ -64,21 +66,30 @@ const COLOR: Record<Estado, string> = {
 };
 
 export default function DevolucionesPage() {
+  return <Suspense fallback={<Loader2 className="m-6 size-5 animate-spin" />}><DevolucionesContent /></Suspense>;
+}
+
+function DevolucionesContent() {
+  const contactId = useSearchParams().get('contact_id');
   const t = useT();
   const format = useFormat();
   const fetchWithCsrf = useFetchWithCsrf();
   const [items, setItems] = useState<Devolucion[] | null>(null);
   const [guardando, setGuardando] = useState<string | null>(null);
+  const [errorCarga, setErrorCarga] = useState(false);
 
   const cargar = useCallback(async () => {
+    setErrorCarga(false);
     try {
-      const res = await fetch('/api/devoluciones');
+      const res = await fetch(`/api/devoluciones${contactId ? `?contact_id=${encodeURIComponent(contactId)}` : ''}`);
       const json = await res.json();
-      setItems(res.ok ? (json.returns ?? []) : []);
+      if (!res.ok) throw new Error('load_failed');
+      setItems(json.returns ?? []);
     } catch {
+      setErrorCarga(true);
       setItems([]);
     }
-  }, []);
+  }, [contactId]);
 
   useEffect(() => {
     void cargar();
@@ -115,10 +126,14 @@ export default function DevolucionesPage() {
     <div className="mx-auto w-full max-w-3xl space-y-4 p-4 sm:p-6">
       <div>
         <h1 className="text-lg font-semibold text-foreground">{t('returns.title')}</h1>
+        {contactId && <Link href="/devoluciones" className="text-xs underline">{t('returns.viewAll')}</Link>}
         <p className="mt-0.5 text-sm text-muted-foreground">{t('returns.subtitle')}</p>
       </div>
 
-      {items.length === 0 ? (
+      {errorCarga ? <div role="alert" className="rounded-xl border p-4 text-sm">
+        <p>{t('returns.loadFailed')}</p>
+        <Button className="mt-2" variant="outline" onClick={() => void cargar()}>{t('common.retry')}</Button>
+      </div> : items.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-border py-14 text-center">
           <PackageOpen className="h-6 w-6 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">{t('returns.empty')}</p>

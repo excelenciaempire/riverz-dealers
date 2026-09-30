@@ -442,6 +442,9 @@ function entradaDePlan(args: Record<string, unknown>): AiEntradaPlan {
     dias: typeof args.dias === 'number' ? args.dias : undefined,
     palabras: Array.isArray(args.palabras) ? (args.palabras as string[]) : undefined,
     coincidencia: typeof args.coincidencia === 'string' ? args.coincidencia : undefined,
+    etiqueta: typeof args.etiqueta === 'string' ? args.etiqueta : undefined,
+    horario: typeof args.horario === 'string' ? args.horario : undefined,
+    zona_horaria: typeof args.zona_horaria === 'string' ? args.zona_horaria : undefined,
     pasos: args.pasos as AiPaso[],
   }
 }
