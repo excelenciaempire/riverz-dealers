@@ -18,6 +18,7 @@ it('an environment override cannot remove product-required Shopify scopes', () =
   const scopes = shopifyScopes().split(',')
   expect(scopes).toContain('read_orders')
   expect(scopes).toContain('read_draft_orders')
+  expect(scopes).toContain('write_draft_orders')
   expect(scopes).toContain('write_order_edits')
 })
 

@@ -32,4 +32,10 @@ describe('bounded human order requests',() => {
     expect(caseOrderAction({ ...a,notifyCustomer:true })).toBeNull()
     expect(caseOrderAction({ ...a,items:[{ variantId:'222',quantity:1 }] })).toBeNull()
   })
+  it('keeps replacement requests limited to reviewed variants, quantity and free flags',() => {
+    const action={ type:'replacement',reason:' Damaged parcel ',items:[{ variantId:'222',quantity:1,free:true }] }
+    expect(caseOrderAction(action)).toEqual({ ...action,reason:'Damaged parcel' })
+    for (const extra of [{ invoice:true },{ customerId:'foreign' },{ price:0 },{ amount:100 },{ reserveInventoryUntil:'2026-10-01' }]) expect(caseOrderAction({ ...action,...extra })).toBeNull()
+    expect(sameCaseOrderAction(action,{ ...action,type:'items' })).toBe(false)
+  })
 })

@@ -1,9 +1,10 @@
 import { beforeEach,describe,expect,it,vi } from 'vitest'
-const m=vi.hoisted(() => ({ context:vi.fn(),snapshot:vi.fn(),prepare:vi.fn(),prior:vi.fn(),rpc:vi.fn() }))
+const m=vi.hoisted(() => ({ context:vi.fn(),snapshot:vi.fn(),prepare:vi.fn(),replacement:vi.fn(),prior:vi.fn(),rpc:vi.fn() }))
 vi.mock('@/lib/inbox/server-context',() => ({ inboxConversation:m.context }))
 vi.mock('@/lib/csrf',() => ({ csrfGuard:async () => null }))
 vi.mock('@/lib/inbox/order-actions',() => ({ caseOrderSnapshot:m.snapshot,CaseOrderError:class extends Error {} }))
 vi.mock('@/lib/shopify/reviewed-order-items',() => ({ prepareReviewedOrderItems:m.prepare }))
+vi.mock('@/lib/shopify/replacement-draft',() => ({ prepareReplacementDraft:m.replacement }))
 import { POST } from './route'
 const input={ id:'11111111-1111-4111-8111-111111111111',order_id:'22222222-2222-4222-8222-222222222222',action:{ type:'items',reason:'Size change',items:[{ variantId:'222',quantity:2,free:false }] } }
 const route={ params:Promise.resolve({ id:'conversation' }) }
@@ -16,6 +17,7 @@ beforeEach(() => {
   m.rpc.mockReset().mockImplementation(async (name:string,args:Record<string,unknown>) => ({ data:name==='workspace_billing_write_allowed' ? true : { action:args.p_action,preview:args.p_preview },error:null }))
   m.snapshot.mockReset().mockResolvedValue({ admin:{ shopDomain:'test.myshopify.com' },local:{ shopify_order_id:'100' },preview:{},fingerprint:'a'.repeat(64) })
   m.prepare.mockReset().mockResolvedValue({ ok:true,quote })
+  m.replacement.mockReset().mockResolvedValue({ ok:true,quote:{ total:'44.00',currency:'USD' } })
 })
 describe('persistent reviewed item previews',() => {
   it('checks subscription permission before any staged Shopify mutation',async () => {
@@ -48,5 +50,15 @@ describe('persistent reviewed item previews',() => {
     m.context.mockResolvedValue({ response:Response.json({ error:'denied' },{ status:403 }) })
     expect((await post(input)).status).toBe(403)
     expect(m.snapshot).not.toHaveBeenCalled(); expect(m.prepare).not.toHaveBeenCalled()
+  })
+  it('stores a calculated replacement without staging an edit to the source order',async () => {
+    const replacement={ ...input,action:{ ...input.action,type:'replacement' } }
+    const live={ id:100,customer:{ id:22 } }
+    m.snapshot.mockResolvedValue({ admin:{ shopDomain:'test.myshopify.com' },live,preview:{},fingerprint:'a'.repeat(64) })
+    expect(await (await post(replacement)).json()).toMatchObject({ can_execute:false,operation:{ preview:{ replacement:{ total:'44.00',currency:'USD' } } } })
+    expect(m.replacement).toHaveBeenCalledWith(expect.anything(),live,replacement.action.items,input.id,replacement.action.reason)
+    expect(m.prepare).not.toHaveBeenCalled()
+    m.rpc.mockResolvedValue({ data:false,error:null }); m.replacement.mockClear()
+    expect((await post(replacement)).status).toBe(409); expect(m.replacement).not.toHaveBeenCalled()
   })
 })

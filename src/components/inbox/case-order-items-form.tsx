@@ -1,5 +1,5 @@
 'use client'
-import { useCallback,useEffect,useState } from 'react'
+import { useCallback,useEffect,useRef,useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useT } from '@/hooks/use-locale'
@@ -8,6 +8,7 @@ type Variant = Pick<OrderItemDisplay,'variantId' | 'title' | 'variantTitle'>
 export function CaseOrderItemsForm({ endpoint,onChange }: { endpoint:string; onChange:(items:ReviewedOrderItem[] | null) => void }) {
   const t=useT(), [rows,setRows]=useState<OrderItemDisplay[]>([]), [variants,setVariants]=useState<Variant[]>([])
   const [search,setSearch]=useState(''), [busy,setBusy]=useState(false), [error,setError]=useState<string | null>(null)
+  const searchRequest=useRef<AbortController | null>(null)
   const initial=useCallback(async (signal:AbortSignal) => {
     const r=await fetch(endpoint,{ cache:'no-store',signal }), data=await r.json()
     if (!r.ok) throw new Error(data.error ?? t('inbox.orderItemsUnavailable'))
@@ -18,7 +19,7 @@ export function CaseOrderItemsForm({ endpoint,onChange }: { endpoint:string; onC
   useEffect(() => {
     const controller=new AbortController()
     void initial(controller.signal).catch(e => { if (!controller.signal.aborted) { setError(e.message); onChange(null) } })
-    return () => controller.abort()
+    return () => { controller.abort(); searchRequest.current?.abort() }
   },[initial,onChange])
   function update(next:OrderItemDisplay[]) {
     setRows(next); onChange(orderItems(next.map(({ variantId,quantity,free }) => ({ variantId,quantity,free }))))
@@ -26,13 +27,15 @@ export function CaseOrderItemsForm({ endpoint,onChange }: { endpoint:string; onC
   async function find() {
     if (busy) return
     setBusy(true); setError(null)
+    const controller=new AbortController(); searchRequest.current=controller
     try {
-      const r=await fetch(`${endpoint}?search=${encodeURIComponent(search)}`,{ cache:'no-store' }), data=await r.json()
+      const r=await fetch(`${endpoint}${endpoint.includes('?') ? '&' : '?'}search=${encodeURIComponent(search)}`,{ cache:'no-store',signal:controller.signal }), data=await r.json()
       if (!r.ok) throw new Error(data.error ?? t('inbox.orderItemsUnavailable'))
+      if (controller.signal.aborted) return
       setVariants(data.variants)
       if (!rows.length) { setRows(data.current); onChange(orderItems(data.current.map(({ variantId,quantity,free }:OrderItemDisplay) => ({ variantId,quantity,free })))) }
-    } catch (e) { setError(e instanceof Error ? e.message : t('inbox.orderItemsUnavailable')) }
-    finally { setBusy(false) }
+    } catch (e) { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : t('inbox.orderItemsUnavailable')) }
+    finally { if (!controller.signal.aborted) setBusy(false) }
   }
   const options=[...new Map([...rows,...variants].map(v => [v.variantId,v])).values()]
   const title=(v:Variant) => [v.title,v.variantTitle].filter(Boolean).join(' · ')

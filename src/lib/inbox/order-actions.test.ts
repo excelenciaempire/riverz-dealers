@@ -1,17 +1,18 @@
 import { beforeEach,describe,it,expect,vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CaseOrderAction,CaseOrderOperation } from './order-action-contract'
-const m=vi.hoisted(() => ({ rest:vi.fn(),gql:vi.fn(),refund:vi.fn(),cancel:vi.fn(),mirror:vi.fn(),address:vi.fn(),validate:vi.fn(),items:vi.fn() }))
+const m=vi.hoisted(() => ({ rest:vi.fn(),gql:vi.fn(),refund:vi.fn(),cancel:vi.fn(),mirror:vi.fn(),address:vi.fn(),validate:vi.fn(),items:vi.fn(),replacement:vi.fn(),draft:vi.fn() }))
 vi.mock('@/lib/shopify/order-tags',() => ({ resolveShopifyAdmin:async () => ({ shopDomain:'test.myshopify.com',accessToken:'test',apiVersion:'2025-10' }) }))
 vi.mock('@/lib/shopify/admin-client',() => ({ ShopifyAdminClient:class { rest=m.rest; graphql=m.gql } }))
 vi.mock('@/lib/shopify/order-cancel',() => ({ refundOrder:m.refund,cancelOrder:m.cancel }))
 vi.mock('@/lib/addresses/google-validation',() => ({ validateWorkspaceShippingAddress:m.validate }))
 vi.mock('@/lib/shopify/order-shipping-address',() => ({ updateOrderShippingAddress:m.address }))
 vi.mock('@/lib/shopify/reviewed-order-items',() => ({ commitReviewedOrderItems:m.items }))
+vi.mock('@/lib/shopify/replacement-draft',() => ({ createReplacementDraft:m.replacement,inspectReplacementDraft:m.draft }))
 import { caseOrderSnapshot,executeCaseOrderAction,uncertainCaseOrderSnapshot } from './order-actions'
 const live={ id:100,name:'#100',updated_at:'2026-09-30',currency:'USD',financial_status:'paid',fulfillment_status:null,cancelled_at:null,total_price:'100.00',fulfillments:[],email:'customer@example.com' }
 const transactions=[{ id:1,kind:'sale',status:'success',amount:'100.00',gateway:'card' }]
-function fixture(privateContext?:{ lock:{ source_id:string; source_kind:string; status:string }; action:CaseOrderAction }) {
+function fixture(privateContext?:{ lock:{ source_id:string; source_kind:string; status:string }; action:CaseOrderAction; result?:Record<string,unknown> }) {
   let operation:CaseOrderOperation
   const rpc=vi.fn(async (name:string,args:Record<string,unknown>) => {
     if (name === 'claim_inbox_order_action') {
@@ -24,13 +25,14 @@ function fixture(privateContext?:{ lock:{ source_id:string; source_kind:string; 
   })
   const db={ rpc,from:(table:string) => {
     const q={ select:() => q,eq:() => q,update:(patch:unknown) => { m.mirror(patch); return q },
-      maybeSingle:async () => ({ data:table === 'order_execution_locks' ? privateContext?.lock : table === 'inbox_order_actions' ? { action:privateContext?.action } : table === 'contacts' ? { email:'customer@example.com',phone:null } : { id:'local',shopify_order_id:'100',shop_domain:'test.myshopify.com',order_number:'#100',platform:'shopify' },error:null }),
+      maybeSingle:async () => ({ data:table === 'order_execution_locks' ? privateContext?.lock : table === 'inbox_order_actions' ? { action:privateContext?.action,result:privateContext?.result } : table === 'contacts' ? { email:'customer@example.com',phone:null } : { id:'local',shopify_order_id:'100',shop_domain:'test.myshopify.com',order_number:'#100',platform:'shopify' },error:null }),
       then:(done:(value:unknown) => unknown) => Promise.resolve({ error:null }).then(done) }
     return q
   } } as unknown as SupabaseClient
-  const prepare=async (action:CaseOrderAction={ type:'refund',amount:25,reason:'Damage' },quote?:CaseOrderOperation['preview']['item_change']) => {
+  const prepare=async (action:CaseOrderAction={ type:'refund',amount:25,reason:'Damage' },quote?:CaseOrderOperation['preview']['item_change'],replacement?:CaseOrderOperation['preview']['replacement']) => {
     const snapshot=await caseOrderSnapshot(db,'ws','contact','local',action)
     if (quote) snapshot.preview.item_change=quote
+    if (replacement) snapshot.preview.replacement=replacement
     operation={ id:'op',order_id:'local',requested_by:'agent',approved_by:'admin',action,preview:snapshot.preview,fingerprint:snapshot.fingerprint,
       status:'preview',expires_at:'2026-10-01',created_at:'2026-09-30',approved_at:null,result:null }
   }
@@ -42,6 +44,52 @@ beforeEach(() => {
   m.refund.mockReset(); m.cancel.mockReset(); m.mirror.mockReset()
   m.address.mockReset(); m.validate.mockReset().mockImplementation(async (_ws:string,address:unknown) => ({ status:'disabled',address }))
   m.items.mockReset()
+  m.replacement.mockReset(); m.draft.mockReset()
+})
+
+describe('reviewed replacement execution',() => {
+  const action:CaseOrderAction={ type:'replacement',items:[{ variantId:'222',quantity:1,free:true }],reason:'Damaged parcel' }
+  const address={ address1:'10 Main St',address2:'',city:'Austin',province:'Texas',zip:'78701',countryCode:'US' }
+  const quote={ fingerprint:'b'.repeat(64),customer_id:'gid://shopify/Customer/22',shipping_address:address,items:[{ ...action.items[0],title:'Product',variantTitle:'Large' }],total:'0.00',currency:'USD' }
+  const draft={ id:'gid://shopify/DraftOrder/44',name:'#D44',status:'OPEN',total:'0.00',currency:'USD',items:quote.items,invoice_sent_at:null,order_id:null,visible_to_customer:false,shipping_address:address,recipient:{ first_name:'Ana',last_name:'Rivera',company:'',phone:'' } }
+  function enable() {
+    m.gql.mockResolvedValue({ currentAppInstallation:{ accessScopes:[{ handle:'write_draft_orders' }] } })
+    m.rest.mockResolvedValue({ order:{ ...live,fulfillment_status:'fulfilled',customer:{ id:22,email:'customer@example.com' },shipping_address:{ ...address,country_code:'US' } } })
+  }
+  it('requires a current matching customer profile, rather than the email of an old order',async () => {
+    enable(); const f=fixture()
+    expect((await caseOrderSnapshot(f.db,'ws','contact','local',action)).scopes).toEqual(['write_draft_orders'])
+    m.rest.mockResolvedValue({ order:{ ...live,customer:{ id:22,email:'foreign@example.com' } } })
+    await expect(caseOrderSnapshot(f.db,'ws','contact','local',action)).rejects.toThrow('orderIdentityUnknown')
+    enable(); m.gql.mockResolvedValue({ currentAppInstallation:{ accessScopes:[{ handle:'write_orders' }] } })
+    await expect(caseOrderSnapshot(f.db,'ws','contact','local',action)).rejects.toThrow('orderDraftScopeMissing')
+  })
+  it('uses the persisted review once, without refunding or editing a delivered source order',async () => {
+    enable(); const f=fixture(); await f.prepare(action,undefined,quote)
+    m.replacement.mockResolvedValue({ ok:true,draft })
+    expect(await f.run()).toMatchObject({ status:'completed',result:{ draft_id:draft.id,draft } })
+    await f.run(); expect(m.replacement).toHaveBeenCalledTimes(1)
+    expect(m.replacement).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({ customer:{ id:22,email:'customer@example.com' } }),action.items,quote,'op',action.reason)
+    expect(m.refund).not.toHaveBeenCalled(); expect(m.items).not.toHaveBeenCalled(); expect(m.mirror).not.toHaveBeenCalled()
+  })
+  it('keeps a lost creation receipt uncertain and never automatically creates another draft',async () => {
+    enable(); const f=fixture(); await f.prepare(action,undefined,quote)
+    m.replacement.mockResolvedValue({ ok:false,error:'orderResultUnverified',uncertain:true,draftId:draft.id })
+    expect(await f.run()).toMatchObject({ status:'uncertain',result:{ draft_id:draft.id } }); await f.run()
+    expect(m.replacement).toHaveBeenCalledTimes(1)
+  })
+  it('binds reconciliation to the actual recovered draft, and refuses an unidentified outcome',async () => {
+    enable(); const f=fixture({ lock:{ source_id:'op',source_kind:'inbox',status:'uncertain' },action,result:{ draft_id:draft.id } })
+    m.draft.mockResolvedValue(draft)
+    const first=await uncertainCaseOrderSnapshot(f.db,'ws','contact','local')
+    expect(first.snapshot.preview).toMatchObject({ draft_current:draft }); expect(first.snapshot.preview.shipping_address).toBeUndefined()
+    m.draft.mockResolvedValue({ ...draft,total:'1.00' })
+    const changed=await uncertainCaseOrderSnapshot(f.db,'ws','contact','local')
+    expect(changed.snapshot.fingerprint).not.toBe(first.snapshot.fingerprint)
+    m.draft.mockResolvedValue(null)
+    await expect(uncertainCaseOrderSnapshot(f.db,'ws','contact','local')).rejects.toThrow('orderDraftReviewRequired')
+    expect(m.replacement).not.toHaveBeenCalled(); expect(f.rpc).not.toHaveBeenCalled()
+  })
 })
 describe('reviewed item execution',() => {
   const items=[{ variantId:'222',quantity:2,free:false }], action:CaseOrderAction={ type:'items',items,reason:'Size change' }

@@ -11,7 +11,7 @@ import {
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { isDuplicateDelivery } from '@/lib/shopify/webhook-dedup'
 import { captureWebhookFailure } from '@/lib/webhooks/capture'
-import { CLAVE_BORRADOR, claveDeBorrador } from '@/lib/shopify/borradores'
+import { CLAVE_BORRADOR, claveDeBorrador,isReplacementDraft } from '@/lib/shopify/borradores'
 
 /**
  * Borradores de pedido de Shopify ("Pedidos → Borradores").
@@ -87,6 +87,21 @@ export async function POST(request: Request) {
         .eq('shop_domain', shopDomain)
         .eq('checkout_id', clave)
       return NextResponse.json({ ok: true, borrado: true })
+    }
+
+    // Creation includes the marker in the initial mutation: there is no untagged recovery window.
+    // The stored provider receipt keeps an already recorded replacement excluded if its tags change later.
+    let replacement=isReplacementDraft(draft.tags)
+    if (!replacement) {
+      const recorded=await admin.from('inbox_order_actions').select('id').eq('workspace_id',workspaceId)
+        .eq('action->>type','replacement').eq('result->>draft_id',`gid://shopify/DraftOrder/${String(draft.id)}`).limit(1).maybeSingle()
+      if (recorded.error) throw recorded.error
+      replacement=!!recorded.data
+    }
+    if (replacement) {
+      const removed=await admin.from('shopify_checkouts').delete().eq('workspace_id',workspaceId).eq('shop_domain',shopDomain).eq('checkout_id',clave)
+      if (removed.error) throw removed.error
+      return NextResponse.json({ ok:true,ignored:'replacement' })
     }
 
     const phone = extractShopifyPhone(draft)

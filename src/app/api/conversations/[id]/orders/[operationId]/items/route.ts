@@ -4,18 +4,23 @@ import { UUID } from '@/lib/inbox/collaboration'
 import { caseOrderSnapshot,caseOrderCurrentItems,CaseOrderError } from '@/lib/inbox/order-actions'
 import { shippingChangeAllowed } from '@/lib/shopify/shipping-address-contract'
 import { escapeLike } from '@/lib/security/like'
+import type { OrderItemDisplay } from '@/lib/shopify/order-items-contract'
 type Context = { params:Promise<{ id:string; operationId:string }> }
 export async function GET(request:Request,route:Context) {
   const { id,operationId:orderId }=await route.params, ctx=await inboxConversation(id)
   if (ctx.response) return ctx.response
   if (!UUID.test(orderId)) return NextResponse.json({ error:ctx.t('orderNotFound') },{ status:404 })
   const search=new URL(request.url).searchParams.get('search')?.trim() ?? ''
+  const mode=new URL(request.url).searchParams.get('mode') ?? 'edit'
+  if (!['edit','replacement'].includes(mode)) return NextResponse.json({ error:ctx.t('teamInvalid') },{ status:400 })
   if (search.length>100) return NextResponse.json({ error:ctx.t('teamInvalid') },{ status:400 })
   try {
-    const snapshot=await caseOrderSnapshot(ctx.db,ctx.workspaceId,ctx.conversation.contact_id,orderId,null,{ shippingOnly:true })
-    if (!snapshot.scopes.includes('write_order_edits')) throw new CaseOrderError('orderItemsScopeMissing')
-    if (!shippingChangeAllowed(snapshot.live)) throw new CaseOrderError('orderAlreadyShipped')
-    const current=caseOrderCurrentItems(snapshot.live)
+    const replacement=mode==='replacement'
+    const snapshot=await caseOrderSnapshot(ctx.db,ctx.workspaceId,ctx.conversation.contact_id,orderId,null,{ shippingOnly:true,...(replacement ? { replacement:true } : {}) })
+    if (!snapshot.scopes.includes(replacement ? 'write_draft_orders' : 'write_order_edits')) throw new CaseOrderError(replacement ? 'orderDraftScopeMissing' : 'orderItemsScopeMissing')
+    if (!replacement && !shippingChangeAllowed(snapshot.live)) throw new CaseOrderError('orderAlreadyShipped')
+    let current:OrderItemDisplay[]
+    try { current=caseOrderCurrentItems(snapshot.live) } catch (error) { if (!replacement) throw error; current=[] }
     let query=ctx.db.from('shopify_products').select('title,raw').eq('workspace_id',ctx.workspaceId).eq('platform','shopify').eq('shop_domain',snapshot.admin.shopDomain).order('title',{ ascending:true }).limit(30)
     if (search) query=query.ilike('title',`%${escapeLike(search)}%`)
     const products=await query

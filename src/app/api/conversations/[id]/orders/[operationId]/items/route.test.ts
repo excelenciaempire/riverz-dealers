@@ -37,4 +37,13 @@ describe('authorized current-store variant selection',() => {
     expect((await GET(new Request('https://riverz.co/api/test'),{ params:Promise.resolve({ id:'conversation',operationId:'100' }) })).status).toBe(404)
     expect(m.snapshot).not.toHaveBeenCalled()
   })
+  it('allows a replacement catalog for a delivered source order only through its draft scope',async () => {
+    m.snapshot.mockResolvedValue({ admin:{ shopDomain:'test.myshopify.com' },scopes:['write_draft_orders'],live:{ cancelled_at:null,fulfillment_status:'fulfilled',fulfillments:[{ status:'success' }] } })
+    m.current.mockImplementation(() => { throw Error('original variant no longer exists') })
+    expect(await (await GET(new Request('https://riverz.co/api/test?mode=replacement&search=shoe'),route)).json()).toMatchObject({ current:[],variants:[{ variantId:'222' }] })
+    expect(m.snapshot).toHaveBeenCalledWith(expect.anything(),'workspace','contact',order,null,{ shippingOnly:true,replacement:true })
+    m.snapshot.mockResolvedValue({ admin:{ shopDomain:'test.myshopify.com' },scopes:['write_orders','write_order_edits'],live:{} })
+    expect((await GET(new Request('https://riverz.co/api/test?mode=replacement'),route)).status).toBe(409)
+    expect((await GET(new Request('https://riverz.co/api/test?mode=unknown'),route)).status).toBe(400)
+  })
 })

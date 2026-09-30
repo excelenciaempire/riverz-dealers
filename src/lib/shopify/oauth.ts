@@ -70,6 +70,8 @@ const PUBLIC_SCOPES = [
   // approval for read_draft_orders scope" y los webhooks del tema ni se
   // pueden registrar, así que esas ventas eran invisibles.
   'read_draft_orders',
+  // Reviewed replacements calculate and create drafts; reading alone cannot enable that action.
+  'write_draft_orders',
 ];
 
 const LEGACY_ONLY_SCOPES = [
