@@ -9,7 +9,9 @@ un mapa de 5 roles y 3 conversaciones completas, además de comentarios, campañ
 y llamadas. La primera conversación aparece en la página 3. No se repiten las
 automatizaciones en listas de funciones de los agentes o escenarios resumidos.
 Personalización y control se explican en una sola sección.
-El índice conserva enlaces y marcadores de navegación.
+La portada contiene únicamente título, descripción e ilustración de marca.
+La navegación se conserva en los marcadores del PDF; no hay índice en la portada
+ni etiqueta «Guía de capacidades». Los diálogos llevan una nota de ejemplo ilustrativo.
 Las conversaciones dibujadas son ejemplos ilustrativos, no métricas ni testimonios reales.
 
 ## Branding

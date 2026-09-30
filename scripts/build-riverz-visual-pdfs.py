@@ -488,18 +488,13 @@ def guide():
         p.c.bookmarkPage(f'guide-{number}')
         p.c.addOutlineEntry(title, f'guide-{number}', 0)
 
-    p.header('Guía de capacidades', 'Automatizaciones y asistentes\npara tu ecommerce.',
-             'Descubre cómo Riverz puede vender, recuperar compras y acompañar a tus clientes con conversaciones en lenguaje natural.')
-    p.image(ASSETS/'riverz-flota-original.png',42,220,511,341)
-    p.note(585,'Nosotros lo dejamos listo.',
-           'Conectamos los canales y configuramos los asistentes y las automatizaciones por ti.',83)
-    for i,(_,label,_,pages) in enumerate(GUIDE_SECTIONS):
-        x=42+(i%2)*263;y=692+(i//2)*28
-        p.text(x+4,y+17,label,'Sans',10.5,INK,width=188)
-        p.text(x+205,y+17,pages,'Semi',9,MUTED,width=39)
-        p.c.linkRect('',f'guide-{i}',(x,H-y-24,x+248,H-y),relative=0,thickness=0)
-    p.text(42,783,'Conversaciones ilustrativas; productos y pedidos son ejemplos ficticios.','Sans',10,MUTED)
-    p.end()
+    # The cover contains only the title, description and branded illustration.
+    p.page=1
+    p.c.setFillColor(BG);p.c.rect(0,0,W,H,fill=1,stroke=0)
+    p.wrap(42,125,'Automatizaciones y asistentes\npara tu ecommerce.',511,'Serif',36,40,max_lines=2)
+    p.wrap(42,220,'Descubre cómo Riverz puede vender, recuperar compras y acompañar a tus clientes con conversaciones en lenguaje natural.',511,size=12,leading=17,color=MUTED,max_lines=2)
+    p.image(ASSETS/'riverz-flota-original.png',42,310,511,341)
+    p.c.showPage()
 
     section(0)
     p.header('Asistentes y automatizaciones','Cada asistente\ntiene un trabajo.',
@@ -585,6 +580,7 @@ def client_conversation(p,index):
     p.header(f'Conversación {index+1} de 3',title+'.')
     end=p.chat(42,218,511,messages,title='Ejemplo de conversación',channel=channel,size=13)
     assert end<789,(title,end)
+    p.text(42,783,'Conversación ilustrativa; productos y pedidos son ejemplos ficticios.','Sans',10,MUTED)
     p.end()
 
 
@@ -608,23 +604,24 @@ def verify(path,expected):
         assert len(GUIDE_DEEP_CASES)==3 and all(len(messages)>=6 for _,_,messages in GUIDE_DEEP_CASES)
         assert all(body in alltext.replace('\n',' ') for _,_,messages in GUIDE_DEEP_CASES for _,body in messages)
         assert len(alltext.split())<1500
-        assert 'Nosotros lo dejamos listo.' in d[0].get_text()
+        cover=d[0].get_text().replace('\n',' ').strip()
+        assert cover == ('Automatizaciones y asistentes para tu ecommerce. '
+                         'Descubre cómo Riverz puede vender, recuperar compras y acompañar a tus clientes con conversaciones en lenguaje natural.')
+        assert len([b for b in d[0].get_text('dict')['blocks'] if b['type']==1])==1
         assert GUIDE_DEEP_CASES[0][0] in d[2].get_text()
         forbidden=['apoyo para el video','qué mostrar','documento original','promesa del anuncio',
                    'demostración','detalles técnicos','integración','flujo','webhook',
-                   'Supabase','saldo','credenciales','US$','guion','Qué decir','Busca el problema']
+                    'Supabase','saldo','credenciales','US$','guion','Qué decir','Busca el problema',
+                    'Guía de capacidades']
         assert not any(term.casefold() in alltext.casefold() for term in forbidden), [
             term for term in forbidden if term.casefold() in alltext.casefold()]
         assert not re.search(r'\b(?:demo|API)\b',alltext,re.IGNORECASE)
         assert all(term in alltext for term in ['lenguaje natural','Comentarios en redes',
             'Campañas a tu base de clientes','Llamadas con un agente de voz'])
-        # The linked index must remain useful after editorial changes.
+        # Navigation remains available through bookmarks, outside the clean cover.
         toc=d.get_toc();assert len(toc)==6
         assert [entry[2] for entry in toc]==[row[2] for row in GUIDE_SECTIONS],toc
-        links=d[0].get_links();assert len(links)==6
-        for link,(_,_,page,_) in zip(links,GUIDE_SECTIONS):
-            kind,destination=d.xref_get_key(link['xref'],'Dest')
-            assert kind=='array' and re.search(r'\[\s*'+str(d.page_xref(page-1))+r'\s+0\s+R\b',destination),destination
+        assert not d[0].get_links()
     else:
         assert all(q in alltext.replace('\n',' ') for q,_ in FAQS)
         assert 'US$259' in alltext and 'US$399' in alltext and '35% OFF' in alltext
