@@ -26,6 +26,7 @@ export function isBusinessMutation(path: string, method: string): boolean {
   if (/^\/api\/wallet\/(?:recarga|checkout|tarjeta|portal)(?:\/|$)/.test(path)) return false;
   if (/^\/api\/(?:whatsapp\/webhook|channels\/[^/]+\/webhook|(?:shopify|woocommerce|tiendanube)\/webhooks|mercadopago\/webhook|voice\/webhook|meta\/(?:data-deletion|deauthorize))(?:\/|$)/.test(path) || /^\/api\/hooks\//.test(path)) return false;
   if (path === '/api/channels/gmail/push' || path === '/api/integrations/klaviyo/hook') return false;
+  if (method === 'POST' && /^\/api\/conversations\/[^/]+\/read$/.test(path)) return false;
   if (/^\/api\/conversations\/[^/]+\/(?:sync|tiktok-refresh)$/.test(path) || path === '/api/messages/recover-media') return false;
   if (method === 'HEAD' || method === 'OPTIONS') return false;
   if (method === 'GET') return /\/(?:oauth\/start|oauth\/callback|callback|install)$/.test(path);

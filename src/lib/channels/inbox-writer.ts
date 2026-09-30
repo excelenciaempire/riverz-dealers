@@ -15,6 +15,7 @@ import type {
 } from "@/types";
 import type { InboundEvent } from "./types";
 import { runAiAgent } from "@/lib/ai/runner";
+import { inboxCaseIsSpam } from '@/lib/inbox/disposition-server';
 import { dispatchAutomationsAndFlows } from "./inbound-dispatch";
 import { linkUnifiedContact } from "@/lib/contacts/dedupe";
 import type { OrigenDelDato } from "@/lib/contacts/identidad-probada";
@@ -455,12 +456,17 @@ export async function ingestInboundEvent(
   // Persist first. Billing never disables ingestion, including native app echoes.
   // Only live, answerable customer messages become recovery work.
   let paymentPaused=false;
+  let casePaused=false;
+  if (!event.outbound && !event.historical) {
+    try { casePaused=await inboxCaseIsSpam(db,workspaceId,conversation.id); }
+    catch { casePaused=true;console.warn('[inbox] disposition unavailable; automatic reply paused'); }
+  }
   if(!event.outbound && !event.historical) {
     try { paymentPaused=await workspaceReadOnly(db,workspaceId); }
     catch { paymentPaused=true; }
   }
   if (
-    !paymentPaused &&
+    !paymentPaused && !casePaused &&
     event.comment &&
     message &&
     !event.outbound &&
@@ -542,7 +548,7 @@ export async function ingestInboundEvent(
       } else {
         await markOptedIn(db, workspaceId, contact.id);
       }
-      if (!paymentPaused) await acknowledgeOptChange(db, {
+      if (!paymentPaused && !casePaused) await acknowledgeOptChange(db, {
         channel,
         connection: event.connection,
         conversation,
@@ -553,7 +559,7 @@ export async function ingestInboundEvent(
     }
   }
 
-  if(paymentPaused) return {contact,conversation,message:message as Message};
+  if(paymentPaused || casePaused) return {contact,conversation,message:message as Message};
 
   // Un DM de Instagram que es SOLO una mención en historia o una publicación
   // compartida se guarda para que la conversación se vea completa, pero no le

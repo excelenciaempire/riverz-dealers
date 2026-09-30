@@ -70,6 +70,7 @@ export const POLITICA = {
 
   // ── Ya la atiende alguien, o la cubre otro turno ─────────────────────────
   ai_disabled_for_conversation: NO_ESCALA('el comercio apagó la IA en ese chat'),
+  inbox_case_spam: NO_ESCALA('el equipo marcó este caso como spam'),
   conversation_assigned: NO_ESCALA('ya está asignada a una persona'),
   conversation_closed: NO_ESCALA('la conversación estaba cerrada'),
   outside_hours: NO_ESCALA('fuera de horario; se retoma en horario'),
@@ -148,6 +149,8 @@ export const POLITICA = {
   // lo lleva él, y volver a marcarlo sería discutirle.
   comment_ia_apagada_en_el_hilo: NO_ESCALA('el comercio apagó la IA en ese hilo'),
   comment_asignado_a_persona: NO_ESCALA('ya lo atiende una persona'),
+  comment_contexto_no_disponible: NO_ESCALA('no se pudo comprobar el estado del chat privado'),
+  comment_contexto_actualizado: NO_ESCALA('el estado del chat privado cambió durante la respuesta'),
   comment_hilo_cerrado: NO_ESCALA('el hilo estaba cerrado'),
   comment_espera_aprobacion: NO_ESCALA('la respuesta espera un clic, no una persona'),
   comment_spam: NO_ESCALA('spam: se ocultó y se calla'),

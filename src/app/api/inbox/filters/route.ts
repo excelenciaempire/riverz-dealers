@@ -53,12 +53,13 @@ export async function GET() {
     if (config.case_priority) q.eq('case_priority', config.case_priority);
     if (config.case_reason) q.eq('case_reason', config.case_reason);
     if (config.assigned_agent_id) q.eq('assigned_agent_id', config.assigned_agent_id);
+    q.eq('is_spam', config.status === 'spam');
     if (config.status === 'snoozed') q.gt('snoozed_until', new Date().toISOString());
-    else q.or(`snoozed_until.is.null,snoozed_until.lte.${new Date().toISOString()}`);
-    if (config.status === 'snoozed') { /* Snooze is independent of the conversation's status. */ }
+    else if (config.status !== 'spam') q.or(`snoozed_until.is.null,snoozed_until.lte.${new Date().toISOString()}`);
+    if (config.status === 'snoozed' || config.status === 'spam') { /* Snooze is independent of the conversation's status. */ }
     else if (config.status === 'mine') q.eq('assigned_agent_id', user.id);
     else if (config.status === 'unassigned') q.is('assigned_agent_id', null);
-    else if (config.status === 'unread') q.gt('unread_count', 0).or('last_sender_type.is.null,last_sender_type.eq.customer');
+    else if (config.status === 'unread') q.or('manual_unread.eq.true,and(unread_count.gt.0,last_sender_type.is.null),and(unread_count.gt.0,last_sender_type.eq.customer)');
     else if (config.status) q.eq('status', config.status);
     const result = await q;
     filters.push({ ...row, count: result.error ? null : result.count ?? 0, supported: true });

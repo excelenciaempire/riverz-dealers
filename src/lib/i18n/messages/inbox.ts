@@ -5,6 +5,14 @@ import type { Namespace } from "./types";
  * reactions, moderation, contact + Shopify panels, templates and search.
  */
 export const inbox = {
+  dispositionChanged: { es: 'El caso cambió. Revisa su estado y vuelve a intentarlo.', en: 'The case changed. Review its status and try again.' },
+  markRead: { es: 'Marcar como leído', en: 'Mark as read' },
+  markUnread: { es: 'Marcar como no leído', en: 'Mark as unread' },
+  markSpam: { es: 'Marcar como spam', en: 'Mark as spam' },
+  restoreSpam: { es: 'Restaurar caso', en: 'Restore case' },
+  spamPaused: { es: 'Caso en spam. Restaura el caso para responder.', en: 'Case in spam. Restore the case to reply.' },
+  manualUnreadSet: { es: 'Marcado como no leído hasta volver a abrirlo.', en: 'Marked as unread until you open it again.' },
+  viewStatus_spam: { es: 'Spam', en: 'Spam' },
   conversationTools: { es:'Herramientas del caso', en:'Case tools' },
   exportConversation: { es:'Exportar conversación', en:'Export conversation' },
   exportTitle: { es:'Conversación de Riverz', en:'Riverz conversation' },

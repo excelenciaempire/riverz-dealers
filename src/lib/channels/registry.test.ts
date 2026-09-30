@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Channel } from '@/types';
 import type { OutboundText } from './types';
 
@@ -12,6 +12,8 @@ import type { OutboundText } from './types';
  */
 
 const enviados: OutboundText[] = [];
+const state=vi.hoisted(() => ({ spam:false,missing:false,media:vi.fn(),template:vi.fn() }));
+beforeEach(() => { state.spam=false;state.missing=false; });
 
 vi.mock('./whatsapp/adapter', () => ({
   whatsappAdapter: {
@@ -22,8 +24,8 @@ vi.mock('./whatsapp/adapter', () => ({
       enviados.push(input);
       return { status: 'sent' as const };
     },
-    sendMedia: async () => ({ status: 'sent' as const }),
-    sendTemplate: async () => ({ status: 'sent' as const }),
+    sendMedia: async () => { state.media();return { status:'sent' as const }; },
+    sendTemplate: async () => { state.template();return { status:'sent' as const }; },
     parseWebhook: async () => [],
   },
 }));
@@ -33,7 +35,10 @@ vi.mock('@/lib/links/short-link', () => ({
 }));
 
 vi.mock('./admin-client', () => ({
-  supabaseAdmin: () => ({}),
+  supabaseAdmin: () => ({
+    rpc:async() => ({ data:true,error:null }),
+    from:() => ({ select(){ return this; },eq(){ return this; },is(){ return this; },maybeSingle:async() => ({ data:state.missing ? null : { is_spam:state.spam },error:null }) }),
+  }),
 }));
 
 const { getAdapter } = await import('./registry');
@@ -87,6 +92,21 @@ describe('getAdapter', () => {
 });
 
 describe('lo que le llega al canal', () => {
+  it('blocks text, media and templates after a case is marked spam, allowing restoration',async() => {
+    enviados.length=0;state.spam=true;
+    const adapter=getAdapter('whatsapp'),input=entrada('whatsapp','reply');
+    await expect(adapter.sendText(input)).rejects.toMatchObject({ code:'inbox_case_spam' });
+    await expect(adapter.sendMedia!(input as never)).rejects.toMatchObject({ code:'inbox_case_spam' });
+    await expect(adapter.sendTemplate!(input as never)).rejects.toMatchObject({ code:'inbox_case_spam' });
+    expect(enviados).toHaveLength(0);expect(state.media).not.toHaveBeenCalled();expect(state.template).not.toHaveBeenCalled();
+    state.spam=false;await adapter.sendText(input);await adapter.sendMedia!(input as never);await adapter.sendTemplate!(input as never);
+    expect(enviados).toHaveLength(1);expect(state.media).toHaveBeenCalledTimes(1);expect(state.template).toHaveBeenCalledTimes(1);
+  });
+  it('fails closed if the case disappeared before the final send',async() => {
+    enviados.length=0;state.missing=true;
+    await expect(getAdapter('whatsapp').sendText(entrada('whatsapp','reply'))).rejects.toThrow('inbox_disposition_unavailable');
+    expect(enviados).toHaveLength(0);
+  });
   it('marca y acorta los links del mensaje', async () => {
     enviados.length = 0;
     await getAdapter('whatsapp').sendText(

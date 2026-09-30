@@ -390,6 +390,9 @@ export const health: Namespace = {
     en: "the reply is waiting for your approval",
   },
   skip_comment_spam: { es: "era spam y se ocultó", en: "spam, hidden" },
+  skip_inbox_case_spam: { es: "el equipo marcó este caso como spam", en: "the team marked this case as spam" },
+  skip_comment_contexto_no_disponible: { es: "no se pudo comprobar el estado del chat privado", en: "the private chat state could not be verified" },
+  skip_comment_contexto_actualizado: { es: "el estado del chat privado cambió durante la respuesta", en: "the private chat state changed during the reply" },
   skip_comment_critica: {
     es: "era una crítica y se ocultó",
     en: "criticism, hidden",

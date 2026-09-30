@@ -103,6 +103,9 @@ describe('lo que el comercio ve', () => {
 })
 
 describe('la política dice cosas coherentes', () => {
+  it('does not escalate or overwrite assistant settings after an explicit spam decision',() => {
+    expect(politicaDe('inbox_case_spam')).toMatchObject({ contestado:false,escala:null,apaga:false });
+  });
   it('sólo "sent" cuenta como contestado', () => {
     const contestados = (Object.keys(POLITICA) as Desenlace[]).filter(
       (m) => POLITICA[m].contestado,

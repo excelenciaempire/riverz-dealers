@@ -9,9 +9,11 @@ import type { Conversation } from '@/types';
  * duda no escondemos algo que todavía podría requerir atención.
  */
 export function actionableUnreadCount(
-  conversation: Pick<Conversation, 'unread_count' | 'last_sender_type'>
+  conversation: Pick<Conversation, 'unread_count' | 'last_sender_type' | 'manual_unread' | 'is_spam'>
 ): number {
+  if (conversation.is_spam) return 0;
   const unread = Math.max(0, conversation.unread_count ?? 0);
+  if (conversation.manual_unread) return Math.max(1, unread);
   return conversation.last_sender_type === 'agent' ||
     conversation.last_sender_type === 'bot'
     ? 0

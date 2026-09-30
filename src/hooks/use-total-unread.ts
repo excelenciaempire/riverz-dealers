@@ -29,13 +29,13 @@ export function useTotalUnread(): number {
     (async () => {
       const { data, error } = await supabase
         .from("conversations")
-        .select("id, unread_count, last_sender_type")
+        .select("id, unread_count, last_sender_type, manual_unread, is_spam")
         .is("deleted_at", null);
       if (cancelled || error || !data) return;
 
       const map = new Map<string, number>();
       let sum = 0;
-      for (const row of data as Array<Pick<Conversation, "id" | "unread_count" | "last_sender_type">>) {
+      for (const row of data as Array<Pick<Conversation, "id" | "unread_count" | "last_sender_type" | "manual_unread" | "is_spam">>) {
         const n = actionableUnreadCount(row);
         map.set(row.id, n);
         if (n > 0) sum += 1;

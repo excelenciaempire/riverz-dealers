@@ -6,6 +6,7 @@ import { puertaDeIa } from '@/lib/wallet/puerta';
 import { workspaceReadOnly, BILLING_READ_ONLY } from '@/lib/billing/read-only';
 import { createClient } from "@/lib/supabase/server";
 import { getAdapter } from "@/lib/channels/registry";
+import { InboxSpamError } from '@/lib/inbox/disposition-server';
 import {
   esCanalDeComentarios,
   esError,
@@ -434,6 +435,7 @@ export async function POST(req: Request): Promise<Response> {
       });
     }
   } catch (err) {
+    if (err instanceof InboxSpamError) return NextResponse.json({ error:translate(locale,'inbox.spamPaused'),code:err.code },{ status:409 });
     const detail = err instanceof Error ? err.message : String(err);
     console.error(`[send/${channel}] failed:`, detail);
     // Persistir el motivo del fallo síncrono (antes se guardaba 'failed' pelado

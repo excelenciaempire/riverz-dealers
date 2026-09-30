@@ -751,7 +751,7 @@ export default function InboxPage() {
   const unreadByChannel: Partial<Record<Channel | "all", number>> = { all: 0 };
   const tabCounts = { messages: 0, comments: 0 };
   for (const c of conversations) {
-    if (conversationIsSnoozed(c, inboxNow)) continue;
+    if (c.is_spam || conversationIsSnoozed(c, inboxNow)) continue;
     // Una conversación ya respondida no sigue pendiente aunque conserve el
     // contador histórico hasta que alguien abra el hilo.
     const unread = actionableUnreadCount(c);
@@ -780,7 +780,7 @@ export default function InboxPage() {
   // ConversationItem actually do its job.
   const filteredConversations = useMemo(() => {
     let list = savedView ? conversations.filter(c => conversationMatchesView(c, savedView.config, savedView.userId, inboxNow))
-      : search.active ? conversations : conversations.filter(c => !conversationIsSnoozed(c, inboxNow));
+      : search.active ? conversations : conversations.filter(c => !c.is_spam && !conversationIsSnoozed(c, inboxNow));
     // Búsqueda activa: sólo las que coinciden, en el orden de relevancia que
     // devolvió el servidor.
     if (search.active) {
@@ -835,7 +835,7 @@ export default function InboxPage() {
   // Cuántas esperan a una persona, sobre TODO lo cargado (no sobre la lista
   // ya filtrada) para que el contador no se vacíe al activar el propio filtro.
   const needsHumanCount = useMemo(
-    () => conversations.filter((c) => Boolean(c.needs_human_reason)).length,
+    () => conversations.filter((c) => !c.is_spam && Boolean(c.needs_human_reason)).length,
     [conversations],
   );
 

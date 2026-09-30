@@ -1,4 +1,5 @@
 import { replyWasSuperseded } from './reply-freshness';
+import { inboxCaseIsSpam } from '@/lib/inbox/disposition-server';
 import { emailDispositionForPolicy, emailRedirectText, isEmailChannel, loadEmailPolicy } from './email-policy';
 import { revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-channel-policy';
 import type { OtherStoreContext } from '@/lib/ai/tools';
@@ -211,6 +212,9 @@ export async function runAiAgent(
   }
 ): Promise<void> {
   try {
+    if (await inboxCaseIsSpam(db,args.workspaceId,args.conversation.id)) {
+      await anotarSalida(db,args,'inbox_case_spam');return;
+    }
     const emailPolicy = isEmailChannel(args.channel) ? await loadEmailPolicy(db, args.workspaceId) : null;
     const emailInput = {
       workspaceId: args.workspaceId, channel: args.channel,

@@ -224,7 +224,7 @@ export function ConversationList({
             // cambie nada más: ocultar un comentario no mueve el último
             // mensaje ni el no-leído, así que sin esto el resync lo daría por
             // "sin cambios" y la lista se quedaría con el estado viejo.
-            `${c.id}:${c.last_message_at}:${c.unread_count}:${c.deleted_at ?? ""}:${c.last_message_hidden ? 1 : 0}:${c.case_priority ?? 'normal'}:${c.case_reason ?? ''}:${c.assigned_agent_id ?? ''}:${c.status}:${c.snoozed_until ?? ''}:${c.assigned_team_id ?? ''}:${c.contact?.name ?? ""}:${c.contact?.avatar_url ?? ""}`,
+            `${c.id}:${c.inbox_control_version ?? 0}:${c.manual_unread ? 1 : 0}:${c.is_spam ? 1 : 0}:${c.last_message_at}:${c.unread_count}:${c.deleted_at ?? ""}:${c.last_message_hidden ? 1 : 0}:${c.case_priority ?? 'normal'}:${c.case_reason ?? ''}:${c.assigned_agent_id ?? ''}:${c.status}:${c.snoozed_until ?? ''}:${c.assigned_team_id ?? ''}:${c.contact?.name ?? ""}:${c.contact?.avatar_url ?? ""}`,
         )
         .join("|");
       if (sig !== lastSigRef.current) {
@@ -771,6 +771,8 @@ const ConversationItem = memo(function ConversationItem({
   a.conversation.last_message_at === b.conversation.last_message_at &&
   a.conversation.last_message_text === b.conversation.last_message_text &&
   a.conversation.unread_count === b.conversation.unread_count &&
+  a.conversation.manual_unread === b.conversation.manual_unread &&
+  a.conversation.is_spam === b.conversation.is_spam &&
   a.conversation.needs_human_at === b.conversation.needs_human_at &&
   a.conversation.needs_human_visto_at === b.conversation.needs_human_visto_at &&
   a.conversation.status === b.conversation.status &&

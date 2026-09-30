@@ -848,26 +848,24 @@ export function MessageThread({
     setReplyTo(null);
   }, [conversationId]);
 
-  // Reset the server-side unread_count to 0 whenever an unread count
-  // surfaces on the active conversation — covers both (a) opening a
-  // conversation that had unread messages and (b) new messages arriving
-  // while the user is already viewing the thread (webhook server-bumps
-  // unread_count to N+1; the realtime UPDATE propagates it into the
-  // client, which re-runs this effect and flips it back to 0).
-  //
-  // Guarding on hasUnread prevents the eq-update loop: once unread_count
-  // is 0 the condition is false, so no further UPDATE is issued.
+  // An explicit unread mark survives while this case stays open. Opening it
+  // again clears the mark through the same versioned, audited command.
+  const openedCase=useRef<string | undefined>(undefined);
+  const openedVersion=useRef<number>(-1);
+  const manualUnread=conversation?.manual_unread===true;
+  const controlVersion=conversation?.inbox_control_version ?? 0;
   useEffect(() => {
-    if (!conversationId || !hasUnread) return;
-    const supabase = createClient();
-    supabase
-      .from("conversations")
-      .update({ unread_count: 0 })
-      .eq("id", conversationId)
-      .then(({ error }) => {
-        if (error) console.error("Failed to reset unread_count:", error);
-      });
-  }, [conversationId, hasUnread]);
+    const opening=openedCase.current!==conversationId;
+    if (opening) openedVersion.current=controlVersion;
+    openedCase.current=conversationId;
+    if (!conversationId || !hasUnread && !manualUnread || manualUnread && !opening && openedVersion.current!==controlVersion) return;
+    const c=new AbortController();
+    void fetchWithCsrf(`/api/conversations/${conversationId}/read`, {
+      method:'POST',headers:{ 'Content-Type':'application/json' },signal:c.signal,
+      body:JSON.stringify({ id:crypto.randomUUID(),action:'read',expected_version:controlVersion }),
+    }).then(r => { if (!r.ok && r.status!==409) console.error('Failed to mark case read:',r.status); }).catch(e => { if (!c.signal.aborted) console.error('Failed to mark case read:',e); });
+    return () => c.abort();
+  }, [conversationId,hasUnread,manualUnread,controlVersion,fetchWithCsrf]);
 
   // Y apagar la marca de "revisar ya" al abrir el hilo. Es un hecho distinto
   // de leerlo —un caso escalado puede no tener mensajes sin leer— así que va
@@ -2020,7 +2018,7 @@ export function MessageThread({
       {/* Voice conversations are a call log: show the call card + transcript,
           no composer (you can't type a reply to a phone call). */}
       <ConversationCollaboration key={conversation.id} conversationId={conversation.id} composing={composing} />
-      <ConversationUnderstanding key={`understanding-${conversation.id}`} conversationId={conversation.id} />
+      <ConversationUnderstanding key={`understanding-${conversation.id}`} conversationId={conversation.id} conversation={conversation} />
       {conversation.channel === "voice" ? (
         <VoiceCallCard conversationId={conversation.id} />
       ) : mlThreadKind(conversation.channel, conversation.thread_external_id) ===
@@ -2052,6 +2050,8 @@ export function MessageThread({
            manual support available for seven days. */
         <>
           {/* Respuesta propuesta por un agente que necesita aprobación. */}
+          {conversation.is_spam && <p role="status" className="border-t px-4 py-2 text-xs">{t('inbox.spamPaused')}</p>}
+          <fieldset disabled={conversation.is_spam} className="min-w-0">
           <PendingReplyCard
             conversationId={conversation.id}
             onSend={(text) => handleSend(text)}
@@ -2073,6 +2073,7 @@ export function MessageThread({
             replyTo={replyTo}
             onClearReply={() => setReplyTo(null)}
           />
+          </fieldset>
         </>
       )}
 

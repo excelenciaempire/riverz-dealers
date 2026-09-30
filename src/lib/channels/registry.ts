@@ -17,6 +17,7 @@ import { webchatAdapter } from "./webchat/adapter";
 import { assertConnectionCanSend } from "./send-guard";
 import { assertWorkspaceWritable } from "@/lib/billing/read-only";
 import { assertRecoveryStillUnanswered } from "@/lib/billing/recovery-send-guard";
+import { assertInboxCaseCanSend } from '@/lib/inbox/disposition-server';
 
 const ADAPTERS: Record<Channel, ChannelAdapter> = {
   whatsapp: whatsappAdapter,
@@ -51,6 +52,7 @@ export function getAdapter(channel: Channel): ChannelAdapter {
       assertConnectionCanSend(input.connection);
       await assertWorkspaceWritable(supabaseAdmin(), input.connection.workspace_id);
       await assertRecoveryStillUnanswered(supabaseAdmin(), input.conversation.id);
+      await assertInboxCaseCanSend(supabaseAdmin(),input.connection.workspace_id,input.conversation.id);
       const text = input.text.includes("http")
         ? await prepararTextoParaCanal(supabaseAdmin(), {
             texto: input.text,
@@ -70,6 +72,7 @@ export function getAdapter(channel: Channel): ChannelAdapter {
       assertConnectionCanSend(input.connection);
       await assertWorkspaceWritable(supabaseAdmin(), input.connection.workspace_id);
       await assertRecoveryStillUnanswered(supabaseAdmin(), input.conversation.id);
+      await assertInboxCaseCanSend(supabaseAdmin(),input.connection.workspace_id,input.conversation.id);
       return adapter.sendMedia!(input);
     };
   }
@@ -78,6 +81,7 @@ export function getAdapter(channel: Channel): ChannelAdapter {
       assertConnectionCanSend(input.connection);
       await assertWorkspaceWritable(supabaseAdmin(), input.connection.workspace_id);
       await assertRecoveryStillUnanswered(supabaseAdmin(), input.conversation.id);
+      await assertInboxCaseCanSend(supabaseAdmin(),input.connection.workspace_id,input.conversation.id);
       return adapter.sendTemplate!(input);
     };
   }

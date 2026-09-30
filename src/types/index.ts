@@ -355,6 +355,9 @@ export type NeedsHumanReason = (typeof NEEDS_HUMAN_REASONS)[number];
 
 export interface Conversation {
   id: string;
+  manual_unread?: boolean;
+  is_spam?: boolean;
+  inbox_control_version?: number;
   workspace_id: string;
   contact_id: string;
   case_priority?: 'normal' | 'high' | 'urgent';

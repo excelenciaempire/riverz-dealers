@@ -4,7 +4,8 @@ import { useLocale } from '@/hooks/use-locale'
 import { useFormat } from '@/hooks/use-format'
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf'
 import { TRANSLATION_LANGUAGES,audioTranscripts,type UnderstandingAction,type UnderstandingResult,type TranslationLanguage } from '@/lib/inbox/understanding'
-import type { Message } from '@/types'
+import type { Message,Conversation } from '@/types'
+import { CaseDisposition } from './case-disposition'
 import { audioParts } from '@/lib/inbox/audio-parts'
 
 function useUnderstanding(conversationId:string) {
@@ -31,7 +32,7 @@ function Language({ value,onChange,disabled }: { value:TranslationLanguage; onCh
     onChange={e => onChange(e.target.value as TranslationLanguage)}>{TRANSLATION_LANGUAGES.map(v => <option key={v} value={v}>{names.of(v)}</option>)}</select>
 }
 const button='rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-50'
-export function ConversationUnderstanding({ conversationId }: { conversationId:string }) {
+export function ConversationUnderstanding({ conversationId,conversation }: { conversationId:string;conversation:Conversation }) {
   const { t }=useLocale(),fmt=useFormat(),state=useUnderstanding(conversationId)
   const [exporting,setExporting]=useState(false),[exportInfo,setExportInfo]=useState(''),[exportError,setExportError]=useState(''),download=useRef<AbortController | null>(null)
   useEffect(() => () => download.current?.abort(),[])
@@ -54,6 +55,7 @@ export function ConversationUnderstanding({ conversationId }: { conversationId:s
       <button type="button" className={button} disabled={exporting} onClick={() => void exportCase()}>{t(exporting ? 'inbox.understandingWorking' : 'inbox.exportConversation')}</button>
       <p className="text-muted-foreground">{t('inbox.exportNotesExcluded')}</p>
       {exportInfo && <p role="status">{exportInfo}</p>}{exportError && <p role="alert">{exportError}</p>}
+      <CaseDisposition key={conversationId} conversation={conversation} />
       {state.error && <p role="alert">{state.error}</p>}
       {state.result && <><p className="font-medium">{t('inbox.conversationSummary')}</p><p className="whitespace-pre-wrap break-words">{state.result.text}</p><p className="text-muted-foreground">{t('inbox.summaryCoverage',{ count:fmt.number(state.result.source.count),from:state.result.source.first_at ? fmt.dateTime(state.result.source.first_at) : '',to:state.result.source.last_at ? fmt.dateTime(state.result.source.last_at) : '' })}</p>
         {state.result.source.truncated && <p className="text-muted-foreground">{t('inbox.summaryLimited')}</p>}</>}
