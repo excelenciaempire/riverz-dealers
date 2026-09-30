@@ -111,11 +111,12 @@ FAQS = [
 ]
 
 class PDF:
-    def __init__(self,path,title):
+    def __init__(self,path,title,header_labels=True):
         self.path=path
         self.c=canvas.Canvas(str(path),pagesize=(W,H),pageCompression=1)
         self.c.setTitle(title);self.c.setAuthor('Riverz')
         self.bounds=[];self.page=0;self.label='';self.dark=False
+        self.header_labels=header_labels
     def text(self,x,y,s,font='Sans',size=12,color=None,width=None):
         color=color or (CARD if self.dark else INK)
         tw=pdfmetrics.stringWidth(s,font,size)
@@ -185,7 +186,8 @@ class PDF:
         self.page+=1;self.label=label;self.dark=dark
         self.c.setFillColor(INK if dark else BG);self.c.rect(0,0,W,H,fill=1,stroke=0)
         self.text(42,48,'riverz','Logo',24,LIME if dark else INK)
-        self.text(380,44,label.upper(),'Semi',8.1,LIME if dark else MUTED,width=173)
+        if self.header_labels:
+            self.text(380,44,label.upper(),'Semi',8.1,LIME if dark else MUTED,width=173)
         self.line(42,66,553,66,HexColor('#36433B') if dark else LINE)
         end=self.wrap(42,119,title,511,'Serif',36,40,max_lines=2)
         if subtitle:self.wrap(42,end-10,subtitle,511,size=12,leading=17,color=CARD if dark else MUTED,max_lines=2)
@@ -481,7 +483,7 @@ GUIDE_SECTIONS = [
 
 def guide():
     p = PDF(OUT/'riverz-guia-detallada-automatizaciones-y-agentes.pdf',
-            'Riverz | Automatizaciones y asistentes de IA para tu ecommerce')
+            'Riverz | Automatizaciones y asistentes de IA para tu ecommerce',header_labels=False)
     def section(number):
         title, _, page, _ = GUIDE_SECTIONS[number]
         assert p.page + 1 == page, (title, p.page, page)
@@ -608,6 +610,7 @@ def verify(path,expected):
         assert cover == ('Automatizaciones y asistentes para tu ecommerce. '
                          'Descubre cómo Riverz puede vender, recuperar compras y acompañar a tus clientes con conversaciones en lenguaje natural.')
         assert len([b for b in d[0].get_text('dict')['blocks'] if b['type']==1])==1
+        assert all(pg.get_text(clip=pymupdf.Rect(0,0,W,66)).strip()=='riverz' for pg in list(d)[1:])
         assert GUIDE_DEEP_CASES[0][0] in d[2].get_text()
         forbidden=['apoyo para el video','qué mostrar','documento original','promesa del anuncio',
                    'demostración','detalles técnicos','integración','flujo','webhook',
