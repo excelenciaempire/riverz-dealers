@@ -26,6 +26,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { decrypt } from './encryption';
 import { withAppsecretProofBody } from './meta-graph';
 import { describeMetaSendError, parseMetaError } from './meta-errors';
+import { assertWorkspaceWritable } from '@/lib/billing/read-only';
+import { assertRecoveryStillUnanswered } from '@/lib/billing/recovery-send-guard';
 
 const GRAPH = 'https://graph.facebook.com/v22.0';
 
@@ -236,6 +238,8 @@ export async function requestOptIn(
 
     const accessToken = decrypt(input.accessTokenEncrypted);
     if (!accessToken) return false;
+    await assertWorkspaceWritable(db,input.workspaceId);
+    await assertRecoveryStillUnanswered(db,'');
 
     const res = await fetch(`${GRAPH}/${input.senderId}/messages`, {
       method: 'POST',
@@ -312,6 +316,8 @@ export async function sendToSubscriber(
   try {
     const accessToken = decrypt(input.accessTokenEncrypted);
     if (!accessToken) return { ok: false, reason: 'no_token' };
+    await assertWorkspaceWritable(db,optin.workspace_id);
+    await assertRecoveryStillUnanswered(db,'');
 
     const res = await fetch(`${GRAPH}/${input.senderId}/messages`, {
       method: 'POST',

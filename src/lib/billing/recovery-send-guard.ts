@@ -6,8 +6,14 @@ export function withRecoverySendGuard<T>(turn:Turn,action:()=>Promise<T>) {retur
 /** A native/manual reply arriving while the model is thinking cancels recovery. */
 export async function assertRecoveryStillUnanswered(db:SupabaseClient,conversationId:string) {
  const turn=recoveryTurn.getStore();
- if(!turn || turn.conversationId!==conversationId)return;
- const human=await db.from('messages').select('id').eq('conversation_id',conversationId).eq('sender_type','agent').in('status',['sent','delivered','read']).gte('created_at',turn.createdAt).is('deleted_at',null);
+ if(!turn)return;
+ // Comment recovery can send a private DM in a different conversation.
+ // The public source thread still owns whether this turn should speak.
+ const sourceId=turn.conversationId || conversationId;
+ const conversation=await db.from('conversations').select('ai_enabled,assigned_agent_id,status,deleted_at').eq('id',sourceId).maybeSingle();
+ if(conversation.error || !conversation.data)throw new Error('billing_recovery_history_unavailable');
+ if(conversation.data.ai_enabled===false || conversation.data.assigned_agent_id || conversation.data.status==='closed' || conversation.data.deleted_at)throw new Error('billing_recovery_human_takeover');
+ const human=await db.from('messages').select('id').eq('conversation_id',sourceId).eq('sender_type','agent').in('status',['sent','delivered','read']).gte('created_at',turn.createdAt).is('deleted_at',null);
  if(human.error)throw new Error('billing_recovery_history_unavailable');
  if(turn.commentId && human.data?.length) {
   const metadata=await db.from('comments_meta').select('message_id').in('message_id',human.data.map(m=>m.id)).eq('parent_comment_id',turn.commentId).limit(1);
@@ -15,7 +21,7 @@ export async function assertRecoveryStillUnanswered(db:SupabaseClient,conversati
   if(metadata.data?.length)throw new Error('billing_recovery_already_answered');
  } else if(human.data?.length)throw new Error('billing_recovery_already_answered');
  if(!turn.commentId) {
-  const newer=await db.from('messages').select('id').eq('conversation_id',conversationId).eq('sender_type','customer').gt('created_at',turn.createdAt).is('deleted_at',null).limit(1);
+  const newer=await db.from('messages').select('id').eq('conversation_id',sourceId).eq('sender_type','customer').gt('created_at',turn.createdAt).is('deleted_at',null).limit(1);
   if(newer.error)throw new Error('billing_recovery_history_unavailable');
   if(newer.data?.length)throw new Error('billing_recovery_newer_inbound');
  }

@@ -7,17 +7,15 @@ import { prometeAveriguar, salidaParaCliente } from '@/lib/ai/salida';
 import { puertaDelPiloto } from '@/lib/piloto';
 import { composeSuperAgentReply } from '@/lib/ai/super-agent';
 import { setCommentHidden } from '@/lib/channels/comment-moderation';
-import { instagramAdapter } from '@/lib/channels/instagram/adapter';
 import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
 import { findMessageByExternalId } from '@/lib/channels/message-lookup';
-import { messengerAdapter } from '@/lib/channels/messenger/adapter';
 import {
   briefDePublicacionPorId,
   briefDePublicacionPorOrigen,
 } from '@/lib/channels/publicacion';
 import { getAdapter } from '@/lib/channels/registry';
 import { assertStoredConnectionCanSend } from '@/lib/channels/send-guard';
-import type { OutboundText } from '@/lib/channels/types';
+import type { OutboundText, SendResult } from '@/lib/channels/types';
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { loadCommentConversation } from '@/lib/comments/hilo';
 import { addCommentContextToPrivateReply } from '@/lib/comments/private-reply-context';
@@ -649,7 +647,7 @@ export async function maybeInstantOutreach(
         .eq('id', recipientId).eq('status', 'sent');
       return;
     }
-    const dmRes = await instagramAdapter.sendText({
+    const dmRes = await getAdapter('instagram').sendText({
       channel: 'instagram',
       connection,
       conversation: { id: '' } as unknown as Conversation,
@@ -926,7 +924,7 @@ async function decidirComentario(
   const dmChannel = isFacebook
     ? ('messenger' as const)
     : ('instagram' as const);
-  const adapter = isFacebook ? messengerAdapter : instagramAdapter;
+  const adapter = getAdapter(isFacebook ? 'messenger' : 'instagram');
 
   const privateIdentity = { workspaceId: opts.workspaceId, externalId: opts.contact.external_id!, channel: dmChannel };
   const privateState = isTikTok ? null : await readPrivateReplyState(db, privateIdentity);
@@ -1925,11 +1923,11 @@ export async function maybeRunCloser(
     contactId: opts.contact.id,
   });
 
-  let closerRes: Awaited<ReturnType<typeof instagramAdapter.sendText>> | null =
+  let closerRes: SendResult | null =
     null;
   try {
     await assertStoredConnectionCanSend(db, opts.connection.id);
-    closerRes = await instagramAdapter.sendText({
+    closerRes = await getAdapter('instagram').sendText({
       channel: 'instagram',
       connection: opts.connection,
       conversation: { id: '' } as unknown as Conversation,

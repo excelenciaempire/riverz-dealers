@@ -1,7 +1,7 @@
+import { getAdapter } from '@/lib/channels/registry';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
-import { igCommentAdapter } from '@/lib/channels/ig_comment/adapter';
 import { assertStoredConnectionCanSend } from '@/lib/channels/send-guard';
 import { humanizarTexto } from '@/lib/ai/estilo-humano';
 import type { InstagramCampaign } from './types';
@@ -94,7 +94,7 @@ export async function replyToComments(
 
     try {
       await assertStoredConnectionCanSend(db, connection.id);
-      const result = await igCommentAdapter.sendText({
+      const result = await getAdapter('ig_comment').sendText({
         channel: 'ig_comment',
         connection,
         conversation: { id: '', thread_external_id: commentId } as unknown as Conversation,

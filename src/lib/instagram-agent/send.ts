@@ -1,5 +1,5 @@
+import { getAdapter } from '@/lib/channels/registry';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
-import { instagramAdapter } from '@/lib/channels/instagram/adapter';
 import { assertStoredConnectionCanSend } from '@/lib/channels/send-guard';
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { addCommentContextToPrivateReply } from '@/lib/comments/private-reply-context';
@@ -54,7 +54,7 @@ async function findSubscription(
 /**
  * Envía la tanda de DMs en cola de una campaña de Instagram.
  *
- * Usa instagramAdapter.sendText (Meta Graph, messaging_type=RESPONSE), que
+ * Usa getAdapter('instagram').sendText (Meta Graph, messaging_type=RESPONSE), que
  * solo está permitido dentro de la ventana de 24h tras una interacción del
  * usuario — justo el modelo del agente (responder a comentarios/historias/
  * DMs). El adapter no persiste en la BD; aquí solo actualizamos el estado del
@@ -453,14 +453,14 @@ export async function sendCampaignBatch(
         const connSecrets = (conn.secrets ?? {}) as Record<string, unknown>;
         const res = await sendToSubscriber(db, p.subscription, {
           // La página, no la cuenta de IG: es sobre la página que se llama la
-          // API de mensajes de Instagram (igual que `instagramAdapter.sendText`).
+          // API de mensajes de Instagram (igual que `getAdapter('instagram').sendText`).
           senderId: String(connCfg.page_id ?? ''),
           accessTokenEncrypted: String(connSecrets.access_token ?? ''),
           text: textoPreparado,
         });
         if (!res.ok) throw new Error(res.reason ?? 'marketing_send_failed');
       } else {
-        const dmRes = await instagramAdapter.sendText({
+        const dmRes = await getAdapter('instagram').sendText({
           channel: 'instagram',
           connection: conn,
           // El adapter de Instagram no usa `conversation` para enviar; basta
