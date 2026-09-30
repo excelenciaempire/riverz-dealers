@@ -4,10 +4,10 @@ Los dos PDFs se regeneran con `py -X utf8 scripts/build-riverz-visual-pdfs.py`.
 El Word original permanece intacto; el generador lee sus ejemplos y presenta la guía
 en lenguaje para clientes. Las notas internas de grabación no se incluyen.
 Para actualizar solo la guía, usa `py -X utf8 scripts/build-riverz-visual-pdfs.py --guide-only`.
-La guía tiene 11 páginas y se organiza por capacidades. Incluye 22 automatizaciones,
-un mapa de 5 roles y 6 conversaciones breves en 3 páginas, además de campañas
-y llamadas. La primera conversación aparece en la página 7, después de explicar
-las automatizaciones. No se repiten las
+La guía tiene 13 páginas y se organiza por capacidades. Incluye 22 automatizaciones,
+un mapa de 5 roles y 20 ejemplos breves en 5 páginas, incluidos comentarios,
+campañas y llamadas. Cada sección va seguida inmediatamente de cuatro ejemplos
+en una cuadrícula de dos columnas. No se repiten las
 automatizaciones en listas de funciones de los agentes o escenarios resumidos.
 Personalización y control se explican en una sola sección.
 La portada contiene únicamente título, descripción e ilustración de marca.
@@ -23,14 +23,16 @@ notas editoriales y no se añaden al PDF para clientes.
 1. Portada: presenta el alcance sin cargar la entrada de información.
 2. Asistentes: distingue automatizaciones y conversaciones, y presenta los cinco roles.
 3. Antes de la compra: muestra cómo atender el interés y acompañar la decisión.
-4. Recuperación: continúa con la compra que quedó pendiente.
-5. Pedidos y logística: pasa a lo que ocurre después de confirmar una compra.
-6. Postventa y retención: completa el recorrido con atención y nuevas compras.
-7. Venta y recuperación: muestra una recomendación adaptada y cómo resuelve la duda que frenó un carrito.
-8. Pedidos y postventa: muestra el seguimiento de una orden y una solicitud de reemplazo entregada al equipo.
-9. Recompras y comentarios: muestra una reposición con cambio de cantidad y el paso de un comentario al privado.
-10. Canales y alcance: amplía los ejemplos a comentarios, campañas y llamadas.
-11. Personalización y control: cierra con cómo se adapta a la marca y qué decide el equipo.
+4. Ventas, ejemplos: recomendación, disponibilidad, cotización y compra de varias unidades.
+5. Recuperación: continúa con la compra que quedó pendiente.
+6. Recuperación, ejemplos: carrito, pago rechazado, transferencia y contra entrega.
+7. Pedidos y logística: pasa a lo que ocurre después de confirmar una compra.
+8. Pedidos, ejemplos: estado, dirección, demora y pedido no encontrado.
+9. Postventa y retención: completa el recorrido con atención y nuevas compras.
+10. Postventa, ejemplos: producto dañado, uso, reposición y compra complementaria.
+11. Canales y alcance: amplía las capacidades a comentarios, campañas y llamadas.
+12. Canales, ejemplos: comentario, mensaje privado, campaña y llamada.
+13. Personalización y control: cierra con cómo se adapta a la marca y qué decide el equipo.
 
 ## Branding
 
