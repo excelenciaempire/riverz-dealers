@@ -13,7 +13,7 @@ Esta lista registra el estado real del trabajo. Una implementación local, una v
 | P0E Accesos y regresión | Implementada | Pruebas de aislamiento y build correctos | Publicada; revisión de salud correcta |
 | B1 Colaboración en bandeja | Implementada | 147 pruebas, lint sin errores y build correctos | Publicada; salud de producción verificada |
 | B2 Seguimiento y herramientas del equipo | Implementada | 569 pruebas, TypeScript, lint de cambios y build correctos | Publicada; salud de producción verificada |
-| B3 Acciones de pedidos | En ejecución: cancelaciones y reembolsos revisados en la ficha actual; acciones adicionales en desarrollo | 687 pruebas y build completo correctos; esquema 310 verificado | Base del servicio publicada; controles de la ficha en publicación |
+| B3 Acciones de pedidos | En ejecución: cancelaciones, reembolsos y cambios de dirección revisados en la ficha actual; acciones adicionales en desarrollo | 711 pruebas, lint de cambios y build completo correctos; esquema 310 verificado | Cancelaciones y reembolsos publicados; dirección en publicación |
 | B4 Comprensión de mensajes y audios | Pendiente | Pendiente | Pendiente |
 | A1 a A3 Superasistente | Pendiente | Pendiente | Pendiente |
 | C1 y C2 Crecimiento | Pendiente | Pendiente | Pendiente |
@@ -80,3 +80,14 @@ Primera entrega de controles B3:
 - Contratos estrictos, CSRF, aislamiento por cuenta y contacto, privacidad de buzones personales y control de solo lectura por suscripción. Textos en español e inglés.
 
 Validación: **83 archivos y 687 pruebas correctas**, incluidas diez pruebas de PostgreSQL real con PGlite, autorización previa a la decisión, identidad autenticada del MCP, concurrencia entre canales de aprobación, caducidad, resultados inciertos, cambios de pedido e importes exactos. Lint del nuevo panel, servicios, contratos, APIs y adaptadores sin errores. Build completo correcto en la copia aislada; se instalaron allí sus dependencias para independizarla del entorno compartido. Migración **310** aplicada atómicamente y guard de tablas y RPC comprobado contra Supabase. Las modificaciones de productos, variantes, cantidades y dirección, los borradores de reemplazo, la retención del despacho y el crédito de tienda siguen en desarrollo; esta entrega no completa B3. No se hicieron movimientos financieros reales como prueba.
+
+Los controles de la ficha B3 están publicados: `riverz.co/api/health` devolvió salud `ok`, Supabase y WhatsApp `ok`, revisión `801846d143d35d5dca64c5abc08e003783ac9d27`, el 30 de septiembre a las 07:20 UTC.
+
+Segunda entrega B3, cambios de dirección:
+
+- Formulario dentro de las acciones plegables del pedido, rellenado con su dirección actual y selector de países en ambos idiomas. Conserva el destinatario, su teléfono y su empresa; permite cambiar únicamente los campos de envío.
+- Vista previa de dirección actual y nueva, motivo y validación. Reutiliza Google cuando el negocio lo tiene conectado; una configuración ilegible o una caída de la validación no se interpreta como integración desactivada. Las coincidencias dudosas requieren revisión explícita; los datos incorrectos bloquean la preparación.
+- Confirmación de administrador vigente, caducidad y bloqueo compartidos con las otras acciones del pedido. Un cambio en Shopify o en la dirección normalizada exige preparar otra vista previa. No exige un saldo cobrado para corregir un pedido pendiente de pago.
+- Servicio compartido que vuelve a consultar el estado antes de modificar, impide cambios en pedidos cancelados o cuyo despacho comenzó y verifica la dirección guardada y el destinatario después de la respuesta. Historial de dirección anterior y posterior; los resultados inciertos no se repiten y su revisión consulta la dirección real, sin sustituirla por una comprobación del saldo.
+
+Validación de dirección: **86 archivos y 711 pruebas correctas**, incluidos los contratos anidados, conservación del destinatario, revisión del estado antes de modificar, verificación posterior, rechazo de países distintos, validación caída, recuperación idempotente y bloqueo frente a aprobaciones financieras. Lint de los servicios, contratos, panel y APIs modificados sin errores; build completo correcto en la copia aislada. Reutiliza el esquema 310; no requiere una migración nueva. No se cambiaron direcciones reales de clientes como prueba.

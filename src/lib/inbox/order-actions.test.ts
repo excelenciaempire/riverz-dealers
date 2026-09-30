@@ -1,14 +1,16 @@
 import { beforeEach,describe,it,expect,vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { CaseOrderOperation } from './order-action-contract'
-const m=vi.hoisted(() => ({ rest:vi.fn(),gql:vi.fn(),refund:vi.fn(),cancel:vi.fn(),mirror:vi.fn() }))
+import type { CaseOrderAction,CaseOrderOperation } from './order-action-contract'
+const m=vi.hoisted(() => ({ rest:vi.fn(),gql:vi.fn(),refund:vi.fn(),cancel:vi.fn(),mirror:vi.fn(),address:vi.fn(),validate:vi.fn() }))
 vi.mock('@/lib/shopify/order-tags',() => ({ resolveShopifyAdmin:async () => ({ shopDomain:'test.myshopify.com',accessToken:'test',apiVersion:'2025-10' }) }))
 vi.mock('@/lib/shopify/admin-client',() => ({ ShopifyAdminClient:class { rest=m.rest; graphql=m.gql } }))
 vi.mock('@/lib/shopify/order-cancel',() => ({ refundOrder:m.refund,cancelOrder:m.cancel }))
-import { caseOrderSnapshot,executeCaseOrderAction } from './order-actions'
+vi.mock('@/lib/addresses/google-validation',() => ({ validateWorkspaceShippingAddress:m.validate }))
+vi.mock('@/lib/shopify/order-shipping-address',() => ({ updateOrderShippingAddress:m.address }))
+import { caseOrderSnapshot,executeCaseOrderAction,uncertainCaseOrderSnapshot } from './order-actions'
 const live={ id:100,name:'#100',updated_at:'2026-09-30',currency:'USD',financial_status:'paid',fulfillment_status:null,cancelled_at:null,total_price:'100.00',fulfillments:[],email:'customer@example.com' }
 const transactions=[{ id:1,kind:'sale',status:'success',amount:'100.00',gateway:'card' }]
-function fixture() {
+function fixture(privateContext?:{ lock:{ source_id:string; source_kind:string; status:string }; action:CaseOrderAction }) {
   let operation:CaseOrderOperation
   const rpc=vi.fn(async (name:string,args:Record<string,unknown>) => {
     if (name === 'claim_inbox_order_action') {
@@ -21,13 +23,13 @@ function fixture() {
   })
   const db={ rpc,from:(table:string) => {
     const q={ select:() => q,eq:() => q,update:(patch:unknown) => { m.mirror(patch); return q },
-      maybeSingle:async () => ({ data:table === 'contacts' ? { email:'customer@example.com',phone:null } : { id:'local',shopify_order_id:'100',shop_domain:'test.myshopify.com',order_number:'#100',platform:'shopify' },error:null }),
+      maybeSingle:async () => ({ data:table === 'order_execution_locks' ? privateContext?.lock : table === 'inbox_order_actions' ? { action:privateContext?.action } : table === 'contacts' ? { email:'customer@example.com',phone:null } : { id:'local',shopify_order_id:'100',shop_domain:'test.myshopify.com',order_number:'#100',platform:'shopify' },error:null }),
       then:(done:(value:unknown) => unknown) => Promise.resolve({ error:null }).then(done) }
     return q
   } } as unknown as SupabaseClient
-  const prepare=async () => {
-    const snapshot=await caseOrderSnapshot(db,'ws','contact','local',{ type:'refund',amount:25,reason:'Damage' })
-    operation={ id:'op',order_id:'local',requested_by:'agent',approved_by:'admin',action:{ type:'refund',amount:25,reason:'Damage' },preview:snapshot.preview,fingerprint:snapshot.fingerprint,
+  const prepare=async (action:CaseOrderAction={ type:'refund',amount:25,reason:'Damage' }) => {
+    const snapshot=await caseOrderSnapshot(db,'ws','contact','local',action)
+    operation={ id:'op',order_id:'local',requested_by:'agent',approved_by:'admin',action,preview:snapshot.preview,fingerprint:snapshot.fingerprint,
       status:'preview',expires_at:'2026-10-01',created_at:'2026-09-30',approved_at:null,result:null }
   }
   return { db,rpc,prepare,run:() => executeCaseOrderAction(db,'ws','conv','contact','admin','op') }
@@ -36,6 +38,57 @@ beforeEach(() => {
   m.rest.mockReset().mockImplementation(async (path:string) => path.includes('transactions') ? { transactions } : { order:{ ...live } })
   m.gql.mockReset().mockResolvedValue({ currentAppInstallation:{ accessScopes:[{ handle:'write_orders' }] } })
   m.refund.mockReset(); m.cancel.mockReset(); m.mirror.mockReset()
+  m.address.mockReset(); m.validate.mockReset().mockImplementation(async (_ws:string,address:unknown) => ({ status:'disabled',address }))
+})
+const before={ address1:'10 Main St',address2:'',city:'Austin',province:'Texas',zip:'78701',countryCode:'US' }
+const after={ ...before,address1:'20 Main St' }
+function shippingFixture() {
+  m.rest.mockImplementation(async () => ({ order:{ ...live,financial_status:'pending',shipping_address:{ ...before,country_code:'US' } } }))
+  return fixture()
+}
+describe('reviewed address execution',() => {
+  it('reviews an uncertain address using the actual address, without requiring a refundable balance or releasing a running operation',async () => {
+    shippingFixture()
+    const privateContext={ lock:{ source_id:'op',source_kind:'inbox',status:'uncertain' },action:{ type:'address',address:after,reason:'Customer request' } as CaseOrderAction }
+    const f=fixture(privateContext)
+    expect(await uncertainCaseOrderSnapshot(f.db,'ws','contact','local')).toMatchObject({ source_id:'op',snapshot:{ preview:{ shipping_address:before,amount:null } } })
+    expect(m.rest.mock.calls.every(call => !String(call[0]).includes('transactions'))).toBe(true)
+    privateContext.lock.status='running'
+    await expect(uncertainCaseOrderSnapshot(f.db,'ws','contact','local')).rejects.toThrow('orderBusy')
+    expect(f.rpc).not.toHaveBeenCalled(); expect(m.address).not.toHaveBeenCalled()
+  })
+  it('prepares and verifies a change for an unpaid order without requiring a captured balance',async () => {
+    const f=shippingFixture(); await f.prepare({ type:'address',address:after,reason:'Customer request' })
+    m.address.mockResolvedValue({ ok:true,before,after })
+    expect(await f.run()).toMatchObject({ status:'completed',result:{ shipping_before:before,shipping_after:after } })
+    expect(m.address).toHaveBeenCalledWith(expect.anything(),'100',after,expect.anything())
+    expect(m.rest.mock.calls.every(call => !String(call[0]).includes('transactions'))).toBe(true)
+    expect(m.refund).not.toHaveBeenCalled(); expect(m.cancel).not.toHaveBeenCalled(); expect(m.mirror).not.toHaveBeenCalled()
+    await f.run(); expect(m.address).toHaveBeenCalledTimes(1)
+  })
+  it('blocks configured validation failures and adopts the exact reviewed normalized address',async () => {
+    const f=shippingFixture(), action:CaseOrderAction={ type:'address',address:after,reason:'Customer request' }
+    for (const status of ['fix','unavailable']) {
+      m.validate.mockResolvedValue({ status })
+      await expect(caseOrderSnapshot(f.db,'ws','contact','local',action)).rejects.toThrow(status === 'fix' ? 'orderAddressInvalid' : 'orderAddressValidationUnavailable')
+    }
+    m.validate.mockResolvedValue({ status:'confirm',address:{ ...after,address1:'20 Main Street' } })
+    await f.prepare(action)
+    m.address.mockResolvedValue({ ok:true,before,after:{ ...after,address1:'20 Main Street' } })
+    expect(await f.run()).toMatchObject({ status:'completed',preview:{ shipping_change:{ after:{ address1:'20 Main Street' },validation:'confirm' } } })
+    expect(m.address).toHaveBeenCalledWith(expect.anything(),'100',{ ...after,address1:'20 Main Street' },expect.anything())
+  })
+  it('requires a new review if validation changes and keeps uncertain saves locked',async () => {
+    const f=shippingFixture(); await f.prepare({ type:'address',address:after,reason:'Customer request' })
+    m.validate.mockResolvedValue({ status:'accept',address:{ ...after,address1:'22 Main Street' } })
+    expect(await f.run()).toMatchObject({ status:'failed',result:{ error:'orderChanged' } })
+    expect(m.address).not.toHaveBeenCalled()
+    m.validate.mockResolvedValue({ status:'disabled',address:after })
+    await f.prepare({ type:'address',address:after,reason:'Customer request' })
+    m.address.mockResolvedValue({ ok:false,uncertain:true,error:'orderResultUnverified' })
+    expect(await f.run()).toMatchObject({ status:'uncertain' }); await f.run()
+    expect(m.address).toHaveBeenCalledTimes(1)
+  })
 })
 describe('reviewed financial execution',() => {
   it('executes the exact reviewed partial amount, stores provider facts and recovers the same result without another call',async () => {

@@ -36,6 +36,16 @@ const approved=async (actor=admin) => db.query("INSERT INTO approval_requests(id
 const claimApproval=() => db.query<{ claimed:boolean }>('SELECT claim_approved_order_execution($1,$2,$3) AS claimed',[ws,order,op2])
 
 describe('reviewed order operations in PostgreSQL',() => {
+  it('stores nested reviewed addresses idempotently and serializes them against financial approvals',async () => {
+    const request={ type:'address',reason:'Customer request',address:{ address1:'20 Main St',address2:'',city:'Austin',province:'Texas',zip:'78701',countryCode:'US' } }
+    const args=[op,ws,conv,order,agent,JSON.stringify(request),'{}','a'.repeat(64)]
+    await db.query('SELECT save_inbox_order_preview($1,$2,$3,$4,$5,$6,$7,$8)',args)
+    args[5]=JSON.stringify({ address:Object.fromEntries(Object.entries(request.address).reverse()),type:request.type,reason:request.reason })
+    await db.query('SELECT save_inbox_order_preview($1,$2,$3,$4,$5,$6,$7,$8)',args)
+    await approved(); await claim()
+    expect((await claimApproval()).rows[0].claimed).toBe(false)
+    expect((await db.query('SELECT action FROM inbox_order_actions')).rows).toEqual([{ action:request }])
+  })
   it('saves idempotently, cannot change the request under the same ID, and binds workspace and contact',async () => {
     await save(); await save()
     expect((await db.query('SELECT * FROM inbox_order_actions')).rows).toHaveLength(1)

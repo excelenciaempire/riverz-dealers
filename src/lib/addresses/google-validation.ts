@@ -109,7 +109,7 @@ function clean(value: unknown): string | undefined {
 
 function regionCode(country: string | undefined): string | undefined {
   const normalized = clean(country)?.toLocaleLowerCase('es');
-  return normalized ? REGION_CODES[normalized] : undefined;
+  return normalized ? (/^[a-z]{2}$/.test(normalized) ? normalized.toUpperCase() : REGION_CODES[normalized]) : undefined;
 }
 
 function googleRequest(address: ShippingAddressInput) {
@@ -197,6 +197,11 @@ export async function validateGoogleAddress(
   const found = result?.address;
   if (!verdict || !found)
     return { status: 'fix', reasons: ['dirección no encontrada'], missing: [] };
+
+  const requestedRegion = regionCode(address.country);
+  if (requestedRegion && found.postalAddress?.regionCode && found.postalAddress.regionCode.toUpperCase() !== requestedRegion) {
+    return { status:'fix',reasons:['el país de la dirección no coincide'],missing:[] };
+  }
 
   const suggested = normalizedAddress(address, found.postalAddress);
   const formattedAddress =
@@ -296,7 +301,8 @@ export async function validateWorkspaceShippingAddress(
     .eq('workspace_id', workspaceId)
     .eq('provider', PROVIDER)
     .maybeSingle();
-  if (error || !data || data.is_active !== true)
+  if (error) return { status: 'unavailable', reason: 'configuration_unavailable' };
+  if (!data || data.is_active !== true)
     return { status: 'disabled', address };
   try {
     const key = decrypt(String(data.api_key_encrypted ?? ''));

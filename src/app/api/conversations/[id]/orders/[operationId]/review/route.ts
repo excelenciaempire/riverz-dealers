@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { csrfGuard } from '@/lib/csrf'
 import { inboxConversation } from '@/lib/inbox/server-context'
 import { UUID } from '@/lib/inbox/collaboration'
-import { caseOrderSnapshot, CaseOrderError } from '@/lib/inbox/order-actions'
+import { uncertainCaseOrderSnapshot, CaseOrderError } from '@/lib/inbox/order-actions'
 type Context = { params:Promise<{ id:string; operationId:string }> }
 async function context(route:Context) {
   const { id,operationId:orderId } = await route.params
@@ -16,10 +16,8 @@ export async function GET(_request:Request,route:Context) {
   const ctx = await context(route)
   if (ctx.response) return ctx.response
   try {
-    const snapshot = await caseOrderSnapshot(ctx.db,ctx.workspaceId,ctx.conversation.contact_id,ctx.orderId,null)
-    const lock = await ctx.db.from('order_execution_locks').select('source_id,status').eq('workspace_id',ctx.workspaceId).eq('order_id',ctx.orderId).maybeSingle()
-    if (lock.error || !lock.data || lock.data.status !== 'uncertain') throw new CaseOrderError('orderBusy')
-    return NextResponse.json({ source_id:lock.data.source_id,fingerprint:snapshot.fingerprint,preview:snapshot.preview },{ headers:{ 'Cache-Control':'private, no-store' } })
+    const { source_id,snapshot } = await uncertainCaseOrderSnapshot(ctx.db,ctx.workspaceId,ctx.conversation.contact_id,ctx.orderId)
+    return NextResponse.json({ source_id,fingerprint:snapshot.fingerprint,preview:snapshot.preview },{ headers:{ 'Cache-Control':'private, no-store' } })
   } catch (error) { return NextResponse.json({ error:ctx.t(error instanceof CaseOrderError ? error.message : 'orderUnavailable') },{ status:409 }) }
 }
 export async function POST(request:Request,route:Context) {
@@ -31,8 +29,8 @@ export async function POST(request:Request,route:Context) {
   if (!body || body.confirmed !== true || !UUID.test(body.source_id ?? '') || typeof body.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(body.fingerprint) ||
     typeof body.reason !== 'string' || !body.reason.trim() || body.reason.length>300 || Object.keys(body).some(k => !['source_id','fingerprint','confirmed','reason'].includes(k))) return NextResponse.json({ error:ctx.t('teamInvalid') },{ status:400 })
   try {
-    const snapshot = await caseOrderSnapshot(ctx.db,ctx.workspaceId,ctx.conversation.contact_id,ctx.orderId,null)
-    if (snapshot.fingerprint !== body.fingerprint) throw new CaseOrderError('orderChanged')
+    const { source_id,snapshot } = await uncertainCaseOrderSnapshot(ctx.db,ctx.workspaceId,ctx.conversation.contact_id,ctx.orderId)
+    if (source_id !== body.source_id || snapshot.fingerprint !== body.fingerprint) throw new CaseOrderError('orderChanged')
     const saved = await ctx.db.rpc('review_order_execution',{ p_workspace_id:ctx.workspaceId,p_conversation_id:ctx.conversation.id,p_order_id:ctx.orderId,
       p_actor_id:ctx.userId,p_source_id:body.source_id,p_reason:body.reason.trim(),p_snapshot:{ ...snapshot.preview,fingerprint:snapshot.fingerprint } })
     if (saved.error) throw new CaseOrderError('orderConflict')

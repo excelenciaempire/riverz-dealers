@@ -1,24 +1,35 @@
 'use client'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useT } from '@/hooks/use-locale'
+import { useT, useLocale } from '@/hooks/use-locale'
 import { useFormat } from '@/hooks/use-format'
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf'
 import type { CaseOrderOperation } from '@/lib/inbox/order-action-contract'
+import { SHIPPING_COUNTRIES,shippingAddress, type OrderShippingAddress } from '@/lib/shopify/shipping-address-contract'
 
 interface State { orders: { id:string; shopify_order_id:string }[]; history:CaseOrderOperation[]; locks:{ order_id:string; status:string }[]; actors:Record<string,string | null>; can_execute:boolean }
 interface Review { source_id:string; fingerprint:string; preview:CaseOrderOperation['preview'] }
 const PAYMENT:Record<string,string>={ paid:'financialPaid',pending:'financialPending',refunded:'financialRefunded',partially_refunded:'financialPartiallyRefunded',voided:'financialVoided',authorized:'financialAuthorized' }
 const SHIPMENT:Record<string,string>={ fulfilled:'fulfillmentFulfilled',partial:'fulfillmentPartial',restocked:'fulfillmentRestocked','':'fulfillmentUnfulfilled' }
+const ACTION_LABEL = { refund:'orderRefund',cancel:'orderCancel',address:'orderAddress' }
+const ADDRESS_FIELDS = { address1:'orderAddress1',address2:'orderAddress2',city:'orderAddressCity',province:'orderAddressProvince',zip:'orderAddressZip' } as const
+const EMPTY_ADDRESS:OrderShippingAddress = { address1:'',address2:'',city:'',province:'',zip:'',countryCode:'' }
 export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversationId:string; shopifyOrderId:string }) {
-  const t = useT(), fmt = useFormat(), csrf = useFetchWithCsrf()
+  const t = useT(), fmt = useFormat(), csrf = useFetchWithCsrf(), { locale } = useLocale()
   const [open,setOpen] = useState(false), [state,setState] = useState<State | null>(null)
   const [error,setError] = useState<string | null>(null), [busy,setBusy] = useState(false)
-  const [action,setAction] = useState<'refund' | 'cancel'>('refund'), [amount,setAmount] = useState(''), [reason,setReason] = useState('')
+  const [action,setAction] = useState<'refund' | 'cancel' | 'address'>('refund'), [amount,setAmount] = useState(''), [reason,setReason] = useState('')
+  const [address,setAddress] = useState<OrderShippingAddress>(EMPTY_ADDRESS), [addressReady,setAddressReady] = useState(false)
+  const [addressRevision,setAddressRevision] = useState(0)
   const [preview,setPreview] = useState<CaseOrderOperation | null>(null), [confirmed,setConfirmed] = useState(false)
   const [review,setReview] = useState<Review | null>(null), [reviewReason,setReviewReason] = useState(''), [reviewConfirmed,setReviewConfirmed] = useState(false)
   const endpoint = `/api/conversations/${conversationId}/orders`
+  const localOrderId = state?.orders.find(o => String(o.shopify_order_id) === shopifyOrderId)?.id
+  const countries = useMemo(() => {
+    const names = new Intl.DisplayNames([locale],{ type:'region' })
+    return SHIPPING_COUNTRIES.map(code => ({ code,name:names.of(code) ?? code })).sort((a,b) => a.name.localeCompare(b.name,locale))
+  },[locale])
   const load = useCallback(async (signal?:AbortSignal) => {
     const r = await fetch(`${endpoint}?shopify_order_id=${encodeURIComponent(shopifyOrderId)}`,{ cache:'no-store',signal })
     const data = await r.json()
@@ -31,13 +42,27 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
     void load(controller.signal).catch(e => { if (!controller.signal.aborted) setError(e.message) })
     return () => controller.abort()
   },[open,load])
+  useEffect(() => {
+    if (!open || action !== 'address' || !localOrderId) return
+    const controller = new AbortController()
+    void fetch(`${endpoint}/${localOrderId}/context`,{ cache:'no-store',signal:controller.signal }).then(async r => {
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.error ?? t('inbox.orderUnavailable'))
+      if (!controller.signal.aborted) {
+        setAddress(data.shipping_address ?? EMPTY_ADDRESS); setAddressReady(!!data.shipping_address && data.can_modify === true)
+        if (!data.can_modify) setError(t('inbox.orderAlreadyShipped'))
+        else if (!data.shipping_address) setError(t('inbox.orderAddressUnavailable'))
+      }
+    }).catch(e => { if (!controller.signal.aborted) setError(e.message) })
+    return () => controller.abort()
+  },[open,action,localOrderId,endpoint,t,addressRevision])
   async function prepare() {
     const local = state?.orders.find(o => String(o.shopify_order_id) === shopifyOrderId)
     if (!local || busy) return
     setBusy(true); setError(null)
     try {
       const r = await csrf(endpoint,{ method:'POST',headers:{ 'Content-Type':'application/json' },body:JSON.stringify({ id:crypto.randomUUID(),order_id:local.id,
-        action:{ type:action,reason,...(action === 'refund' ? { amount:amount.trim() ? Number(amount) : null } : {}) } }) })
+        action:{ type:action,reason,...(action === 'refund' ? { amount:amount.trim() ? Number(amount) : null } : action === 'address' ? { address } : {}) } }) })
       const data = await r.json()
       if (!r.ok) throw new Error(data.error ?? t('inbox.orderUnavailable'))
       setPreview(data.operation); setConfirmed(false)
@@ -81,7 +106,18 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
   function money(op:CaseOrderOperation) { return op.preview.amount === null ? t('inbox.orderNoRefund') : fmt.currency(Number(op.preview.amount),op.preview.currency) }
   function payment(value:string) { return PAYMENT[value] ? t(`inbox.${PAYMENT[value]}`) : value }
   function shipment(value:string | null) { return SHIPMENT[value ?? ''] ? t(`inbox.${SHIPMENT[value ?? '']}`) : value }
-  return <details className="mt-2 border-t pt-2" onToggle={e => setOpen(e.currentTarget.open)}>
+  function addressText(value:OrderShippingAddress | null) {
+    return value ? [value.address1,value.address2,value.city,value.province,value.zip,countries.find(c => c.code === value.countryCode)?.name ?? value.countryCode].filter(Boolean).join(', ') : ''
+  }
+  function addressPreview(op:CaseOrderOperation) {
+    const change = op.preview.shipping_change
+    return change ? <div className="space-y-1 break-words">
+      <p><span className="font-medium">{t('inbox.orderAddressBefore')}: </span>{addressText(change.before)}</p>
+      <p><span className="font-medium">{t('inbox.orderAddressAfter')}: </span>{addressText(change.after)}</p>
+      {change.validation === 'confirm' && <p>{t('inbox.orderAddressNeedsConfirmation')}</p>}
+    </div> : null
+  }
+  return <details className="mt-2 border-t pt-2" onToggle={e => { setOpen(e.currentTarget.open); if (!e.currentTarget.open) setAddressReady(false) }}>
     <summary className="cursor-pointer text-xs font-medium">{t('inbox.orderActions')}</summary>
     {open && <div className="mt-2 space-y-2 text-xs">
       {error && <p role="alert" className="text-destructive">{error}</p>}
@@ -91,30 +127,38 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
       {review && <div className="space-y-2 rounded-md border p-2">
         <p className="font-medium">{review.preview.order_name}</p>
         <p>{payment(review.preview.financial_status)} · {shipment(review.preview.fulfillment_status)}</p>
-        <p>{t('inbox.orderAvailableBalance')}: {review.preview.amount === null ? t('inbox.orderNoRefund') : fmt.currency(Number(review.preview.amount),review.preview.currency)}</p>
+        {review.preview.shipping_address ? <p>{t('inbox.orderAddressApplied')}: {addressText(review.preview.shipping_address)}</p> : <p>{t('inbox.orderAvailableBalance')}: {review.preview.amount === null ? t('inbox.orderNoRefund') : fmt.currency(Number(review.preview.amount),review.preview.currency)}</p>}
         <label className="block">{t('inbox.orderReconcileReason')}<Input value={reviewReason} maxLength={300} onChange={e => setReviewReason(e.target.value)} className="mt-1 h-8 text-xs" /></label>
-        <label className="flex items-start gap-2"><input type="checkbox" checked={reviewConfirmed} onChange={e => setReviewConfirmed(e.target.checked)} /><span>{t('inbox.orderReconcileConfirm')}</span></label>
+        <label className="flex items-start gap-2"><input type="checkbox" checked={reviewConfirmed} onChange={e => setReviewConfirmed(e.target.checked)} /><span>{t(review.preview.shipping_address ? 'inbox.orderAddressReconcileConfirm' : 'inbox.orderReconcileConfirm')}</span></label>
         <Button size="sm" disabled={busy || !reviewConfirmed || !reviewReason.trim()} onClick={() => void reconcile()}>{t('inbox.orderReconcileSave')}</Button>
       </div>}
       {state && state.orders.length === 0 && <p className="text-muted-foreground">{t('inbox.orderNotFound')}</p>}
       {state && state.orders.length > 0 && !preview && <>
-        <label className="block">{t('inbox.orderOperation')}<select className="mt-1 w-full rounded-md border bg-background p-2" value={action} onChange={e => setAction(e.target.value as 'refund' | 'cancel')}>
+        <label className="block">{t('inbox.orderOperation')}<select className="mt-1 w-full rounded-md border bg-background p-2" value={action} onChange={e => { setAction(e.target.value as typeof action); setAddressReady(false); setError(null) }}>
           <option value="refund">{t('inbox.orderRefund')}</option><option value="cancel">{t('inbox.orderCancel')}</option>
+          <option value="address">{t('inbox.orderAddress')}</option>
         </select></label>
         {action === 'refund' && <label className="block">{t('inbox.orderAmount')}<Input type="number" min="0" step="any" value={amount} onChange={e => setAmount(e.target.value)} placeholder={t('inbox.orderFullBalance')} className="mt-1 h-8 text-xs" /></label>}
+        {action === 'address' && <fieldset className="space-y-2" disabled={!addressReady || busy}>
+          {Object.entries(ADDRESS_FIELDS).map(([field,label]) => <label key={field} className="block">{t(`inbox.${label}`)}<Input value={address[field as keyof typeof ADDRESS_FIELDS]} maxLength={field === 'zip' ? 32 : 255} onChange={e => setAddress(previous => ({ ...previous,[field]:e.target.value }))} className="mt-1 h-8 text-xs" /></label>)}
+          <label className="block">{t('inbox.orderAddressCountry')}<select className="mt-1 w-full rounded-md border bg-background p-2" value={address.countryCode} onChange={e => setAddress(previous => ({ ...previous,countryCode:e.target.value }))}>
+            <option value="" disabled>{t('inbox.orderAddressCountry')}</option>{countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+          </select></label>
+        </fieldset>}
+        {action === 'address' && !addressReady && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setAddressRevision(previous => previous+1)}>{t('inbox.actionRetry')}</Button>}
         <label className="block">{t('inbox.orderReason')}<Input maxLength={300} value={reason} onChange={e => setReason(e.target.value)} className="mt-1 h-8 text-xs" /></label>
-        <Button size="sm" variant="outline" disabled={busy || state.locks.length > 0 || !reason.trim() || (action === 'refund' && !!amount.trim() && !(Number(amount)>0))} onClick={() => void prepare()}>{t('inbox.orderPreview')}</Button>
+        <Button size="sm" variant="outline" disabled={busy || state.locks.length > 0 || !reason.trim() || (action === 'refund' && !!amount.trim() && !(Number(amount)>0)) || (action === 'address' && (!addressReady || !address.address1.trim() || !address.city.trim() || !address.countryCode))} onClick={() => void prepare()}>{t('inbox.orderPreview')}</Button>
       </>}
       {preview && <div className="space-y-2 rounded-md bg-muted/40 p-2">
-        <p className="font-medium">{preview.preview.order_name} · {t(preview.action.type === 'cancel' ? 'inbox.orderCancel' : 'inbox.orderRefund')}</p>
+        <p className="font-medium">{preview.preview.order_name} · {t(`inbox.${ACTION_LABEL[preview.action.type]}`)}</p>
         <p>{payment(preview.preview.financial_status)} · {shipment(preview.preview.fulfillment_status)}</p>
-        <p>{money(preview)}</p><p className="break-words">{preview.action.reason}</p>
+        {preview.action.type === 'address' ? addressPreview(preview) : <p>{money(preview)}</p>}<p className="break-words">{preview.action.reason}</p>
         <p className="text-muted-foreground">{t(`inbox.orderStatus.${preview.status}`)}</p>
         {typeof preview.result?.error === 'string' && <p role="alert">{t(`inbox.${preview.result.error}`)}</p>}
         {preview.status === 'preview' && <>
           <p className="text-muted-foreground">{t('inbox.orderPreviewExpires',{ date:fmt.dateTime(preview.expires_at) })}</p>
           {state?.can_execute ? <>
-            <label className="flex items-start gap-2"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} /><span>{t('inbox.orderConfirm')}</span></label>
+            <label className="flex items-start gap-2"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} /><span>{t(preview.action.type === 'address' ? 'inbox.orderAddressConfirm' : 'inbox.orderConfirm')}</span></label>
             <Button size="sm" disabled={!confirmed || busy} onClick={() => void execute()}>{t('inbox.orderExecute')}</Button>
           </> : <p>{t('inbox.orderApprovalForbidden')}</p>}
         </>}
@@ -123,7 +167,9 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
       {state && state.history.filter(op => state.orders.some(o => o.id === op.order_id)).length > 0 && <details>
         <summary className="cursor-pointer text-muted-foreground">{t('inbox.orderHistory')}</summary>
         <ul className="mt-2 space-y-2">{state.history.filter(op => state.orders.some(o => o.id === op.order_id)).map(op => <li key={op.id} className="rounded-md border p-2">
-          <p>{t(op.action.type === 'cancel' ? 'inbox.orderCancel' : 'inbox.orderRefund')} · {money(op)}</p>
+          <p>{t(`inbox.${ACTION_LABEL[op.action.type]}`)}{op.action.type !== 'address' && <> · {money(op)}</>}</p>
+          {op.action.type === 'address' && addressPreview(op)}
+          {op.status === 'completed' && shippingAddress(op.result?.shipping_after) && <p>{t('inbox.orderAddressApplied')}: {addressText(shippingAddress(op.result?.shipping_after))}</p>}
           <p>{t(`inbox.orderStatus.${op.status}`)}</p><p className="text-muted-foreground">{fmt.dateTime(op.created_at)}</p>
           {typeof op.result?.refunded_amount === 'string' && <p>{t('inbox.orderActualRefund')}: {fmt.currency(Number(op.result.refunded_amount),typeof op.result.currency === 'string' ? op.result.currency : op.preview.currency)}</p>}
           <p className="text-muted-foreground">{t('inbox.orderRequestedBy',{ actor:state.actors[op.requested_by] || op.requested_by.slice(0,8) })}</p>

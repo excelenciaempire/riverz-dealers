@@ -1,5 +1,5 @@
 import { describe,it,expect } from 'vitest'
-import { caseOrderAction,orderPreviewInput } from './order-action-contract'
+import { caseOrderAction,orderPreviewInput,sameCaseOrderAction } from './order-action-contract'
 describe('bounded human order requests',() => {
   it('requires an explicit full or partial refund with a reason and refuses malformed full-refund fallbacks',() => {
     expect(caseOrderAction({ type:'refund',amount:null,reason:' Full refund ' })).toEqual({ type:'refund',amount:null,reason:'Full refund' })
@@ -13,5 +13,16 @@ describe('bounded human order requests',() => {
     expect(orderPreviewInput(v)).not.toBeNull()
     expect(orderPreviewInput({ ...v,shop_domain:'foreign.myshopify.com' })).toBeNull()
     expect(orderPreviewInput({ ...v,order_id:'100' })).toBeNull()
+  })
+  it('accepts bounded shipping fields and compares nested actions independently of JSONB ordering',() => {
+    const address={ address1:'20 Main St',address2:'',city:'Austin',province:'Texas',zip:'78701',countryCode:'US' }
+    const action={ type:'address',reason:'Customer requested',address }
+    expect(caseOrderAction(action)).toEqual(action)
+    const reversed=Object.fromEntries(Object.entries(address).reverse())
+    expect(sameCaseOrderAction({ address:reversed,reason:action.reason,type:'address' },action)).toBe(true)
+    expect(sameCaseOrderAction({ ...action,address:{ ...address,address1:'Other St' } },action)).toBe(false)
+    for (const patch of [{ city:'' },{ countryCode:'ZZ' },{ phone:'+15125550100' },{ address1:'A'.repeat(256) }]) {
+      expect(caseOrderAction({ ...action,address:{ ...address,...patch } })).toBeNull()
+    }
   })
 })

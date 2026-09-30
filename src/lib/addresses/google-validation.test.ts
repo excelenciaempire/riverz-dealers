@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { validateGoogleAddress } from './google-validation';
+import { validateGoogleAddress,validateWorkspaceShippingAddress } from './google-validation';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 function googleResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -152,5 +153,22 @@ describe('Google Address Validation para pedidos contraentrega', () => {
         city: 'Bogotá',
       })
     ).resolves.toEqual({ status: 'unavailable', reason: 'PERMISSION_DENIED' });
+  });
+  it('passes any two-letter country to Google and distinguishes an unreadable configuration from a disabled integration',async () => {
+    const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(googleResponse({ error:{ status:'PERMISSION_DENIED' } },403));
+    const address={ address1:'20 Main St',city:'Berlin',country:'DE' };
+    await validateGoogleAddress('test-key',address);
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).address.regionCode).toBe('DE');
+    const configuration=(data:unknown,error:unknown) => {
+      const q={ select:() => q,eq:() => q,maybeSingle:async () => ({ data,error }) };
+      return { from:() => q } as unknown as SupabaseClient;
+    };
+    expect(await validateWorkspaceShippingAddress('ws',address,configuration(null,{ message:'database unavailable' }))).toEqual({ status:'unavailable',reason:'configuration_unavailable' });
+    expect(await validateWorkspaceShippingAddress('ws',address,configuration(null,null))).toEqual({ status:'disabled',address });
+    expect(await validateWorkspaceShippingAddress('ws',address,configuration({ is_active:false },null))).toEqual({ status:'disabled',address });
+  });
+  it('refuses a provider match in a different country instead of silently combining their fields',async () => {
+    vi.spyOn(globalThis,'fetch').mockResolvedValue(googleResponse({ result:{ verdict:{ addressComplete:true,validationGranularity:'PREMISE',possibleNextAction:'ACCEPT' },address:{ postalAddress:{ regionCode:'MX',locality:'Mexico City',addressLines:['20 Main St'] } } } }));
+    expect(await validateGoogleAddress('test-key',{ address1:'20 Main St',city:'Austin',country:'US' })).toMatchObject({ status:'fix' });
   });
 });

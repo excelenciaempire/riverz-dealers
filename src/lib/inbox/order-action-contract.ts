@@ -1,21 +1,32 @@
 import { UUID } from './collaboration'
 import { refundMoney } from '@/lib/shopify/refund-plan'
+import { shippingAddress, type OrderShippingAddress } from '@/lib/shopify/shipping-address-contract'
 
-export type CaseOrderAction = { type: 'refund'; amount: number | null; reason: string } | { type: 'cancel'; reason: string }
+export type CaseOrderAction = { type: 'refund'; amount: number | null; reason: string } | { type: 'cancel'; reason: string } | { type:'address'; address:OrderShippingAddress; reason:string }
 export interface CaseOrderOperation {
   id: string; order_id: string; requested_by: string; approved_by: string | null;
-  action: CaseOrderAction; preview: { order_name: string; amount: string | null; currency: string; financial_status: string; fulfillment_status: string | null };
+  action: CaseOrderAction; preview: { order_name: string; amount: string | null; currency: string; financial_status: string; fulfillment_status: string | null;
+    shipping_address?:OrderShippingAddress | null; shipping_change?:{ before:OrderShippingAddress | null; after:OrderShippingAddress; validation:'disabled' | 'accept' | 'confirm' } };
   fingerprint: string; status: 'preview' | 'running' | 'completed' | 'failed' | 'uncertain' | 'expired' | 'reviewed';
   expires_at: string; created_at: string; approved_at: string | null; result: Record<string, unknown> | null
 }
 export function caseOrderAction(raw: unknown): CaseOrderAction | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const v = raw as Record<string, unknown>
-  if (!['refund','cancel'].includes(String(v.type)) || typeof v.reason !== 'string' || !v.reason.trim() || v.reason.length > 300) return null
-  if (Object.keys(v).some(k => !['type','reason',...(v.type === 'refund' ? ['amount'] : [])].includes(k))) return null
+  if (!['refund','cancel','address'].includes(String(v.type)) || typeof v.reason !== 'string' || !v.reason.trim() || v.reason.length > 300) return null
+  if (Object.keys(v).some(k => !['type','reason',...(v.type === 'refund' ? ['amount'] : v.type === 'address' ? ['address'] : [])].includes(k))) return null
   if (v.type === 'cancel') return { type: 'cancel', reason: v.reason.trim() }
+  if (v.type === 'address') {
+    const address = shippingAddress(v.address)
+    return address ? { type:'address',address,reason:v.reason.trim() } : null
+  }
   if (v.amount !== null && (typeof v.amount !== 'number' || (refundMoney(v.amount) ?? BigInt(0)) <= BigInt(0))) return null
   return { type: 'refund', amount: v.amount as number | null, reason: v.reason.trim() }
+}
+/** Compare normalized contracts, including nested addresses, independently of JSONB key ordering. */
+export function sameCaseOrderAction(left:unknown,right:unknown):boolean {
+  const a=caseOrderAction(left), b=caseOrderAction(right)
+  return !!a && !!b && JSON.stringify(a) === JSON.stringify(b)
 }
 export function orderPreviewInput(raw: unknown): { id: string; order_id: string; action: CaseOrderAction } | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { csrfGuard } from '@/lib/csrf'
 import { serverError } from '@/lib/api/errors'
 import { inboxConversation } from '@/lib/inbox/server-context'
-import { orderPreviewInput } from '@/lib/inbox/order-action-contract'
+import { orderPreviewInput, sameCaseOrderAction } from '@/lib/inbox/order-action-contract'
 import { CaseOrderError, caseOrderSnapshot } from '@/lib/inbox/order-actions'
 import { resolveShopifyAdmin } from '@/lib/shopify/order-tags'
 type Context = { params: Promise<{ id: string }> }
@@ -41,11 +41,7 @@ export async function POST(request: Request, route: Context) {
     const prior = await ctx.db.from('inbox_order_actions').select('*').eq('id',input.id).eq('workspace_id',ctx.workspaceId).eq('conversation_id',ctx.conversation.id).maybeSingle()
     if (prior.error) return serverError(prior.error,ctx.t('orderUnavailable'))
     if (prior.data) {
-      if (prior.data.requested_by !== ctx.userId || prior.data.order_id !== input.order_id || JSON.stringify(prior.data.action) !== JSON.stringify(input.action)) {
-        // JSONB key ordering is not significant.
-        const old = prior.data.action as Record<string,unknown>
-        if (prior.data.requested_by !== ctx.userId || prior.data.order_id !== input.order_id || Object.keys(old).length !== Object.keys(input.action).length || Object.entries(input.action).some(([k,v]) => old[k] !== v)) return NextResponse.json({ error:ctx.t('orderConflict') },{ status:409 })
-      }
+      if (prior.data.requested_by !== ctx.userId || prior.data.order_id !== input.order_id || !sameCaseOrderAction(prior.data.action,input.action)) return NextResponse.json({ error:ctx.t('orderConflict') },{ status:409 })
       return NextResponse.json({ operation:prior.data,can_execute:ctx.isAdmin })
     }
     const snapshot = await caseOrderSnapshot(ctx.db,ctx.workspaceId,ctx.conversation.contact_id,input.order_id,input.action)
