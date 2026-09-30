@@ -6,6 +6,7 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf'
 import { TRANSLATION_LANGUAGES,audioTranscripts,type UnderstandingAction,type UnderstandingResult,type TranslationLanguage } from '@/lib/inbox/understanding'
 import type { Message,Conversation } from '@/types'
 import { CaseDisposition } from './case-disposition'
+import { NativeBlockControl } from './native-block'
 import { audioParts } from '@/lib/inbox/audio-parts'
 
 function useUnderstanding(conversationId:string) {
@@ -56,6 +57,7 @@ export function ConversationUnderstanding({ conversationId,conversation }: { con
       <p className="text-muted-foreground">{t('inbox.exportNotesExcluded')}</p>
       {exportInfo && <p role="status">{exportInfo}</p>}{exportError && <p role="alert">{exportError}</p>}
       <CaseDisposition key={conversationId} conversation={conversation} />
+      {conversation.channel==='whatsapp' && <NativeBlockControl key={`block-${conversationId}`} conversationId={conversationId} />}
       {state.error && <p role="alert">{state.error}</p>}
       {state.result && <><p className="font-medium">{t('inbox.conversationSummary')}</p><p className="whitespace-pre-wrap break-words">{state.result.text}</p><p className="text-muted-foreground">{t('inbox.summaryCoverage',{ count:fmt.number(state.result.source.count),from:state.result.source.first_at ? fmt.dateTime(state.result.source.first_at) : '',to:state.result.source.last_at ? fmt.dateTime(state.result.source.last_at) : '' })}</p>
         {state.result.source.truncated && <p className="text-muted-foreground">{t('inbox.summaryLimited')}</p>}</>}
