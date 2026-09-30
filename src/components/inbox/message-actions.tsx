@@ -19,6 +19,7 @@ import {
 } from "./delete-message-dialog";
 import { EditMessageDialog } from "./edit-message-dialog";
 import { puedeEditarse } from "@/lib/inbox/editable";
+import { MessageEvidence } from './message-evidence';
 
 // WhatsApp's own quick-reaction bar starts with these six. Picking the same
 // set keeps the affordance familiar without pulling in a 300KB emoji library.
@@ -222,6 +223,7 @@ export function MessageActions({
           isAgent ? "right-3" : "left-3",
         )}
       >
+        {(message.sender_type==='bot' || message.sender_type==='customer') && <MessageEvidence conversationId={message.conversation_id} messageId={message.id} />}
         {canQuickAct && (
           <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
             <PopoverTrigger

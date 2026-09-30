@@ -122,6 +122,13 @@ export const approvals = {
  * repartirlas en tres archivos hace más difícil ver que se contradicen.
  */
 export const reglas = {
+  activityTitle: { es:'Actividad registrada · últimos 30 días',en:'Recorded activity · last 30 days' },
+  activityHint: { es:'Cuenta turnos que tenían esta regla en el contexto, solo en casos a los que tienes acceso. No demuestra aplicación ni resolución por la regla. Los turnos anteriores al registro detallado quedan fuera.',en:'Counts turns with this rule in the context, only in cases you can access. It does not establish rule application or resolution. Turns preceding detailed recording are excluded.' },
+  activity_recorded_turns: { es:'Turnos registrados',en:'Recorded turns' },
+  activity_distinct_cases: { es:'Conversaciones distintas',en:'Distinct conversations' },
+  activity_failed_turns: { es:'Turnos fallidos',en:'Failed turns' },
+  activity_approval_turns: { es:'Turnos que solicitaron aprobación',en:'Turns that requested approval' },
+  activityFailed: { es:'No se pudo consultar la actividad de la regla.',en:'Could not retrieve rule activity.' },
   testRule: { es:'Probar con una conversación',en:'Test with a conversation' },
   testScope: { es:'Prueba la regla y la personalidad sobre el último mensaje del cliente. No envía respuestas ni ejecuta acciones. No consulta el catálogo en vivo; los adjuntos sin transcripción son desconocidos. Usa los límites y el saldo de IA actuales.',en:'Tests the rule and personality against the latest customer message. It sends no replies and executes no actions. No live catalogue lookup; attachments without transcripts are unknown. Uses the current AI limits and balance.' },
   testSearch: { es:'Buscar por nombre del contacto',en:'Search by contact name' },

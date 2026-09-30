@@ -5,6 +5,7 @@ import { useFormat } from '@/hooks/use-format'
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf'
 import type { GuidanceDraft,GuidanceSnapshot,GuidanceVersion,GuidanceVersionInput } from '@/lib/ai/guidance-versions'
 import { RuleTest } from './rule-test'
+import { RuleActivity } from './rule-activity'
 type View={ rule:GuidanceSnapshot & { id:string;live_revision:number;activa:boolean };draft:GuidanceDraft | null;versions:GuidanceVersion[];next_before:number | null;is_admin:boolean }
 export function RuleVersions({ ruleId,onChanged }: { ruleId:string;onChanged:() => Promise<void> }) {
   const { t }=useLocale(),fmt=useFormat(),fetcher=useFetchWithCsrf()
@@ -58,6 +59,7 @@ export function RuleVersions({ ruleId,onChanged }: { ruleId:string;onChanged:() 
           </div>
         </div>}
         <RuleTest ruleId={ruleId} liveRevision={view.rule.live_revision} draftRevision={view.draft?.draft_revision ?? 0} disabled={busy || dirty || !!stale} onTested={() => load()} />
+        <RuleActivity ruleId={ruleId} />
         <details><summary className="cursor-pointer">{t('reglas.history')}</summary>
           <div className="mt-2 space-y-2">{view.versions.map(version => <details key={version.revision} className="rounded border p-2">
             <summary className="cursor-pointer">{t('reglas.versionNumber',{ n:fmt.number(version.revision) })} · {fmt.dateTime(version.created_at)}</summary>

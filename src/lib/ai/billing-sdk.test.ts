@@ -2,6 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getAnthropic } from './anthropic-client';
 import type { SupabaseClient } from '@supabase/supabase-js';
 afterEach(() => vi.unstubAllGlobals());
+function billingDb(rpc:ReturnType<typeof vi.fn>,overdue=false) {
+  return { rpc,from:vi.fn((table:string) => {
+    const q:Record<string,unknown>={ maybeSingle:async() => ({ data:table==='workspace_subscriptions' ? { estado:'activa' } : overdue ? { invoice_id:'due',grace_until:new Date(Date.now()-3600000).toISOString() } : null,error:null }) };
+    for (const method of ['select','eq','in','gt','lte','order','limit']) q[method]=() => q;
+    return q;
+  }) } as unknown as SupabaseClient;
+}
 describe('SDK billing boundary', () => {
   it('meters a real SDK request using its actual fetch encoding', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: true, error: null });
@@ -22,7 +29,7 @@ describe('SDK billing boundary', () => {
       );
     vi.stubGlobal('fetch', transport);
     const client = getAnthropic('test-key', {
-      db: { rpc } as unknown as SupabaseClient,
+      db: billingDb(rpc),
       workspaceId: 'ws',
       concepto: 'ia_respuesta',
     });
@@ -37,5 +44,11 @@ describe('SDK billing boundary', () => {
       'wallet_liquidar',
     ]);
     expect(transport.mock.calls[0][0]).toContain('/messages/count_tokens');
+  });
+  it('blocks an overdue monthly invoice before provider transport or wallet reservation',async() => {
+    const rpc=vi.fn(),transport=vi.fn();vi.stubGlobal('fetch',transport);
+    const client=getAnthropic('test-key',{ db:billingDb(rpc,true),workspaceId:'overdue',concepto:'ia_respuesta' });
+    await expect(client.messages.create({ model:'claude-haiku-4-5',max_tokens:16,messages:[{ role:'user',content:'hello' }] })).rejects.toMatchObject({ cause:expect.objectContaining({ message:'suscripcion_vencida' }) });
+    expect(transport).not.toHaveBeenCalled();expect(rpc).not.toHaveBeenCalled();
   });
 });

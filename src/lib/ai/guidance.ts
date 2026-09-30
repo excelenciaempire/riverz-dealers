@@ -26,7 +26,9 @@ export interface Regla {
   hacer: string;
   activa: boolean;
   orden: number;
-  origen: 'comercio' | 'pliego';
+  origen: 'comercio' | 'pliego' | 'base' | 'hueco';
+  /** Exact observed version; older test fixtures may not include it. */
+  live_revision?: number;
   clave: string | null;
   created_at?: string;
   updated_at?: string;

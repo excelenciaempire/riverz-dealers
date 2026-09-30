@@ -1,6 +1,7 @@
 import { secureSystemPrompt, toolCallAllowed } from './input-security'
 import { toolPermissionKey } from './toolbox'
 import { redactModelSecrets } from '@/lib/security/model-secrets'
+import { observeTool,publicToolStatus } from './turn-evidence'
 
 /**
  * Tool definitions + agentic loop para el asistente IA.
@@ -2669,6 +2670,7 @@ export async function runWithTools(
     for (const block of response.content) {
       if (block.type !== 'tool_use') continue
       if (!toolCallAllowed(args.tools, block.name, block.input)) {
+        observeTool(block.name,'local','blocked')
         toolResults.push({ type: 'tool_result', tool_use_id: block.id,
           is_error: true, content: JSON.stringify({ error: 'tool_not_allowed' }) })
         continue
@@ -2677,14 +2679,19 @@ export async function runWithTools(
       // efecto puede haber ocurrido igual.
       if (args.efectos && DEJA_HUELLA.has(block.name)) args.efectos.ejecutados += 1
       herramientas.push(block.name)
-      const result = await runTool(
-        block.name,
-        block.input,
-        args.shopify,
-        args.voice ?? null,
-        args.localOrders ?? null,
-        args.otherStore ?? null
-      )
+      const observation=observeTool(block.name,'local','started')
+      let result:string
+      try {
+        result = await runTool(
+          block.name,
+          block.input,
+          args.shopify,
+          args.voice ?? null,
+          args.localOrders ?? null,
+          args.otherStore ?? null
+        )
+        if (observation) observation.status=publicToolStatus(result)
+      } catch(error) { if (observation) observation.status='threw';throw error }
       toolResults.push({
         type: 'tool_result',
         tool_use_id: block.id,
@@ -2785,7 +2792,7 @@ function rewriteLastUserDocumentToText(messages: Anthropic.MessageParam[]): Anth
  */
 function anotarDeServidor(content: Anthropic.ContentBlock[], destino: string[]): void {
   for (const block of content) {
-    if (block.type === 'server_tool_use') destino.push(block.name)
+    if (block.type === 'server_tool_use') { destino.push(block.name);observeTool(block.name,'hosted','started') }
   }
 }
 

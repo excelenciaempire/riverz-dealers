@@ -107,6 +107,7 @@ import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { cargarReglas, reglasATexto, type Regla } from './guidance';
+import { withTurnEvidence,observeContext,observeOutcome,observeMessages,saveTurnEvidence } from './turn-evidence';
 import { completeTextMedido } from './medido';
 import { reglasDeSalidaPara, verificarRespuesta } from './verificacion';
 import { NON_STACKING_DISCOUNT_POLICY } from '@/lib/commerce/discount-policy';
@@ -211,6 +212,10 @@ export async function runAiAgent(
     inboundMessage: Message;
   }
 ): Promise<void> {
+  return withTurnEvidence(() => runAiAgentInner(db,args),state => saveTurnEvidence(db,{ workspaceId:args.workspaceId,conversationId:args.conversation.id,inboundId:args.inboundMessage.id ?? null },state));
+}
+
+async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAgent>[1]):Promise<void> {
   try {
     if (await inboxCaseIsSpam(db,args.workspaceId,args.conversation.id)) {
       await anotarSalida(db,args,'inbox_case_spam');return;
@@ -1551,6 +1556,7 @@ export async function runAiAgent(
       })
       .eq('id', primaryContact.id);
 
+    observeMessages(insertedIds);
     await logReply(db, agent, args, {
       status: 'sent',
       message_id: insertedIds[0] ?? null,
@@ -3493,6 +3499,10 @@ async function generateReply(
   const claudeMessages: Anthropic.MessageParam[] = await Promise.all(
     messages.map((m) => toClaudeMessage(m, agent.workspace_id))
   );
+  observeContext(agent.id,reglasCrudas,[
+    ...products.flatMap(product => product.id ? [{ kind:'catalogue' as const,id:product.id,title:product.title }] : []),
+    ...messages.filter(message => !!message.messageId).map(message => ({ kind:'message' as const,id:message.messageId! })),
+  ]);
 
   // Sólo exponemos las tools si hay conexión Shopify activa para el
   // workspace. Sin conexión, no podríamos resolver la llamada y
@@ -4943,6 +4953,7 @@ async function logReply(
     model?: string;
   }
 ): Promise<void> {
+  observeOutcome(patch.status,patch.message_id,patch.skip_reason);
   await db.from('ai_replies').insert({
     agent_id: agent.id,
     workspace_id: args.workspaceId,
@@ -5114,6 +5125,7 @@ async function anotarSalida(
   },
   motivo: string
 ): Promise<void> {
+  observeOutcome('skipped',null,motivo);
   try {
     await db.from('ai_replies').insert({
       agent_id: null,
