@@ -57,7 +57,27 @@ assert (len(active_ids), len(incoming_ids), len(customer_ids), len(cases)) == (4
 assert sum(metrics['kinds'].values()) == len(source['conversations'])
 human_rate = 100 * len(cases) / len(customer_ids)
 inbox_rate = 100 * len(cases) / len(active_ids)
-not_escalated = len(customer_ids) - len(cases)
+# Meta inserts an explanatory comment card as sender=agent. It is channel UI,
+# not a human answer; retain the audit's distinction when counting automation.
+def channel_notice(message):
+    return message['origin'] is None and bool(re.fullmatch(
+        r'Estás respondiendo el comentario de un usuario en una publicación de tu página\. Ver comentario\(https://facebook\.com/[^\s]+\)',
+        (message['content_text'] or '').strip()))
+
+successful_responses = [m for m in period_messages
+                        if m['sender_type'] in {'agent', 'bot'}
+                        and m['status'] in {'sent', 'delivered', 'read'}
+                        and not channel_notice(m)]
+ai_answered_ids = {m['conversation_id'] for m in successful_responses
+                   if m['origin'] in {'ai_agent', 'comment_ai'}} & customer_ids
+human_answered_ids = {m['conversation_id'] for m in successful_responses
+                      if m['sender_type'] == 'agent'
+                      and m['origin'] not in {'ai_agent', 'comment_ai', 'automation'}} & customer_ids
+automated_ids = ai_answered_ids - human_answered_ids
+assert (len(ai_answered_ids), len(human_answered_ids), len(automated_ids)) == (151, 27, 133)
+assert automated_ids == {c['id'] for c in reviewed if c['id'] in customer_ids
+                          and c['has_ai_period'] and not c['has_human_period']}
+automation_rate = 100 * len(automated_ids) / len(customer_ids)
 response_issues = sum(any(e.get('message_id') in period_message_ids for e in c['missed_reply']) for c in reviewed)
 avoidable_blocks = sum(any(e.get('message_id') in period_message_ids for e in c['premature']) for c in reviewed)
 assert (response_issues, avoidable_blocks) == (50, 10)
@@ -171,14 +191,14 @@ for x, value, percentage, label, detail in [
     end = p.wrap(x+17, 262, label, 215, size=15, leading=19, font='Semi')
     assert end <= 300
     p.text(x+17, 307, detail, width=215)
-end = p.wrap(42, 352, 'La actividad total incluye avisos automáticos y mensajes salientes. La atención al cliente se mide aparte, sobre las consultas recibidas.')
+end = p.wrap(42, 352, 'El total incluye avisos y mensajes salientes. Los porcentajes de atención se calculan sobre 199 consultas de clientes.')
 assert end-18+4 < 411
 p.text(42, 422, 'Atención al cliente', 'Serif', 27)
 p.box(42, 448, 511, 144)
 for i, (label, count, percentage) in enumerate([
     ('Conversaciones con consultas', len(customer_ids), '100%'),
+    ('Automatizadas: respondidas solo por IA', len(automated_ids), rate(automation_rate)),
     ('Con escalamiento justificado', len(cases), rate(human_rate)),
-    ('Sin motivo de escalamiento identificado', not_escalated, rate(100-human_rate)),
 ]):
     baseline = 478+i*48
     p.text(60, baseline, label, 'Sans', 13, width=355)
@@ -186,10 +206,9 @@ for i, (label, count, percentage) in enumerate([
     p.text(485, baseline, percentage, 'Semi', 14, width=51)
     if i < 2:
         p.line(496+i*48)
-p.wrap(42, 621, 'Sin escalamiento identificado no equivale a resolución automática.', size=12.5)
-p.text(42, 672, 'Qué muestran los casos', 'Serif', 27)
-p.wrap(42, 703, 'Entregas demoradas o disputadas: 15 casos (34,9%). Información o decisiones comerciales: 10 (23,3%). Juntos concentraron el 58,1% de los 43 escalamientos.')
-end = p.wrap(42, 759, 'Además, se observaron 50 conversaciones con respuestas ausentes, tardías o incompletas y 10 bloqueos o derivaciones evitables.')
+p.text(42, 641, 'Qué ocurrió', 'Serif', 27)
+p.wrap(42, 672, 'Entregas e información comercial concentraron 25 de los 43 escalamientos (58,1%).')
+end = p.wrap(42, 723, 'También se observaron 50 consultas con respuestas ausentes, tardías o incompletas y 10 bloqueos o derivaciones evitables.')
 assert end-18+4 <= 791
 p.end()
 
@@ -233,7 +252,8 @@ assert len(doc) == p.page == 3
 assert len(doc.get_toc()) == 3
 text = '\n'.join(page.get_text() for page in doc)
 normalized_text = re.sub(r'\s+', ' ', text)
-assert all(token in normalized_text for token in ['425', '199', '43', '156', '10,1%', '21,6%', '78,4%', '26 al 30 de septiembre', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.'])
+assert all(token in normalized_text for token in ['425', '199', '43', '133', '10,1%', '21,6%', '66,8%', '26 al 30 de septiembre', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.'])
+assert all(removed not in normalized_text for removed in ['Sin motivo de escalamiento', 'Sin escalamiento identificado', '78,4%'])
 assert all(token in normalized_text for token in ['Parcialmente', 'Puede automatizarse al conectar el banco', 'Una persona aprueba la cancelación o el reembolso', 'la IA no devuelve dinero por su cuenta'])
 assert all(token in normalized_text for token in ['CARRITO25 no funcionó', 'envase rajado con pérdida', 'IA no podía modificarlo'])
 assert 'Por qué se necesita al equipo' not in text and 'pedir el cambio al transportista' not in text
@@ -262,7 +282,10 @@ proof = {'file': str(OUT), 'pages': len(doc), 'periodEscalations': len(cases),
          'dataCapturedAt': source['capturedAt'], 'periodStartUTC': START.isoformat(),
          'timezone': 'America/Argentina/Buenos_Aires', 'activeConversations': len(active_ids),
          'receivedConversations': len(incoming_ids), 'customerConversations': len(customer_ids),
-         'withoutIdentifiedHumanNeed': not_escalated, 'genuineInterventionDenominator': len(customer_ids),
+         'AIAnsweredConversations': len(ai_answered_ids), 'humanAnsweredConversations': len(human_answered_ids),
+         'AIOnlyConversations': len(automated_ids), 'AIOnlyPercent': round(automation_rate, 1),
+         'excludedChannelNotices': sum(channel_notice(m) for m in period_messages if m['conversation_id'] in customer_ids),
+         'genuineInterventionDenominator': len(customer_ids),
          'responseIssueConversations': response_issues, 'avoidableBlockConversations': avoidable_blocks,
          'genuineInterventionInboxPercent': round(inbox_rate, 1),
          'genuineInterventionPercent': round(human_rate, 1), 'proposedCapabilities': len(plan),
