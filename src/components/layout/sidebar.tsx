@@ -3,7 +3,7 @@
 import Link from "@/components/i18n/locale-link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { canonicalizePath } from "@/lib/i18n/routes";
-import { useEffect, type ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
@@ -36,6 +36,8 @@ import {
   MessageSquareReply,
   MessagesSquare,
   Radar,
+  Store,
+  ChevronsUpDown,
 } from "lucide-react";
 import {
   Avatar,
@@ -51,6 +53,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SaldoChip } from "@/components/layout/saldo-chip";
+import { CommerceSwitcher } from "@/components/layout/commerce-switcher";
 
 interface NavItem {
   href: string;
@@ -151,7 +154,8 @@ export function Sidebar({
     ? `${pathname}?${searchParams.toString()}`
     : pathname;
   const { profile, signOut } = useAuth();
-  const { membership } = useWorkspace();
+  const { membership, workspace } = useWorkspace();
+  const [commerceOpen, setCommerceOpen] = useState(false);
   const totalUnread = useTotalUnread();
   const t = useT();
 
@@ -165,7 +169,7 @@ export function Sidebar({
   // esconde del menú para TODOS —incluidos los platform admins— para que la app
   // se vea limpia. El admin igual puede ENTRAR por URL (lo permiten el
   // SectionGuard y el gate en servidor), solo que no aparece en el menú.
-  const { flags } = useFeatureFlags();
+  const { flags, isPlatformAdmin } = useFeatureFlags();
   const navFeatureEnabled = (href: string) => {
     const feat = featureForPath(href);
     return !feat || isFeatureEnabled(flags, feat);
@@ -409,12 +413,13 @@ export function Sidebar({
               </Avatar>
               <div className={cn("min-w-0 flex-1", collapsed && "lg:hidden")}>
                 <p className="truncate text-[13px] font-medium text-sidebar-foreground">
-                  {profile?.full_name ?? t("nav.user")}
+                  {workspace?.name ?? profile?.full_name ?? t("nav.user")}
                 </p>
                 <p className="truncate text-[11px] text-sidebar-foreground/55">
                   {profile?.email ?? ""}
                 </p>
               </div>
+              {isPlatformAdmin && <ChevronsUpDown className={cn("size-3.5 shrink-0 text-sidebar-foreground/55", collapsed && "lg:hidden")} />}
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
@@ -422,6 +427,7 @@ export function Sidebar({
               sideOffset={6}
               className="min-w-56 bg-popover text-popover-foreground"
             >
+              {isPlatformAdmin && <DropdownMenuItem onClick={() => setCommerceOpen(true)}><Store className="size-4" />{t("nav.switchCommerce")}</DropdownMenuItem>}
               <DropdownMenuItem
                 render={
                   <Link
@@ -462,6 +468,7 @@ export function Sidebar({
           <ThemeToggleButton className="border-sidebar-border text-sidebar-foreground/60 hover:border-sidebar-primary hover:text-sidebar-primary" />
         </div>
       </aside>
+      {isPlatformAdmin && <CommerceSwitcher open={commerceOpen} onOpenChange={setCommerceOpen} />}
     </>
   );
 }

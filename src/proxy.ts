@@ -10,6 +10,9 @@ import { docsHost, docsRedirect, docsRewrite, isDocsHost } from '@/lib/docs/host
 import { isBusinessMutation, workspaceReadOnly, BILLING_READ_ONLY } from '@/lib/billing/read-only'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { translate } from '@/lib/i18n/translate'
+import { COMMERCE_AUTH_COOKIE, COMMERCE_CONTEXT_COOKIE, COMMERCE_SELECTION_COOKIE } from '@/lib/auth/commerce-cookies'
+import { canUseCommerceContext, verifyCommerceContext } from '@/lib/auth/commerce-policy'
+import { leerToken, UNLOCK_COOKIE } from '@/lib/admin/unlock'
 
 // Per-request CSP nonce. Next.js 16 reads the `'nonce-…'` value out of
 // the response's Content-Security-Policy header and stamps it onto the
@@ -261,18 +264,21 @@ export async function proxy(request: NextRequest) {
 
   let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
 
-  const supabase = createServerClient(
+  const makeSessionClient = (commerce = false) => createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      cookieOptions: SESSION_COOKIE_OPTIONS,
+      cookieOptions: { ...SESSION_COOKIE_OPTIONS, ...(commerce ? { name: COMMERCE_AUTH_COOKIE } : {}) },
       cookies: {
         getAll() {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
+          const previousCookies = supabaseResponse.cookies.getAll()
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          requestHeaders.set('cookie', request.cookies.toString())
           supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
+          previousCookies.forEach((cookie) => supabaseResponse.cookies.set(cookie))
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, { ...options, ...SESSION_COOKIE_OPTIONS })
           )
@@ -281,7 +287,45 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  let supabase = makeSessionClient()
+  let { data: { user } } = await supabase.auth.getUser()
+  // The original login remains authoritative. A store cookie alone never
+  // grants platform access, and admin/auth endpoints always use that login.
+  const contextToken = request.cookies.get(COMMERCE_CONTEXT_COOKIE)?.value
+  const selection = request.cookies.get(COMMERCE_SELECTION_COOKIE)?.value
+  const actorEndpoint = /^\/api\/(?:admin|auth)(?:\/|$)/.test(request.nextUrl.pathname) || request.nextUrl.pathname === '/api/csrf'
+  let commerceWorkspaceId: string | null = null
+  const expiredCommerce = () => {
+    const url = request.nextUrl.clone()
+    url.pathname = localizePath(user ? '/panel' : '/ingresar', locale)
+    url.search = ''
+    const response = request.nextUrl.pathname.startsWith('/api/')
+      ? NextResponse.json({ error: translate(locale, 'nav.commerceSessionExpired') }, { status: 403 })
+      : NextResponse.redirect(url)
+    for (const cookie of request.cookies.getAll()) {
+      if (cookie.name === COMMERCE_CONTEXT_COOKIE || cookie.name === COMMERCE_SELECTION_COOKIE ||
+          cookie.name === COMMERCE_AUTH_COOKIE || cookie.name.startsWith(`${COMMERCE_AUTH_COOKIE}.`)) {
+        response.cookies.set(cookie.name, '', { ...SESSION_COOKIE_OPTIONS, maxAge: 0 })
+      }
+    }
+    supabaseResponse.cookies.getAll().filter((cookie) => !cookie.name.startsWith(COMMERCE_AUTH_COOKIE))
+      .forEach((cookie) => response.cookies.set(cookie))
+    return withLocaleCookie(response)
+  }
+  if ((contextToken || selection) && !actorEndpoint) {
+    const context = verifyCommerceContext(contextToken)
+    const panel = leerToken(request.cookies.get(UNLOCK_COOKIE)?.value)
+    if (!canUseCommerceContext(context, user, panel) || selection !== context?.workspaceId) {
+      return expiredCommerce()
+    }
+    supabase = makeSessionClient(true)
+    const { data: { user: owner } } = await supabase.auth.getUser()
+    if (!owner || owner.id !== context!.ownerId) {
+      return expiredCommerce()
+    }
+    user = owner
+    commerceWorkspaceId = context!.workspaceId
+  }
 
   // The browser URL may be in either language (e.g. /inbox or /bandeja).
   // Reason about routes in ONE vocabulary (canonical Spanish) for every
@@ -386,7 +430,7 @@ export async function proxy(request: NextRequest) {
 
   if (user && isBusinessMutation(canonicalPath, request.method)) {
     try {
-      const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id)
+      const workspaceId = commerceWorkspaceId ?? await resolveWorkspaceIdForUser(supabase, user.id)
       if (workspaceId && await workspaceReadOnly(supabase, workspaceId)) {
         return withLocaleCookie(NextResponse.json({
           code: BILLING_READ_ONLY, error: translate(locale, 'settings.readOnlyBody'),

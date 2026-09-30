@@ -45,6 +45,17 @@ export const nav = {
 
   // User menu + footer
   profile: { es: "Perfil", en: "Profile" },
+  switchCommerce: { es: "Cambiar comercio", en: "Switch store" },
+  commerceSearch: { es: "Buscar por comercio o correo", en: "Search by store or email" },
+  commerceLoading: { es: "Cargando comercios", en: "Loading stores" },
+  commerceCurrent: { es: "Comercio actual", en: "Current store" },
+  commerceEmpty: { es: "No se encontraron comercios", en: "No stores found" },
+  commerceReturn: { es: "Volver a mi cuenta", en: "Return to my account" },
+  commerceForbidden: { es: "Este acceso requiere una sesión de administrador de Riverz.", en: "This access requires a Riverz administrator session." },
+  commerceNotFound: { es: "El comercio no está disponible.", en: "The store is unavailable." },
+  commerceLoadFailed: { es: "No se pudieron cargar los comercios.", en: "Could not load stores." },
+  commerceSwitchFailed: { es: "No se pudo cambiar de comercio. Intenta de nuevo.", en: "Could not switch stores. Try again." },
+  commerceSessionExpired: { es: "El acceso al comercio venció. Vuelve a tu cuenta de administrador.", en: "Store access expired. Return to your administrator account." },
   signOut: { es: "Cerrar sesión", en: "Sign out" },
   user: { es: "Usuario", en: "User" },
 

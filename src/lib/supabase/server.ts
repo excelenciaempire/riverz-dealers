@@ -1,5 +1,8 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { COMMERCE_AUTH_COOKIE, COMMERCE_CONTEXT_COOKIE } from '@/lib/auth/commerce-cookies';
+import { verifyCommerceContext, canUseCommerceContext } from '@/lib/auth/commerce-policy';
+import { leerToken, UNLOCK_COOKIE } from '@/lib/admin/unlock';
 
 // SameSite=lax: the cookie travels on top-level GET navigations (clicking
 // a link, OAuth provider redirects back to us) but is BLOCKED on cross-site
@@ -35,15 +38,18 @@ export const SESSION_COOKIE_OPTIONS = {
 
 export async function createClient(options?: {
   fetch?: typeof globalThis.fetch;
+  /** The real login is retained while an admin is operating another store. */
+  actor?: boolean;
+  /** Used only by the authorized switch endpoint to establish/close the separate session. */
+  commerceSession?: boolean;
 }) {
   const cookieStore = await cookies();
-
-  return createServerClient(
+  const make = (commerce = false) => createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       ...(options?.fetch ? { global: { fetch: options.fetch } } : {}),
-      cookieOptions: SESSION_COOKIE_OPTIONS,
+      cookieOptions: { ...SESSION_COOKIE_OPTIONS, ...(commerce ? { name: COMMERCE_AUTH_COOKIE } : {}) },
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -64,4 +70,14 @@ export async function createClient(options?: {
       },
     }
   );
+  if (options?.commerceSession) return make(true);
+  const base = make();
+  if (options?.actor || !cookieStore.has(COMMERCE_CONTEXT_COOKIE)) return base;
+  const ctx = verifyCommerceContext(cookieStore.get(COMMERCE_CONTEXT_COOKIE)?.value);
+  const { data: { user } } = await base.auth.getUser();
+  if (!canUseCommerceContext(ctx, user, leerToken(cookieStore.get(UNLOCK_COOKIE)?.value))) return base;
+  const commerce = make(true);
+  const { data: { user: owner } } = await commerce.auth.getUser();
+  if (!owner || owner.id !== ctx!.ownerId) throw new Error('commerce_session_invalid');
+  return commerce;
 }

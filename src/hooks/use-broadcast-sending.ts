@@ -11,7 +11,7 @@ import { chunk, fetchAllRows } from '@/lib/supabase/paginate';
 import type { ContactSegment } from '@/lib/segments/types';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import type { VoiceNoteConfig } from '@/lib/voice-notes/types';
-import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve-browser';
 
 export type CustomFieldOperator = 'is' | 'is_not' | 'contains';
 

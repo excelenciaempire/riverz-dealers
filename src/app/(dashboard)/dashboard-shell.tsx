@@ -15,6 +15,7 @@ import type { FeatureFlags } from "@/lib/admin/feature-flags";
 import { useT } from "@/hooks/use-locale";
 import { SaldoProvider } from "@/hooks/use-saldo";
 import type { Vistazo } from "@/lib/wallet/puerta";
+import { COMMERCE_CHANGE_KEY, selectedCommerceInBrowser } from "@/lib/auth/commerce-cookies";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -64,6 +65,20 @@ function DashboardShellInner({
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
+
+  useEffect(() => {
+    const initialCommerce = selectedCommerceInBrowser();
+    const sync = () => {
+      if (initialCommerce !== selectedCommerceInBrowser()) window.location.reload();
+    };
+    const onStorage = (event: StorageEvent) => { if (event.key === COMMERCE_CHANGE_KEY) sync(); };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", sync);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", sync);
+    };
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) {

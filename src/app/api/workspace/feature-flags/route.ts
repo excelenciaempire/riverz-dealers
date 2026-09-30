@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { getFeatureFlags } from '@/lib/admin/feature-flags';
 import { isPlatformAdmin } from '@/lib/auth/platform-admin';
+import { getCommerceActor } from '@/lib/admin/commerce-session';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ export async function GET() {
       return NextResponse.json({ error: 'no_workspace' }, { status: 404, headers });
     }
     const flags = await getFeatureFlags(db, workspaceId, { strict: true });
-    return NextResponse.json({ flags, isPlatformAdmin: isPlatformAdmin(user.email) }, { headers });
+    return NextResponse.json({ flags, isPlatformAdmin: isPlatformAdmin(user.email) || Boolean(await getCommerceActor()) }, { headers });
   } catch {
     // Keep the last known client settings rather than replacing a failed read with defaults.
     return NextResponse.json({ error: 'feature_flags_unavailable' }, { status: 503, headers });

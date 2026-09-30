@@ -8,7 +8,8 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, createActorClient } from "@/lib/supabase/client";
+import { selectedCommerceInBrowser, COMMERCE_CHANGE_KEY } from "@/lib/auth/commerce-cookies";
 import type { User } from "@supabase/supabase-js";
 
 interface Profile {
@@ -184,7 +185,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    const supabase = createClient();
+    if (selectedCommerceInBrowser()) {
+      let csrf = document.cookie.split("; ").find((value) => value.startsWith("csrf="))?.slice(5);
+      if (!csrf) {
+        const result = await fetch("/api/csrf", { cache: "no-store" });
+        if (!result.ok) return;
+        csrf = (await result.json()).token;
+      }
+      const cleared = await fetch("/api/admin/commerce-session", { method: "DELETE", headers: { "x-csrf-token": csrf ?? "" } });
+      if (!cleared.ok) return;
+      try { localStorage.setItem(COMMERCE_CHANGE_KEY, String(Date.now())); } catch { /* No storage. */ }
+    }
+    const supabase = createActorClient();
     // scope 'local': cierra solo este navegador. El default de supabase-js es
     // 'global' y revoca la sesión en todos los demás dispositivos.
     await supabase.auth.signOut({ scope: "local" });

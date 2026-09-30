@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Workspace, WorkspaceMember } from "@/types";
 import { selectWorkspaceMembership } from "@/lib/workspaces/select-membership";
+import { selectedCommerceInBrowser } from "@/lib/auth/commerce-cookies";
 
 interface WorkspaceState {
   workspace: Workspace | null;
@@ -15,9 +16,8 @@ interface WorkspaceState {
 
 /**
  * Returns the user's current workspace + role. Picks the first
- * owned workspace, then oldest membership, matching server resolution (if/when a user
- * belongs to multiple workspaces we'll persist their selection in
- * localStorage and add a picker in the header).
+ * owned workspace, then oldest membership, matching server resolution.
+ * Admin store navigation selects the live membership explicitly.
  */
 export function useWorkspace(): WorkspaceState {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -51,7 +51,7 @@ export function useWorkspace(): WorkspaceState {
         if (error) throw error;
 
         if (cancelled) return;
-        const m = selectWorkspaceMembership(memberships ?? [], user.id);
+        const m = selectWorkspaceMembership(memberships ?? [], user.id, selectedCommerceInBrowser());
         setMembership(m ?? null);
         setWorkspace(m?.workspace ?? null);
       } catch {

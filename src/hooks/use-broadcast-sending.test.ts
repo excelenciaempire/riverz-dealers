@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock('react', () => ({ useState: (value: unknown) => [value, vi.fn()] }));
 vi.mock('@/lib/api/fetch-with-csrf', () => ({ useFetchWithCsrf: () => state.send }));
-vi.mock('@/lib/workspaces/resolve', () => ({ resolveWorkspaceIdForUser: async () => state.workspace }));
+vi.mock('@/lib/workspaces/resolve-browser', () => ({ resolveWorkspaceIdForUser: async () => state.workspace }));
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     auth: { getSession: async () => ({ data: { session: { user: { id: 'owner' } } } }) },

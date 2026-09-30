@@ -15,6 +15,8 @@ import type { AdminActor } from './guard';
  */
 
 export type AdminAction =
+  | 'enter.workspace'
+  | 'exit.workspace'
   | 'update.provider_balance'
   | 'test.platform_alert'
   | 'update.admin_metric_schema'

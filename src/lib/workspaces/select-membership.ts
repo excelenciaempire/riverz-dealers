@@ -3,8 +3,9 @@ import type { Workspace, WorkspaceMember } from '@/types';
 type Membership = WorkspaceMember & { workspace?: Workspace | null };
 
 /** Same precedence as resolveWorkspaceIdForUser: owned workspace, then oldest membership. */
-export function selectWorkspaceMembership(rows: Membership[], userId: string): Membership | null {
+export function selectWorkspaceMembership(rows: Membership[], userId: string, selectedId?: string | null): Membership | null {
   const live = rows.filter((row) => row.workspace && !row.workspace.deleted_at);
+  if (selectedId) return live.find((row) => row.workspace_id === selectedId) ?? null;
   const owned = live.filter((row) => row.workspace?.owner_id === userId);
   const candidates = owned.length ? owned : live;
   return candidates.sort((a, b) => {

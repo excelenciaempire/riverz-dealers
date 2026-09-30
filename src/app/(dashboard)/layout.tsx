@@ -7,6 +7,7 @@ import { needsReconsent } from "@/lib/legal/version";
 import { ReconsentGate } from "@/components/legal/reconsent-gate";
 import { getFeatureFlags, type FeatureFlags } from "@/lib/admin/feature-flags";
 import { isPlatformAdmin } from "@/lib/auth/platform-admin";
+import { getCommerceActor } from "@/lib/admin/commerce-session";
 import { isWorkspaceSuspended } from "@/lib/workspaces/suspension";
 import { SuspendedGate } from "@/components/layout/suspended-gate";
 import { ImpagoGate } from "@/components/billing/impago-gate";
@@ -63,7 +64,7 @@ export default async function DashboardLayout({
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    platformAdmin = isPlatformAdmin(user?.email);
+    platformAdmin = isPlatformAdmin(user?.email) || Boolean(await getCommerceActor());
     if (user) {
       // El workspace primero: los flags ahora admiten una excepción por
       // comercio, así que hay que saber de qué comercio se trata antes de
@@ -120,7 +121,7 @@ export default async function DashboardLayout({
         .select("terms_version")
         .eq("user_id", user.id)
         .maybeSingle();
-      mustReconsent = needsReconsent(
+      mustReconsent = !platformAdmin && needsReconsent(
         (profile as { terms_version?: string | null } | null)?.terms_version ?? null,
       );
     }
