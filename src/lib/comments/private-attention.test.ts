@@ -12,7 +12,7 @@ function database(rows: unknown[], error: unknown = null, contacts = [{ id: 'pri
 }
 const args = { workspaceId: 'rasmiaw', externalId: '1436903064992570', channel: 'instagram' as const };
 describe('comment-to-private ownership', () => {
-  it.each([{ ai_enabled: false }, { assigned_agent_id: 'person' }, { needs_human_reason: 'problema_detectado' }, { status: 'closed' }])('does not intrude on an owned or escalated DM: %j', row => {
+  it.each([{ is_spam: true }, { ai_enabled: false }, { assigned_agent_id: 'person' }, { needs_human_reason: 'problema_detectado' }, { status: 'closed' }])('does not intrude on an owned or escalated DM: %j', row => {
     return expect(privateConversationAllowsCommentReply(database([row]).db as never, args)).resolves.toBe(false);
   });
   it('matches the private contact by platform identity, not the comment contact row ID', async () => {

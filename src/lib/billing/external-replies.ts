@@ -67,18 +67,20 @@ export async function syncExternalReplies(db:SupabaseClient,args:Context) {
   if(ig && !username)username=String((await graph(encodeURIComponent(ownId)+'?fields=username',token)).username??'');
   if(ig && !username)throw new Error('external_comment_owner_unverified');
   let url:string|null=encodeURIComponent(inbound.message_id)+(ig?'/replies?fields=id,text,username,timestamp&limit=100':'/comments?fields=id,message,from,created_time&limit=100');
+  let publicCommentAnswered=false;
   for(let page=0;url && page<10;page++) {
    const result=await graph(url,token);
    for(const reply of result.data??[]) {
     const own=ig?String(reply.username??'').toLowerCase()===username.toLowerCase():reply.from?.id===ownId;
     if(!own)continue;
+    publicCommentAnswered=true;
     const event=await buildSelfCommentEvent(db,{channel:connection.channel,connection,commentId:reply.id,parentCommentId:inbound.message_id,postId:comment?.post_id,text:reply.text??reply.message??'',receivedAt:reply.timestamp??reply.created_time});
     if(event)await ingestInboundEvent(db,{...event,historical:true,createIfMissing:false});
    }
    url=result.paging?.next??null;
   }
   if(url)throw new Error('external_comment_sync_incomplete');
-  return;
+  return {publicCommentAnswered};
  }
  if(connection.channel==='tiktok_comment') {
   if(!comment?.post_id)throw new Error('external_comment_video_unverified');

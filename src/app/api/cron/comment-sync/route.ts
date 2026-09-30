@@ -5,6 +5,7 @@ import { pullCommentsAll, pullCommentsForWorkspace } from "@/lib/channels/commen
 import { entenderPendientes, identificarProductosPendientes } from "@/lib/channels/publicacion-media";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { withCronRun, withCronTask } from "@/lib/cron/heartbeat";
+import { retryFailedComments } from '@/lib/comments/retry';
 
 /**
  * GET /api/cron/comment-sync
@@ -46,7 +47,6 @@ async function cronHandler(request: Request) {
 
   try {
     const db = supabaseAdmin();
-
     const url = new URL(request.url);
     const workspaceId = url.searchParams.get("workspace_id")?.trim();
     const backfillDays = Number(url.searchParams.get("backfill_days"));
@@ -63,6 +63,10 @@ async function cronHandler(request: Request) {
       });
       return NextResponse.json({ ok: true, backfill: true, days: backfillDays, pulled }, { status: 200 });
     }
+
+    const recovered = await retryFailedComments(db).catch(error => ({
+      attempted: 0, recovered: 0, error: error instanceof Error ? error.message : String(error),
+    }));
 
     // Lo barato y urgente, siempre.
     const pulled = await pullCommentsAll(db).catch((err) => {
@@ -104,7 +108,7 @@ async function cronHandler(request: Request) {
     // Lo caro, sólo cuando toca.
     const due = await reconcileIsDue(db);
     if (!due) {
-      const failed = commentFailures(pulled, publicaciones, productosDePublicaciones);
+      const failed = commentFailures(pulled, publicaciones, productosDePublicaciones, recovered);
       return NextResponse.json(
         {
           ok: failed === 0,
@@ -112,6 +116,7 @@ async function cronHandler(request: Request) {
           pulled,
           publicaciones,
           productosDePublicaciones,
+          recovered,
           failed,
         },
         { status: failed ? 207 : 200 }
@@ -130,7 +135,7 @@ async function cronHandler(request: Request) {
     } catch (err) {
       if (!result) throw err;
     }
-    const failed = commentFailures(pulled, publicaciones, productosDePublicaciones) + (result!.ok ? 0 : 1);
+    const failed = commentFailures(pulled, publicaciones, productosDePublicaciones, recovered) + (result!.ok ? 0 : 1);
     return NextResponse.json(
       {
         ...result!,
@@ -139,6 +144,7 @@ async function cronHandler(request: Request) {
         pulled,
         publicaciones,
         productosDePublicaciones,
+        recovered,
         failed,
       },
       { status: failed ? 207 : 200 }

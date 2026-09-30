@@ -13,3 +13,9 @@ export function shouldHideComment(
 export function keepObjectionPublic(workspaceId: string, criticism: boolean, hasOrderQuestion: boolean): boolean {
   return workspaceId === '234604a9-909b-4e50-952b-acde4a85593a' && criticism && !hasOrderQuestion;
 }
+
+/** Merchant-approved facts replace unsupported ad claims, rather than silence. */
+export function safeObjectionReply(workspaceId: string, criticism: boolean, hasPrivateCase: boolean): string | null {
+  if (!keepObjectionPublic(workspaceId, criticism, hasPrivateCase)) return null;
+  return 'Entiendo tu duda. Revitaly es un shampoo cosmético de uso externo; los resultados varían entre personas y no prometemos crecimiento garantizado.';
+}

@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import json
 import re
 import unicodedata
+from io import BytesIO
 import pymupdf
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
@@ -132,6 +133,53 @@ hidden_unanswered_comments = sum(conversation_by_id[i]['last_message_hidden'] fo
 assert hidden_unanswered_comments == 7
 rate = lambda value: f'{value:.1f}%'.replace('.', ',')
 
+# Read all 38 source comments. Assign one primary tone; sarcasm without a
+# clear judgment remains ambiguous. Tone is not product satisfaction.
+ambiguous_comment_ids = {
+    '1fcd661f-e315-4506-81e0-6a1a748e1faa', '06a44601-353f-486a-a85f-8e034bf8153e',
+    'ec90aaef-4c42-4a44-a97f-373161d9a9fe', '97806e39-dfa0-4e25-84b1-e4dd5441e311',
+    'a3f5ad76-2ddc-427c-9571-bce23c83d3a8', '4b8dc1ac-5c7d-4288-ad80-52577b6df2e7',
+    'dbc2ea4c-25a6-4c88-a366-a5eed858ca6b', 'acaff299-461d-449e-a2da-6a86a15733ed',
+}
+interest_comment_ids = {'33d7eb69-0468-4f05-ad4b-6af93de6f1fb', 'de16a9ea-a32b-48ba-b3a6-3c628d62977b'}
+neutral_comment_ids = purchase_comment_ids - interest_comment_ids
+negative_comment_ids = {m['id'] for m in comment_messages} - ambiguous_comment_ids - interest_comment_ids - neutral_comment_ids
+sentiment_groups = [
+    ('Crítica o frustración', negative_comment_ids, '#B87360'),
+    ('Consulta neutral', neutral_comment_ids, '#7D938B'),
+    ('Humor o tono ambiguo', ambiguous_comment_ids, '#CAB795'),
+    ('Interés o elogio', interest_comment_ids, '#B8CB69'),
+]
+assert [len(ids) for _, ids, _ in sentiment_groups] == [19, 9, 8, 2]
+assert sum(len(ids) for _, ids, _ in sentiment_groups) == len(comment_messages)
+assert all(a.isdisjoint(b) for i, (_, a, _) in enumerate(sentiment_groups)
+           for _, b, _ in sentiment_groups[i+1:])
+recovery = read('comment-recovery')
+recovered_comments = {r['inboundId'] for r in recovery['evidence'] if r['outcome'] == 'sent_verified'}
+assert len(recovered_comments) == 5
+assert len(recovered_comments & {m['id'] for m in comment_messages if m['conversation_id'] in comment_block_groups['error']}) == 4
+
+def sentiment_image():
+    """Generate a sharp chart image from the classified source comments."""
+    QA.mkdir(parents=True, exist_ok=True)
+    stream = BytesIO()
+    chart = canvas.Canvas(stream, pagesize=(150, 150))
+    chart.setFillColor(CARD)
+    chart.rect(0, 0, 150, 150, fill=1, stroke=0)
+    angle = 90
+    for _, ids, color in sentiment_groups:
+        extent = 360 * len(ids) / len(comment_messages)
+        chart.setStrokeColor(HexColor(color))
+        chart.setLineWidth(21)
+        chart.arc(18, 18, 132, 132, angle-extent, extent)
+        angle -= extent
+    chart.save()
+    chart_doc = pymupdf.open(stream=stream.getvalue(), filetype='pdf')
+    path = QA / 'sentimiento-comentarios.png'
+    chart_doc[0].get_pixmap(matrix=pymupdf.Matrix(4, 4)).save(str(path))
+    chart_doc.close()
+    return path
+
 REASONS = [
     ('Demora o disputa de entrega', 'Entregas demoradas o disputadas', 15,
      'Reclamaron pedidos que no llegaron, falta de guía y demoras de despacho. Un pedido figuraba enviado, pero Andreani no lo registraba.'),
@@ -201,6 +249,10 @@ class PDF:
         self.c.setLineWidth(.7)
         self.c.line(42, H-y, 553, H-y)
 
+    def image(self, path, x, y, width, height):
+        self.c.drawImage(str(path), x, H-y-height, width=width, height=height,
+                         preserveAspectRatio=True, anchor='c', mask='auto')
+
     def header(self, title, subtitle):
         self.page += 1
         self.c.setFillColor(BG)
@@ -255,10 +307,11 @@ for i, (label, count, percentage) in enumerate([
     p.text(485, baseline, percentage, 'Semi', 14, width=51)
     if i < 2:
         p.line(496+i*48)
-p.text(42, 633, 'Análisis de comentarios', 'Serif', 27)
-end = p.wrap(42, 664, '38 comentarios con texto: 33 en Facebook y 5 en Instagram, en 34 hilos. En 22 respondió la IA y en 1 una persona; 11 no tenían respuesta al corte.')
-assert end <= 720
-end = p.wrap(42, 736, 'Hubo consultas de precio y uso, reclamos de entrega y críticas a la publicidad. Algunas se frenaron por saldo o fallos; otras recibieron solo «Te escribí por privado».')
+p.text(42, 629, 'Análisis de comentarios', 'Serif', 27)
+p.image(ASSETS / 'riverz-control-humano.png', 42, 650, 174, 134)
+end = p.wrap(232, 661, '38 comentarios con texto, en 34 hilos: 33 en Facebook y 5 en Instagram.', width=321)
+end = p.wrap(232, end+8, '22 hilos con respuesta de IA y 1 humana. 11 sin respuesta al corte; 5 recuperados después.', width=321)
+end = p.wrap(232, end+8, 'Detalle de temas y sentimiento en la página 4.', width=321, color=MUTED)
 assert end-18+4 <= 791
 p.end()
 
@@ -295,28 +348,36 @@ for i, (title, body) in enumerate(plan):
 p.text(42, 786, 'Probar cada acción con casos reales antes de activarla.', size=12.5)
 p.end()
 
-# 4. Actual comment content, response behavior and the causes of silence.
-p.header('Qué se dijo en los comentarios', '26 al 30 de septiembre. Se analizan los 38 comentarios con texto.')
+# 4. Primary tone, actual topics and verified recovery, without personal data.
+p.header('Sentimiento de los comentarios', '38 comentarios con texto. Porcentajes sobre esta base, redondeados.')
+p.box(42, 176, 511, 170)
+p.image(sentiment_image(), 57, 184, 150, 150)
+p.text(112, 258, '38', 'Serif', 34, width=58)
+for i, (label, ids, color) in enumerate(sentiment_groups):
+    y = 205+i*36
+    p.box(232, y-10, 10, 10, HexColor(color), 3)
+    p.text(252, y, label, 'Sans', 13, width=202)
+    p.text(473, y, f'{len(ids)} · {round(100*len(ids)/38)}%', 'Semi', 13, width=66)
+end = p.wrap(42, 370, 'Las críticas se concentran en la publicidad y su credibilidad. Este tono no mide satisfacción tras usar el producto; la ironía ambigua se clasifica aparte.')
+assert end <= 428
 comment_analysis = [
-    ('26 reacciones a la publicidad',
-     'Hubo ironías, dudas sobre la IA y acusaciones de engaño. Algunas respuestas explicaron el producto; otras fueron saludos genéricos o «Te escribí por privado».'),
-    ('10 consultas de compra y uso',
-     'Preguntaron precio, farmacias, pago contra entrega y uso en mujeres. Se respondieron precios y canales de compra; «Me interesa» e «Info por favor» quedaron sin respuesta.'),
-    ('2 reclamos de entrega',
-     'Un cliente dijo esperar 20 días; otro, 7 días tras una promesa de 24 horas. Se respondió en público, pero resolver el envío requiere seguimiento real; una respuesta no cierra el reclamo.'),
+    ('26 · Publicidad', 'Dudas sobre la IA y promesas del anuncio. Conviene explicar el producto y evitar resultados garantizados.'),
+    ('10 · Compra y uso', '«Precio?» y «Me interesa». Preguntaron uso, farmacias y pago. Dos consultas omitidas ya tienen respuesta.'),
+    ('2 · Entregas', 'Esperas de 7 y 20 días. Hubo respuesta pública; resolver el envío requiere seguimiento real.'),
 ]
 for i, (title, body) in enumerate(comment_analysis):
-    y = 180+i*119
-    p.box(42, y, 511, 111)
-    p.text(60, y+25, title, 'Semi', 15, width=475)
-    end = p.wrap(60, y+50, body, 475)
-    assert end-18+4 <= y+111-5, (title, end)
-p.text(42, 567, 'Por qué quedaron 11 hilos sin respuesta', 'Serif', 27)
-end = p.wrap(42, 598, '5 se frenaron por saldo, 4 por errores y 2 por filtros que bloquearon críticas. 7 de los 11 estaban ocultos: el total no equivale a 11 consultas pendientes.')
-assert end <= 660
-p.text(42, 684, 'Qué conviene cambiar', 'Serif', 27)
-end = p.wrap(42, 715, 'Responder compra y uso en público; pasar reclamos y datos personales a privado. Confirmar que el privado se envió antes de anunciarlo. Reintentar los fallos y evitar tratar toda crítica como spam.')
-assert end-18+4 <= 791
+    x, y = 42+i*173, 434
+    p.box(x, y, 165, 159)
+    p.text(x+12, y+25, title, 'Semi', 14, width=141)
+    end = p.wrap(x+12, y+49, body, 141, leading=17)
+    assert end-17+4 <= y+159-6, (title, end)
+end = p.wrap(42, 619, 'Al corte: 11 hilos sin respuesta, por saldo (5), fallos (4) y filtros (2), incluidos comentarios ocultos.', leading=17)
+assert end <= 657
+p.text(42, 684, '5 respuestas recuperadas', 'Serif', 27)
+end = p.wrap(42, 711, 'Se respondieron los 4 comentarios con error y 1 consulta de compra bloqueada por saldo. Meta y la bandeja confirmaron las respuestas el 30 de septiembre, hasta las 19:30 de Argentina.', leading=17)
+assert end <= 766
+end = p.wrap(42, 773, 'Corregido el envío. Recuperación automática con verificación para evitar duplicados y anuncios de privados que no se enviaron.', size=12.5, leading=16)
+assert end-16+4 <= 796
 p.end()
 p.c.save()
 
@@ -326,9 +387,9 @@ assert len(doc) == p.page == 4
 assert len(doc.get_toc()) == 4
 text = '\n'.join(page.get_text() for page in doc)
 normalized_text = re.sub(r'\s+', ' ', text)
-assert all(token in normalized_text for token in ['425', '199', '43', '133', '21,6%', '66,8%', '26 al 30 de septiembre', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.', 'Análisis de comentarios', '38 comentarios con texto', '34 hilos', '11 no tenían respuesta al corte'])
+assert all(token in normalized_text for token in ['425', '199', '43', '133', '21,6%', '66,8%', '26 al 30 de septiembre', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.', 'Análisis de comentarios', '38 comentarios con texto', '34 hilos', '11 sin respuesta al corte'])
 assert all(removed not in normalized_text for removed in ['Sin motivo de escalamiento', 'Sin escalamiento identificado', '78,4%', '10,1%', 'Qué ocurrió'])
-assert all(token in normalized_text for token in ['Qué se dijo en los comentarios', '26 reacciones a la publicidad', '10 consultas de compra y uso', '2 reclamos de entrega', '5 se frenaron por saldo, 4 por errores y 2 por filtros', '7 de los 11 estaban ocultos'])
+assert all(token in normalized_text for token in ['Sentimiento de los comentarios', '26 · Publicidad', '10 · Compra y uso', '2 · Entregas', '5 respuestas recuperadas', 'no mide satisfacción', 'Recuperación automática'])
 assert all(token in normalized_text for token in ['Parcialmente', 'Puede automatizarse al conectar el banco', 'Una persona aprueba la cancelación o el reembolso', 'la IA no devuelve dinero por su cuenta'])
 assert all(token in normalized_text for token in ['CARRITO25 no funcionó', 'envase rajado con pérdida', 'IA no podía modificarlo'])
 assert 'Por qué se necesita al equipo' not in text and 'pedir el cambio al transportista' not in text
@@ -368,6 +429,9 @@ proof = {'file': str(OUT), 'pages': len(doc), 'periodEscalations': len(cases),
          'AIAnsweredCommentThreads': len(comment_ai_ids), 'humanAnsweredCommentThreads': len(comment_human_ids),
          'unansweredCommentThreadsAtCutoff': len(comment_unanswered_ids), 'commentChannelCounts': dict(comment_channels),
          'commentTopics': dict(comment_topics), 'unansweredCommentCauses': {k: len(v) for k, v in comment_block_groups.items()},
+         'commentTone': {label: {'count': len(ids), 'percent': round(100*len(ids)/38, 1), 'messageIds': sorted(ids)} for label, ids, _ in sentiment_groups},
+         'recoveredCommentsAfterCutoff': len(recovered_comments), 'recoveryVerifiedAt': recovery['capturedAt'],
+         'embeddedImages': sum(len(page.get_images()) for page in doc),
          'hiddenUnansweredCommentThreads': hidden_unanswered_comments,
          'escalationCategories': len(REASONS), 'individualCasesListed': False, 'appendices': False,
          'bodyFontPoints': 13, 'minimumSupportingTextPoints': 12.5,

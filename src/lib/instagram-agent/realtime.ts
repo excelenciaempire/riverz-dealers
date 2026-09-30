@@ -1,5 +1,7 @@
 import { avisarEscalada } from '@/lib/ai/aviso-escalada';
-import { shouldHideComment, keepObjectionPublic } from './comment-moderation-policy';
+import { shouldHideComment, keepObjectionPublic, safeObjectionReply } from './comment-moderation-policy';
+import { commentSendContext } from '@/lib/comments/send-context';
+import { queueCommentRetry } from '@/lib/comments/retry';
 import { aplicarDesenlace } from '@/lib/ai/desenlace';
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
@@ -891,6 +893,10 @@ export async function replyToComment(
 ): Promise<string | null> {
   const motivo = await decidirComentario(db, opts);
   if (motivo) await registrarSkipComentario(db, opts, motivo);
+  if (motivo && opts.commentId) await queueCommentRetry(db, {
+    workspaceId: opts.workspaceId, channel: opts.commentChannel ?? 'ig_comment',
+    commentId: opts.commentId, reason: motivo,
+  }).catch(error => console.error('[comentarios] retry queue failed:', error));
   return motivo;
 }
 
@@ -987,6 +993,8 @@ async function decidirComentario(
     contactId: opts.contact.id,
     channel: commentChannel,
   });
+  if (!hilo) return 'comment_contexto_no_disponible';
+  const sendContext = commentSendContext(hilo, commentChannel, opts.commentId, opts.sourcePostId);
   if (hilo) {
     if (hilo.ai_enabled === false) return 'comment_ia_apagada_en_el_hilo';
     if (hilo.assigned_agent_id) return 'comment_asignado_a_persona';
@@ -1333,7 +1341,9 @@ async function decidirComentario(
       '[ig-agent] respuesta descartada, afirmaba lo que no le consta:',
       text.slice(0, 160)
     );
-    return 'comment_afirma_lo_que_no_sabe';
+    const safe = safeObjectionReply(opts.workspaceId, esCriticaPublica(engagement), Boolean(orderStatus) || esPagoManualEnComentario(engagement));
+    if (!safe) return 'comment_afirma_lo_que_no_sabe';
+    text = safe;
   }
 
   // Y la otra mitad de lo mismo: si no sabe, no contesta. Prometer en público
@@ -1464,13 +1474,14 @@ async function decidirComentario(
   // mensajes casi iguales en el mismo hilo.
   // En TikTok siempre se publica: es lo único que TikTok deja hacer, así que
   // el modo elegido para Instagram y Facebook no la puede dejar muda.
-  const willPublish = isTikTok || commentCfg.publicReply;
+  const willPublish = opts.publicOnly || isTikTok || commentCfg.publicReply;
 
   let dmSent = false;
   /** No salió nada: ni el privado ni la respuesta pública. */
   let falloAlPublicar = false;
   try {
     if (wonPrivateReply && connection) {
+      try {
       const dmText = await prepararTextoParaCanal(db, {
         texto: addCommentContextToPrivateReply({
           reply: text,
@@ -1486,7 +1497,7 @@ async function decidirComentario(
       const dmRes = await adapter.sendText({
         channel: dmChannel,
         connection,
-        conversation: { id: '' } as unknown as Conversation,
+        conversation: sendContext as Conversation,
         contact: {
           id: opts.contact.id,
           external_id: opts.contact.external_id,
@@ -1513,6 +1524,12 @@ async function decidirComentario(
         origin: 'comment_ai',
         originName: null,
       });
+      } catch (dmError) {
+        // A failed DM must not suppress the public answer. The claim stays
+        // consumed: an uncertain send is never blindly repeated.
+        console.error('[ig-agent] private comment reply failed:', dmError);
+        if (!willPublish && !dmSent) return 'comment_error';
+      }
     }
 
     // Respuesta pública en el propio comentario, si el comercio la pidió.
@@ -1533,11 +1550,7 @@ async function decidirComentario(
           channel: commentChannel,
           connection: publicConnection,
           conversation: {
-            id: '',
-            // TikTok necesita además el VIDEO, y su adapter lo saca de acá.
-            thread_external_id: isTikTok
-              ? `video:${opts.sourcePostId ?? ''}|comment:${opts.commentId}`
-              : opts.commentId,
+            ...sendContext,
           } as unknown as Conversation,
           contact: { id: opts.contact.id } as unknown as Contact,
           text: publicText,

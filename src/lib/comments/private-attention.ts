@@ -31,12 +31,12 @@ export async function readPrivateReplyState(db: SupabaseClient, args: PrivateIde
     if (contacts.error || contacts.data?.length === 20) return unavailable();
     if (!contacts.data?.length) return { allowed: true, revision: 'no-private-conversation', brief: null };
     const conversations = await db.from('conversations')
-      .select('id,ai_enabled,assigned_agent_id,needs_human_reason,status,last_message_at')
+      .select('id,ai_enabled,assigned_agent_id,needs_human_reason,status,last_message_at,is_spam')
       .eq('workspace_id', args.workspaceId).eq('channel', args.channel)
       .in('contact_id', contacts.data.map(c => c.id)).is('deleted_at', null).limit(20);
     if (conversations.error || conversations.data?.length === 20) return unavailable();
     const chats = conversations.data ?? [];
-    const allowed = !chats.some(c => c.ai_enabled === false || c.assigned_agent_id || c.needs_human_reason || c.status === 'closed');
+    const allowed = !chats.some(c => c.is_spam === true || c.ai_enabled === false || c.assigned_agent_id || c.needs_human_reason || c.status === 'closed');
     if (!chats.length) return { allowed, revision: 'no-private-conversation', brief: null };
     const history = await db.from('messages').select('id,conversation_id,created_at,sender_type,content_text,held_for_quality')
       .in('conversation_id', chats.map(c => c.id)).in('sender_type', ['customer', 'agent', 'bot'])
