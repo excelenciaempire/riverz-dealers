@@ -30,7 +30,7 @@ async function answered(db:SupabaseClient,conversation:Conversation,inbound:Mess
   replies=replies.filter(m=>ids.has(m.id));
  }
  if(replies.some(m=>isReplyAfterInbound(m,inbound)))return 'already_answered';
- if(replies.some(m=>['pending','sending','queued'].includes(m.status)))return 'outbound_delivery_uncertain';
+ if(replies.some(m=>['pending','sending','queued'].includes(m.status) || m.sender_type==='bot' && m.status==='failed'))return 'outbound_delivery_uncertain';
  return null;
 }
 async function finish(db:SupabaseClient,job:Job,status:'pending'|'done'|'review',outcome:string) {
@@ -51,7 +51,7 @@ export async function recoverBillingReplies(db:SupabaseClient) {
  const failures:string[]=[];
  const deadline=Date.now()+120_000;
  for(const job of (claimed.data??[]) as Job[]) {
-  if(Date.now()>deadline)break;
+  if(Date.now()>deadline) {await finish(db,job,'pending','recovery_budget');continue;}
   try {
    if(await workspaceReadOnly(db,job.workspace_id)) {await finish(db,job,'pending','monthly_payment_pending');continue;}
    const result=await db.from('conversations').select('*').eq('id',job.conversation_id).eq('workspace_id',job.workspace_id).maybeSingle();

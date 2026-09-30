@@ -64,8 +64,10 @@ async function accountInfo(db: SupabaseClient, workspaceId: string, customerId?:
   if(workspace.error)throw new Error('billing_notice_account_unavailable');
   const locale=await localeDeCuenta(db,workspaceId);
   const emails=new Set<string>();
-  const owner=await db.auth.admin.getUserById(workspace.data.owner_id);
-  if(owner.data.user?.email)emails.add(owner.data.user.email.trim().toLowerCase());
+  try {
+    const owner=await db.auth.admin.getUserById(workspace.data.owner_id);
+    if(owner.data.user?.email)emails.add(owner.data.user.email.trim().toLowerCase());
+  } catch { /* Auth email lookup must not block WhatsApp or the Stripe billing contact. */ }
   if(customerId && stripeDisponible()) {
     try {
       const customer=await stripe().customers.retrieve(customerId);
