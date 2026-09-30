@@ -1733,7 +1733,7 @@ export async function runTool(
         })
       }
       if (!result.ok) {
-        const committedButUnverified = result.error?.startsWith('updated_but_') === true
+        const committedButUnverified = result.uncertain === true || result.error?.startsWith('updated_but_') === true
         return JSON.stringify({
           error: committedButUnverified ? 'update_unverified' : 'update_failed',
           detail: result.error,

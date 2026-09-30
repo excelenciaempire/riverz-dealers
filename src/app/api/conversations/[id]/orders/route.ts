@@ -5,6 +5,7 @@ import { inboxConversation } from '@/lib/inbox/server-context'
 import { orderPreviewInput, sameCaseOrderAction } from '@/lib/inbox/order-action-contract'
 import { CaseOrderError, caseOrderSnapshot } from '@/lib/inbox/order-actions'
 import { resolveShopifyAdmin } from '@/lib/shopify/order-tags'
+import { prepareReviewedOrderItems } from '@/lib/shopify/reviewed-order-items'
 type Context = { params: Promise<{ id: string }> }
 
 export async function GET(request: Request, route: Context) {
@@ -45,6 +46,14 @@ export async function POST(request: Request, route: Context) {
       return NextResponse.json({ operation:prior.data,can_execute:ctx.isAdmin })
     }
     const snapshot = await caseOrderSnapshot(ctx.db,ctx.workspaceId,ctx.conversation.contact_id,input.order_id,input.action)
+    if (input.action.type === 'items') {
+      const writable=await ctx.db.rpc('workspace_billing_write_allowed',{ p_workspace:ctx.workspaceId })
+      if (writable.error) throw new CaseOrderError('orderUnavailable')
+      if (writable.data!==true) throw new CaseOrderError('orderReadOnly')
+      const prepared=await prepareReviewedOrderItems(snapshot.admin,snapshot.local.shopify_order_id,input.action.items)
+      if (!prepared.ok) throw new CaseOrderError(prepared.error)
+      snapshot.preview.item_change=prepared.quote
+    }
     const saved = await ctx.db.rpc('save_inbox_order_preview',{ p_id:input.id,p_workspace_id:ctx.workspaceId,p_conversation_id:ctx.conversation.id,
       p_order_id:input.order_id,p_actor_id:ctx.userId,p_action:input.action,p_preview:snapshot.preview,p_fingerprint:snapshot.fingerprint })
     if (saved.error) return serverError(saved.error,ctx.t('orderConflict'))

@@ -29,6 +29,8 @@ export function sameShippingAddress(actual:OrderShippingAddress | null,expected:
   const normalize = (value:string) => value.replace(/\s+/g,' ').trim().toLocaleLowerCase('en')
   return !!actual && FIELDS.every(field => normalize(actual[field]) === normalize(expected[field]))
 }
-export function shippingChangeAllowed(order:{ cancelled_at?:string | null; fulfillment_status?:string | null; fulfillments?:{ status:string }[] }):boolean {
-  return order.cancelled_at === null && order.fulfillment_status === null && Array.isArray(order.fulfillments) && order.fulfillments.every(f => ['cancelled','failure'].includes(f.status))
+export function shippingChangeAllowed(order:{ cancelled_at?:string | null; fulfillment_status?:string | null; fulfillments?:{ status:string }[]; tags?:string }):boolean {
+  // A known handoff to Dropi needs its own dispatch check; an empty Shopify fulfillment list cannot prove it is editable.
+  return order.cancelled_at === null && order.fulfillment_status === null && Array.isArray(order.fulfillments) && order.fulfillments.every(f => ['cancelled','failure'].includes(f.status)) &&
+    !/order\s+sent\s+to\s+dropi/i.test(order.tags ?? '')
 }

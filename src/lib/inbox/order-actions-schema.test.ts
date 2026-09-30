@@ -46,6 +46,16 @@ describe('reviewed order operations in PostgreSQL',() => {
     expect((await claimApproval()).rows[0].claimed).toBe(false)
     expect((await db.query('SELECT action FROM inbox_order_actions')).rows).toEqual([{ action:request }])
   })
+  it('persists item quotes without allowing the request to change under the same operation ID',async () => {
+    const request={ type:'items',reason:'Size change',items:[{ variantId:'222',quantity:2,free:false }] }, preview={ item_change:{ calculated_id:'gid://shopify/CalculatedOrder/1',total_before:'100.00',total_after:'120.00',currency:'USD' } }
+    const args=[op,ws,conv,order,agent,JSON.stringify(request),JSON.stringify(preview),'a'.repeat(64)]
+    await db.query('SELECT save_inbox_order_preview($1,$2,$3,$4,$5,$6,$7,$8)',args)
+    args[5]=JSON.stringify({ ...request,items:[{ variantId:'222',quantity:3,free:false }] })
+    await expect(db.query('SELECT save_inbox_order_preview($1,$2,$3,$4,$5,$6,$7,$8)',args)).rejects.toThrow('order_action_conflict')
+    await claim(); await finish('uncertain'); await approved()
+    expect((await claimApproval()).rows[0].claimed).toBe(false)
+    expect((await db.query('SELECT preview FROM inbox_order_actions')).rows).toEqual([{ preview }])
+  })
   it('saves idempotently, cannot change the request under the same ID, and binds workspace and contact',async () => {
     await save(); await save()
     expect((await db.query('SELECT * FROM inbox_order_actions')).rows).toHaveLength(1)

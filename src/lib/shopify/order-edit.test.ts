@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { replaceUnfulfilledOrderItems } from './order-edit'
+import { replaceUnfulfilledOrderItems,stageUnfulfilledOrderItems } from './order-edit'
 
 const admin = {
   shopDomain: 'tienda.myshopify.com',
@@ -18,7 +18,7 @@ describe('replaceUnfulfilledOrderItems', () => {
             id: 'gid://shopify/Order/1010',
             cancelledAt: null,
             displayFulfillmentStatus: 'UNFULFILLED',
-            lineItems: { nodes: [{ quantity: 1, currentQuantity: 1, unfulfilledQuantity: 1 }] },
+            lineItems: { pageInfo: { hasNextPage:false }, nodes: [{ quantity: 1, currentQuantity: 1, unfulfilledQuantity: 1 }] },
           },
         },
       },
@@ -27,7 +27,7 @@ describe('replaceUnfulfilledOrderItems', () => {
           orderEditBegin: {
             calculatedOrder: {
               id: 'gid://shopify/CalculatedOrder/1',
-              lineItems: { nodes: [{ id: 'gid://shopify/CalculatedLineItem/old', quantity: 1 }] },
+              lineItems: { pageInfo: { hasNextPage:false }, nodes: [{ id: 'gid://shopify/CalculatedLineItem/old', quantity: 1 }] },
             },
             userErrors: [],
           },
@@ -66,6 +66,7 @@ describe('replaceUnfulfilledOrderItems', () => {
             tags: ['Order sent to dropi'],
             totalPriceSet: { shopMoney: { amount: '249900.00', currencyCode: 'COP' } },
             lineItems: {
+              pageInfo: { hasNextPage:false },
               nodes: [
                 { title: 'Puma Suede XL', variantTitle: 'Blanco / 41', currentQuantity: 1, variant: { id: 'gid://shopify/ProductVariant/111' } },
                 { title: 'Puma Suede XL', variantTitle: 'Negro / 41', currentQuantity: 1, variant: { id: 'gid://shopify/ProductVariant/222' } },
@@ -120,6 +121,16 @@ describe('replaceUnfulfilledOrderItems', () => {
     })
     expect(fetchMock).not.toHaveBeenCalled()
   })
+  it('requires strict variant IDs, integer quantities and a bounded grouped quantity before touching Shopify',async () => {
+    const fetchMock=vi.spyOn(globalThis,'fetch')
+    for (const items of [[{ variantId:'abc111',quantity:1 }],[{ variantId:'111',quantity:1.5 }],[{ variantId:'111',quantity:20 },{ variantId:'111',quantity:1 }]]) expect(await stageUnfulfilledOrderItems(admin,'1010',items)).toEqual({ ok:false,error:'invalid_items' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it('does not begin editing an unverified or truncated line list',async () => {
+    const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({ data:{ order:{ id:'gid://shopify/Order/1010',cancelledAt:null,displayFulfillmentStatus:'UNFULFILLED',lineItems:{ pageInfo:{ hasNextPage:true },nodes:[{ quantity:1,currentQuantity:1,unfulfilledQuantity:1 }] } } } }),{ status:200 }))
+    expect(await stageUnfulfilledOrderItems(admin,'1010',[{ variantId:'111',quantity:1 }])).toEqual({ ok:false,error:'order_items_unverified' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 
   it('no cambia un pedido que ya tiene unidades despachadas', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
@@ -129,7 +140,7 @@ describe('replaceUnfulfilledOrderItems', () => {
             id: 'gid://shopify/Order/1010',
             cancelledAt: null,
             displayFulfillmentStatus: 'PARTIALLY_FULFILLED',
-            lineItems: { nodes: [{ quantity: 2, currentQuantity: 2, unfulfilledQuantity: 1 }] },
+            lineItems: { pageInfo: { hasNextPage:false }, nodes: [{ quantity: 2, currentQuantity: 2, unfulfilledQuantity: 1 }] },
           },
         },
       }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
@@ -144,11 +155,11 @@ describe('replaceUnfulfilledOrderItems', () => {
 
   it('no declara éxito si la lectura final no coincide con lo solicitado', async () => {
     const replies = [
-      { data: { order: { id: 'gid://shopify/Order/1010', cancelledAt: null, displayFulfillmentStatus: 'UNFULFILLED', lineItems: { nodes: [{ quantity: 1, currentQuantity: 1, unfulfilledQuantity: 1 }] } } } },
-      { data: { orderEditBegin: { calculatedOrder: { id: 'gid://shopify/CalculatedOrder/1', lineItems: { nodes: [] } }, userErrors: [] } } },
+      { data: { order: { id: 'gid://shopify/Order/1010', cancelledAt: null, displayFulfillmentStatus: 'UNFULFILLED', lineItems: { pageInfo: { hasNextPage:false }, nodes: [{ quantity: 1, currentQuantity: 1, unfulfilledQuantity: 1 }] } } } },
+      { data: { orderEditBegin: { calculatedOrder: { id: 'gid://shopify/CalculatedOrder/1', lineItems: { pageInfo: { hasNextPage:false }, nodes: [] } }, userErrors: [] } } },
       { data: { orderEditAddVariant: { calculatedLineItem: { id: 'gid://shopify/CalculatedLineItem/white' }, userErrors: [] } } },
       { data: { orderEditCommit: { order: { id: 'gid://shopify/Order/1010' }, userErrors: [] } } },
-      { data: { order: { id: 'gid://shopify/Order/1010', lineItems: { nodes: [{ title: 'Puma', variantTitle: 'Negro / 41', currentQuantity: 1, variant: { id: 'gid://shopify/ProductVariant/999' } }] } } } },
+      { data: { order: { id: 'gid://shopify/Order/1010', lineItems: { pageInfo: { hasNextPage:false }, nodes: [{ title: 'Puma', variantTitle: 'Negro / 41', currentQuantity: 1, variant: { id: 'gid://shopify/ProductVariant/999' } }] } } } },
     ]
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify(replies.shift()), {
       status: 200,

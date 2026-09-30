@@ -1,12 +1,13 @@
 import { beforeEach,describe,it,expect,vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CaseOrderAction,CaseOrderOperation } from './order-action-contract'
-const m=vi.hoisted(() => ({ rest:vi.fn(),gql:vi.fn(),refund:vi.fn(),cancel:vi.fn(),mirror:vi.fn(),address:vi.fn(),validate:vi.fn() }))
+const m=vi.hoisted(() => ({ rest:vi.fn(),gql:vi.fn(),refund:vi.fn(),cancel:vi.fn(),mirror:vi.fn(),address:vi.fn(),validate:vi.fn(),items:vi.fn() }))
 vi.mock('@/lib/shopify/order-tags',() => ({ resolveShopifyAdmin:async () => ({ shopDomain:'test.myshopify.com',accessToken:'test',apiVersion:'2025-10' }) }))
 vi.mock('@/lib/shopify/admin-client',() => ({ ShopifyAdminClient:class { rest=m.rest; graphql=m.gql } }))
 vi.mock('@/lib/shopify/order-cancel',() => ({ refundOrder:m.refund,cancelOrder:m.cancel }))
 vi.mock('@/lib/addresses/google-validation',() => ({ validateWorkspaceShippingAddress:m.validate }))
 vi.mock('@/lib/shopify/order-shipping-address',() => ({ updateOrderShippingAddress:m.address }))
+vi.mock('@/lib/shopify/reviewed-order-items',() => ({ commitReviewedOrderItems:m.items }))
 import { caseOrderSnapshot,executeCaseOrderAction,uncertainCaseOrderSnapshot } from './order-actions'
 const live={ id:100,name:'#100',updated_at:'2026-09-30',currency:'USD',financial_status:'paid',fulfillment_status:null,cancelled_at:null,total_price:'100.00',fulfillments:[],email:'customer@example.com' }
 const transactions=[{ id:1,kind:'sale',status:'success',amount:'100.00',gateway:'card' }]
@@ -27,8 +28,9 @@ function fixture(privateContext?:{ lock:{ source_id:string; source_kind:string; 
       then:(done:(value:unknown) => unknown) => Promise.resolve({ error:null }).then(done) }
     return q
   } } as unknown as SupabaseClient
-  const prepare=async (action:CaseOrderAction={ type:'refund',amount:25,reason:'Damage' }) => {
+  const prepare=async (action:CaseOrderAction={ type:'refund',amount:25,reason:'Damage' },quote?:CaseOrderOperation['preview']['item_change']) => {
     const snapshot=await caseOrderSnapshot(db,'ws','contact','local',action)
+    if (quote) snapshot.preview.item_change=quote
     operation={ id:'op',order_id:'local',requested_by:'agent',approved_by:'admin',action,preview:snapshot.preview,fingerprint:snapshot.fingerprint,
       status:'preview',expires_at:'2026-10-01',created_at:'2026-09-30',approved_at:null,result:null }
   }
@@ -39,6 +41,43 @@ beforeEach(() => {
   m.gql.mockReset().mockResolvedValue({ currentAppInstallation:{ accessScopes:[{ handle:'write_orders' }] } })
   m.refund.mockReset(); m.cancel.mockReset(); m.mirror.mockReset()
   m.address.mockReset(); m.validate.mockReset().mockImplementation(async (_ws:string,address:unknown) => ({ status:'disabled',address }))
+  m.items.mockReset()
+})
+describe('reviewed item execution',() => {
+  const items=[{ variantId:'222',quantity:2,free:false }], action:CaseOrderAction={ type:'items',items,reason:'Size change' }
+  const quote={ calculated_id:'gid://shopify/CalculatedOrder/1',fingerprint:'a'.repeat(64),before:[],after:[{ ...items[0],title:'Product',variantTitle:'Large' }],total_before:'100.00',total_after:'120.00',difference:'20.00',currency:'USD' }
+  function enable() { m.gql.mockResolvedValue({ currentAppInstallation:{ accessScopes:[{ handle:'write_orders' },{ handle:'write_order_edits' }] } }) }
+  it('checks the actual edit scope and dispatch state before preparing',async () => {
+    const f=fixture()
+    await expect(caseOrderSnapshot(f.db,'ws','contact','local',action)).rejects.toThrow('orderItemsScopeMissing')
+    enable(); m.rest.mockResolvedValue({ order:{ ...live,fulfillment_status:'partial' } })
+    await expect(caseOrderSnapshot(f.db,'ws','contact','local',action)).rejects.toThrow('orderAlreadyShipped')
+    expect(m.items).not.toHaveBeenCalled()
+  })
+  it('executes the persisted quote once and never issues a refund or changes the payment mirror',async () => {
+    enable(); const f=fixture(); await f.prepare(action,quote)
+    m.items.mockResolvedValue({ ok:true,items:quote.after,total:{ amount:'120.00',currencyCode:'USD' } })
+    expect(await f.run()).toMatchObject({ status:'completed',result:{ items:quote.after,total:{ amount:'120.00',currencyCode:'USD' },price_difference:'20.00' } })
+    await f.run(); expect(m.items).toHaveBeenCalledTimes(1)
+    expect(m.items).toHaveBeenCalledWith(expect.anything(),'100',items,quote,'Size change')
+    expect(m.refund).not.toHaveBeenCalled(); expect(m.mirror).not.toHaveBeenCalled()
+  })
+  it('does not rebuild a quote after a known failure, or repeat an uncertain commit',async () => {
+    enable(); const f=fixture(); await f.prepare(action,quote)
+    m.items.mockResolvedValue({ ok:false,error:'orderChanged' })
+    expect(await f.run()).toMatchObject({ status:'failed',result:{ error:'orderChanged' } })
+    await f.prepare(action,quote); m.items.mockResolvedValue({ ok:false,uncertain:true,error:'orderResultUnverified' })
+    expect(await f.run()).toMatchObject({ status:'uncertain' }); await f.run()
+    expect(m.items).toHaveBeenCalledTimes(2)
+  })
+  it('reviews uncertain item edits with their current products and total instead of a refund balance or address',async () => {
+    enable(); m.rest.mockResolvedValue({ order:{ ...live,current_total_price:'120.00',line_items:[{ variant_id:222,title:'Product',variant_title:'Large',current_quantity:2,price:'60.00',total_discount:'0.00' }] } })
+    const f=fixture({ lock:{ source_id:'op',source_kind:'inbox',status:'uncertain' },action })
+    const result=await uncertainCaseOrderSnapshot(f.db,'ws','contact','local')
+    expect(result.snapshot.preview).toMatchObject({ item_current:{ total:'120.00',currency:'USD',items:[{ variantId:'222',quantity:2 }] } })
+    expect(result.snapshot.preview.shipping_address).toBeUndefined()
+    expect(m.refund).not.toHaveBeenCalled(); expect(m.items).not.toHaveBeenCalled()
+  })
 })
 const before={ address1:'10 Main St',address2:'',city:'Austin',province:'Texas',zip:'78701',countryCode:'US' }
 const after={ ...before,address1:'20 Main St' }

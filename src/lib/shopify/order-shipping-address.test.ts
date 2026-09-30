@@ -55,6 +55,7 @@ describe('verified shipping changes',() => {
     expect(shippingAddress({ ...address,address1:'Main\nSt' })).toBeNull()
     expect(shippingChangeAllowed({ cancelled_at:null,fulfillment_status:null,fulfillments:[{ status:'cancelled' }] })).toBe(true)
     expect(shippingChangeAllowed({})).toBe(false)
+    expect(shippingChangeAllowed({ cancelled_at:null,fulfillment_status:null,fulfillments:[],tags:'Order sent to dropi' })).toBe(false)
     expect(m.gql).not.toHaveBeenCalled()
   })
 })

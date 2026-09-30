@@ -36,7 +36,9 @@ export interface ReplaceOrderItemsResult {
   tags?: string[];
   error?: string;
   scope?: string;
+  uncertain?: boolean;
 }
+export type StagedOrderItems = { ok:true; id:string; items:Array<{ variantId:string; quantity:number; free:boolean }> } | { ok:false; error:string; scope?:string };
 
 /**
  * Un permiso que falta no es un fallo transitorio.
@@ -68,6 +70,7 @@ async function gql(
       `https://${admin.shopDomain}/admin/api/${admin.apiVersion}/graphql.json`,
       {
         method: 'POST',
+        signal: AbortSignal.timeout(30000),
         headers: {
           'X-Shopify-Access-Token': admin.accessToken,
           'Content-Type': 'application/json',
@@ -169,21 +172,22 @@ export async function addUnitsToFirstLineItem(
  * conserva promociones como “segundo par gratis” mediante un descuento del
  * 100 % sobre las líneas marcadas como gratuitas.
  */
-export async function replaceUnfulfilledOrderItems(
+export async function stageUnfulfilledOrderItems(
   admin: ShopifyAdmin,
   orderId: string | number,
   requested: ReplacementOrderItem[],
-  staffNote = 'Variantes corregidas por Riverz tras confirmación del cliente',
-): Promise<ReplaceOrderItemsResult> {
+): Promise<StagedOrderItems> {
+  if (!/^\d{1,20}$/.test(String(orderId))) return { ok:false,error:'invalid_items' };
   const grouped = new Map<string, { variantId: string; quantity: number; free: boolean }>();
   for (const item of requested) {
-    const variantId = String(item.variantId ?? '').replace(/\D/g, '');
-    const quantity = Math.floor(Number(item.quantity));
-    if (!variantId || !Number.isFinite(quantity) || quantity <= 0 || quantity > 20) {
+    const variantId = String(item.variantId ?? '').replace(/^gid:\/\/shopify\/ProductVariant\//, '');
+    const quantity = item.quantity;
+    if (!/^\d{1,20}$/.test(variantId) || !Number.isInteger(quantity) || quantity <= 0 || quantity > 20) {
       return { ok: false, error: 'invalid_items' };
     }
     const key = `${variantId}:${item.free === true ? 'free' : 'paid'}`;
     const existing = grouped.get(key);
+    if ((existing?.quantity ?? 0)+quantity>20) return { ok:false,error:'invalid_items' };
     grouped.set(key, {
       variantId,
       quantity: (existing?.quantity ?? 0) + quantity,
@@ -196,7 +200,7 @@ export async function replaceUnfulfilledOrderItems(
   const orderGid = `gid://shopify/Order/${orderId}`;
   const preflightRes = await gql(
     admin,
-    `query($id:ID!){order(id:$id){id cancelledAt displayFulfillmentStatus lineItems(first:100){nodes{quantity currentQuantity unfulfilledQuantity}}}}`,
+    `query($id:ID!){order(id:$id){id cancelledAt displayFulfillmentStatus lineItems(first:100){pageInfo{hasNextPage} nodes{quantity currentQuantity unfulfilledQuantity}}}}`,
     { id: orderGid },
   );
   if (preflightRes.permiso) {
@@ -208,6 +212,7 @@ export async function replaceUnfulfilledOrderItems(
       cancelledAt?: string | null;
       displayFulfillmentStatus?: string | null;
       lineItems?: {
+        pageInfo?:{ hasNextPage?:boolean };
         nodes?: Array<{
           quantity?: number;
           currentQuantity?: number;
@@ -217,7 +222,9 @@ export async function replaceUnfulfilledOrderItems(
     };
   } | null;
   const liveOrder = preflight?.order;
-  if (!liveOrder?.id) return { ok: false, error: 'order_not_found' };
+  if (liveOrder?.id !== orderGid) return { ok: false, error: 'order_not_found' };
+  if (!Array.isArray(liveOrder.lineItems?.nodes) || liveOrder.lineItems.pageInfo?.hasNextPage !== false ||
+    liveOrder.lineItems.nodes.some(line => !Number.isInteger(line.currentQuantity) || !Number.isInteger(line.unfulfilledQuantity))) return { ok:false,error:'order_items_unverified' };
   if (liveOrder.cancelledAt) return { ok: false, error: 'order_cancelled' };
   const alreadyFulfilled = (liveOrder.lineItems?.nodes ?? []).some((line) => {
     const current = Math.max(0, Number(line.currentQuantity ?? line.quantity ?? 0));
@@ -230,23 +237,25 @@ export async function replaceUnfulfilledOrderItems(
 
   const beginRes = await gql(
     admin,
-    `mutation($id:ID!){orderEditBegin(id:$id){calculatedOrder{id lineItems(first:100){nodes{id quantity}}} userErrors{message}}}`,
+    `mutation($id:ID!){orderEditBegin(id:$id){calculatedOrder{id lineItems(first:100){pageInfo{hasNextPage} nodes{id quantity}}} userErrors{message}}}`,
     { id: orderGid },
   );
   if (beginRes.permiso) return { ok: false, error: 'missing_scope', scope: beginRes.permiso };
   const begin = beginRes.data as {
     orderEditBegin?: {
-      calculatedOrder?: { id?: string; lineItems?: { nodes?: Array<{ id?: string; quantity?: number }> } };
+      calculatedOrder?: { id?: string; lineItems?: { pageInfo?:{ hasNextPage?:boolean }; nodes?: Array<{ id?: string; quantity?: number }> } };
       userErrors?: Array<{ message?: string }>;
     };
   } | null;
   const calculatedOrder = begin?.orderEditBegin?.calculatedOrder;
-  if (!calculatedOrder?.id) {
+  if (!calculatedOrder?.id || begin?.orderEditBegin?.userErrors?.length) {
     return {
       ok: false,
       error: begin?.orderEditBegin?.userErrors?.[0]?.message ?? 'order_edit_begin_failed',
     };
   }
+  if (!Array.isArray(calculatedOrder.lineItems?.nodes) || calculatedOrder.lineItems.pageInfo?.hasNextPage !== false ||
+    calculatedOrder.lineItems.nodes.some(line => !line.id || !Number.isInteger(line.quantity) || (line.quantity ?? -1)<0)) return { ok:false,error:'order_items_unverified' };
 
   for (const line of calculatedOrder.lineItems?.nodes ?? []) {
     if (!line.id || !line.quantity) continue;
@@ -259,8 +268,8 @@ export async function replaceUnfulfilledOrderItems(
     const payload = removed.data as {
       orderEditSetQuantity?: { userErrors?: Array<{ message?: string }> };
     } | null;
-    if (payload?.orderEditSetQuantity?.userErrors?.length) {
-      return { ok: false, error: payload.orderEditSetQuantity.userErrors[0].message ?? 'remove_failed' };
+    if (!payload?.orderEditSetQuantity || payload.orderEditSetQuantity.userErrors?.length) {
+      return { ok: false, error: payload?.orderEditSetQuantity?.userErrors?.[0]?.message ?? 'remove_failed' };
     }
   }
 
@@ -317,19 +326,32 @@ export async function replaceUnfulfilledOrderItems(
     }
   }
 
+  return { ok:true,id:calculatedOrder.id,items };
+}
+
+/** Existing assistant and reviewed human edits share the same staging and verified commit services. */
+export async function replaceUnfulfilledOrderItems(admin:ShopifyAdmin,orderId:string | number,requested:ReplacementOrderItem[],staffNote='Variantes corregidas por Riverz tras confirmación del cliente'):Promise<ReplaceOrderItemsResult> {
+  const staged=await stageUnfulfilledOrderItems(admin,orderId,requested);
+  if (!staged.ok) return staged;
+  return commitStagedOrderItems(admin,orderId,staged,staffNote);
+}
+
+export async function commitStagedOrderItems(admin:ShopifyAdmin,orderId:string | number,staged:Extract<StagedOrderItems,{ ok:true }>,staffNote:string):Promise<ReplaceOrderItemsResult> {
+  const { items }=staged, orderGid=`gid://shopify/Order/${orderId}`;
   const committed = await gql(
     admin,
     `mutation($id:ID!,$note:String!){orderEditCommit(id:$id,notifyCustomer:false,staffNote:$note){order{id} userErrors{message}}}`,
-    { id: calculatedOrder.id, note: staffNote.slice(0, 255) },
+    { id: staged.id, note: staffNote.slice(0, 255) },
   );
   if (committed.permiso) return { ok: false, error: 'missing_scope', scope: committed.permiso };
   const commitPayload = committed.data as {
     orderEditCommit?: { order?: { id?: string }; userErrors?: Array<{ message?: string }> };
   } | null;
-  if (!commitPayload?.orderEditCommit?.order?.id) {
+  if (commitPayload?.orderEditCommit?.order?.id !== orderGid || commitPayload.orderEditCommit.userErrors?.length) {
     return {
       ok: false,
       error: commitPayload?.orderEditCommit?.userErrors?.[0]?.message ?? 'order_edit_commit_failed',
+      uncertain:!commitPayload?.orderEditCommit || !!commitPayload.orderEditCommit.order,
     };
   }
 
@@ -337,11 +359,11 @@ export async function replaceUnfulfilledOrderItems(
   // was corrected after a fresh read proves which active variants remain.
   const verifyRes = await gql(
     admin,
-    `query($id:ID!){order(id:$id){id tags totalPriceSet{shopMoney{amount currencyCode}} lineItems(first:100){nodes{title variantTitle currentQuantity variant{id}}}}}`,
+    `query($id:ID!){order(id:$id){id tags totalPriceSet{shopMoney{amount currencyCode}} lineItems(first:100){pageInfo{hasNextPage} nodes{title variantTitle currentQuantity variant{id}}}}}`,
     { id: orderGid },
   );
   if (verifyRes.permiso) {
-    return { ok: false, error: 'updated_but_unverified', scope: verifyRes.permiso };
+    return { ok: false, error: 'updated_but_unverified', scope: verifyRes.permiso,uncertain:true };
   }
   const verifiedOrder = verifyRes.data as {
     order?: {
@@ -349,6 +371,7 @@ export async function replaceUnfulfilledOrderItems(
       tags?: string[];
       totalPriceSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
       lineItems?: {
+        pageInfo?:{ hasNextPage?:boolean };
         nodes?: Array<{
           title?: string;
           variantTitle?: string;
@@ -358,11 +381,13 @@ export async function replaceUnfulfilledOrderItems(
       };
     };
   } | null;
-  if (!verifiedOrder?.order?.id) return { ok: false, error: 'updated_but_unverified' };
+  if (verifiedOrder?.order?.id !== orderGid || verifiedOrder.order.lineItems?.pageInfo?.hasNextPage !== false || !Array.isArray(verifiedOrder.order.lineItems.nodes)) return { ok: false, error: 'updated_but_unverified',uncertain:true };
+  if (verifiedOrder.order.lineItems.nodes.some(line => !Number.isInteger(line.currentQuantity) || (line.currentQuantity ?? -1)<0 ||
+    ((line.currentQuantity ?? 0)>0 && !/^gid:\/\/shopify\/ProductVariant\/\d{1,20}$/.test(line.variant?.id ?? '')))) return { ok:false,error:'updated_but_unverified',uncertain:true };
   const verifiedItems = (verifiedOrder.order.lineItems?.nodes ?? [])
     .map((line) => ({
-      variantId: String(line.variant?.id ?? '').replace(/\D/g, ''),
-      quantity: Math.max(0, Math.floor(Number(line.currentQuantity ?? 0))),
+      variantId: String(line.variant?.id ?? '').replace(/^gid:\/\/shopify\/ProductVariant\//, ''),
+      quantity: line.currentQuantity ?? 0,
       title: String(line.title ?? ''),
       variantTitle: String(line.variantTitle ?? ''),
     }))
@@ -387,7 +412,7 @@ export async function replaceUnfulfilledOrderItems(
       ([variantId, quantity]) => verifiedQuantities.get(variantId) === quantity,
     );
   if (!exact) {
-    return { ok: false, error: 'updated_but_verification_mismatch', verifiedItems };
+    return { ok: false, error: 'updated_but_verification_mismatch', verifiedItems,uncertain:true };
   }
   const money = verifiedOrder.order.totalPriceSet?.shopMoney;
   return {

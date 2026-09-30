@@ -25,4 +25,11 @@ describe('bounded human order requests',() => {
       expect(caseOrderAction({ ...action,address:{ ...address,...patch } })).toBeNull()
     }
   })
+  it('accepts only explicit bounded item changes and makes nested retries independent of item order',() => {
+    const a={ type:'items',reason:'Size change',items:[{ variantId:'222',quantity:1,free:false },{ variantId:'111',quantity:1,free:true }] }
+    expect(caseOrderAction(a)).toMatchObject({ type:'items',items:[{ variantId:'111',quantity:1,free:true },{ variantId:'222',quantity:1,free:false }] })
+    expect(sameCaseOrderAction(a,{ ...a,items:[...a.items].reverse() })).toBe(true)
+    expect(caseOrderAction({ ...a,notifyCustomer:true })).toBeNull()
+    expect(caseOrderAction({ ...a,items:[{ variantId:'222',quantity:1 }] })).toBeNull()
+  })
 })

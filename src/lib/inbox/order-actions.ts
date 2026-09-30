@@ -8,6 +8,8 @@ import { planRefund, refundMoney, type RefundTransaction } from '@/lib/shopify/r
 import { validateWorkspaceShippingAddress } from '@/lib/addresses/google-validation'
 import { updateOrderShippingAddress } from '@/lib/shopify/order-shipping-address'
 import { providerShippingAddress, shippingAddress, shippingChangeAllowed, sameShippingAddress, type ProviderShippingAddress } from '@/lib/shopify/shipping-address-contract'
+import { commitReviewedOrderItems } from '@/lib/shopify/reviewed-order-items'
+import type { OrderItemDisplay } from '@/lib/shopify/order-items-contract'
 import { caseOrderAction, type CaseOrderAction, type CaseOrderOperation } from './order-action-contract'
 
 interface LocalOrder { id: string; shopify_order_id: string; shop_domain: string; order_number: string | null; platform:string }
@@ -17,6 +19,9 @@ interface ProviderOrder {
   fulfillments?: { id: number; status: string }[]; total_price: string; email?:string | null; phone?:string | null;
   customer?: { id: number; email?:string | null; phone?:string | null } | null
   contact_email?:string | null; shipping_address?: ProviderShippingAddress | null; billing_address?: { phone?:string | null } | null
+  line_items?:{ variant_id:number | string | null; title:string; variant_title:string | null; current_quantity:number; price:string; total_discount:string }[]
+  current_total_price?:string
+  tags?:string
 }
 export class CaseOrderError extends Error {}
 export async function caseOrderSnapshot(db: SupabaseClient, workspaceId: string, contactId: string, orderId: string, action: CaseOrderAction | null, options?:{ shippingOnly?:boolean }) {
@@ -38,9 +43,10 @@ export async function caseOrderSnapshot(db: SupabaseClient, workspaceId: string,
   const phoneMatches = !!phone && [live.phone,live.customer?.phone,live.shipping_address?.phone,live.billing_address?.phone].some(value => normPhone(value) === phone)
   if (contact.error || !contact.data || !emailMatches && !phoneMatches) throw new CaseOrderError('orderIdentityUnknown')
   if (!currentAppInstallation?.accessScopes.some(scope => scope.handle === 'write_orders')) throw new CaseOrderError('orderScopeMissing')
-  if ((action?.type === 'cancel' || action?.type === 'address') && !shippingChangeAllowed(live)) throw new CaseOrderError('orderAlreadyShipped')
+  if (action?.type === 'items' && !currentAppInstallation.accessScopes.some(scope => scope.handle === 'write_order_edits')) throw new CaseOrderError('orderItemsScopeMissing')
+  if ((action?.type === 'cancel' || action?.type === 'address' || action?.type === 'items') && !shippingChangeAllowed(live)) throw new CaseOrderError('orderAlreadyShipped')
   const shippingOnly = action?.type === 'address' || options?.shippingOnly === true
-  const { transactions } = shippingOnly ? { transactions:[] as RefundTransaction[] } : await client.rest<{ transactions?: RefundTransaction[] }>(`/orders/${order.shopify_order_id}/transactions.json`)
+  const { transactions } = shippingOnly || action?.type === 'items' ? { transactions:[] as RefundTransaction[] } : await client.rest<{ transactions?: RefundTransaction[] }>(`/orders/${order.shopify_order_id}/transactions.json`)
   if (!Array.isArray(transactions)) throw new CaseOrderError('orderBalanceUnknown')
   const plan = planRefund(transactions, action?.type === 'refund' ? action.amount ?? undefined : undefined)
   if (!plan.ok && (action?.type === 'refund' || !['sin_cobro_registrado','refund_already_returned'].includes(plan.error))) {
@@ -64,7 +70,20 @@ export async function caseOrderSnapshot(db: SupabaseClient, workspaceId: string,
   // Preserve chronological provider history and live order state, including customer and shipping changes.
   const fingerprint = createHash('sha256').update(JSON.stringify({ shop: admin.shopDomain, order: live, transactions,
     ...(preview.shipping_change ? { shipping_change:preview.shipping_change } : {}) })).digest('hex')
-  return { admin, local: order, live, preview, fingerprint, client }
+  return { admin, local: order, live, preview, fingerprint, client,scopes:currentAppInstallation.accessScopes.map(scope => scope.handle) }
+}
+
+export function caseOrderCurrentItems(live:ProviderOrder):OrderItemDisplay[] {
+  if (!Array.isArray(live.line_items) || !live.line_items.length || live.line_items.some(line => !Number.isInteger(line.current_quantity) || line.current_quantity<0)) throw new CaseOrderError('orderItemsUnavailable')
+  const items:OrderItemDisplay[]=[]
+  for (const line of live.line_items) {
+    if (!line.current_quantity) continue
+    const variantId=String(line.variant_id ?? ''), price=refundMoney(line.price), discount=refundMoney(line.total_discount)
+    if (!/^\d{1,20}$/.test(variantId) || price===null || discount===null) throw new CaseOrderError('orderItemsUnavailable')
+    items.push({ variantId,quantity:line.current_quantity,free:price===BigInt(0) || discount===price*BigInt(line.current_quantity),title:line.title,variantTitle:line.variant_title ?? '' })
+  }
+  if (!items.length || items.length>20 || items.some(item => item.quantity>20)) throw new CaseOrderError('orderItemsUnavailable')
+  return items
 }
 
 /** A review inspects the actual kind of operation, never just a financial balance for an address change. */
@@ -72,13 +91,21 @@ export async function uncertainCaseOrderSnapshot(db:SupabaseClient,workspaceId:s
   const lock = await db.from('order_execution_locks').select('source_id,source_kind,status').eq('workspace_id',workspaceId).eq('order_id',orderId).maybeSingle()
   if (lock.error || !lock.data || lock.data.status !== 'uncertain') throw new CaseOrderError('orderBusy')
   let shippingOnly = false
+  let itemsOnly = false
   if (lock.data.source_kind === 'inbox') {
     const stored = await db.from('inbox_order_actions').select('action').eq('id',lock.data.source_id).eq('workspace_id',workspaceId).eq('order_id',orderId).maybeSingle()
     const action = caseOrderAction(stored.data?.action)
     if (stored.error || !action) throw new CaseOrderError('orderConflict')
     shippingOnly = action.type === 'address'
+    itemsOnly = action.type === 'items'
   }
-  const snapshot = await caseOrderSnapshot(db,workspaceId,contactId,orderId,null,{ shippingOnly })
+  const snapshot = await caseOrderSnapshot(db,workspaceId,contactId,orderId,null,{ shippingOnly:shippingOnly || itemsOnly })
+  if (itemsOnly) {
+    const total=snapshot.live.current_total_price
+    if (!total || refundMoney(total)===null || refundMoney(Number(total))!==refundMoney(total)) throw new CaseOrderError('orderItemsUnavailable')
+    delete snapshot.preview.shipping_address
+    snapshot.preview.item_current={ items:caseOrderCurrentItems(snapshot.live),total,currency:snapshot.live.currency }
+  }
   if (shippingOnly && !snapshot.preview.shipping_address) throw new CaseOrderError('orderAddressUnavailable')
   return { source_id:lock.data.source_id,snapshot }
 }
@@ -102,6 +129,12 @@ export async function executeCaseOrderAction(db: SupabaseClient, workspaceId: st
       const response = await updateOrderShippingAddress(current.admin,current.local.shopify_order_id,change.after,current.live)
       status = response.ok ? 'completed' : response.uncertain ? 'uncertain' : 'failed'
       result = response.ok ? { shipping_before:response.before,shipping_after:response.after,currency:current.live.currency } : { error:response.error }
+    } else if (operation.action.type === 'items') {
+      if (!operation.preview.item_change) throw new CaseOrderError('orderConflict')
+      mutationStarted = true
+      const response = await commitReviewedOrderItems(current.admin,current.local.shopify_order_id,operation.action.items,operation.preview.item_change,operation.action.reason)
+      status = response.ok ? 'completed' : response.uncertain ? 'uncertain' : 'failed'
+      result = response.ok ? { items:response.items,total:response.total,price_difference:operation.preview.item_change.difference } : { error:response.error }
     } else {
       // The reviewed amount is immutable, including a request for the whole remaining balance.
       mutationStarted = true
