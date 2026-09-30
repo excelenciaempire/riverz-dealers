@@ -151,6 +151,8 @@ const nextConfig: NextConfig = {
    * cáscara, no las cifras.
    */
   experimental: {
+    // Render build containers expose many CPUs but have an 8 GiB RAM limit.
+    cpus: 2,
     // Three 5 MB images encoded as base64 plus text and JSON metadata.
     proxyClientMaxBodySize: '21mb',
     staleTimes: { dynamic: 30, static: 180 },

@@ -59,3 +59,11 @@ pseudonymous session/user, tool status and sanitized message contents.
 
 Keep trace exports and generated reports local: they can include conversation
 content. `artifacts/` and `tmp/` are ignored by Git.
+
+## Build resource limits
+
+Next build workers are capped at two. Render exposes 48 CPUs but the build
+container has 8 GiB RAM; the previous 47-worker prerender exhausted that limit.
+The first rollout also required clearing Render's build cache after temporary
+storage exceeded its 16 GiB limit during artifact packaging. Cached builds
+remain enabled; use Render's clear-cache redeploy if old build caches grow.
