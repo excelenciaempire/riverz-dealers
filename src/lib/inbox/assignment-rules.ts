@@ -1,127 +1,55 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-
-/**
- * Resuelve la asignación de una conversación recién creada o sin
- * asignar evaluando las reglas activas del workspace en orden de
- * prioridad. Devuelve el UUID del agente que corresponde o null si
- * ninguna regla matchea (la conv queda en el "sin asignar" como
- * antes).
- *
- * El round_robin mantiene su estado en la fila (`state.last_assigned`)
- * para rotar fair entre los agentes elegidos.
- *
- * Pensado para llamarse desde:
- *   - El webhook de mensaje inbound (cuando se crea una conv nueva).
- *   - Un job de "asignar viejas no asignadas" si el merchant quiere
- *     aplicar las reglas a conversations preexistentes.
- */
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 interface RuleRow {
-  id: string;
-  workspace_id: string;
-  kind: 'round_robin' | 'by_tag' | 'by_channel' | 'by_keyword';
-  /**
-   * Canal al que la regla aplica. NULL ó vacío = cualquiera. Es
-   * independiente del `kind`: un round_robin puede limitarse a
-   * "solo WhatsApp" sin convertirse en by_channel.
-   */
-  channel: string | null;
-  config: Record<string, unknown>;
-  state: Record<string, unknown>;
-  priority: number;
+  id: string
+  kind: 'round_robin' | 'by_tag' | 'by_channel' | 'by_keyword'
+  channel: string | null
+  config: { channel?: string; keyword?: string; tag_id?: string; agent_id?: string; agent_ids?: string[]; team_id?: string }
 }
 
-export async function resolveAssignmentForConversation(
-  admin: SupabaseClient,
-  args: {
-    workspaceId: string;
-    conversationId: string;
-    channel: string;
-    contactId: string;
-    firstMessageText?: string;
-  },
-): Promise<string | null> {
-  const { data: rules } = await admin
-    .from('conversation_assignment_rules')
-    .select('id, workspace_id, kind, channel, config, state, priority')
-    .eq('workspace_id', args.workspaceId)
-    .eq('is_active', true)
-    .order('priority', { ascending: true });
-  if (!rules || rules.length === 0) return null;
+/** Membership, availability, capacity and concurrent load are checked in one transaction. */
+export async function assignInboxConversation(admin: SupabaseClient, args: {
+  workspaceId: string; conversationId: string; agentIds?: string[]; teamId?: string
+  actorId?: string; replace?: boolean
+}): Promise<string | null> {
+  if (!args.conversationId) throw new Error('assignment requires an existing conversation')
+  const { data, error } = await admin.rpc('assign_inbox_case', {
+    p_workspace_id: args.workspaceId, p_conversation_id: args.conversationId,
+    p_actor_id: args.actorId ?? null, p_candidates: args.agentIds ?? null,
+    p_team_id: args.teamId ?? null, p_replace: args.replace ?? false,
+  })
+  if (error) throw new Error(error.message)
+  if (data?.outcome === 'waiting') return null
+  if (typeof data?.agent_id !== 'string') throw new Error('invalid assignment result')
+  return data.agent_id
+}
 
-  // Tags del contacto (si alguna regla por tag aplica).
-  const tagsByContact = new Set<string>();
-  const needsTags = (rules as RuleRow[]).some((r) => r.kind === 'by_tag');
-  if (needsTags) {
-    const { data: tagRows } = await admin
-      .from('contact_tags')
-      .select('tag_id')
-      .eq('contact_id', args.contactId);
-    for (const r of tagRows ?? []) {
-      tagsByContact.add((r as { tag_id: string }).tag_id);
-    }
+export async function resolveAssignmentForConversation(admin: SupabaseClient, args: {
+  workspaceId: string; conversationId: string; channel: string; contactId: string; firstMessageText?: string
+}): Promise<string | null> {
+  const { data: rules, error } = await admin.from('conversation_assignment_rules')
+    .select('id, kind, channel, config').eq('workspace_id', args.workspaceId)
+    .eq('is_active', true).order('priority', { ascending: true })
+  if (error) throw new Error(error.message)
+  if (!rules?.length) return null
+  const tags = new Set<string>()
+  if ((rules as RuleRow[]).some(rule => rule.kind === 'by_tag')) {
+    const { data, error: tagError } = await admin.from('contact_tags').select('tag_id').eq('contact_id', args.contactId)
+    if (tagError) throw new Error(tagError.message)
+    for (const row of data ?? []) tags.add(row.tag_id)
   }
-
   for (const rule of rules as RuleRow[]) {
-    // Filtro por canal: si la regla declara un canal específico, sólo
-    // aplica cuando la conv coincide. `null` o cadena vacía significan
-    // "cualquiera" (comportamiento previo a la migración 036).
-    if (rule.channel && rule.channel !== args.channel) continue;
-    const decision = await evaluateRule(admin, rule, {
-      channel: args.channel,
-      tagsByContact,
-      firstMessageText: args.firstMessageText ?? '',
-    });
-    if (decision) return decision;
+    if (rule.channel && rule.channel !== args.channel) continue
+    const cfg = rule.config
+    const matched = rule.kind === 'round_robin'
+      || (rule.kind === 'by_channel' && cfg.channel === args.channel)
+      || (rule.kind === 'by_tag' && !!cfg.tag_id && tags.has(cfg.tag_id))
+      || (rule.kind === 'by_keyword' && !!cfg.keyword && (args.firstMessageText ?? '').toLowerCase().includes(cfg.keyword.toLowerCase()))
+    if (!matched) continue
+    const agentIds = rule.kind === 'round_robin' ? cfg.agent_ids : cfg.agent_id ? [cfg.agent_id] : []
+    if (!cfg.team_id && !agentIds?.length) continue
+    // A matched rule owns the queue even if nobody can take it now.
+    return assignInboxConversation(admin, { ...args, agentIds: cfg.team_id ? undefined : agentIds, teamId: cfg.team_id })
   }
-  return null;
-}
-
-async function evaluateRule(
-  admin: SupabaseClient,
-  rule: RuleRow,
-  ctx: {
-    channel: string;
-    tagsByContact: Set<string>;
-    firstMessageText: string;
-  },
-): Promise<string | null> {
-  switch (rule.kind) {
-    case 'by_channel': {
-      const cfg = rule.config as { channel?: string; agent_id?: string };
-      if (cfg.channel === ctx.channel && cfg.agent_id) return cfg.agent_id;
-      return null;
-    }
-    case 'by_tag': {
-      const cfg = rule.config as { tag_id?: string; agent_id?: string };
-      if (cfg.tag_id && ctx.tagsByContact.has(cfg.tag_id) && cfg.agent_id) {
-        return cfg.agent_id;
-      }
-      return null;
-    }
-    case 'by_keyword': {
-      const cfg = rule.config as { keyword?: string; agent_id?: string };
-      if (!cfg.keyword || !cfg.agent_id) return null;
-      if (ctx.firstMessageText.toLowerCase().includes(cfg.keyword.toLowerCase())) {
-        return cfg.agent_id;
-      }
-      return null;
-    }
-    case 'round_robin': {
-      const cfg = rule.config as { agent_ids?: string[] };
-      const agents = cfg.agent_ids ?? [];
-      if (agents.length === 0) return null;
-      const last = (rule.state as { last_assigned?: string }).last_assigned;
-      const idx = last ? agents.indexOf(last) : -1;
-      const next = agents[(idx + 1) % agents.length];
-      // Persistimos el nuevo "last_assigned". Fire-and-forget no
-      // bloquea el inbound — si falla por una race el peor caso es
-      // que el siguiente mensaje rote desde el mismo punto.
-      void admin
-        .from('conversation_assignment_rules')
-        .update({ state: { last_assigned: next } })
-        .eq('id', rule.id);
-      return next;
-    }
-  }
+  return null
 }

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Heterogeneous in-memory Supabase rows and its fluent thenable test double. */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+vi.mock('@/lib/billing/read-only', () => ({ workspaceReadOnly: async () => false }))
 
 const state = vi.hoisted(() => ({ tables: {} as Record<string, any[]>, reads: [] as string[] }))
 vi.mock('./admin-client', () => ({ supabaseAdmin: () => ({ from: (table: string) => {

@@ -16,6 +16,7 @@ import type {
   SetContextStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
+import { assignInboxConversation } from '@/lib/inbox/assignment-rules'
 import { isPendingReminder, assertPaymentStillPending, claimPendingSequence, assertNoPendingReplacement, pendingPaymentCondition } from './pending-payment'
 import { confirmationDisplayVars } from './confirmation-copy'
 import { purchaseLines, purchaseLineSummary, purchaseConfirmationTemplates } from './purchase-confirmation'
@@ -1348,39 +1349,8 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
     case 'assign_conversation': {
       const cfg = step.step_config as AssignConversationStepConfig
       if (!args.contactId) throw new Error('assign_conversation needs a contact')
-      let agentId = cfg.agent_id
-      if (cfg.mode === 'round_robin') {
-        // Antes era `.limit(1)`: "round robin" que devolvía SIEMPRE a la
-        // misma persona. Ahora repartimos de verdad — gana quien tenga
-        // menos conversaciones abiertas asignadas; con empate, el orden
-        // estable por user_id evita que dos disparos simultáneos elijan
-        // al mismo.
-        const { data: profiles } = await db
-          .from('profiles')
-          .select('user_id')
-          .eq('workspace_id', args.automation.workspace_id)
-          .order('user_id', { ascending: true })
-        const members = ((profiles ?? []) as { user_id: string }[]).map((p) => p.user_id)
-        if (members.length) {
-          const { data: openConvs } = await db
-            .from('conversations')
-            .select('assigned_agent_id')
-            .eq('workspace_id', args.automation.workspace_id)
-            .neq('status', 'closed')
-            .is('deleted_at', null)
-            .not('assigned_agent_id', 'is', null)
-          const load = new Map<string, number>(members.map((m) => [m, 0]))
-          for (const c of (openConvs ?? []) as { assigned_agent_id: string }[]) {
-            if (load.has(c.assigned_agent_id)) {
-              load.set(c.assigned_agent_id, (load.get(c.assigned_agent_id) ?? 0) + 1)
-            }
-          }
-          agentId = members.reduce((best, m) =>
-            (load.get(m) ?? 0) < (load.get(best) ?? 0) ? m : best,
-          )
-        }
-      }
-      if (!agentId) return 'no agent resolved'
+      const agentIds = cfg.mode === 'round_robin' ? undefined : cfg.agent_id ? [cfg.agent_id] : []
+      if (agentIds?.length === 0) return 'no agent resolved'
       // Asignar por CONTACTO tocaba todas sus conversaciones: asignar en
       // WhatsApp apagaba la IA también en Instagram, Messenger y correo
       // (con el default reply_when_assigned=false). Se asigna sólo el hilo
@@ -1399,11 +1369,12 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         targetConvId = (recent as { id?: string } | null)?.id ?? null
       }
       if (!targetConvId) return 'no conversation to assign'
-      await db
-        .from('conversations')
-        .update({ assigned_agent_id: agentId })
-        .eq('id', targetConvId)
-      return `assigned to ${agentId}`
+      const agentId = await assignInboxConversation(db, {
+        workspaceId: args.automation.workspace_id,
+        conversationId: targetConvId,
+        agentIds,
+      })
+      return agentId ? `assigned to ${agentId}` : 'waiting for available capacity'
     }
 
     case 'update_contact_field': {

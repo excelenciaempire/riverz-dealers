@@ -1420,24 +1420,6 @@ async function findOrCreateConversation(userId: string, contactId: string) {
   // así que un user multi-workspace podía recibir las reglas de
   // asignación del workspace equivocado.
   const resolvedWorkspaceId = await resolveWorkspaceIdForUser(admin, userId);
-  let assignedAgentId: string | null = null;
-  if (resolvedWorkspaceId) {
-    try {
-      const { resolveAssignmentForConversation } = await import(
-        '@/lib/inbox/assignment-rules'
-      );
-      assignedAgentId = await resolveAssignmentForConversation(admin, {
-        workspaceId: resolvedWorkspaceId,
-        conversationId: '',
-        channel: 'whatsapp',
-        contactId,
-        firstMessageText: '',
-      });
-    } catch (err) {
-      console.error('[whatsapp] assignment rules failed:', err);
-    }
-  }
-
   // Link the conversation to the workspace's WhatsApp connection so it shows
   // in the unified inbox (which groups/filters by connection_id). Without it
   // the row exists but never surfaces in the bandeja.
@@ -1464,7 +1446,7 @@ async function findOrCreateConversation(userId: string, contactId: string) {
     .insert({
       user_id: userId,
       contact_id: contactId,
-      assigned_agent_id: assignedAgentId,
+      assigned_agent_id: null,
       workspace_id: resolvedWorkspaceId,
       connection_id: connectionId,
       channel: 'whatsapp',
@@ -1494,5 +1476,19 @@ async function findOrCreateConversation(userId: string, contactId: string) {
     return null
   }
 
+  if (newConv && resolvedWorkspaceId) {
+    try {
+      const { resolveAssignmentForConversation } = await import('@/lib/inbox/assignment-rules');
+      newConv.assigned_agent_id = await resolveAssignmentForConversation(admin, {
+        workspaceId: resolvedWorkspaceId,
+        conversationId: newConv.id,
+        channel: 'whatsapp',
+        contactId,
+        firstMessageText: '',
+      });
+    } catch (err) {
+      console.error('[whatsapp] assignment rules failed:', err);
+    }
+  }
   return newConv
 }

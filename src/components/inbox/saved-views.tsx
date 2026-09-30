@@ -100,7 +100,7 @@ export function SavedViews({ onChange }: { onChange: (config: SavedViewConfig | 
         <option value="">{t('inbox.viewAny')}</option>{CHANNELS.map(c => <option key={c} value={c}>{channelLabel(c as Channel, t)}</option>)}
       </select></label>
       <label className="block">{t('inbox.viewStatus')}<select value={config.status ?? ''} disabled={saving} onChange={e => field('status', e.target.value)} className="mt-1 w-full rounded border bg-background p-1.5">
-        <option value="">{t('inbox.viewAny')}</option>{['unread', 'unassigned', 'mine', 'open', 'pending', 'closed'].map(s => <option key={s} value={s}>{t(`inbox.viewStatus_${s}`)}</option>)}
+        <option value="">{t('inbox.viewAny')}</option>{['unread', 'unassigned', 'mine', 'open', 'pending', 'closed', 'snoozed'].map(s => <option key={s} value={s}>{t(`inbox.viewStatus_${s}`)}</option>)}
       </select></label>
       <label className="block">{t('inbox.viewAssignee')}<select value={config.assigned_agent_id ?? ''} disabled={saving} onChange={e => field('assigned_agent_id', e.target.value)} className="mt-1 w-full rounded border bg-background p-1.5">
         <option value="">{t('inbox.viewAny')}</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}

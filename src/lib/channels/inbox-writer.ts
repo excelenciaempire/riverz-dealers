@@ -1090,22 +1090,6 @@ async function findOrCreateConversation(
   // soft-deleted, which the Meta DM backfill cron otherwise did every 6h.
   if (input.createIfMissing === false) return null;
 
-  // Run assignment rules so non-WhatsApp inbound (IG/Messenger/email/
-  // comments) auto-assigns to an agent, same as the legacy WhatsApp
-  // path. Best-effort — a failure just leaves it unassigned.
-  let assignedAgentId: string | null = null;
-  try {
-    assignedAgentId = await resolveAssignmentForConversation(db, {
-      workspaceId: input.workspace_id,
-      conversationId: "",
-      channel: input.channel,
-      contactId: input.contact_id,
-      firstMessageText: input.firstMessageText ?? "",
-    });
-  } catch (err) {
-    console.error("[inbox-writer] assignment rules failed:", err);
-  }
-
   const { data: created, error } = await db
     .from("conversations")
     .insert({
@@ -1115,7 +1099,7 @@ async function findOrCreateConversation(
       connection_id: input.connection_id,
       subject: input.subject,
       thread_external_id: input.thread_external_id,
-      assigned_agent_id: assignedAgentId,
+      assigned_agent_id: null,
       status: "open",
       // Seed the preview + sort fields so the conversation shows its last
       // message the instant it appears (no "No messages" flash). unread_count
@@ -1159,6 +1143,19 @@ async function findOrCreateConversation(
     }
     console.error("[inbox-writer] create conversation failed:", error);
     return null;
+  }
+  // Capacity must include this persisted case; concurrent deliveries use the same SQL lock.
+  try {
+    const agentId = await resolveAssignmentForConversation(db, {
+      workspaceId: input.workspace_id,
+      conversationId: created.id,
+      channel: input.channel,
+      contactId: input.contact_id,
+      firstMessageText: input.firstMessageText ?? "",
+    });
+    created.assigned_agent_id = agentId;
+  } catch (err) {
+    console.error("[inbox-writer] assignment rules failed:", err);
   }
   return created as Conversation;
 }

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { CASE_PRIORITIES, CASE_REASONS, type CasePriority, type CaseReason, type InternalNote, type PresenceMember, type TeamMember } from '@/lib/inbox/collaboration'
 import { RelatedConversations } from './related-conversations'
+import { CaseFollowups } from './case-followups'
 
 interface TeamState {
   user_id: string; notes: InternalNote[]; members: TeamMember[]; presence: PresenceMember[];
@@ -158,6 +159,7 @@ export function ConversationCollaboration({ conversationId, composing }: { conve
             </div>
             <Button size="sm" disabled={saving || !body.trim()} onClick={() => void addNote()}>{saving && <Loader2 className="size-3 animate-spin" />}{t('inbox.teamAddNote')}</Button>
             <RelatedConversations conversationId={conversationId} />
+            <CaseFollowups key={conversationId} conversationId={conversationId} />
           </>}
       </div>
     </details>

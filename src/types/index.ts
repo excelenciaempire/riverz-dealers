@@ -359,6 +359,8 @@ export interface Conversation {
   contact_id: string;
   case_priority?: 'normal' | 'high' | 'urgent';
   case_reason?: 'purchase' | 'delivery' | 'payment' | 'return' | 'other' | null;
+  snoozed_until?: string | null;
+  assigned_team_id?: string | null;
   channel: Channel;
   /** Escalamiento: la IA se apagó y el hilo espera a una persona. NULL = no escaló. */
   needs_human_reason?: NeedsHumanReason | null;

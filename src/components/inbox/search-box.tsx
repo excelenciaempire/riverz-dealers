@@ -82,6 +82,7 @@ export function InboxSearchBox({
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <input
+          data-inbox-search
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {

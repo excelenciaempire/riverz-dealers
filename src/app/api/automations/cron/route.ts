@@ -27,6 +27,10 @@ async function cronHandler(request: Request) {
   }
 
   const admin = supabaseAdmin()
+  const followups = await admin.rpc('process_due_inbox_followups', { p_limit: 100 })
+  if (followups.error) return serverError(followups.error)
+  const assignments = await admin.rpc('dispatch_waiting_inbox_cases', { p_limit: 100 })
+  if (assignments.error) return serverError(assignments.error)
   let events: { processed: number; failed: number }
   let scheduled: number
   try {
@@ -70,7 +74,7 @@ async function cronHandler(request: Request) {
     processed++
   }
 
-  return NextResponse.json({ processed, scheduled, events }, { status: events.failed ? 207 : 200 })
+  return NextResponse.json({ processed, scheduled, events, followups: followups.data, assignments: assignments.data }, { status: events.failed ? 207 : 200 })
 }
 
 /** Registra la corrida en cron_runs con duración y resultado reales. */

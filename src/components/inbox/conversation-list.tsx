@@ -1,6 +1,7 @@
 "use client";
 
 import { emailPreview } from '@/lib/channels/email/preview';
+import { BulkCaseActions } from './bulk-case-actions';
 
 import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -19,8 +20,6 @@ import {
 import { formatPhoneDisplay } from "@/lib/whatsapp/phone-utils";
 import { actionableUnreadCount } from "@/lib/inbox/actionable-unread";
 import {
-  MESSAGE_CHANNELS,
-  COMMENT_CHANNELS,
   isStoryConversation,
   type InboxTab,
 } from "@/components/inbox/inbox-tabs";
@@ -64,17 +63,14 @@ interface ConversationListProps {
   onConversationDeleted?: (id: string) => void;
   /**
    * Called after a successful bulk delete so the parent can refetch
-   * authoritative state (correct counts, drop any scope-deleted rows the
-   * client hadn't loaded) and clear the open thread if it was wiped.
+   * authoritative state and clear a removed open thread. Macro actions also refresh this state.
    */
   onBulkDeleted?: () => void;
   /**
-   * Which inbox slice this list is showing. Used so "Select all → Delete"
-   * can clear the whole tab server-side (by channel scope) instead of only
-   * the rows currently loaded. Defaults to "messages".
+   * Inbox slice, retained for caller compatibility. Bulk actions use explicit selected IDs.
    */
   inboxTab?: InboxTab;
-  /** Active channel chip, if any — narrows the "clear all" scope to it. */
+  /** Active channel chip, used by the empty state. */
   channelFilter?: Channel | null;
   /**
    * Whether the workspace has at least one connected channel. Drives the
@@ -111,7 +107,6 @@ export function ConversationList({
   onConversationsLoaded,
   onConversationDeleted,
   onBulkDeleted,
-  inboxTab = "messages",
   channelFilter = null,
   hasAnyConnection = false,
   resyncToken = 0,
@@ -229,7 +224,7 @@ export function ConversationList({
             // cambie nada más: ocultar un comentario no mueve el último
             // mensaje ni el no-leído, así que sin esto el resync lo daría por
             // "sin cambios" y la lista se quedaría con el estado viejo.
-            `${c.id}:${c.last_message_at}:${c.unread_count}:${c.deleted_at ?? ""}:${c.last_message_hidden ? 1 : 0}:${c.case_priority ?? 'normal'}:${c.case_reason ?? ''}:${c.assigned_agent_id ?? ''}:${c.status}:${c.contact?.name ?? ""}:${c.contact?.avatar_url ?? ""}`,
+            `${c.id}:${c.last_message_at}:${c.unread_count}:${c.deleted_at ?? ""}:${c.last_message_hidden ? 1 : 0}:${c.case_priority ?? 'normal'}:${c.case_reason ?? ''}:${c.assigned_agent_id ?? ''}:${c.status}:${c.snoozed_until ?? ''}:${c.assigned_team_id ?? ''}:${c.contact?.name ?? ""}:${c.contact?.avatar_url ?? ""}`,
         )
         .join("|");
       if (sig !== lastSigRef.current) {
@@ -278,31 +273,15 @@ export function ConversationList({
       return;
     setBulkDeleting(true);
     const ids = [...selectedIds];
-    // "Clearing the whole view": every row in this tab/channel is selected. En
-    // ese caso borramos por ALCANCE DE CANAL en el servidor, que barre la
-    // pestaña de verdad — incluidas las filas que el cliente nunca cargó o que
-    // entraron a mitad de la selección. Es el arreglo de "lo borré y volvió al
-    // recargar". Cualquier selección más chica borra los ids puntuales.
-    // Con una búsqueda escrita NUNCA se borra por alcance: "seleccionar todo"
-    // sobre tres resultados significa esos tres, no la pestaña entera.
-    const clearingAll =
-      !searchActive && filtered.length > 0 && selectedIds.size >= filtered.length;
-    const channels = channelFilter
-      ? [channelFilter]
-      : inboxTab === "comments"
-        ? COMMENT_CHANNELS
-        : MESSAGE_CHANNELS;
+    // An explicit selection stays an ID selection. Saved views, snoozed
+    // cases and new arrivals must never expand it to an entire channel.
     let ok = false;
     let deleted = 0;
     try {
       const res = await fetchWithCsrf("/api/conversations/bulk-delete", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(
-          clearingAll
-            ? { workspace_id: workspaceId, channels }
-            : { workspace_id: workspaceId, ids },
-        ),
+        body: JSON.stringify({ workspace_id: workspaceId, ids }),
       });
       const payload = await res.json().catch(() => ({}));
       ok = res.ok;
@@ -326,10 +305,6 @@ export function ConversationList({
   }, [
     selectedIds,
     workspaceId,
-    filtered,
-    searchActive,
-    channelFilter,
-    inboxTab,
     fetchWithCsrf,
     onConversationDeleted,
     onBulkDeleted,
@@ -411,8 +386,7 @@ export function ConversationList({
               <X className="h-3.5 w-3.5" />
               {t("inbox.cancel")}
             </button>
-          ) : isAdmin ? (
-            // Bulk select + delete is admin-only — it can wipe the whole inbox.
+          ) : (
             <button
               onClick={() => setSelectMode(true)}
               className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -420,7 +394,7 @@ export function ConversationList({
               <CheckSquare className="h-3.5 w-3.5" />
               {t("inbox.select")}
             </button>
-          ) : null}
+          )}
         </div>
       </div>
 
@@ -480,6 +454,7 @@ export function ConversationList({
       </div>
 
       {/* Bulk action bar — only while selecting. */}
+      {selectMode && <div className="border-t border-border px-3 py-2"><BulkCaseActions ids={[...selectedIds]} onApplied={() => onBulkDeleted?.()} /></div>}
       {selectMode && (
         <div className="flex items-center justify-between gap-2 border-t border-border bg-card p-3">
           <div className="flex items-center gap-2">
@@ -502,14 +477,14 @@ export function ConversationList({
               {t("inbox.selectedCount", { n: selectedIds.size })}
             </span>
           </div>
-          <button
+          {isAdmin && <button
             onClick={handleBulkDelete}
             disabled={selectedIds.size === 0 || bulkDeleting}
             className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Trash2 className="h-3.5 w-3.5" />
             {bulkDeleting ? t("inbox.deleting") : t("inbox.delete")}
-          </button>
+          </button>}
         </div>
       )}
     </div>

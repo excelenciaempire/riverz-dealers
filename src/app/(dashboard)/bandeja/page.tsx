@@ -12,6 +12,9 @@ import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { TeamNotifications } from '@/components/inbox/team-notifications';
 import { SavedViews } from '@/components/inbox/saved-views';
+import { TeamCapacity } from '@/components/inbox/team-capacity';
+import { conversationIsSnoozed } from '@/lib/inbox/case-actions';
+import { inboxShortcut } from '@/lib/inbox/shortcuts';
 import { conversationMatchesView, type SavedViewConfig } from '@/lib/inbox/saved-views';
 import { ChannelFilter } from "@/components/inbox/channel-filter";
 import {
@@ -62,6 +65,11 @@ export default function InboxPage() {
   const deepLinkMomento = searchParams.get("t");
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [inboxNow, setInboxNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setInboxNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
   const [savedView, setSavedView] = useState<{ config: SavedViewConfig; userId: string } | null>(null);
   const applySavedView = useCallback((config: SavedViewConfig | null, userId: string) => {
     setSavedView(config ? { config, userId } : null);
@@ -743,6 +751,7 @@ export default function InboxPage() {
   const unreadByChannel: Partial<Record<Channel | "all", number>> = { all: 0 };
   const tabCounts = { messages: 0, comments: 0 };
   for (const c of conversations) {
+    if (conversationIsSnoozed(c, inboxNow)) continue;
     // Una conversación ya respondida no sigue pendiente aunque conserve el
     // contador histórico hasta que alguien abra el hilo.
     const unread = actionableUnreadCount(c);
@@ -770,7 +779,8 @@ export default function InboxPage() {
   // on every render tick. Stable identity also lets React.memo on
   // ConversationItem actually do its job.
   const filteredConversations = useMemo(() => {
-    let list = savedView ? conversations.filter(c => conversationMatchesView(c, savedView.config, savedView.userId)) : conversations;
+    let list = savedView ? conversations.filter(c => conversationMatchesView(c, savedView.config, savedView.userId, inboxNow))
+      : search.active ? conversations : conversations.filter(c => !conversationIsSnoozed(c, inboxNow));
     // Búsqueda activa: sólo las que coinciden, en el orden de relevancia que
     // devolvió el servidor.
     if (search.active) {
@@ -801,7 +811,26 @@ export default function InboxPage() {
       list = list.filter((c) => Boolean(c.needs_human_reason));
     }
     return list;
-  }, [conversations, inboxTab, channelFilter, mlKindFilter, needsHumanOnly, search, savedView]);
+  }, [conversations, inboxTab, channelFilter, mlKindFilter, needsHumanOnly, search, savedView, inboxNow]);
+
+  useEffect(() => {
+    function keydown(event: KeyboardEvent) {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const typing = !!target?.closest('input,textarea,select,[contenteditable="true"]');
+      const action = inboxShortcut(event, typing);
+      if (!action || document.querySelector('[role="dialog"]')) return;
+      if (action === 'reply' || action === 'search') {
+        const field = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(action === 'reply' ? '[data-inbox-composer]' : '[data-inbox-search]');
+        if (field && !field.disabled) { event.preventDefault(); field.focus(); }
+        return;
+      }
+      const index = filteredConversations.findIndex(c => c.id === activeConversation?.id);
+      const next = action === 'next' ? index + 1 : index < 0 ? filteredConversations.length - 1 : index - 1;
+      if (filteredConversations[next]) { event.preventDefault(); handleSelectConversation(filteredConversations[next]); }
+    }
+    document.addEventListener('keydown', keydown);
+    return () => document.removeEventListener('keydown', keydown);
+  }, [filteredConversations, activeConversation?.id, handleSelectConversation]);
 
   // Cuántas esperan a una persona, sobre TODO lo cargado (no sobre la lista
   // ya filtrada) para que el contador no se vacíe al activar el propio filtro.
@@ -938,6 +967,7 @@ export default function InboxPage() {
                 no encontraba nada. */}
             <div className="flex items-center border-b border-border"><div className="min-w-0 flex-1"><InboxSearchBox onResults={setSearch} /></div><TeamNotifications /></div>
             <SavedViews onChange={applySavedView} />
+            <TeamCapacity />
             <InboxTabs
               value={inboxTab}
               onChange={handleTabChange}

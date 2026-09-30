@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AtSign } from 'lucide-react'
+import { Bell } from 'lucide-react'
 import Link from '@/components/i18n/locale-link'
 import { useT } from '@/hooks/use-locale'
 import { useFormat } from '@/hooks/use-format'
@@ -9,7 +9,7 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
-interface Notification { id: string; conversation_id: string; created_at: string; read_at: string | null; conversation_notes: { body: string } | null }
+interface Notification { id: string; conversation_id: string; created_at: string; read_at: string | null; kind: 'mention' | 'reminder' | 'snooze'; body: string | null; conversation_notes: { body: string } | null }
 export function TeamNotifications() {
   const t = useT()
   const fmt = useFormat()
@@ -39,17 +39,17 @@ export function TeamNotifications() {
     if (r.ok) await load()
   }
   return <Popover open={open} onOpenChange={next => { setOpen(next); if (next) void load() }}>
-    <PopoverTrigger render={<Button variant="ghost" size="sm" aria-label={t('inbox.teamMentions')} />}>
-      <AtSign className="size-4" />{unread > 0 && <span className="text-xs tabular-nums">{fmt.number(unread)}</span>}
+    <PopoverTrigger render={<Button variant="ghost" size="sm" aria-label={t('inbox.teamNotices')} />}>
+      <Bell className="size-4" />{unread > 0 && <span className="text-xs tabular-nums">{fmt.number(unread)}</span>}
     </PopoverTrigger>
     <PopoverContent align="end" className="w-80 p-3">
-      <p className="mb-2 text-sm font-medium">{t('inbox.teamMentions')}</p>
+      <p className="mb-2 text-sm font-medium">{t('inbox.teamNotices')}</p>
       {error ? <div role="alert" className="text-xs"><p>{t('inbox.teamFailed')}</p><Button size="sm" variant="ghost" onClick={() => void load()}>{t('common.retry')}</Button></div>
-        : !items.length ? <p className="text-xs text-muted-foreground">{t('inbox.teamNoMentions')}</p>
+        : !items.length ? <p className="text-xs text-muted-foreground">{t('inbox.teamNoNotices')}</p>
         : <div className="max-h-80 space-y-2 overflow-y-auto">{items.map(item => <Link key={item.id} href={`/bandeja?c=${encodeURIComponent(item.conversation_id)}`}
           className={`block rounded-md border p-2 text-xs ${item.read_at ? 'text-muted-foreground' : 'border-primary/30 bg-primary/5'}`}
           onClick={() => { setOpen(false); void markRead(item.id).catch(() => {}) }}>
-          <p className="line-clamp-3 whitespace-pre-wrap">{item.conversation_notes?.body}</p>
+          <p className="line-clamp-3 whitespace-pre-wrap">{item.kind === 'snooze' ? t('inbox.snoozeNotification') : item.body ?? item.conversation_notes?.body}</p>
           <p className="mt-1 text-muted-foreground">{fmt.dateTime(item.created_at)}</p>
         </Link>)}</div>}
     </PopoverContent>

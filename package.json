@@ -29,7 +29,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/check-billing-recovery-schema.cjs && node scripts/check-outcomes-schema.cjs && node scripts/check-wallet-schema.cjs && node scripts/check-integration-schema.cjs && node scripts/check-voice-notes-schema.cjs && node scripts/check-address-validation-schema.cjs && node scripts/check-automation-events-schema.cjs && node scripts/check-inbox-collaboration-schema.cjs && node scripts/next-build.mjs",
+    "build": "node scripts/check-billing-recovery-schema.cjs && node scripts/check-outcomes-schema.cjs && node scripts/check-wallet-schema.cjs && node scripts/check-integration-schema.cjs && node scripts/check-voice-notes-schema.cjs && node scripts/check-address-validation-schema.cjs && node scripts/check-automation-events-schema.cjs && node scripts/check-inbox-collaboration-schema.cjs && node scripts/check-inbox-followups-schema.cjs && node scripts/next-build.mjs",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

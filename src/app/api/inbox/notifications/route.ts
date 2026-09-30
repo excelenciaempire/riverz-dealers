@@ -23,7 +23,7 @@ export async function GET() {
   const ctx = await context()
   if (ctx.response) return ctx.response
   const [list, count] = await Promise.all([
-    ctx.readDb.from('workspace_notifications').select('id,conversation_id,created_at,read_at,conversation_notes(body)')
+    ctx.readDb.from('workspace_notifications').select('id,conversation_id,created_at,read_at,kind,body,conversation_notes(body)')
       .eq('workspace_id', ctx.workspaceId).eq('user_id', ctx.userId).order('created_at', { ascending: false }).limit(40),
     ctx.readDb.from('workspace_notifications').select('id', { count: 'exact', head: true })
       .eq('workspace_id', ctx.workspaceId).eq('user_id', ctx.userId).is('read_at', null),
