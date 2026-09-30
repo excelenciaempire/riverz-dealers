@@ -30,7 +30,7 @@ const CLIENTS = {
   chatgpt: { name: 'ChatGPT (GPT)', logo: '/logos/openai.png', command: null },
   codex: {
     name: 'Codex (GPT)',
-    logo: '/logos/openai.png',
+    logo: '/logos/codex.png',
     command: `codex mcp add riverz --url ${MCP_URL}\ncodex mcp login riverz`,
   },
 } as const;
@@ -114,7 +114,11 @@ export function McpOauthConnect() {
               width={20}
               height={20}
               unoptimized
-              className="size-5 rounded-sm"
+              className={
+                id === 'codex'
+                  ? 'size-5 rounded-sm bg-black'
+                  : 'size-5 rounded-sm'
+              }
             />
             {t('oauth.connectClient', { client: CLIENTS[id].name })}
             {connected.has(id) && (
