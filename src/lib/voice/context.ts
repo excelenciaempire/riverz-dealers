@@ -22,6 +22,7 @@ import {
   type LoadedContext,
 } from '@/lib/ai/runner';
 import { toolEnabled } from '@/lib/ai/toolbox';
+import { loadAgentToolContext } from '@/lib/ai/tool-context';
 import type { AiAgent } from '@/lib/ai/types';
 import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
@@ -290,7 +291,7 @@ export async function resolveVoiceBrainAgent(
       .eq('voice_agent_id', voiceAgent.id)
       .is('deleted_at', null)
       .maybeSingle();
-    if (data) return data as AiAgent;
+    if (data) return loadAgentToolContext(db,data as AiAgent,'voice');
   }
 
   const { data: linked } = await db
@@ -302,7 +303,7 @@ export async function resolveVoiceBrainAgent(
     .is('deleted_at', null)
     .order('priority', { ascending: false })
     .limit(2);
-  return linked?.length === 1 ? (linked[0] as AiAgent) : voiceAgent;
+  return loadAgentToolContext(db,linked?.length === 1 ? (linked[0] as AiAgent) : voiceAgent,'voice');
 }
 
 /** Recent cross-channel turns, compact enough for a live-call latency budget. */

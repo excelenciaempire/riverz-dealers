@@ -27,6 +27,7 @@ import {
 import { recortarSalida, salidaParaCliente } from './salida';
 import { herramientasQueRequierenAprobacion, toolEnabled } from './toolbox';
 import { runWithTools } from './tools';
+import { loadAgentToolContext } from './tool-context';
 import type { AiAgent } from './types';
 
 /**
@@ -101,10 +102,11 @@ async function composeSuperAgentReplyInner(
       .from('ai_agents')
       .select('*')
       .eq('id', input.agentId)
+      .eq('workspace_id', input.workspaceId)
       .is('deleted_at', null)
       .maybeSingle();
-    const agent = agentRow as AiAgent | null;
-    if (!agent) return null;
+    if (!agentRow) return null;
+    const agent = await loadAgentToolContext(db,agentRow as AiAgent,input.commentChannel ?? 'ig_comment');
     if (agent.provider !== 'anthropic') return null;
 
     // Sin saldo no se piensa con la llave de Riverz. El llamador cae al

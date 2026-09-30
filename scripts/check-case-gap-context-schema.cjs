@@ -9,4 +9,5 @@ module.exports=(async() => {
  const r=await fetch(`${base}/rpc/load_case_gap_model_context`,{ method:'POST',headers,body:JSON.stringify({ p_workspace_id:null,p_conversation_id:null,p_agent_id:null }),signal:AbortSignal.timeout(15000) }),result=await r.json().catch(() => null);
  if (r.ok || result?.code!=='P0001' || result?.message!=='invalid_gap_context') throw new Error(`Case-scoped model context RPC unavailable (HTTP ${r.status}).`);
  console.log('Case-scoped knowledge context schema and RPC verified.');
+ await (await import('./check-ai-tool-context-schema.cjs')).default;
 })().catch(e => { console.error(e.message);process.exitCode=1; });

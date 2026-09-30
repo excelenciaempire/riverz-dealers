@@ -7,6 +7,7 @@ import { revitalyTransferReply } from './revitaly-transfer';
 import type { OtherStoreContext } from '@/lib/ai/tools';
 import { UNTRUSTED_CONTENT_POLICY, untrustedContext } from './input-security';
 import { loadCaseGapContext } from './case-gap-context';
+import { loadAgentToolContext } from './tool-context';
 import { captureCustomerOrder, orderScreenshotMessageId, type OrderScreenshot } from './order-screenshot';
 import {
   aiTextMessageId,
@@ -1632,6 +1633,16 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
 }
 
 export async function pickAgent(
+  db: SupabaseClient,
+  workspaceId: string,
+  channel: Channel,
+  routing: Parameters<typeof pickAgentBase>[3]
+): Promise<AiAgent | null> {
+  const selected=await pickAgentBase(db,workspaceId,channel,routing);
+  return selected ? loadAgentToolContext(db,selected,channel) : null;
+}
+
+async function pickAgentBase(
   db: SupabaseClient,
   workspaceId: string,
   channel: Channel,

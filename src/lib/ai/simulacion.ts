@@ -27,6 +27,7 @@ import { refreshLivePricing } from '@/lib/shopify/live-pricing';
 import { resolverRegistro } from '@/lib/ai/registro-rioplatense';
 import { runWithTools, type ShopifyToolContext, type SystemPorCapas } from '@/lib/ai/tools';
 import type { AiAgent } from '@/lib/ai/types';
+import { loadAgentToolContext } from './tool-context';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { REGLAS_COMENTARIO_PUBLICO } from '@/lib/channels/publicacion';
 import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
@@ -109,6 +110,7 @@ export async function simularRespuesta(
     nombreCliente?: string | null;
   }
 ): Promise<RespuestaSimulada> {
+  a=await loadAgentToolContext(admin,a,input.simulatedChannel);
   if (isEmailChannel(input.simulatedChannel)) {
     const policy=await loadEmailPolicy(admin,a.workspace_id);
     const disposition=emailDispositionForPolicy(policy,{

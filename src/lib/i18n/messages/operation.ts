@@ -10,6 +10,23 @@ import type { Namespace } from "./types";
  * mal. Inicio quedó con plata y atención, en el namespace `dashboard`.
  */
 export const operation = {
+  contextTitle: { es:'Condiciones por canal',en:'Conditions by channel' },
+  contextHint: { es:'Puedes limitar una acción o pedir aprobación en un canal. Nunca habilita algo apagado en los permisos generales ni elimina una aprobación financiera.',en:'Restrict an action or require approval on a channel. Never enables something disabled globally or removes a financial approval.' },
+  contextChannel: { es:'Canal de origen',en:'Source channel' },
+  contextInherit: { es:'Usar permisos generales',en:'Use global permissions' },
+  contextApply: { es:'Se guardan por separado de los cambios generales del editor. Aplican a los próximos turnos; no cancelan acciones ya iniciadas. En comentarios se usa el canal donde empezó la consulta.',en:'Saved separately from the editor’s general changes. Apply to future turns; do not cancel actions already started. Comments use the channel where the inquiry began.' },
+  contextSave: { es:'Guardar condiciones',en:'Save conditions' },
+  contextReload: { es:'Recargar condiciones',en:'Reload conditions' },
+  contextSaved: { es:'Condiciones guardadas.',en:'Conditions saved.' },
+  contextHistory: { es:'Historial de condiciones',en:'Condition history' },
+  contextHistoryPartial: { es:'Se muestran las veinte versiones más recientes.',en:'Showing the twenty most recent versions.' },
+  contextWorking: { es:'Consultando condiciones…',en:'Loading conditions…' },
+  contextFailed: { es:'No se pudo comprobar el resultado. Recarga las condiciones antes de editar nuevamente.',en:'Could not verify the result. Reload conditions before editing again.' },
+  contextInvalid: { es:'Revisa el canal, la acción y la versión de las condiciones.',en:'Check the channel, action and condition version.' },
+  contextNotFound: { es:'El asistente o sus condiciones no están disponibles en este negocio.',en:'The assistant or its conditions are unavailable in this business.' },
+  contextAdminRequired: { es:'Solo un administrador puede guardar condiciones de acciones.',en:'Only an administrator can save action conditions.' },
+  contextChanged: { es:'Las condiciones cambiaron. Recárgalas antes de guardar.',en:'Conditions changed. Reload them before saving.' },
+  contextReadOnly: { es:'El negocio está en modo de lectura. No se cambiaron condiciones.',en:'The business is read-only. Conditions were not changed.' },
   imageAttach: { es: 'Adjuntar imágenes', en: 'Attach images' },
   imageRemove: { es: 'Quitar imagen', en: 'Remove image' },
   imageConversation: { es: 'Imagen adjunta', en: 'Attached image' },

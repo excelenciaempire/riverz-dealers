@@ -24,6 +24,7 @@ import {
   type Registro,
 } from './registro-rioplatense';
 import { toolEnabled } from './toolbox';
+import { loadAgentToolContext } from './tool-context';
 import type { AiAgent } from './types';
 
 /**
@@ -177,7 +178,8 @@ export async function runFollowUp(
 }
 
 async function runFollowUpInner(db: SupabaseClient, args: Parameters<typeof runFollowUp>[1]): Promise<FollowUpResult> {
-  const { agent, conversation, contact, connection, silenceHours } = args;
+  const { agent:baseAgent, conversation, contact, connection, silenceHours } = args;
+  const agent=await loadAgentToolContext(db,baseAgent,conversation.channel);
   if (!(await storedConnectionCanSend(db, connection.id))) {
     return { sent: false, reason: 'channel_disconnected' };
   }

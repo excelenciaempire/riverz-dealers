@@ -46,6 +46,8 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT, useLocale } from '@/hooks/use-locale';
 import { localizePath } from '@/lib/i18n/routes';
 import { ToolSwitchboard, type Disponibilidad } from './tool-switchboard';
+import { ToolContextPolicies } from './tool-context-policies';
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import {
   REGLAS_POR_DEFECTO,
   type ReglasDeCobro,
@@ -1645,6 +1647,7 @@ export function AgentEditor({
                     reglas={reglasCobro}
                     onReglas={guardarReglasCobro}
                   />
+                  {SHOW_RIVERZ_IMPROVEMENTS && currentAgentId && <ToolContextPolicies key={currentAgentId} agentId={currentAgentId} />}
                 </SectionCard>
 
                 <VoiceAgentLink

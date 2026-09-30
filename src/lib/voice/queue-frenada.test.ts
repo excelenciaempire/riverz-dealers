@@ -18,6 +18,7 @@ const wallet = vi.hoisted(() => ({
   motivo: null as string | null,
 }));
 const platform = vi.hoisted(() => ({
+  writable: true,
   livekit: true,
   workerDown: false,
   providerDown: false,
@@ -45,6 +46,10 @@ const tablas: Record<string, unknown> = {};
 
 vi.mock('@/lib/channels/admin-client', () => ({
   supabaseAdmin: () => ({
+    rpc: async (name: string) => {
+      if (name !== 'workspace_billing_write_allowed') throw new Error(`Unexpected RPC: ${name}`);
+      return { data: platform.writable, error: null };
+    },
     from: (tabla: string) => {
       const q: Record<string, unknown> = {};
       for (const m of ['select', 'eq', 'gte', 'not', 'is', 'order', 'limit']) {
@@ -120,6 +125,7 @@ beforeEach(() => {
   wallet.puede = true;
   wallet.motivo = null;
   platform.livekit = true;
+  platform.writable = true;
   platform.workerDown = false;
   platform.providerDown = false;
 });
@@ -187,6 +193,13 @@ describe('saldo por origen', () => {
 });
 
 describe('el freno de emergencia', () => {
+  it('a read-only business cannot queue a call even when the other gates allow it', async () => {
+    montar({ phone_number: '+12099793169' });
+    platform.writable = false;
+    expect(await enqueueCall({ ...PEDIDO, recordSkip: true })).toEqual({ enqueued: false, reason: 'motor_apagado' });
+    expect(insertados).toHaveLength(1);
+    expect(insertados[0]).toMatchObject({ status: 'canceled', error: 'motor_apagado' });
+  });
   it('frena la llamada y deja la fila que lo explica', async () => {
     montar({ phone_number: '+12099793169', kill_switch: true });
 

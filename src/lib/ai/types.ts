@@ -106,6 +106,8 @@ export interface AiAgent {
    * le cambió el agente a nadie. Ver `src/lib/ai/toolbox.ts`.
    */
   tools: AgentTools | null;
+  /** Per-turn observation; stored policies are managed separately, never via the agent PATCH. */
+  tool_context?: { channel:Channel;revision:number };
 
   persona: string;
   knowledge: string | null;
