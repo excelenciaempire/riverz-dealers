@@ -34,6 +34,21 @@ export const returns = {
 } satisfies Namespace;
 
 export const gaps = {
+  caseTitle: { es: 'Preguntas al equipo de este caso', en: 'Questions for this case’s team' },
+  caseScope: { es: 'Estas respuestas quedan solo en esta conversación. No cambian las reglas ni las FAQs del negocio.', en: 'These answers stay in this conversation. They do not change business rules or FAQs.' },
+  caseEmpty: { es: 'No hay preguntas registradas para este caso.', en: 'No questions recorded for this case.' },
+  caseAnswer: { es: 'Responder para este caso', en: 'Answer for this case' },
+  caseEdit: { es: 'Editar respuesta del caso', en: 'Edit case answer' },
+  caseSave: { es: 'Guardar en este caso', en: 'Save in this case' },
+  caseSaved: { es: 'Respuesta guardada solo en este caso. No se envió al cliente.', en: 'Answer saved only in this case. It was not sent to the customer.' },
+  caseNotSent: { es: 'Guardar no envía un mensaje ni reanuda el asistente. El equipo decide qué contestar.', en: 'Saving does not send a message or resume the assistant. The team decides what to reply.' },
+  caseCopy: { es: 'Copiar para responder', en: 'Copy for reply' },
+  caseCopied: { es: 'Respuesta copiada. Revísala antes de enviarla.', en: 'Answer copied. Review it before sending.' },
+  caseCopyFailed: { es: 'No se pudo copiar. Selecciona el texto de la respuesta.', en: 'Could not copy. Select the answer text.' },
+  caseRevision: { es: 'Respuesta del equipo · versión {n}', en: 'Team answer · version {n}' },
+  casePartial: { es: 'Se muestran las 50 preguntas más recientes de este caso.', en: 'Showing the latest 50 questions in this case.' },
+  caseResolved: { es: 'Esta pregunta ya fue marcada como resuelta. La respuesta del caso se conserva.', en: 'This question was already marked as resolved. The case answer is retained.' },
+  casePermanent: { es: 'Si también debe servir para otros clientes, revísala por separado en el conocimiento del asistente.', en: 'If it should also help other customers, review it separately in the assistant’s knowledge.' },
   invalid: { es: 'Revisa la pregunta, respuesta y destino.', en: 'Check the question, answer and destination.' },
   loadFailed: { es: 'No se pudieron cargar las preguntas pendientes.', en: 'Could not load unanswered questions.' },
   changed: { es: 'Cambió el conocimiento o la pregunta. Actualiza y vuelve a revisar antes de guardar.', en: 'The knowledge or question changed. Refresh and review again before saving.' },

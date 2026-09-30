@@ -15,6 +15,7 @@ describe('owner-controlled presentation of the Riverz improvements',() => {
   const surfaces:Record<string,string[]>={
    'src/app/(dashboard)/bandeja/page.tsx':['TeamNotifications','SavedViews','TeamCapacity'],
    'src/components/inbox/message-thread.tsx':['ConversationCollaboration','ConversationUnderstanding'],
+   'src/components/inbox/conversation-collaboration.tsx':['CaseGapAnswers'],
    'src/components/inbox/message-bubble.tsx':['MessageUnderstanding'],
    'src/components/inbox/message-composer.tsx':['OutgoingTranslation'],
    'src/components/inbox/message-actions.tsx':['MessageEvidence'],

@@ -18,4 +18,5 @@
   if (r.ok || result?.code!=='P0001' || result?.message!=='invalid_gap_context') throw new Error(`Supervised knowledge RPC unavailable: ${name} (HTTP ${r.status}).`);
  }
  console.log('Supervised knowledge schema, privacy dependencies and RPCs verified.');
+ await require('./check-case-gap-answers-schema.cjs');
 })().catch(e => { console.error(e.message);process.exitCode=1; });

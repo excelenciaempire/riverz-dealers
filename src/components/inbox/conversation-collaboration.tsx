@@ -11,6 +11,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { CASE_PRIORITIES, CASE_REASONS, type CasePriority, type CaseReason, type InternalNote, type PresenceMember, type TeamMember } from '@/lib/inbox/collaboration'
 import { RelatedConversations } from './related-conversations'
 import { CaseFollowups } from './case-followups'
+import { CaseGapAnswers } from './case-gap-answers'
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview'
 
 interface TeamState {
   user_id: string; notes: InternalNote[]; members: TeamMember[]; presence: PresenceMember[];
@@ -160,6 +162,7 @@ export function ConversationCollaboration({ conversationId, composing }: { conve
             <Button size="sm" disabled={saving || !body.trim()} onClick={() => void addNote()}>{saving && <Loader2 className="size-3 animate-spin" />}{t('inbox.teamAddNote')}</Button>
             <RelatedConversations conversationId={conversationId} />
             <CaseFollowups key={conversationId} conversationId={conversationId} />
+            {SHOW_RIVERZ_IMPROVEMENTS && <CaseGapAnswers key={`questions-${conversationId}`} conversationId={conversationId} />}
           </>}
       </div>
     </details>
