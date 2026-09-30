@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Check, Copy, ExternalLink, Loader2, Terminal } from 'lucide-react';
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  Loader2,
+  Monitor,
+  Terminal,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useT } from '@/hooks/use-locale';
@@ -13,6 +20,12 @@ import {
 } from '@/lib/mcp/connections';
 import { Button } from '@/components/ui/button';
 import {
+  CHATGPT_SETTINGS_URL,
+  desktopSetupUrl,
+  MCP_SETUP_COMMANDS,
+  MCP_URL,
+} from '@/lib/mcp/setup';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -20,17 +33,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const MCP_URL = 'https://riverz.co/api/mcp';
 const CLIENTS = {
   claude: {
     name: 'Claude Code',
-    logo: '/logos/claude.ico',
-    command: `claude mcp add --transport http --scope user riverz ${MCP_URL}\nclaude mcp login riverz`,
+    command: MCP_SETUP_COMMANDS.claude,
   },
   chatgpt: { name: 'ChatGPT', command: null },
   codex: {
     name: 'Codex',
-    command: `codex mcp add riverz --url ${MCP_URL}\ncodex mcp login riverz`,
+    command: MCP_SETUP_COMMANDS.codex,
   },
 } as const;
 
@@ -49,6 +60,7 @@ export function McpOauthConnect() {
   const t = useT();
   const [selected, setSelected] = useState<Client | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [started, setStarted] = useState(false);
   const [connected, setConnected] = useState<Set<McpClient>>(new Set());
   const [statusFailed, setStatusFailed] = useState(false);
   const client = selected ? CLIENTS[selected] : null;
@@ -112,6 +124,7 @@ export function McpOauthConnect() {
             variant="outline"
             onClick={() => {
               setCopied(null);
+              setStarted(false);
               setSelected(provider.clients[0]);
             }}
           >
@@ -141,7 +154,10 @@ export function McpOauthConnect() {
       <Dialog
         open={selected !== null}
         onOpenChange={(open) => {
-          if (!open) setSelected(null);
+          if (!open) {
+            setSelected(null);
+            setStarted(false);
+          }
         }}
       >
         <DialogContent className="sm:max-w-lg">
@@ -168,77 +184,133 @@ export function McpOauthConnect() {
                   aria-pressed={selected === id}
                   onClick={() => {
                     setCopied(null);
+                    setStarted(false);
                     setSelected(id);
                   }}
                 >
-                  {CLIENTS[id].name}
+                  {id === 'chatgpt' ? t('oauth.chatgptWeb') : CLIENTS[id].name}
                 </Button>
               ))}
             </fieldset>
           )}
-          <div
-            role="status"
-            className="text-muted-foreground flex items-center gap-2 text-xs"
-          >
-            {selected && connected.has(selected) ? (
-              <>
-                <Check className="size-4 text-emerald-600" />
-                {t('oauth.connected')}
-              </>
-            ) : statusFailed ? (
-              t('oauth.statusFailed')
-            ) : (
-              <>
-                <Loader2 className="size-3.5 animate-spin" />
-                {t('oauth.waitingForClient')}
-              </>
-            )}
-          </div>
-          {client?.command ? (
-            <ol className="min-w-0 list-decimal space-y-4 pl-5 text-sm">
-              <li>
-                <p>{t('oauth.runCommand')}</p>
-                <pre className="border-border bg-muted/40 mt-2 overflow-x-auto rounded-lg border p-3 text-xs leading-relaxed">
-                  {client.command}
-                </pre>
-                <Button
-                  className="mt-2"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void copy(client.command!)}
-                >
-                  {copied === client.command ? <Check /> : <Copy />}
-                  {t(
-                    copied === client.command
-                      ? 'oauth.copied'
-                      : 'oauth.copyCommand'
-                  )}
-                </Button>
-              </li>
-              <li>{t('oauth.authorizeInBrowser')}</li>
-            </ol>
+          {selected && (connected.has(selected) || started) && (
+            <div
+              role="status"
+              className="text-muted-foreground flex items-center gap-2 text-xs"
+            >
+              {selected && connected.has(selected) ? (
+                <>
+                  <Check className="size-4 text-emerald-600" />
+                  {t('oauth.connected')}
+                </>
+              ) : statusFailed ? (
+                t('oauth.statusFailed')
+              ) : (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  {t('oauth.waitingForClient')}
+                </>
+              )}
+            </div>
+          )}
+          {client?.command && selected && selected !== 'chatgpt' ? (
+            <div className="min-w-0 space-y-4">
+              <Button
+                className="h-auto min-h-8 w-full py-2 whitespace-normal"
+                onClick={() => setStarted(true)}
+                render={
+                  <a
+                    href={desktopSetupUrl(
+                      selected,
+                      t('oauth.desktopSetupRequest', {
+                        client: client.name,
+                        url: MCP_URL,
+                        commands: client.command,
+                      })
+                    )}
+                  />
+                }
+                nativeButton={false}
+              >
+                <Monitor />
+                {t('oauth.openDesktop', { client: client.name })}
+              </Button>
+              <ol className="min-w-0 list-decimal space-y-2 pl-5 text-sm">
+                <li>{t('oauth.sendSetupRequest')}</li>
+                <li>{t('oauth.authorizeInBrowser')}</li>
+              </ol>
+              <details className="text-sm">
+                <summary className="text-muted-foreground cursor-pointer">
+                  {t('oauth.desktopFallback')}
+                </summary>
+                <ol className="mt-3 min-w-0 list-decimal space-y-4 pl-5">
+                  <li>
+                    <p>{t('oauth.runCommand')}</p>
+                    <pre className="border-border bg-muted/40 mt-2 overflow-x-auto rounded-lg border p-3 text-xs leading-relaxed">
+                      {client.command}
+                    </pre>
+                    <Button
+                      className="mt-2"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setStarted(true);
+                        void copy(client.command!);
+                      }}
+                    >
+                      {copied === client.command ? <Check /> : <Copy />}
+                      {t(
+                        copied === client.command
+                          ? 'oauth.copied'
+                          : 'oauth.copyCommand'
+                      )}
+                    </Button>
+                  </li>
+                  <li>{t('oauth.authorizeInBrowser')}</li>
+                </ol>
+                {selected === 'claude' && (
+                  <p className="text-muted-foreground mt-3 flex items-start gap-2 text-xs">
+                    <Terminal
+                      className="size-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                    {t('oauth.claudeMcpFallback')}
+                  </p>
+                )}
+              </details>
+            </div>
           ) : (
             <ol className="min-w-0 list-decimal space-y-4 pl-5 text-sm">
               <li>
                 <p>{t('oauth.chatgptDeveloperMode')}</p>
                 <Button
-                  className="mt-2"
+                  className="mt-2 h-auto min-h-8 max-w-full py-2 text-left whitespace-normal"
                   variant="outline"
+                  onClick={() => {
+                    setStarted(true);
+                    void copy(MCP_URL);
+                  }}
                   render={
                     <a
-                      href="https://chatgpt.com/plugins"
+                      href={CHATGPT_SETTINGS_URL}
                       target="_blank"
                       rel="noopener noreferrer"
                     />
                   }
                   nativeButton={false}
                 >
-                  {t('oauth.openChatgpt')}
+                  {t('oauth.copyAndOpenChatgpt')}
                   <ExternalLink />
                 </Button>
               </li>
               <li>
                 <p>{t('oauth.chatgptAddServer')}</p>
+                <p className="mt-2 font-medium">
+                  {t('oauth.serverName')}: Riverz
+                </p>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  {t('oauth.serverDescription')}
+                </p>
                 <div className="border-border bg-muted/40 mt-2 flex items-center gap-2 rounded-lg border p-2">
                   <code className="min-w-0 flex-1 text-xs break-all">
                     {MCP_URL}
@@ -252,15 +324,43 @@ export function McpOauthConnect() {
                     {copied === MCP_URL ? <Check /> : <Copy />}
                   </Button>
                 </div>
+                {copied === MCP_URL && (
+                  <p
+                    role="status"
+                    className="text-muted-foreground mt-1 text-xs"
+                  >
+                    {t('oauth.urlCopied')}
+                  </p>
+                )}
+                <p className="text-muted-foreground mt-2 text-xs">
+                  {t('oauth.authentication')}: OAuth
+                </p>
               </li>
               <li>{t('oauth.authorizeInBrowser')}</li>
+              <li className="list-none">
+                <details className="-ml-5">
+                  <summary className="text-muted-foreground cursor-pointer">
+                    {t('oauth.noCreateOption')}
+                  </summary>
+                  <p className="text-muted-foreground mt-2 text-xs">
+                    {t('oauth.chatgptAccountRequirement')}
+                  </p>
+                  <Button
+                    className="mt-2"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setCopied(null);
+                      setStarted(false);
+                      setSelected('codex');
+                    }}
+                  >
+                    <Monitor />
+                    {t('oauth.useDesktop')}
+                  </Button>
+                </details>
+              </li>
             </ol>
-          )}
-          {selected === 'claude' && (
-            <p className="text-muted-foreground flex items-start gap-2 text-xs">
-              <Terminal className="size-3.5 shrink-0" aria-hidden="true" />
-              {t('oauth.claudeMcpFallback')}
-            </p>
           )}
         </DialogContent>
       </Dialog>
