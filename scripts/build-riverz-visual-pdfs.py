@@ -474,8 +474,8 @@ GUIDE_DEEP_CASES = [
 
 GUIDE_SECTIONS = [
     ('El equipo de asistentes', 'Asistentes', 2, '02'),
-    ('Una conversación de venta', 'Una conversación', 3, '03'),
-    ('22 automatizaciones', 'Automatizaciones', 4, '04-07'),
+    ('22 automatizaciones', 'Automatizaciones', 3, '03-06'),
+    ('Una conversación de venta', 'Una conversación', 7, '07'),
     ('Recuperación y postventa', 'Más conversaciones', 8, '08-09'),
     ('Canales, campañas y llamadas', 'Canales y campañas', 10, '10'),
     ('Personalización y control', 'Tu marca y tu equipo', 11, '11'),
@@ -514,9 +514,6 @@ def guide():
     p.end()
 
     section(1)
-    client_conversation(p,0)
-
-    section(2)
     for group_index,(title,rows) in enumerate(GUIDE_AUTOMATIONS):
         p.header('Automatizaciones',title+'.',
                  ['Consultas, productos disponibles y oportunidades de venta.',
@@ -532,6 +529,9 @@ def guide():
         if group_index==0:
             p.wrap(42,751,'Definimos contigo cuándo escribir, a quién contactar y cuándo terminar el seguimiento. Los mensajes se adaptan al momento de cada cliente.',511,size=11,leading=15,color=MUTED,max_lines=2)
         p.end()
+
+    section(2)
+    client_conversation(p,0)
 
     section(3)
     client_conversation(p,1)
@@ -611,7 +611,12 @@ def verify(path,expected):
                          'Descubre cómo Riverz puede vender, recuperar compras y acompañar a tus clientes con conversaciones en lenguaje natural.')
         assert len([b for b in d[0].get_text('dict')['blocks'] if b['type']==1])==1
         assert all(pg.get_text(clip=pymupdf.Rect(0,0,W,66)).strip()=='riverz' for pg in list(d)[1:])
-        assert GUIDE_DEEP_CASES[0][0] in d[2].get_text()
+        # Explain capabilities in purchase order before showing conversations.
+        expected_titles=['Cada asistente',*[title for title,_ in GUIDE_AUTOMATIONS],
+                         *[title for title,_,_ in GUIDE_DEEP_CASES],
+                         'Chats, comentarios,','Tu marca define la atención.']
+        assert len(expected_titles)==len(d)-1
+        assert all(title in pg.get_text() for title,pg in zip(expected_titles,list(d)[1:]))
         forbidden=['apoyo para el video','qué mostrar','documento original','promesa del anuncio',
                    'demostración','detalles técnicos','integración','flujo','webhook',
                     'Supabase','saldo','credenciales','US$','guion','Qué decir','Busca el problema',

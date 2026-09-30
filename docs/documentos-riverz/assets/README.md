@@ -6,13 +6,31 @@ en lenguaje para clientes. Las notas internas de grabación no se incluyen.
 Para actualizar solo la guía, usa `py -X utf8 scripts/build-riverz-visual-pdfs.py --guide-only`.
 La guía tiene 11 páginas y se organiza por capacidades. Incluye 22 automatizaciones,
 un mapa de 5 roles y 3 conversaciones completas, además de comentarios, campañas
-y llamadas. La primera conversación aparece en la página 3. No se repiten las
+y llamadas. La primera conversación aparece en la página 7, después de explicar
+las automatizaciones. No se repiten las
 automatizaciones en listas de funciones de los agentes o escenarios resumidos.
 Personalización y control se explican en una sola sección.
 La portada contiene únicamente título, descripción e ilustración de marca.
 La navegación se conserva en los marcadores del PDF; no hay índice en la portada
 ni textos a la derecha del logo en ninguna página. Los diálogos llevan una nota de ejemplo ilustrativo.
 Las conversaciones dibujadas son ejemplos ilustrativos, no métricas ni testimonios reales.
+
+## Orden editorial de la guía
+
+Cada página responde una pregunta y prepara la siguiente; estas razones son
+notas editoriales y no se añaden al PDF para clientes.
+
+1. Portada: presenta el alcance sin cargar la entrada de información.
+2. Asistentes: distingue automatizaciones y conversaciones, y presenta los cinco roles.
+3. Antes de la compra: muestra cómo atender el interés y acompañar la decisión.
+4. Recuperación: continúa con la compra que quedó pendiente.
+5. Pedidos y logística: pasa a lo que ocurre después de confirmar una compra.
+6. Postventa y retención: completa el recorrido con atención y nuevas compras.
+7. Conversación de venta: muestra cómo el asistente adapta la recomendación al cliente.
+8. Conversación de pago: muestra cómo atiende un obstáculo y entrega el comprobante a revisión.
+9. Conversación de postventa: muestra cómo reúne información y entrega un caso al equipo.
+10. Canales y alcance: amplía los ejemplos a comentarios, campañas y llamadas.
+11. Personalización y control: cierra con cómo se adapta a la marca y qué decide el equipo.
 
 ## Branding
 
