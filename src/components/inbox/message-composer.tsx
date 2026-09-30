@@ -73,6 +73,7 @@ interface MessageComposerProps {
   onOpenTemplates: () => void;
   replyTo?: ReplyDraft | null;
   onClearReply?: () => void;
+  onComposingChange?: (composing: boolean) => void;
 }
 
 export function MessageComposer({
@@ -85,6 +86,7 @@ export function MessageComposer({
   onOpenTemplates,
   replyTo,
   onClearReply,
+  onComposingChange,
 }: MessageComposerProps) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
@@ -117,6 +119,7 @@ export function MessageComposer({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<Array<{ id: string; file: File }>>([]);
+  useEffect(() => { onComposingChange?.(text.trim().length > 0 || pendingFiles.length > 0 || sending); }, [text, pendingFiles.length, sending, onComposingChange]);
   const [dragging, setDragging] = useState(false);
   const activeConversation = useRef(conversationId);
   activeConversation.current = conversationId;

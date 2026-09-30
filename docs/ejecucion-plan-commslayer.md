@@ -6,12 +6,14 @@ Esta lista registra el estado real del trabajo. Una implementación local, una v
 
 | Bloque | Implementación | Validación | Producción |
 | --- | --- | --- | --- |
-| P0A Contrato y ejecución de aprobaciones | Implementada | Pruebas y build correctos | Esperando despliegue |
-| P0B Cifras del Operador | Implementada | Pruebas y build correctos | Esperando despliegue |
-| P0C Disparadores de etiquetas y fecha | Implementada | Pruebas SQL y build correctos | Esquema aplicado; código esperando despliegue |
-| P0D Plantillas y traducciones | Implementada | Pruebas y build correctos | Esperando despliegue |
-| P0E Accesos y regresión | Implementada | Pruebas de aislamiento y build correctos | Esperando despliegue |
-| B1 a B4 Atención y pedidos | Auditoría de B1 | Pendiente | Pendiente |
+| P0A Contrato y ejecución de aprobaciones | Implementada | Pruebas y build correctos | Publicada; revisión de salud correcta |
+| P0B Cifras del Operador | Implementada | Pruebas y build correctos | Publicada; revisión de salud correcta |
+| P0C Disparadores de etiquetas y fecha | Implementada | Pruebas SQL y build correctos | Esquema y código publicados |
+| P0D Plantillas y traducciones | Implementada | Pruebas y build correctos | Publicada; revisión de salud correcta |
+| P0E Accesos y regresión | Implementada | Pruebas de aislamiento y build correctos | Publicada; revisión de salud correcta |
+| B1 Colaboración en bandeja | Implementada | 147 pruebas, lint sin errores y build correctos | Esquema 304 aplicado; publicación en curso |
+| B2 Seguimiento y herramientas del equipo | En ejecución | Pendiente | Pendiente |
+| B3 y B4 Atención y pedidos | Pendiente | Pendiente | Pendiente |
 | A1 a A3 Superasistente | Pendiente | Pendiente | Pendiente |
 | C1 y C2 Crecimiento | Pendiente | Pendiente | Pendiente |
 | O1 a O5 Autoservicio y operación | Pendiente | Pendiente | Pendiente |
@@ -30,3 +32,16 @@ Esta lista registra el estado real del trabajo. Una implementación local, una v
 - Accesos desde la ficha del contacto a aprobaciones, devoluciones y logística, con filtro por contacto para las dos primeras. Aprobaciones antiguas se asocian por pedido. La navegación principal se conserva.
 
 Validación del 29 de septiembre: **52 archivos y 452 pruebas correctas**, lint de las superficies nuevas y build completo de Next.js. Migración **303** aplicada de forma atómica; guard de esquema comprobado contra Supabase. La comprobación del despliegue se registra después del push, sin ejecutar envíos ni movimientos financieros como prueba.
+
+P0 publicado: `riverz.co/api/health` devolvió estado `ok`, Supabase y WhatsApp `ok`, revisión `c48994f0764bdf83b8ca62fe1d5045f13397cc72`, descendiente del commit P0 `8a14ad80`. Esto verifica que el código está desplegado y el servicio responde; no sustituye una prueba funcional con acciones externas reales.
+
+## Entrega B1
+
+- Notas privadas separadas de los mensajes al cliente, menciones internas y notificaciones personales. Las inserciones y reintentos son atómicos e idempotentes. Los correos personales mantienen su restricción por dueño del buzón, también si una conversación cambia de canal o se elimina.
+- Presencia por sesión con caducidad y versiones monotónicas. Aviso al escribir y revisión antes de enviar texto, archivos o plantillas si otro compañero está componiendo. Una caída del servicio de presencia permite revisar explícitamente el envío.
+- Prioridad y motivo del caso dentro de un panel plegable, sin restaurar los controles retirados de la cabecera.
+- Vistas personales o compartidas con canal, estado, responsable, prioridad y motivo; contadores consultados sobre el conjunto autorizado. Las configuraciones antiguas incompatibles se conservan y no se interpretan como filtros vacíos.
+- Referencias manuales entre conversaciones del mismo contacto, con vista previa y confirmación; comprobación de acceso a ambos hilos y conservación del historial al retirar una referencia. No une automáticamente identidades ni conversaciones.
+- Superficies y errores disponibles en español e inglés. La navegación actual se conserva.
+
+Validación B1: **22 archivos y 147 pruebas correctas**, incluidos SQL, aislamiento, privacidad, reintentos, presencia fuera de orden y eliminación de referencias. TypeScript completo correcto, lint sin errores y build completo de Next.js correcto. Migración **304** aplicada de forma atómica y guard de esquema comprobado en Supabase. No se realizaron envíos a clientes para probar este bloque.

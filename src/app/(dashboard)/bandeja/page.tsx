@@ -10,6 +10,9 @@ import { ConversationList } from "@/components/inbox/conversation-list";
 import { MlClaimsPanel } from "@/components/inbox/ml-claims-panel";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
+import { TeamNotifications } from '@/components/inbox/team-notifications';
+import { SavedViews } from '@/components/inbox/saved-views';
+import { conversationMatchesView, type SavedViewConfig } from '@/lib/inbox/saved-views';
 import { ChannelFilter } from "@/components/inbox/channel-filter";
 import {
   InboxSearchBox,
@@ -59,6 +62,11 @@ export default function InboxPage() {
   const deepLinkMomento = searchParams.get("t");
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [savedView, setSavedView] = useState<{ config: SavedViewConfig; userId: string } | null>(null);
+  const applySavedView = useCallback((config: SavedViewConfig | null, userId: string) => {
+    setSavedView(config ? { config, userId } : null);
+    if (config) { setInboxTab('all'); setChannelFilter(null); setMlKindFilter('all'); setNeedsHumanOnly(false); }
+  }, []);
   // Búsqueda: filtra ESTA lista en vez de abrir un panel encima. Mientras hay
   // búsqueda, manda ella: los chips de pestaña y canal no la recortan, porque
   // buscar es global y "no aparece" con el resultado tapado por un filtro es
@@ -762,12 +770,12 @@ export default function InboxPage() {
   // on every render tick. Stable identity also lets React.memo on
   // ConversationItem actually do its job.
   const filteredConversations = useMemo(() => {
-    let list = conversations;
+    let list = savedView ? conversations.filter(c => conversationMatchesView(c, savedView.config, savedView.userId)) : conversations;
     // Búsqueda activa: sólo las que coinciden, en el orden de relevancia que
     // devolvió el servidor.
     if (search.active) {
       const rank = new Map(search.ids.map((id, i) => [id, i]));
-      return conversations
+      return list
         .filter((c) => rank.has(c.id))
         .sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
     }
@@ -793,7 +801,7 @@ export default function InboxPage() {
       list = list.filter((c) => Boolean(c.needs_human_reason));
     }
     return list;
-  }, [conversations, inboxTab, channelFilter, mlKindFilter, needsHumanOnly, search]);
+  }, [conversations, inboxTab, channelFilter, mlKindFilter, needsHumanOnly, search, savedView]);
 
   // Cuántas esperan a una persona, sobre TODO lo cargado (no sobre la lista
   // ya filtrada) para que el contador no se vacíe al activar el propio filtro.
@@ -928,7 +936,8 @@ export default function InboxPage() {
                 filtraba en memoria y sólo sobre el texto de la vista previa,
                 así que buscar una palabra dicha adentro de una conversación
                 no encontraba nada. */}
-            <InboxSearchBox onResults={setSearch} />
+            <div className="flex items-center border-b border-border"><div className="min-w-0 flex-1"><InboxSearchBox onResults={setSearch} /></div><TeamNotifications /></div>
+            <SavedViews onChange={applySavedView} />
             <InboxTabs
               value={inboxTab}
               onChange={handleTabChange}

@@ -357,6 +357,8 @@ export interface Conversation {
   id: string;
   workspace_id: string;
   contact_id: string;
+  case_priority?: 'normal' | 'high' | 'urgent';
+  case_reason?: 'purchase' | 'delivery' | 'payment' | 'return' | 'other' | null;
   channel: Channel;
   /** Escalamiento: la IA se apagó y el hilo espera a una persona. NULL = no escaló. */
   needs_human_reason?: NeedsHumanReason | null;

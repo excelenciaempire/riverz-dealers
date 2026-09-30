@@ -229,7 +229,7 @@ export function ConversationList({
             // cambie nada más: ocultar un comentario no mueve el último
             // mensaje ni el no-leído, así que sin esto el resync lo daría por
             // "sin cambios" y la lista se quedaría con el estado viejo.
-            `${c.id}:${c.last_message_at}:${c.unread_count}:${c.deleted_at ?? ""}:${c.last_message_hidden ? 1 : 0}:${c.contact?.name ?? ""}:${c.contact?.avatar_url ?? ""}`,
+            `${c.id}:${c.last_message_at}:${c.unread_count}:${c.deleted_at ?? ""}:${c.last_message_hidden ? 1 : 0}:${c.case_priority ?? 'normal'}:${c.case_reason ?? ''}:${c.assigned_agent_id ?? ''}:${c.status}:${c.contact?.name ?? ""}:${c.contact?.avatar_url ?? ""}`,
         )
         .join("|");
       if (sig !== lastSigRef.current) {
@@ -681,6 +681,7 @@ const ConversationItem = memo(function ConversationItem({
             <span className="truncate text-sm font-medium text-foreground">
               {displayName}
             </span>
+            {conversation.case_priority && conversation.case_priority !== 'normal' && <span className="shrink-0 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">{t(`inbox.casePriority_${conversation.case_priority}`)}</span>}
             {/* ML: marca pregunta (pública) vs mensaje (post-venta) */}
             <MlKindBadge
               channel={conversation.channel}

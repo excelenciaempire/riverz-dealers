@@ -45,6 +45,8 @@ import {feedbackGroupEnd} from '@/lib/ai/feedback-real';
 import type { OpinionIa } from "./opinion-ia";
 import { MessageActions } from "./message-actions";
 import { MessageComposer } from "./message-composer";
+import { ConversationCollaboration } from './conversation-collaboration';
+import { checkReplyCollision } from '@/lib/inbox/collision';
 import { PendingReplyCard } from "./pending-reply-card";
 import { VoiceCallCard } from "./voice-call-view";
 import { TemplatePicker } from "./template-picker";
@@ -221,6 +223,7 @@ export function MessageThread({
   const t = useT();
   const { locale } = useLocale();
   const [loading, setLoading] = useState(false);
+  const [composing, setComposing] = useState(false);
   const [channelDisconnected, setChannelDisconnected] = useState(false);
   const connectionId = conversation?.connection_id;
   useEffect(() => {
@@ -903,6 +906,7 @@ export function MessageThread({
     async (text: string, replyToId?: string) => {
       if (!conversation) return;
 
+      await checkReplyCollision(conversation.id, t);
       const tempId = `temp-${Date.now()}`;
 
       // Optimistic update — shows the message immediately with "sending" status
@@ -964,6 +968,7 @@ export function MessageThread({
   const handleSendMedia = useCallback(
     async (file: File, caption: string, replyToId?: string) => {
       if (!conversation) return;
+      await checkReplyCollision(conversation.id, t);
       const tempId = `temp-${Date.now()}`;
       const localUrl = URL.createObjectURL(file);
       const kind: "image" | "video" | "audio" | "document" =
@@ -1093,6 +1098,7 @@ export function MessageThread({
   const handleSendTemplate = useCallback(
     async (template: MessageTemplate, params: string[], headerImage?: File) => {
       if (!conversation) return;
+      await checkReplyCollision(conversation.id, t);
 
       const renderedBody = renderTemplateBody(template.body_text, params);
       const officialWhatsAppTemplate = isOfficialTemplateSend(conversation.channel);
@@ -2012,6 +2018,7 @@ export function MessageThread({
 
       {/* Voice conversations are a call log: show the call card + transcript,
           no composer (you can't type a reply to a phone call). */}
+      <ConversationCollaboration key={conversation.id} conversationId={conversation.id} composing={composing} />
       {conversation.channel === "voice" ? (
         <VoiceCallCard conversationId={conversation.id} />
       ) : mlThreadKind(conversation.channel, conversation.thread_external_id) ===
@@ -2058,6 +2065,7 @@ export function MessageThread({
               sessionInfo.expired
             }
             onSend={handleSend}
+            onComposingChange={setComposing}
             onSendMedia={handleSendMedia}
             onOpenTemplates={handleOpenTemplates}
             replyTo={replyTo}
