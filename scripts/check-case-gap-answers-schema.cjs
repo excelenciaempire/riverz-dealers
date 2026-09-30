@@ -10,4 +10,5 @@ module.exports=(async() => {
   if (r.ok || result?.code!=='P0001' || result?.message!=='invalid_gap_context') throw new Error(`Case answer RPC unavailable: ${name} (HTTP ${r.status}).`);
  }
  console.log('Case answers schema and RPCs verified.');
+ await require('./check-case-gap-notices-schema.cjs');
 })().catch(e => { console.error(e.message);process.exitCode=1; });

@@ -5,6 +5,7 @@ vi.mock('@/lib/i18n/server',() => ({ getLocale:async() => 'en' }))
 vi.mock('@/lib/i18n/translate',() => ({ translate:(_locale:string,key:string) => key }))
 vi.mock('@/lib/ai/gap-knowledge-server',() => ({ gapHeaders:{ 'Cache-Control':'private, no-store' },gapError:(e:{message:string}) => Response.json({ error:e.message },{ status:e.message==='gap_changed' ? 409 : 404 }) }))
 vi.mock('@/lib/csrf',() => ({ csrfGuard:mocks.csrf }))
+vi.mock('@/lib/ai/case-gap-notices',() => ({ caseGapNoticesEnabled:() => false }))
 import { GET,POST } from './route'
 const workspace='11111111-1111-4111-8111-111111111111',actor='22222222-2222-4222-8222-222222222222',conversation='44444444-4444-4444-8444-444444444444',gap='55555555-5555-4555-8555-555555555555',id='77777777-7777-4777-8777-777777777777'
 const input={ id,gap_id:gap,expected_revision:0,answer:'Only this case' },params={ params:Promise.resolve({ id:conversation }) },ctx={ db:{ rpc:mocks.rpc },workspaceId:workspace,userId:actor,conversation:{ id:conversation } }
@@ -15,7 +16,7 @@ describe('current-access, case-only team answer API',() => {
  it('reads only the authorized case and reports its sampling limit without caching',async() => {
   mocks.rpc.mockResolvedValue({ data:Array.from({ length:51 },(_,i) => ({ gap_id:`gap-${i}` })),error:null })
   const r=await read(),body=await r.json();expect(body.questions).toHaveLength(50);expect(body.truncated).toBe(true);expect(r.headers.get('Cache-Control')).toContain('no-store')
-  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('list_case_gap_answers',{ p_workspace_id:workspace,p_actor_id:actor,p_conversation_id:conversation });expect(mocks.context).toHaveBeenCalledTimes(2)
+  expect(mocks.rpc).toHaveBeenCalledWith('list_case_gap_answers',{ p_workspace_id:workspace,p_actor_id:actor,p_conversation_id:conversation });expect(mocks.rpc).toHaveBeenCalledWith('list_case_gap_notices',{ p_workspace_id:workspace,p_actor_id:actor,p_conversation_id:conversation });expect(body.whatsapp_enabled).toBe(false);expect(mocks.context).toHaveBeenCalledTimes(2)
  })
  it('fails closed if the workspace or case access changes after reading',async() => {
   mocks.context.mockResolvedValueOnce(ctx).mockResolvedValueOnce({ ...ctx,workspaceId:'changed' });expect((await read()).status).toBe(409)

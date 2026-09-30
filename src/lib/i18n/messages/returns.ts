@@ -34,6 +34,20 @@ export const returns = {
 } satisfies Namespace;
 
 export const gaps = {
+  caseNoticeTitle: { es: 'Riverz: pregunta pendiente para el equipo', en: 'Riverz: question awaiting the team' },
+  caseNoticeBody: { es: 'Hay una pregunta pendiente de revisión. Ábrela y responde dentro de Riverz: {url}. Este aviso no recibe respuestas por WhatsApp.', en: 'A question needs review. Open it and answer inside Riverz: {url}. This notice does not accept WhatsApp replies.' },
+  caseNoticeDisabled: { es: 'Los nuevos avisos de preguntas por WhatsApp están reservados para la comparación.', en: 'New WhatsApp question notices are reserved for comparison.' },
+  caseNoticeLimit: { es: 'Ya se solicitaron veinte avisos de preguntas durante la última hora. Espera antes de solicitar otro.', en: 'Twenty question notices were already requested in the last hour. Wait before requesting another.' },
+  caseNoticeDestinations: { es: 'Configura entre uno y diez destinatarios de avisos de operación en Ajustes.', en: 'Configure between one and ten operational alert recipients in Settings.' },
+  caseNoticeTransport: { es: 'El WhatsApp de avisos de Riverz no está disponible. La pregunta sigue dentro del caso.', en: 'Riverz’s notification WhatsApp is unavailable. The question remains in the case.' },
+  caseNotify: { es: 'Pedir revisión por WhatsApp', en: 'Request review via WhatsApp' },
+  caseNotifyScope: { es: 'El aviso lleva un enlace protegido a este caso, sin datos del cliente. La respuesta se guarda dentro de Riverz.', en: 'The notice carries a protected case link, without customer data. The answer is saved inside Riverz.' },
+  caseNotifyRecorded: { es: 'Solicitud registrada. Revisa el estado del aviso; no confirma que alguien lo haya leído.', en: 'Request recorded. Check the notice status; it does not confirm anyone has read it.' },
+  caseNoticeAccepted: { es: 'WhatsApp aceptó {n} avisos. No confirma entrega ni lectura.', en: 'WhatsApp accepted {n} notices. Delivery and reading are not confirmed.' },
+  caseNoticeUnconfirmed: { es: '{n} envíos sin confirmación. No se repiten para evitar duplicados.', en: '{n} sends unconfirmed. They are not repeated to prevent duplicates.' },
+  caseNoticeRejected: { es: '{n} avisos rechazados. No se avisó por esos destinatarios.', en: '{n} notices rejected. Those recipients were not notified.' },
+  caseNoticePending: { es: '{n} avisos todavía sin intentar.', en: '{n} notices not yet attempted.' },
+  caseNoticeCancelled: { es: '{n} avisos cancelados antes de intentar el envío.', en: '{n} notices cancelled before attempting to send.' },
   caseTitle: { es: 'Preguntas al equipo de este caso', en: 'Questions for this case’s team' },
   caseScope: { es: 'Estas respuestas quedan solo en esta conversación. No cambian las reglas ni las FAQs del negocio.', en: 'These answers stay in this conversation. They do not change business rules or FAQs.' },
   caseEmpty: { es: 'No hay preguntas registradas para este caso.', en: 'No questions recorded for this case.' },

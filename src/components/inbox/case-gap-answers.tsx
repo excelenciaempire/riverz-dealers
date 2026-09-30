@@ -10,14 +10,17 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import Link from '@/components/i18n/locale-link'
 import type { CaseGapAnswer } from '@/lib/ai/case-gap-answers'
+type Notice = { id: string; accepted: number; unconfirmed: number; pending: number; rejected: number; cancelled: number }
 
 /** Internal answers for this case, without publishing business knowledge. */
 export function CaseGapAnswers({ conversationId }: { conversationId: string }) {
   const t = useT(), fmt = useFormat(), csrf = useFetchWithCsrf()
   const [rows, setRows] = useState<CaseGapAnswer[] | null>(null)
   const [failed, setFailed] = useState(false), [partial, setPartial] = useState(false)
+  const [notices, setNotices] = useState<Record<string, Notice>>({}), [whatsappEnabled, setWhatsappEnabled] = useState(false)
   const [editing, setEditing] = useState<string | null>(null), [answer, setAnswer] = useState(''), [saving, setSaving] = useState(false)
   const load = useRef<AbortController | null>(null), operation = useRef<AbortController | null>(null), receipt = useRef<string | null>(null)
+  const noticeIds = useRef<Record<string, string>>({})
   const endpoint = `/api/conversations/${conversationId}/knowledge-answers`
   const reload = useCallback(async () => {
     load.current?.abort()
@@ -26,7 +29,7 @@ export function CaseGapAnswers({ conversationId }: { conversationId: string }) {
       const res = await fetch(endpoint, { cache: 'no-store', signal: controller.signal })
       if (!res.ok) throw new Error('unavailable')
       const data = await res.json()
-      if (!controller.signal.aborted) { setRows(data.questions ?? []); setPartial(data.truncated === true); setFailed(false) }
+      if (!controller.signal.aborted) { setRows(data.questions ?? []); setPartial(data.truncated === true); setNotices(data.notices ?? {}); setWhatsappEnabled(data.whatsapp_enabled === true); setFailed(false) }
     } catch { if (!controller.signal.aborted) setFailed(true) }
     finally { if (load.current === controller) load.current = null }
   }, [endpoint])
@@ -52,6 +55,20 @@ export function CaseGapAnswers({ conversationId }: { conversationId: string }) {
     try { await navigator.clipboard.writeText(text); toast.success(t('gaps.caseCopied')) }
     catch { toast.error(t('gaps.caseCopyFailed')) }
   }
+  async function notify(row: CaseGapAnswer) {
+    if (operation.current || !whatsappEnabled) return
+    const controller = new AbortController(); operation.current = controller; setSaving(true)
+    noticeIds.current[row.gap_id] ??= crypto.randomUUID()
+    try {
+      const res = await csrf(`${endpoint}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+        body: JSON.stringify({ id: noticeIds.current[row.gap_id], gap_id: row.gap_id }) })
+      const data = await res.json()
+      if (!res.ok || !data.receipt?.id) throw new Error(data.error || t('gaps.confirmationFailed'))
+      if (controller.signal.aborted) return
+      toast.success(t('gaps.caseNotifyRecorded')); await reload()
+    } catch (error) { if (!controller.signal.aborted) toast.error(error instanceof Error && error.message !== 'Failed to fetch' ? error.message : t('gaps.confirmationFailed')) }
+    finally { if (!controller.signal.aborted) setSaving(false); if (operation.current === controller) operation.current = null }
+  }
   return <details className="rounded border p-2">
     <summary className="cursor-pointer font-medium">{t('gaps.caseTitle')}</summary>
     <div className="mt-2 space-y-2">
@@ -62,6 +79,8 @@ export function CaseGapAnswers({ conversationId }: { conversationId: string }) {
           {rows.map(row => <article key={row.gap_id} className="space-y-1 rounded border p-2">
             <p className="font-medium">{row.question}</p>
             {row.missing && <p className="text-muted-foreground">{row.missing}</p>}
+            {notices[row.gap_id] && <div role="status" className="text-muted-foreground">{(['accepted', 'unconfirmed', 'rejected', 'pending', 'cancelled'] as const).map(state => notices[row.gap_id][state] > 0 && <p key={state}>{t(`gaps.caseNotice${state[0].toUpperCase()}${state.slice(1)}`, { n: fmt.number(notices[row.gap_id][state]) })}</p>)}</div>}
+            {!row.answer && !row.resolved_at && whatsappEnabled && (!notices[row.gap_id] || notices[row.gap_id].pending > 0) && <div><p className="text-muted-foreground">{t('gaps.caseNotifyScope')}</p><Button size="sm" variant="outline" disabled={saving} onClick={() => void notify(row)}>{t('gaps.caseNotify')}</Button></div>}
             {row.answer && <><p className="whitespace-pre-wrap break-words">{row.answer}</p><p className="text-muted-foreground">{t('gaps.caseRevision', { n: fmt.number(row.revision) })}{row.answered_at && ` · ${fmt.dateTime(row.answered_at)}`}</p><Button size="sm" variant="ghost" onClick={() => void copy(row.answer!)}>{t('gaps.caseCopy')}</Button></>}
             {row.resolved_at ? <p className="text-muted-foreground">{t('gaps.caseResolved')}</p> : editing === row.gap_id ? <>
               <label className="block">{t('gaps.caseAnswer')}<Textarea maxLength={2000} disabled={saving} value={answer} onChange={e => { setAnswer(e.target.value); receipt.current = null }} /></label>
