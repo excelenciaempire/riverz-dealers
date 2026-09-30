@@ -1,6 +1,6 @@
 # Monthly payment grace, reminders and recovery
 
-Migrations 306 and 308 must be applied before deployment. `check-billing-recovery-schema.cjs`
+Migrations 306, 308 and 309 must be applied before deployment. `check-billing-recovery-schema.cjs`
 checks the receipt column, private queues and database write gate during Render builds.
 It also installs the same guard on newly introduced tenant tables under a database
 advisory lock. The installer is service-role only and preserves existing read access.
@@ -25,8 +25,11 @@ provider acceptance is recorded, not represented as confirmed delivery.
 WhatsApp has at-least-once delivery if acceptance succeeds but acknowledgement
 cannot be persisted. Email has a stable provider idempotency key.
 
-Live, answerable customer messages received after grace expiration are queued
-atomically with receipt insertion. Historical imports, native outbound replies,
+Live, answerable customer messages received while monthly payment is pending
+are queued atomically with receipt insertion, including grace to protect AI
+turns that cross the exact deadline. Claims wait until every due monthly debt
+has cleared, so recovery cannot overlap normal grace-period replies.
+Historical imports, native outbound replies,
 opt-out keywords and suppressed backfills do not create recovery work.
 The recovery worker waits one minute after first verified payment for late
 native echoes and leases one task per conversation. Repeated invoice

@@ -9,18 +9,18 @@ vi.mock('@/lib/comments/router',()=>({routeComment:vi.fn()}));
 vi.mock('@/lib/i18n/cuenta',()=>({localeDeCuenta:async()=> 'es'}));
 import {recoverBillingReplies} from './recovery';
 function fixture(attempts=1) {
- const state={answered:false};
  const writes:Array<{table:string;values:Record<string,unknown>;filters:Record<string,unknown>}>=[];
  const conversation={id:'c',workspace_id:'w',contact_id:'contact',connection_id:'conn',channel:'whatsapp',ai_enabled:true,status:'open',assigned_agent_id:null,deleted_at:null};
  const inbound={id:'m',conversation_id:'c',channel:'whatsapp',sender_type:'customer',status:'delivered',content_text:'Hola',created_at:'2026-10-01T01:00:00Z'};
+ const state={answered:false,latest:inbound,outboundAt:'2026-10-01T01:01:00Z'};
  const db={rpc:async()=>({data:[{inbound_message_id:'m',workspace_id:'w',conversation_id:'c',connection_id:'conn',lease_id:'lease',attempts,queued_at:'2026-10-01T01:00:00Z'}]}),from:(table:string)=>{
   const filters:Record<string,unknown>={};
   let selection='';
-  const value=()=>table==='conversations'?conversation:table==='contacts'?{id:'contact',workspace_id:'w',external_id:'1555'}:table==='channel_connections'?{id:'conn',workspace_id:'w',channel:'whatsapp',status:'connected',config:{}}:table==='messages'?inbound:null;
-  const chain={select:(v:string)=>{selection=v;return chain;},eq:(k:string,v:unknown)=>{filters[k]=v;return chain;},neq:()=>chain,gte:()=>chain,lte:()=>chain,is:()=>chain,order:()=>chain,limit:()=>chain,
+  const value=()=>table==='conversations'?conversation:table==='contacts'?{id:'contact',workspace_id:'w',external_id:'1555'}:table==='channel_connections'?{id:'conn',workspace_id:'w',channel:'whatsapp',status:'connected',config:{}}:table==='messages'?(filters.id?inbound:state.latest):table==='billing_reply_backlog'?{status:'pending',queued_at:state.latest.created_at}:null;
+  const chain={select:(v:string)=>{selection=v;return chain;},eq:(k:string,v:unknown)=>{filters[k]=v;return chain;},neq:()=>chain,gte:()=>chain,lte:(k:string,v:unknown)=>{filters[k]=v;return chain;},is:()=>chain,order:()=>chain,limit:()=>chain,
    update:(values:Record<string,unknown>)=>{writes.push({table,values,filters});return chain;},
    maybeSingle:async()=>({data:value()}),single:async()=>({data:value()}),
-   then:(resolve:(result:unknown)=>unknown)=>Promise.resolve({data:table==='messages' && selection.includes('sender_type')?(state.answered?[{id:'native',sender_type:'agent',status:'sent',created_at:'2026-10-01T01:01:00Z'}]:[]):null}).then(resolve),
+   then:(resolve:(result:unknown)=>unknown)=>Promise.resolve({data:table==='messages' && selection.includes('sender_type')?(state.answered?[{id:'native',sender_type:'agent',status:'sent',created_at:state.outboundAt}]:[]):null}).then(resolve),
   };return chain;
  }} as unknown as SupabaseClient;
  return {db,state,writes};
@@ -56,5 +56,14 @@ describe('durable post-payment catch-up',()=>{
   await recoverBillingReplies(f.db);
   expect(mocks.sync).not.toHaveBeenCalled();expect(mocks.runner).not.toHaveBeenCalled();
   expect(f.writes[0].values).toMatchObject({status:'pending',outcome:'monthly_payment_pending'});
+ });
+ it('clears a burst through its latest answered queued inbound, without replying to every old message',async()=>{
+  const f=fixture();f.state.latest={...f.state.latest,id:'new',created_at:'2026-10-01T02:00:00Z'};
+  f.state.outboundAt='2026-10-01T02:01:00Z';
+  mocks.sync.mockImplementation(async()=>{f.state.answered=true;});
+  await recoverBillingReplies(f.db);
+  expect(mocks.runner).not.toHaveBeenCalled();
+  expect(mocks.sync.mock.calls[0][1].inbound.id).toBe('new');
+  expect(f.writes.find(w=>w.values.outcome==='conversation_answered')?.filters).toMatchObject({conversation_id:'c',status:'pending',queued_at:f.state.latest.created_at});
  });
 });

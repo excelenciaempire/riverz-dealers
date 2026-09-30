@@ -43,6 +43,11 @@ async function finish(db:SupabaseClient,job:Job,status:'pending'|'done'|'review'
   await db.from('conversations').update({needs_human_reason:'answer_gap',needs_human_at:new Date().toISOString(),needs_human_summary:translate(locale,'settings.billingRecoveryReview')}).eq('id',job.conversation_id).is('needs_human_reason',null);
  }
 }
+async function consolidateAnsweredConversation(db:SupabaseClient,job:Job,through:string) {
+ const result=await db.from('billing_reply_backlog').update({status:'done',outcome:'conversation_answered',finished_at:new Date().toISOString()})
+  .eq('conversation_id',job.conversation_id).eq('status','pending').lte('queued_at',through);
+ if(result.error)throw new Error('billing_recovery_consolidation_unavailable');
+}
 /** Paid accounts only; holds a durable per-conversation lease and never replays sales actions. */
 export async function recoverBillingReplies(db:SupabaseClient) {
  const claimed=await db.rpc('claim_billing_reply_backlog',{p_limit:2});
@@ -66,15 +71,17 @@ export async function recoverBillingReplies(db:SupabaseClient) {
    if(original.error)throw new Error('billing_recovery_message_unavailable');
    if(!original.data) {await finish(db,job,'done','message_deleted');continue;}
    let inbound=original.data as Message;
+   let coverThrough=job.queued_at;
    if(!commentChannel) {
     const latest=await db.from('messages').select('*').eq('conversation_id',conversation.id).eq('sender_type','customer').is('deleted_at',null).order('created_at',{ascending:false}).limit(1).maybeSingle();
     if(latest.error || !latest.data)throw new Error('billing_recovery_latest_unavailable');
     if(latest.data.id!==inbound.id) {
      // A later live event already owns its reply; only consolidate queued pause events.
-     const queued=await db.from('billing_reply_backlog').select('status').eq('inbound_message_id',latest.data.id).maybeSingle();
+     const queued=await db.from('billing_reply_backlog').select('status,queued_at').eq('inbound_message_id',latest.data.id).maybeSingle();
      if(queued.error)throw new Error('billing_recovery_latest_unavailable');
      if(!queued.data || !['pending','processing'].includes(queued.data.status)) {await finish(db,job,'done','superseded_by_live_inbound');continue;}
      inbound=latest.data as Message;
+     coverThrough=queued.data.queued_at;
     }
    }
    const metadata=commentChannel?await db.from('comments_meta').select('post_id,parent_comment_id,connection_id').eq('message_id',inbound.id).maybeSingle():null;
@@ -88,7 +95,11 @@ export async function recoverBillingReplies(db:SupabaseClient) {
    const contact=contactResult.data as Contact,connection=connectionResult.data as ChannelConnection;
    await syncExternalReplies(db,{connection,conversation,contact,inbound,comment});
    let outcome=await answered(db,conversation,inbound,commentChannel);
-   if(outcome) {await finish(db,job,outcome==='already_answered'?'done':'review',outcome);completed++;continue;}
+   if(outcome) {
+    await finish(db,job,outcome==='already_answered'?'done':'review',outcome);
+    if(!commentChannel && outcome==='already_answered')await consolidateAnsweredConversation(db,job,coverThrough);
+    completed++;continue;
+   }
    const fresh=await db.from('conversations').select('*').eq('id',conversation.id).single();
    if(fresh.error)throw new Error('billing_recovery_conversation_unavailable');
    const freshDisposition=recoveryDisposition(fresh.data);
@@ -103,8 +114,7 @@ export async function recoverBillingReplies(db:SupabaseClient) {
     await finish(db,job,'review','reply_requires_review');review++;
    } else {await finish(db,job,outcome==='already_answered'?'done':'review',outcome);completed++;}
    if(!commentChannel && outcome==='already_answered') {
-    const consolidated=await db.from('billing_reply_backlog').update({status:'done',outcome:'conversation_answered',finished_at:new Date().toISOString()}).eq('conversation_id',conversation.id).eq('status','pending').lte('queued_at',job.queued_at);
-    if(consolidated.error)throw new Error('billing_recovery_consolidation_unavailable');
+    await consolidateAnsweredConversation(db,job,coverThrough);
    }
   } catch {
    failures.push(job.workspace_id+':billing_recovery_retry');
