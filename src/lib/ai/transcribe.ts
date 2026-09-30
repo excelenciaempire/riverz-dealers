@@ -145,6 +145,8 @@ export async function transcribeBuffer(
     mime?: string;
     filename?: string;
     timeoutMs?: number;
+    /** Inbox requests can detect language; existing callers keep their Spanish prior. */
+    detectLanguage?: boolean;
   }
 ): Promise<TranscriptionResult | null> {
   const provider = pickProvider();
@@ -168,7 +170,7 @@ export async function transcribeBuffer(
     // cliente colombiano / hispanohablante. Whisper igual tolera mezcla,
     // y esto le da al modelo un prior más fuerte para no confundir
     // codeswitch con inglés.
-    form.append('language', 'es');
+    if (!opts.detectLanguage) form.append('language', 'es');
     // Con esto la respuesta trae `duration`, que es lo que cobra Whisper.
     // Sin el número no hay forma de pasarle el costo al comercio.
     form.append('response_format', 'verbose_json');
