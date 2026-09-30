@@ -27,15 +27,22 @@ const CLIENTS = {
     logo: '/logos/claude.ico',
     command: `claude mcp add --transport http --scope user riverz ${MCP_URL}\nclaude mcp login riverz`,
   },
-  chatgpt: { name: 'ChatGPT (GPT)', logo: '/logos/openai.png', command: null },
+  chatgpt: { name: 'ChatGPT', command: null },
   codex: {
-    name: 'Codex (GPT)',
-    logo: '/logos/codex.png',
+    name: 'Codex',
     command: `codex mcp add riverz --url ${MCP_URL}\ncodex mcp login riverz`,
   },
 } as const;
 
 type Client = keyof typeof CLIENTS;
+const PROVIDERS = [
+  { name: 'Claude Code', logo: '/logos/claude.ico', clients: ['claude'] },
+  {
+    name: 'OpenAI (ChatGPT / Codex)',
+    logo: '/logos/codex.png',
+    clients: ['codex', 'chatgpt'],
+  },
+] as const;
 
 /** OAuth starts in the MCP client, which owns the callback and PKCE verifier. */
 export function McpOauthConnect() {
@@ -99,29 +106,29 @@ export function McpOauthConnect() {
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
-        {(Object.keys(CLIENTS) as Client[]).map((id) => (
+        {PROVIDERS.map((provider) => (
           <Button
-            key={id}
+            key={provider.name}
             variant="outline"
             onClick={() => {
               setCopied(null);
-              setSelected(id);
+              setSelected(provider.clients[0]);
             }}
           >
             <Image
-              src={CLIENTS[id].logo}
+              src={provider.logo}
               alt=""
               width={20}
               height={20}
               unoptimized
               className={
-                id === 'codex'
+                provider.clients[0] === 'codex'
                   ? 'size-5 rounded-sm bg-black'
                   : 'size-5 rounded-sm'
               }
             />
-            {t('oauth.connectClient', { client: CLIENTS[id].name })}
-            {connected.has(id) && (
+            {t('oauth.connectClient', { client: provider.name })}
+            {provider.clients.some((id) => connected.has(id)) && (
               <Check
                 className="size-3.5 text-emerald-600"
                 aria-label={t('oauth.connected')}
@@ -140,12 +147,35 @@ export function McpOauthConnect() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {t('oauth.connectClient', { client: client?.name ?? '' })}
+              {t('oauth.connectClient', {
+                client: selected === 'claude' ? 'Claude Code' : 'OpenAI',
+              })}
             </DialogTitle>
             <DialogDescription>
               {t('oauth.clientStartsLogin')}
             </DialogDescription>
           </DialogHeader>
+          {selected && selected !== 'claude' && (
+            <fieldset className="flex gap-2">
+              <legend className="sr-only">
+                {t('oauth.chooseOpenaiClient')}
+              </legend>
+              {(['codex', 'chatgpt'] as const).map((id) => (
+                <Button
+                  key={id}
+                  size="sm"
+                  variant={selected === id ? 'default' : 'outline'}
+                  aria-pressed={selected === id}
+                  onClick={() => {
+                    setCopied(null);
+                    setSelected(id);
+                  }}
+                >
+                  {CLIENTS[id].name}
+                </Button>
+              ))}
+            </fieldset>
+          )}
           <div
             role="status"
             className="text-muted-foreground flex items-center gap-2 text-xs"

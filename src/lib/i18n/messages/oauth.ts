@@ -24,6 +24,10 @@ export const oauth: Namespace = {
     en: 'Authorize access to Riverz without creating a key.',
   },
   connectClient: { es: 'Conectar {client}', en: 'Connect {client}' },
+  chooseOpenaiClient: {
+    es: 'Conectar desde',
+    en: 'Connect from',
+  },
   clientStartsLogin: {
     es: 'El inicio de sesión se abre desde tu asistente.',
     en: 'Sign-in opens from your assistant.',
