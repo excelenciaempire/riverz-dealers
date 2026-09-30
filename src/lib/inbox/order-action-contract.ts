@@ -4,22 +4,24 @@ import { shippingAddress, type OrderShippingAddress } from '@/lib/shopify/shippi
 import { orderItems,type ReviewedOrderItem,type OrderItemDisplay } from '@/lib/shopify/order-items-contract'
 import type { OrderItemsQuote } from '@/lib/shopify/reviewed-order-items'
 import type { ReplacementQuote,ReplacementDraftState } from '@/lib/shopify/replacement-draft'
+import type { FulfillmentHoldQuote,HoldPreparation } from '@/lib/shopify/fulfillment-hold'
 
-export type CaseOrderAction = { type: 'refund'; amount: number | null; reason: string } | { type: 'cancel'; reason: string } | { type:'address'; address:OrderShippingAddress; reason:string } | { type:'items'; items:ReviewedOrderItem[]; reason:string } | { type:'replacement'; items:ReviewedOrderItem[]; reason:string }
+export type CaseOrderAction = { type: 'refund'; amount: number | null; reason: string } | { type: 'cancel'; reason: string } | { type:'address'; address:OrderShippingAddress; reason:string } | { type:'items'; items:ReviewedOrderItem[]; reason:string } | { type:'replacement'; items:ReviewedOrderItem[]; reason:string } | { type:'hold'; reason:string }
 export interface CaseOrderOperation {
   id: string; order_id: string; requested_by: string; approved_by: string | null;
   action: CaseOrderAction; preview: { order_name: string; amount: string | null; currency: string; financial_status: string; fulfillment_status: string | null;
     shipping_address?:OrderShippingAddress | null; shipping_change?:{ before:OrderShippingAddress | null; after:OrderShippingAddress; validation:'disabled' | 'accept' | 'confirm' }; item_change?:OrderItemsQuote;
-    item_current?:{ items:OrderItemDisplay[]; total:string; currency:string }; replacement?:ReplacementQuote; draft_current?:ReplacementDraftState };
+    item_current?:{ items:OrderItemDisplay[]; total:string; currency:string }; replacement?:ReplacementQuote; draft_current?:ReplacementDraftState; hold?:FulfillmentHoldQuote; hold_current?:HoldPreparation[] };
   fingerprint: string; status: 'preview' | 'running' | 'completed' | 'failed' | 'uncertain' | 'expired' | 'reviewed';
   expires_at: string; created_at: string; approved_at: string | null; result: Record<string, unknown> | null
 }
 export function caseOrderAction(raw: unknown): CaseOrderAction | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const v = raw as Record<string, unknown>
-  if (!['refund','cancel','address','items','replacement'].includes(String(v.type)) || typeof v.reason !== 'string' || !v.reason.trim() || v.reason.length > 300) return null
+  if (!['refund','cancel','address','items','replacement','hold'].includes(String(v.type)) || typeof v.reason !== 'string' || !v.reason.trim() || v.reason.length > 300) return null
   if (Object.keys(v).some(k => !['type','reason',...(v.type === 'refund' ? ['amount'] : v.type === 'address' ? ['address'] : ['items','replacement'].includes(String(v.type)) ? ['items'] : [])].includes(k))) return null
   if (v.type === 'cancel') return { type: 'cancel', reason: v.reason.trim() }
+  if (v.type === 'hold') return { type:'hold',reason:v.reason.trim() }
   if (v.type === 'address') {
     const address = shippingAddress(v.address)
     return address ? { type:'address',address,reason:v.reason.trim() } : null

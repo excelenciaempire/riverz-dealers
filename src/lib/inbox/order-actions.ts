@@ -11,6 +11,7 @@ import { providerShippingAddress, shippingAddress, shippingChangeAllowed, sameSh
 import { commitReviewedOrderItems } from '@/lib/shopify/reviewed-order-items'
 import type { OrderItemDisplay } from '@/lib/shopify/order-items-contract'
 import { createReplacementDraft,inspectReplacementDraft } from '@/lib/shopify/replacement-draft'
+import { applyReviewedFulfillmentHold,inspectFulfillmentHold,FULFILLMENT_HOLD_SCOPES,type FulfillmentHoldQuote } from '@/lib/shopify/fulfillment-hold'
 import { caseOrderAction, type CaseOrderAction, type CaseOrderOperation } from './order-action-contract'
 
 interface LocalOrder { id: string; shopify_order_id: string; shop_domain: string; order_number: string | null; platform:string }
@@ -25,7 +26,7 @@ interface ProviderOrder {
   tags?:string
 }
 export class CaseOrderError extends Error {}
-export async function caseOrderSnapshot(db: SupabaseClient, workspaceId: string, contactId: string, orderId: string, action: CaseOrderAction | null, options?:{ shippingOnly?:boolean; replacement?:boolean }) {
+export async function caseOrderSnapshot(db: SupabaseClient, workspaceId: string, contactId: string, orderId: string, action: CaseOrderAction | null, options?:{ shippingOnly?:boolean; replacement?:boolean; hold?:boolean }) {
   const local = await db.from('orders').select('id,shopify_order_id,shop_domain,order_number,platform').eq('id',orderId).eq('workspace_id',workspaceId).eq('contact_id',contactId).maybeSingle()
   if (local.error) throw new CaseOrderError('orderUnavailable')
   const order = local.data as LocalOrder | null
@@ -41,13 +42,14 @@ export async function caseOrderSnapshot(db: SupabaseClient, workspaceId: string,
   const contact = await db.from('contacts').select('email,phone').eq('id',contactId).eq('workspace_id',workspaceId).maybeSingle()
   const email = contact.data?.email?.trim().toLowerCase(), phone = normPhone(contact.data?.phone)
   const replacement=action?.type === 'replacement' || options?.replacement === true
+  const hold=action?.type === 'hold' || options?.hold === true
   const emailMatches = !!email && (replacement ? [live.customer?.email] : [live.email,live.contact_email,live.customer?.email]).some(value => value?.trim().toLowerCase() === email)
   const phoneMatches = !!phone && (replacement ? [live.customer?.phone] : [live.phone,live.customer?.phone,live.shipping_address?.phone,live.billing_address?.phone]).some(value => normPhone(value) === phone)
   if (contact.error || !contact.data || !emailMatches && !phoneMatches) throw new CaseOrderError('orderIdentityUnknown')
-  if (!currentAppInstallation?.accessScopes.some(scope => scope.handle === (replacement ? 'write_draft_orders' : 'write_orders'))) throw new CaseOrderError(replacement ? 'orderDraftScopeMissing' : 'orderScopeMissing')
+  if (!currentAppInstallation?.accessScopes.some(scope => hold ? FULFILLMENT_HOLD_SCOPES.includes(scope.handle) : scope.handle === (replacement ? 'write_draft_orders' : 'write_orders'))) throw new CaseOrderError(hold ? 'orderHoldScopeMissing' : replacement ? 'orderDraftScopeMissing' : 'orderScopeMissing')
   if (action?.type === 'items' && !currentAppInstallation.accessScopes.some(scope => scope.handle === 'write_order_edits')) throw new CaseOrderError('orderItemsScopeMissing')
-  if ((action?.type === 'cancel' || action?.type === 'address' || action?.type === 'items') && !shippingChangeAllowed(live)) throw new CaseOrderError('orderAlreadyShipped')
-  const shippingOnly = action?.type === 'address' || options?.shippingOnly === true || replacement
+  if ((action?.type === 'cancel' || action?.type === 'address' || action?.type === 'items' || action?.type === 'hold') && !shippingChangeAllowed(live)) throw new CaseOrderError('orderAlreadyShipped')
+  const shippingOnly = action?.type === 'address' || options?.shippingOnly === true || replacement || hold
   const { transactions } = shippingOnly || action?.type === 'items' ? { transactions:[] as RefundTransaction[] } : await client.rest<{ transactions?: RefundTransaction[] }>(`/orders/${order.shopify_order_id}/transactions.json`)
   if (!Array.isArray(transactions)) throw new CaseOrderError('orderBalanceUnknown')
   const plan = planRefund(transactions, action?.type === 'refund' ? action.amount ?? undefined : undefined)
@@ -94,17 +96,30 @@ export async function uncertainCaseOrderSnapshot(db:SupabaseClient,workspaceId:s
   if (lock.error || !lock.data || lock.data.status !== 'uncertain') throw new CaseOrderError('orderBusy')
   let shippingOnly = false
   let itemsOnly = false
-  let replacementOnly=false, draftId:string | undefined
+  let replacementOnly=false, draftId:string | undefined, holdQuote:FulfillmentHoldQuote | undefined
+  let actionType:CaseOrderAction['type'] | 'financial'='financial'
   if (lock.data.source_kind === 'inbox') {
-    const stored = await db.from('inbox_order_actions').select('action,result').eq('id',lock.data.source_id).eq('workspace_id',workspaceId).eq('order_id',orderId).maybeSingle()
+    const stored = await db.from('inbox_order_actions').select('action,result,preview').eq('id',lock.data.source_id).eq('workspace_id',workspaceId).eq('order_id',orderId).maybeSingle()
     const action = caseOrderAction(stored.data?.action)
     if (stored.error || !action) throw new CaseOrderError('orderConflict')
+    actionType=action.type
     shippingOnly = action.type === 'address'
     itemsOnly = action.type === 'items'
     replacementOnly=action.type === 'replacement'
     draftId=typeof stored.data?.result?.draft_id === 'string' ? stored.data.result.draft_id : undefined
+    if (action.type === 'hold') {
+      holdQuote=stored.data?.preview?.hold
+      if (!holdQuote) throw new CaseOrderError('orderConflict')
+    }
   }
-  const snapshot = await caseOrderSnapshot(db,workspaceId,contactId,orderId,null,{ shippingOnly:shippingOnly || itemsOnly || replacementOnly,...(replacementOnly ? { replacement:true } : {}) })
+  const snapshot = await caseOrderSnapshot(db,workspaceId,contactId,orderId,null,{ shippingOnly:shippingOnly || itemsOnly || replacementOnly || !!holdQuote,...(replacementOnly ? { replacement:true } : {}),...(holdQuote ? { hold:true } : {}) })
+  if (holdQuote) {
+    const observed=await inspectFulfillmentHold(snapshot.admin,snapshot.local.shopify_order_id,holdQuote)
+    if (!observed) throw new CaseOrderError('orderHoldReviewRequired')
+    delete snapshot.preview.shipping_address
+    snapshot.preview.hold_current=observed
+    snapshot.fingerprint=createHash('sha256').update(JSON.stringify({ order:snapshot.fingerprint,preparations:observed })).digest('hex')
+  }
   if (replacementOnly) {
     const draft=await inspectReplacementDraft(snapshot.admin,snapshot.live,lock.data.source_id,draftId)
     if (!draft) throw new CaseOrderError('orderDraftReviewRequired')
@@ -120,7 +135,7 @@ export async function uncertainCaseOrderSnapshot(db:SupabaseClient,workspaceId:s
     snapshot.preview.item_current={ items:caseOrderCurrentItems(snapshot.live),total,currency:snapshot.live.currency }
   }
   if (shippingOnly && !snapshot.preview.shipping_address) throw new CaseOrderError('orderAddressUnavailable')
-  return { source_id:lock.data.source_id,snapshot }
+  return { source_id:lock.data.source_id,action_type:actionType,snapshot }
 }
 
 export async function executeCaseOrderAction(db: SupabaseClient, workspaceId: string, conversationId: string, contactId: string, actorId: string, id: string) {
@@ -154,6 +169,12 @@ export async function executeCaseOrderAction(db: SupabaseClient, workspaceId: st
       const response=await createReplacementDraft(current.admin,current.live,operation.action.items,operation.preview.replacement,operation.id,operation.action.reason)
       status=response.ok ? 'completed' : response.uncertain ? 'uncertain' : 'failed'
       result=response.ok ? { draft_id:response.draft.id,draft:response.draft } : { error:response.error,draft_id:response.draftId ?? null }
+    } else if (operation.action.type === 'hold') {
+      if (!operation.preview.hold) throw new CaseOrderError('orderConflict')
+      mutationStarted=true
+      const response=await applyReviewedFulfillmentHold(current.admin,current.local.shopify_order_id,operation.preview.hold,operation.id,operation.action.reason)
+      status=response.ok ? 'completed' : response.uncertain ? 'uncertain' : 'failed'
+      result=response.ok ? { hold_handle:response.handle,preparations:response.preparations,hold_receipts:response.receipts } : { error:response.error,hold_receipts:response.receipts ?? [] }
     } else {
       // The reviewed amount is immutable, including a request for the whole remaining balance.
       mutationStarted = true

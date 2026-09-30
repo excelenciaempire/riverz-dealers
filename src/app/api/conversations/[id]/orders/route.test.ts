@@ -1,10 +1,11 @@
 import { beforeEach,describe,expect,it,vi } from 'vitest'
-const m=vi.hoisted(() => ({ context:vi.fn(),snapshot:vi.fn(),prepare:vi.fn(),replacement:vi.fn(),prior:vi.fn(),rpc:vi.fn() }))
+const m=vi.hoisted(() => ({ context:vi.fn(),snapshot:vi.fn(),prepare:vi.fn(),replacement:vi.fn(),hold:vi.fn(),prior:vi.fn(),rpc:vi.fn() }))
 vi.mock('@/lib/inbox/server-context',() => ({ inboxConversation:m.context }))
 vi.mock('@/lib/csrf',() => ({ csrfGuard:async () => null }))
 vi.mock('@/lib/inbox/order-actions',() => ({ caseOrderSnapshot:m.snapshot,CaseOrderError:class extends Error {} }))
 vi.mock('@/lib/shopify/reviewed-order-items',() => ({ prepareReviewedOrderItems:m.prepare }))
 vi.mock('@/lib/shopify/replacement-draft',() => ({ prepareReplacementDraft:m.replacement }))
+vi.mock('@/lib/shopify/fulfillment-hold',() => ({ prepareFulfillmentHold:m.hold }))
 import { POST } from './route'
 const input={ id:'11111111-1111-4111-8111-111111111111',order_id:'22222222-2222-4222-8222-222222222222',action:{ type:'items',reason:'Size change',items:[{ variantId:'222',quantity:2,free:false }] } }
 const route={ params:Promise.resolve({ id:'conversation' }) }
@@ -18,6 +19,7 @@ beforeEach(() => {
   m.snapshot.mockReset().mockResolvedValue({ admin:{ shopDomain:'test.myshopify.com' },local:{ shopify_order_id:'100' },preview:{},fingerprint:'a'.repeat(64) })
   m.prepare.mockReset().mockResolvedValue({ ok:true,quote })
   m.replacement.mockReset().mockResolvedValue({ ok:true,quote:{ total:'44.00',currency:'USD' } })
+  m.hold.mockReset().mockResolvedValue({ ok:true,quote:{ fingerprint:'hold',preparations:[] } })
 })
 describe('persistent reviewed item previews',() => {
   it('checks subscription permission before any staged Shopify mutation',async () => {
@@ -60,5 +62,11 @@ describe('persistent reviewed item previews',() => {
     expect(m.prepare).not.toHaveBeenCalled()
     m.rpc.mockResolvedValue({ data:false,error:null }); m.replacement.mockClear()
     expect((await post(replacement)).status).toBe(409); expect(m.replacement).not.toHaveBeenCalled()
+  })
+  it('saves a read-only hold review without preparing an order edit or replacement',async () => {
+    const r=await post({ ...input,action:{ type:'hold',reason:'Pause' } })
+    expect(await r.json()).toMatchObject({ can_execute:false,operation:{ preview:{ hold:{ fingerprint:'hold' } } } })
+    expect(m.hold).toHaveBeenCalledWith(expect.anything(),'100')
+    expect(m.prepare).not.toHaveBeenCalled(); expect(m.replacement).not.toHaveBeenCalled()
   })
 })

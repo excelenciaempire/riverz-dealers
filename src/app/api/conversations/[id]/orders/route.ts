@@ -7,6 +7,7 @@ import { CaseOrderError, caseOrderSnapshot } from '@/lib/inbox/order-actions'
 import { resolveShopifyAdmin } from '@/lib/shopify/order-tags'
 import { prepareReviewedOrderItems } from '@/lib/shopify/reviewed-order-items'
 import { prepareReplacementDraft } from '@/lib/shopify/replacement-draft'
+import { prepareFulfillmentHold } from '@/lib/shopify/fulfillment-hold'
 type Context = { params: Promise<{ id: string }> }
 
 export async function GET(request: Request, route: Context) {
@@ -47,6 +48,11 @@ export async function POST(request: Request, route: Context) {
       return NextResponse.json({ operation:prior.data,can_execute:ctx.isAdmin })
     }
     const snapshot = await caseOrderSnapshot(ctx.db,ctx.workspaceId,ctx.conversation.contact_id,input.order_id,input.action)
+    if (input.action.type === 'hold') {
+      const prepared=await prepareFulfillmentHold(snapshot.admin,snapshot.local.shopify_order_id)
+      if (!prepared.ok) throw new CaseOrderError(prepared.error)
+      snapshot.preview.hold=prepared.quote
+    }
     if (input.action.type === 'items' || input.action.type === 'replacement') {
       const writable=await ctx.db.rpc('workspace_billing_write_allowed',{ p_workspace:ctx.workspaceId })
       if (writable.error) throw new CaseOrderError('orderUnavailable')

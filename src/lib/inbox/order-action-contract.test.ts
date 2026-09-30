@@ -38,4 +38,9 @@ describe('bounded human order requests',() => {
     for (const extra of [{ invoice:true },{ customerId:'foreign' },{ price:0 },{ amount:100 },{ reserveInventoryUntil:'2026-10-01' }]) expect(caseOrderAction({ ...action,...extra })).toBeNull()
     expect(sameCaseOrderAction(action,{ ...action,type:'items' })).toBe(false)
   })
+  it('never accepts arbitrary fulfillment targets, release or notification flags from a hold request',() => {
+    const action={ type:'hold',reason:'Customer requested a pause' }
+    expect(caseOrderAction(action)).toEqual(action)
+    for (const extra of [{ ids:['gid://shopify/FulfillmentOrder/999'] },{ release:true },{ notifyMerchant:true },{ amount:10 }]) expect(caseOrderAction({ ...action,...extra })).toBeNull()
+  })
 })

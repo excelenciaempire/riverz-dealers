@@ -47,4 +47,11 @@ describe('explicit human financial confirmation',() => {
     }
     expect(m.execute).not.toHaveBeenCalled()
   })
+  it('requires a hold-aware confirmation before claiming a hold operation',async () => {
+    m.stored.mockResolvedValue({ data:{ action:{ type:'hold' } },error:null })
+    expect((await POST(request({ confirmed:true }),route)).status).toBe(409)
+    expect(m.execute).not.toHaveBeenCalled()
+    m.execute.mockResolvedValue({ status:'completed' })
+    expect((await POST(request({ confirmed:true,action_type:'hold' }),route)).status).toBe(200)
+  })
 })
