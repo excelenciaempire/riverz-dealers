@@ -16,6 +16,7 @@ import {
 } from "./_components/admin-ui";
 import { RefreshButton, fromDays } from "./_components/filters";
 import { Sparkline } from "./_components/sparkline";
+import { FundingPanel } from "./_components/funding-panel";
 
 interface Payload {
   overview: PlatformOverview | null;
@@ -97,6 +98,8 @@ export default function AdminHomePage() {
           />
         }
       />
+
+      <FundingPanel />
 
       {loading ? (
         <Loading />

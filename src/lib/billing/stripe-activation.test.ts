@@ -60,6 +60,37 @@ beforeEach(() => {
   process.env.STRIPE_SECRET_KEY = 'sk_test_fake';
   m.wallet.mockResolvedValue(undefined);
 });
+it.each([9900, 39900])(
+  'tracks the %s-cent agreed price when a managed pilot schedule advances',
+  async (amount) => {
+    const f = fixture('active');
+    Object.assign(f.sub.metadata, {
+      billing_agreement: 'scheduled_fixed_price',
+    });
+    Object.assign(f.sub, { discounts: [] });
+    Object.assign(f.sub.items.data[0], {
+      price: {
+        unit_amount: amount,
+        currency: 'usd',
+        recurring: { interval: 'month' },
+      },
+    });
+    await aplicarEvento(f.db, f.event);
+    expect(f.writes[0]).toMatchObject({ precio_centavos_override: amount });
+  }
+);
+it('preserves an ordinary negotiated price without a managed schedule marker', async () => {
+  const f = fixture('active');
+  Object.assign(f.sub.items.data[0], {
+    price: {
+      unit_amount: 39900,
+      currency: 'usd',
+      recurring: { interval: 'month' },
+    },
+  });
+  await aplicarEvento(f.db, f.event);
+  expect(f.writes[0]).not.toHaveProperty('precio_centavos_override');
+});
 it.each(['trialing', 'active'])(
   'activates a verified %s subscription from the completed admin checkout',
   async (status) => {
@@ -110,7 +141,10 @@ it('fails for webhook retry before publishing activation when wallet preparation
 
 it('uses current Stripe state rather than a delayed subscription update', async () => {
   const f = fixture('active');
-  const delayed = { type: 'customer.subscription.updated', data: { object: { ...f.sub, status: 'past_due' } } } as unknown as Stripe.Event;
+  const delayed = {
+    type: 'customer.subscription.updated',
+    data: { object: { ...f.sub, status: 'past_due' } },
+  } as unknown as Stripe.Event;
   await aplicarEvento(f.db, delayed);
   expect(m.retrieve).toHaveBeenCalledWith('sub-1');
   expect(f.writes[0]).toMatchObject({ estado: 'activa', vencida_desde: null });

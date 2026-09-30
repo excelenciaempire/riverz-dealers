@@ -2,6 +2,87 @@ import type { Namespace } from './types';
 
 /** Panel de plataforma (riverz.co/admin) — solo equipo Riverz. */
 export const admin = {
+  fundingTitle: { es: 'Cuánto recargar', en: 'How much to top up' },
+  fundingHorizon: { es: 'Días de cobertura', en: 'Coverage days' },
+  fundingDays: { es: '{n} días', en: '{n} days' },
+  fundingTopUp: { es: 'Recarga recomendada', en: 'Recommended top-up' },
+  fundingPartial: {
+    es: '{n} proveedor(es) sin monto calculable',
+    en: '{n} provider(s) without a calculable amount',
+  },
+  fundingMerchants: {
+    es: 'Saldo total de comercios',
+    en: 'Total merchant balance',
+  },
+  fundingAvailable: {
+    es: '{amount} disponibles · {n} comercios',
+    en: '{amount} available · {n} merchants',
+  },
+  fundingDaily: { es: 'Consumo diario registrado', en: 'Recorded daily usage' },
+  fundingBasis: {
+    es: 'Promedio de los últimos 7 días',
+    en: 'Average over the last 7 days',
+  },
+  fundingPolicy: {
+    es: 'Estimación por proveedor según consumo reciente y reserva mínima. No incluye mensualidades ni consumo fuera de Riverz.',
+    en: 'Estimate per provider based on recent usage and a minimum reserve. Excludes subscriptions and usage outside Riverz.',
+  },
+  fundingProvider: { es: 'Proveedor', en: 'Provider' },
+  fundingBalance: { es: 'Saldo disponible', en: 'Available balance' },
+  fundingRunway: { es: 'Duración estimada', en: 'Estimated runway' },
+  fundingRecommended: { es: 'Recargar', en: 'Top up' },
+  fundingTarget: { es: 'Objetivo: {amount}', en: 'Target: {amount}' },
+  fundingAction: { es: 'Acción', en: 'Action' },
+  fundingEstimated: {
+    es: 'Estimado desde saldo confirmado',
+    en: 'Estimated from confirmed balance',
+  },
+  fundingConfirm: { es: 'Saldo por confirmar', en: 'Confirm balance' },
+  fundingLiveApi: { es: 'Consultado por API', en: 'Queried via API' },
+  fundingRecord: { es: 'Confirmar saldo', en: 'Confirm balance' },
+  fundingBalanceUsd: {
+    es: 'Saldo actual en USD',
+    en: 'Current balance in USD',
+  },
+  fundingManualHint: {
+    es: 'Copia el saldo del proveedor. Se descuenta el consumo registrado en Riverz; confirma de nuevo tras recargar o en 24 horas.',
+    en: 'Copy the provider balance. Recorded Riverz usage is deducted; confirm again after topping up or within 24 hours.',
+  },
+  fundingSaved: { es: 'Saldo confirmado', en: 'Balance confirmed' },
+  fundingSave: { es: 'Guardar', en: 'Save' },
+  fundingSaving: { es: 'Guardando…', en: 'Saving…' },
+  fundingCancel: { es: 'Cancelar', en: 'Cancel' },
+  fundingInvalidBalance: {
+    es: 'Ingresa un proveedor válido y un saldo entre 0 y 1.000.000 USD.',
+    en: 'Enter a valid provider and a balance between 0 and 1,000,000 USD.',
+  },
+  fundingSaveError: {
+    es: 'No se pudo guardar el saldo.',
+    en: 'Could not save the balance.',
+  },
+  fundingStale: {
+    es: 'Actualización atrasada. Revisa la hora antes de recargar.',
+    en: 'Update is overdue. Check the timestamp before topping up.',
+  },
+  fundingProviderError: {
+    es: 'No se pudo consultar proveedores. El saldo de comercios sigue actualizado.',
+    en: 'Providers could not be queried. Merchant balances are still current.',
+  },
+  fundingUpdated: {
+    es: 'Comercios: {date} · Proveedores: {providers}',
+    en: 'Merchants: {date} · Providers: {providers}',
+  },
+  fundingUnallocated: {
+    es: '{amount} de consumo semanal sin proveedor calculable; no está incluido en la recarga.',
+    en: '{amount} of weekly usage has no calculable provider; it is excluded from the top-up.',
+  },
+  fundingCredits: { es: 'Créditos del plan', en: 'Plan credits' },
+  fundingCreditCount: { es: '{n} créditos', en: '{n} credits' },
+  fundingUsageLimit: {
+    es: 'Disponible hasta el límite de gasto; no es saldo prepago',
+    en: 'Headroom to spending limit; not prepaid credit',
+  },
+
   providerAlertRemaining: { es: ' (quedan {value} {unit})', en: ' ({value} {unit} remaining)' },
   providerAlertEmpty: { es: '· {name} SIN SALDO — revisar: {url}', en: '· {name} OUT OF CREDIT — check: {url}' },
   providerAlertLow: { es: '· {name} con poco saldo{balance} — recargar: {url}', en: '· {name} low credit{balance} — top up: {url}' },

@@ -634,6 +634,14 @@ export async function aplicarEvento(
       periodo_desde: desde ? new Date(desde * 1000).toISOString() : null,
       periodo_hasta: hasta ? new Date(hasta * 1000).toISOString() : null,
       cancelar_al_final: sub.cancel_at_period_end === true,
+      // Fixed-price schedules advance the agreed monthly price automatically.
+      // Only schedules explicitly managed by Riverz carry this marker.
+      ...(sub.metadata?.billing_agreement === 'scheduled_fixed_price' &&
+          sub.items.data.length === 1 && (sub.discounts?.length ?? 0) === 0 &&
+          item?.price?.currency === 'usd' &&
+          item.price.recurring?.interval === 'month' &&
+          item.price.unit_amount != null && item.price.unit_amount > 0
+        ? { precio_centavos_override: item.price.unit_amount } : {}),
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'workspace_id' },

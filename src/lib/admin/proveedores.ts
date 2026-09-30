@@ -27,10 +27,22 @@
 import { leerCostosFijosConCache, type Fijos } from './costos-fijos'
 import { leerCostoIa, proveedorDeModelo } from './costo-ia'
 import { leerSaldoDeStripe } from './stripe-saldo'
-import { leerEstadoDeClaves, leerClaveAnthropicParaSonda, type OrigenDeClave } from './claves'
+import {
+  leerEstadoDeClaves,
+  leerClaveAnthropicParaSonda,
+  proveedorConClave,
+  proveedorActivoEnAdmin,
+  type OrigenDeClave,
+} from './claves'
 import { sondaJev } from '@/lib/ai/jev'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { activeCreditState, creditFailure } from './provider-credit'
+
+export async function claveParaSaldo(id: string): Promise<string | null> {
+  if (id === 'anthropic') return leerClaveAnthropicParaSonda()
+  const provider = proveedorConClave(id)
+  return provider ? process.env[provider.envVar] || null : null
+}
 
 export type EstadoProveedor =
   | 'ok'
@@ -40,7 +52,12 @@ export type EstadoProveedor =
   | 'sin_llave'
   | 'error'
 
-export type CategoriaProveedor = 'llm' | 'voz' | 'mensajeria' | 'infra' | 'ingresos'
+export type CategoriaProveedor =
+  | 'llm'
+  | 'voz'
+  | 'mensajeria'
+  | 'infra'
+  | 'ingresos'
 
 export interface Proveedor {
   /** Identificador estable, para el orden y las claves de React. */
@@ -124,7 +141,10 @@ async function pedir(url: string, init: RequestInit = {}): Promise<Response> {
   try {
     return await fetch(url, {
       ...init,
-      headers: { 'user-agent': UA, ...(init.headers as Record<string, string>) },
+      headers: {
+        'user-agent': UA,
+        ...(init.headers as Record<string, string>),
+      },
       signal: ctrl.signal,
       cache: 'no-store',
     })
@@ -192,8 +212,10 @@ async function telnyx(): Promise<Proveedor> {
     })
     const j = await r.json()
     const b = j?.data
-    if (!b) return { ...p, detalleKey: 'admin.svcNoData' }
-    const credito = Number(b.available_credit ?? b.balance ?? 0)
+    const value = b?.available_credit ?? b?.balance
+    if (!r.ok || value == null || !Number.isFinite(Number(value)))
+      return { ...p, detalleKey: 'admin.svcNoData' }
+    const credito = Number(value)
     return {
       ...p,
       estado: porUmbral(credito, 10),
@@ -223,11 +245,17 @@ async function deepgram(): Promise<Proveedor> {
     const pj = await pr.json()
     const pid = pj?.projects?.[0]?.project_id
     if (!pid) return { ...p, detalleKey: 'admin.svcNoProject' }
-    const br = await pedir(`https://api.deepgram.com/v1/projects/${pid}/balances`, {
-      headers: { Authorization: `Token ${key}` },
-    })
+    const br = await pedir(
+      `https://api.deepgram.com/v1/projects/${pid}/balances`,
+      {
+        headers: { Authorization: `Token ${key}` },
+      },
+    )
     const bj = await br.json()
-    const monto = Number(bj?.balances?.[0]?.amount ?? 0)
+    const amount = bj?.balances?.[0]?.amount
+    if (!pr.ok || !br.ok || amount == null || !Number.isFinite(Number(amount)))
+      return { ...p, detalleKey: 'admin.svcNoData' }
+    const monto = Number(amount)
     return { ...p, estado: porUmbral(monto, 15), saldo: monto, unidad: 'USD' }
   } catch {
     return sinRespuesta(p)
@@ -251,7 +279,9 @@ async function fishAudio(): Promise<Proveedor> {
     })
     const j = await r.json()
     // `credit` viene como string en la API de Fish.
-    const credito = Number(j?.credit ?? 0)
+    if (!r.ok || j?.credit == null || !Number.isFinite(Number(j.credit)))
+      return { ...p, detalleKey: 'admin.svcNoData' }
+    const credito = Number(j.credit)
     return {
       ...p,
       estado: porUmbral(credito, 5),
@@ -282,8 +312,21 @@ async function elevenlabs(): Promise<Proveedor> {
       headers: { 'xi-api-key': key },
     })
     const j = await r.json()
-    const quedan = Number(j?.character_limit ?? 0) - Number(j?.character_count ?? 0)
-    return { ...p, estado: porUmbral(quedan, 5000), saldo: quedan, unidad: 'chars' }
+    if (
+      !r.ok ||
+      j?.character_limit == null ||
+      j?.character_count == null ||
+      !Number.isFinite(Number(j.character_limit)) ||
+      !Number.isFinite(Number(j.character_count))
+    )
+      return { ...p, detalleKey: 'admin.svcNoData' }
+    const quedan = Number(j.character_limit) - Number(j.character_count)
+    return {
+      ...p,
+      estado: porUmbral(quedan, 5000),
+      saldo: quedan,
+      unidad: 'chars',
+    }
   } catch {
     return sinRespuesta(p)
   }
@@ -313,7 +356,8 @@ async function stripe(): Promise<Proveedor> {
   // mostraban números distintos para la misma pregunta. Una sola lectura, una
   // sola respuesta.
   const s = await leerSaldoDeStripe()
-  if (s.errorKey === 'admin.fixedMissingEnv') return sinLlave(p, s.error ?? 'STRIPE_SECRET_KEY')
+  if (s.errorKey === 'admin.fixedMissingEnv')
+    return sinLlave(p, s.error ?? 'STRIPE_SECRET_KEY')
   if (s.disponibleUsd === null) {
     return s.errorKey === 'admin.svcNoAnswer'
       ? sinRespuesta(p)
@@ -350,11 +394,22 @@ async function sondaOpenAICompat(
   detalleKey: string,
   url: string,
   llave: string,
+  soloSaldo = false,
 ): Promise<Proveedor> {
-  const p = base({ id, nombre, categoria: 'llm', recargable: true, url, detalleKey })
+  const p = base({
+    id,
+    nombre,
+    categoria: 'llm',
+    recargable: true,
+    url,
+    detalleKey,
+  })
   if (!key) return sinLlave(p, llave)
 
-  const cabeceras = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }
+  const cabeceras = {
+    Authorization: `Bearer ${key}`,
+    'Content-Type': 'application/json',
+  }
   const tirar = (m: string) =>
     pedir(`${baseUrl}/chat/completions`, {
       method: 'POST',
@@ -367,6 +422,30 @@ async function sondaOpenAICompat(
     })
 
   try {
+    if (soloSaldo) {
+      const r = await pedir(`${baseUrl}/models`, { headers: cabeceras })
+      if (r.ok)
+        return {
+          ...p,
+          estado: 'desconocido',
+          detalleKey: 'admin.svcNoBalanceApi',
+        }
+      if (
+        creditFailure(
+          r.status,
+          await r
+            .clone()
+            .json()
+            .catch(() => null),
+        )
+      )
+        return { ...p, estado: 'sin_saldo', detalleKey: 'admin.svcNoCredit' }
+      return {
+        ...p,
+        detalleKey: 'admin.svcHttpError',
+        detalle: `HTTP ${r.status}`,
+      }
+    }
     let r = await tirar(modelo)
 
     // El modelo de la sonda se pudre solo: Groq retiró `llama-3.1-8b-instant` y
@@ -382,10 +461,148 @@ async function sondaOpenAICompat(
     }
 
     if (r.status === 200) return { ...p, estado: 'ok' }
-    if (creditFailure(r.status, await r.clone().json().catch(() => null)))
+    if (
+      creditFailure(
+        r.status,
+        await r
+          .clone()
+          .json()
+          .catch(() => null),
+      )
+    )
       return { ...p, estado: 'sin_saldo', detalleKey: 'admin.svcNoCredit' }
-    if (r.status === 429) return { ...p, estado: 'bajo', detalleKey: 'admin.svcRateLimited' }
-    return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
+    if (r.status === 429)
+      return { ...p, estado: 'bajo', detalleKey: 'admin.svcRateLimited' }
+    return {
+      ...p,
+      detalleKey: 'admin.svcHttpError',
+      detalle: `HTTP ${r.status}`,
+    }
+  } catch {
+    return sinRespuesta(p)
+  }
+}
+
+/** Only free, read-only requests. Safe to refresh while the admin is open. */
+export async function leerSaldosParaRecarga(): Promise<{
+  proveedores: Proveedor[]
+  consultadoAt: string
+}> {
+  if (saldoCache && Date.now() - saldoCache.at < CACHE_TTL_MS)
+    return saldoCache.data
+  if (saldoEnVuelo) return saldoEnVuelo
+  saldoEnVuelo = (async () => {
+    const proveedores = await Promise.all([
+      anthropic(),
+      sondaOpenAICompat(
+        'groq',
+        'Groq',
+        'https://api.groq.com/openai/v1',
+        process.env.GROQ_API_KEY,
+        '',
+        'admin.svcBackupLlm',
+        'https://console.groq.com/settings/billing',
+        'GROQ_API_KEY',
+        true,
+      ),
+      sondaOpenAICompat(
+        'openai',
+        'OpenAI',
+        'https://api.openai.com/v1',
+        process.env.OPENAI_API_KEY,
+        '',
+        'admin.svcGpt',
+        'https://platform.openai.com/settings/organization/billing',
+        'OPENAI_API_KEY',
+        true,
+      ),
+      sondaOpenAICompat(
+        'cerebras',
+        'Cerebras',
+        'https://api.cerebras.ai/v1',
+        process.env.CEREBRAS_API_KEY,
+        '',
+        'admin.svcVoiceLlm',
+        'https://cloud.cerebras.ai/',
+        'CEREBRAS_API_KEY',
+        true,
+      ),
+      gemini(),
+      typesafe(),
+      telnyx(),
+      deepgram(),
+      fishAudio(),
+      elevenlabs(),
+      firecrawlBalance(),
+    ])
+    const { data: signals, error } = await supabaseAdmin()
+      .from('platform_provider_credit_signals')
+      .select('provider, key_digest, state')
+    const keys: Record<string, string | null | undefined> = {
+      anthropic: await leerClaveAnthropicParaSonda().catch(() => null),
+      gemini: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+      typesafe: process.env.TYPESAFE_API_KEY,
+    }
+    const data = {
+      proveedores: proveedores
+        .filter((p) => proveedorActivoEnAdmin(p.id))
+        .map((p) => {
+          if (p.estado !== 'desconocido' || !keys[p.id]) return p
+          if (error)
+            return {
+              ...p,
+              estado: 'error' as const,
+              detalleKey: 'admin.svcNoAnswer',
+            }
+          return activeCreditState(p.id, keys[p.id]!, signals ?? []) ===
+            'sin_saldo'
+            ? {
+                ...p,
+                estado: 'sin_saldo' as const,
+                detalleKey: 'admin.svcNoCredit',
+              }
+            : p
+        }),
+      consultadoAt: new Date().toISOString(),
+    }
+    saldoCache = { at: Date.now(), data }
+    return data
+  })().finally(() => {
+    saldoEnVuelo = null
+  })
+  return saldoEnVuelo
+}
+
+async function firecrawlBalance(): Promise<Proveedor> {
+  const p = base({
+    id: 'firecrawl',
+    nombre: 'Firecrawl',
+    categoria: 'infra',
+    recargable: true,
+    url: 'https://www.firecrawl.dev/app/usage',
+  })
+  const key = process.env.FIRECRAWL_API_KEY
+  if (!key) return sinLlave(p, 'FIRECRAWL_API_KEY')
+  try {
+    const r = await pedir('https://api.firecrawl.dev/v2/team/credit-usage', {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    const j = await r.json()
+    const remaining = j?.data?.remainingCredits
+    if (
+      !r.ok ||
+      remaining === null ||
+      remaining === undefined ||
+      !Number.isFinite(Number(remaining))
+    )
+      return { ...p, detalleKey: 'admin.svcNoData' }
+    return {
+      ...p,
+      saldo: Number(remaining),
+      unidad: 'credits',
+      estado: porUmbral(Number(remaining), 100),
+      detalleKey: 'admin.fundingCredits',
+    }
   } catch {
     return sinRespuesta(p)
   }
@@ -399,7 +616,9 @@ async function primerModelo(
   try {
     const r = await pedir(`${baseUrl}/models`, { headers: cabeceras })
     if (!r.ok) return null
-    const j = (await r.json()) as { data?: { id?: string; active?: boolean }[] }
+    const j = (await r.json()) as {
+      data?: { id?: string; active?: boolean }[]
+    }
     const vivo = (j.data ?? []).find((m) => m.id && m.active !== false)
     return vivo?.id ?? null
   } catch {
@@ -433,10 +652,18 @@ async function anthropic(): Promise<Proveedor> {
       },
     })
     if (r.status === 200)
-      return { ...p, estado: 'desconocido', detalleKey: 'admin.svcNoBalanceApi' }
+      return {
+        ...p,
+        estado: 'desconocido',
+        detalleKey: 'admin.svcNoBalanceApi',
+      }
     if (r.status === 429)
       return { ...p, estado: 'bajo', detalleKey: 'admin.svcRateLimited' }
-    return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
+    return {
+      ...p,
+      detalleKey: 'admin.svcHttpError',
+      detalle: `HTTP ${r.status}`,
+    }
   } catch {
     return sinRespuesta(p)
   }
@@ -458,11 +685,18 @@ async function gemini(): Promise<Proveedor> {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
   if (!key) return sinLlave(p, 'GEMINI_API_KEY')
   try {
-    const r = await pedir('https://generativelanguage.googleapis.com/v1beta/models', {
-      headers: { 'x-goog-api-key': key },
-    })
+    const r = await pedir(
+      'https://generativelanguage.googleapis.com/v1beta/models',
+      {
+        headers: { 'x-goog-api-key': key },
+      },
+    )
     if (r.status === 200) return { ...p, estado: 'desconocido' }
-    return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
+    return {
+      ...p,
+      detalleKey: 'admin.svcHttpError',
+      detalle: `HTTP ${r.status}`,
+    }
   } catch {
     return sinRespuesta(p)
   }
@@ -483,7 +717,11 @@ async function typesafe(): Promise<Proveedor> {
     // `GET /models` no cobra y contesta 401 con una llave mala.
     const r = await sondaJev(key)
     if (r.ok) return { ...p, estado: 'desconocido' }
-    return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
+    return {
+      ...p,
+      detalleKey: 'admin.svcHttpError',
+      detalle: `HTTP ${r.status}`,
+    }
   } catch {
     return sinRespuesta(p)
   }
@@ -535,14 +773,19 @@ async function supabase(): Promise<Proveedor> {
   })
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !key) return sinLlave(p, 'SUPABASE_SERVICE_ROLE_KEY')
   try {
     const r = await pedir(`${url}/rest/v1/`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
     })
     if (r.ok) return { ...p, estado: 'ok' }
-    return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
+    return {
+      ...p,
+      detalleKey: 'admin.svcHttpError',
+      detalle: `HTTP ${r.status}`,
+    }
   } catch {
     return sinRespuesta(p)
   }
@@ -598,7 +841,11 @@ async function resend(): Promise<Proveedor> {
         return { ...p, estado: 'ok', detalleKey: 'admin.svcEmailSendOnly' }
       }
     }
-    return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
+    return {
+      ...p,
+      detalleKey: 'admin.svcHttpError',
+      detalle: `HTTP ${r.status}`,
+    }
   } catch {
     return sinRespuesta(p)
   }
@@ -655,7 +902,9 @@ async function consumoPorProveedor(): Promise<Map<string, { usdMes: number }>> {
   const porProveedor = new Map<string, { usdMes: number }>()
   try {
     const ahora = new Date()
-    const desde = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), 1))
+    const desde = new Date(
+      Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), 1),
+    )
     const costo = await leerCostoIa(supabaseAdmin(), { desde, hasta: ahora })
 
     for (const cuenta of costo.porCuenta.values()) {
@@ -751,7 +1000,9 @@ export async function leerProveedores(): Promise<EstadoDeProveedores> {
   ])
 
   let proveedores = sondas
-    .filter((r): r is PromiseFulfilledResult<Proveedor> => r.status === 'fulfilled')
+    .filter(
+      (r): r is PromiseFulfilledResult<Proveedor> => r.status === 'fulfilled',
+    )
     .map((r) => r.value)
     .map((p) => {
       const gasto = consumo.get(p.id)
@@ -759,13 +1010,16 @@ export async function leerProveedores(): Promise<EstadoDeProveedores> {
       return {
         ...p,
         ...(gasto ? { consumo: gasto } : {}),
-        ...(llave ? { llave: { origen: llave.origen, pista: llave.pista } } : {}),
+        ...(llave
+          ? { llave: { origen: llave.origen, pista: llave.pista } }
+          : {}),
       }
     })
 
   // A free model catalog cannot prove that paid usage still has credit.
   // Real platform calls record credit refusals; BYOK calls never do.
-  const signals = await supabaseAdmin().from('platform_provider_credit_signals')
+  const signals = await supabaseAdmin()
+    .from('platform_provider_credit_signals')
     .select('provider, key_digest, state')
   const keys: Record<string, string | null | undefined> = {
     anthropic: await leerClaveAnthropicParaSonda().catch(() => null),
@@ -774,8 +1028,14 @@ export async function leerProveedores(): Promise<EstadoDeProveedores> {
   }
   proveedores = proveedores.map((p) => {
     if (p.estado !== 'desconocido' || !keys[p.id]) return p
-    if (signals.error) return { ...p, estado: 'error' as const, detalleKey: 'admin.svcNoAnswer' }
-    return activeCreditState(p.id, keys[p.id]!, signals.data ?? []) === 'sin_saldo'
+    if (signals.error)
+      return {
+        ...p,
+        estado: 'error' as const,
+        detalleKey: 'admin.svcNoAnswer',
+      }
+    return activeCreditState(p.id, keys[p.id]!, signals.data ?? []) ===
+      'sin_saldo'
       ? { ...p, estado: 'sin_saldo' as const, detalleKey: 'admin.svcNoCredit' }
       : p
   })
@@ -803,6 +1063,14 @@ const CACHE_TTL_MS = 55_000
 
 let cache: { at: number; data: EstadoDeProveedores } | null = null
 let enVuelo: Promise<EstadoDeProveedores> | null = null
+let saldoCache: {
+  at: number
+  data: { proveedores: Proveedor[]; consultadoAt: string }
+} | null = null
+let saldoEnVuelo: Promise<{
+  proveedores: Proveedor[]
+  consultadoAt: string
+}> | null = null
 
 export async function leerProveedoresConCache(): Promise<EstadoDeProveedores> {
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.data

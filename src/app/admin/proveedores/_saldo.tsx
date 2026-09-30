@@ -19,6 +19,7 @@ import {
   type Tone,
 } from "../_components/admin-ui";
 import { RefreshButton } from "../_components/filters";
+import { FundingPanel } from "../_components/funding-panel";
 
 /**
  * Todo lo que hay que pagar para que Riverz siga prendido.
@@ -86,6 +87,7 @@ export function Saldo() {
 
   return (
     <div className="space-y-6">
+      <FundingPanel />
       <PageHeader
         title={t("admin.sectionProviders")}
         description={t("admin.sectionProvidersDesc")}
