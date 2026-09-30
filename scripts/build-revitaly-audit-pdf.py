@@ -158,6 +158,8 @@ recovery = read('comment-recovery')
 recovered_comments = {r['inboundId'] for r in recovery['evidence'] if r['outcome'] == 'sent_verified'}
 assert len(recovered_comments) == 5
 assert len(recovered_comments & {m['id'] for m in comment_messages if m['conversation_id'] in comment_block_groups['error']}) == 4
+remaining_visibility = read('remaining-comment-visibility')['evidence']
+assert len(remaining_visibility) == 6 and all(r['http'] == 200 and r['hidden'] is True for r in remaining_visibility)
 
 def sentiment_image():
     """Generate a sharp chart image from the classified source comments."""
@@ -374,7 +376,7 @@ for i, (title, body) in enumerate(comment_analysis):
 end = p.wrap(42, 619, 'Al corte: 11 hilos sin respuesta, por saldo (5), fallos (4) y filtros (2), incluidos comentarios ocultos.', leading=17)
 assert end <= 657
 p.text(42, 684, '5 respuestas recuperadas', 'Serif', 27)
-end = p.wrap(42, 711, 'Se respondieron los 4 comentarios con error y 1 consulta de compra bloqueada por saldo. Meta y la bandeja confirmaron las respuestas el 30 de septiembre, hasta las 19:30 de Argentina.', leading=17)
+end = p.wrap(42, 711, 'Se respondieron los 4 comentarios con error y 1 consulta bloqueada por saldo; verificados en Meta y la bandeja. Los otros 6 hilos siguen ocultos. Envíos: 30/9, de 19:20 a 19:30 (Argentina).', leading=17)
 assert end <= 766
 end = p.wrap(42, 773, 'Corregido el envío. Recuperación automática con verificación para evitar duplicados y anuncios de privados que no se enviaron.', size=12.5, leading=16)
 assert end-16+4 <= 796
@@ -431,6 +433,7 @@ proof = {'file': str(OUT), 'pages': len(doc), 'periodEscalations': len(cases),
          'commentTopics': dict(comment_topics), 'unansweredCommentCauses': {k: len(v) for k, v in comment_block_groups.items()},
          'commentTone': {label: {'count': len(ids), 'percent': round(100*len(ids)/38, 1), 'messageIds': sorted(ids)} for label, ids, _ in sentiment_groups},
          'recoveredCommentsAfterCutoff': len(recovered_comments), 'recoveryVerifiedAt': recovery['capturedAt'],
+         'remainingUnansweredThreadsVerifiedHidden': len(remaining_visibility),
          'embeddedImages': sum(len(page.get_images()) for page in doc),
          'hiddenUnansweredCommentThreads': hidden_unanswered_comments,
          'escalationCategories': len(REASONS), 'individualCasesListed': False, 'appendices': False,
