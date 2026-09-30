@@ -5,6 +5,7 @@ Requires reportlab and PyMuPDF. Source customer records remain in ignored output
 """
 from pathlib import Path
 from collections import Counter
+from datetime import datetime, timezone
 import json
 import re
 import unicodedata
@@ -30,49 +31,53 @@ for alias, name in [('Sans', 'Sans-full.ttf'), ('Semi', 'Semi-full.ttf'),
 def read(name):
     return json.loads((DATA / f'{name}.json').read_text(encoding='utf-8'))
 
-metrics, cases = read('metrics'), read('escalamientos')
+metrics, historical_cases = read('metrics'), read('escalamientos')
 source = read('source')
+reviewed = read('reviewed-conversations')
 assert source['capturedAt'] == metrics['capturedAt']
 assert metrics['all']['total'] == 2098
 assert metrics['customer_service']['total'] == 559
 assert (metrics['all']['missed_reply'], metrics['all']['premature']) == (53, 10)
-assert (metrics['sinceSept26']['total'], metrics['sinceSept26']['ai_only_period'],
-        metrics['sinceSept26']['human_required_in_period']) == (204, 135, 43)
-assert len(cases) == 135
+assert len(historical_cases) == 135
 
-# Count recorded successful AI sends, not attempts or manual/outbound campaigns.
-# Comment-generated private replies belong to conversations, not public replies.
-channels = {c['id']: c['channel'] for c in source['conversations']}
-sent = [m for m in source['messages']
-        if m['sender_type'] in {'agent', 'bot'}
-        and m['origin'] in {'ai_agent', 'comment_ai'}
-        and m['status'] in {'sent', 'delivered', 'read'}]
-public = [m for m in sent if channels[m['conversation_id']] in {'fb_comment', 'ig_comment'}]
-private = [m for m in sent if channels[m['conversation_id']] not in {'fb_comment', 'ig_comment'}]
-answered = len({m['conversation_id'] for m in private})
-public_threads = len({m['conversation_id'] for m in public})
-assert (answered, len(private), len(public), public_threads) == (186, 838, 27, 26)
-human_rate = 100 * len(cases) / metrics['customer_service']['total']
-inbox_rate = 100 * len(cases) / metrics['all']['total']
+# The user selected September 26-30. Use local Argentine calendar days, not
+# the old all-history totals or the prior audit's UTC-midnight denominator.
+START = datetime(2026, 9, 26, 3, tzinfo=timezone.utc)
+END = datetime.fromisoformat(source['capturedAt'].replace('Z', '+00:00'))
+period_messages = [m for m in source['messages']
+                   if START <= datetime.fromisoformat(m['created_at']) <= END]
+active_ids = {m['conversation_id'] for m in period_messages}
+incoming_ids = {m['conversation_id'] for m in period_messages if m['sender_type'] == 'customer'}
+customer_ids = {c['id'] for c in reviewed if c['kind'] == 'customer_service' and c['id'] in incoming_ids}
+period_message_ids = {m['id'] for m in period_messages}
+cases = [{**c, 'periodEvidence': [e for e in c['evidence'] if e['message_id'] in period_message_ids]}
+         for c in historical_cases if c['id'] in customer_ids
+         and any(e['message_id'] in period_message_ids for e in c['evidence'])]
+assert (len(active_ids), len(incoming_ids), len(customer_ids), len(cases)) == (425, 345, 199, 43)
+assert sum(metrics['kinds'].values()) == len(source['conversations'])
+human_rate = 100 * len(cases) / len(customer_ids)
+inbox_rate = 100 * len(cases) / len(active_ids)
+not_escalated = len(customer_ids) - len(cases)
+response_issues = sum(any(e.get('message_id') in period_message_ids for e in c['missed_reply']) for c in reviewed)
+avoidable_blocks = sum(any(e.get('message_id') in period_message_ids for e in c['premature']) for c in reviewed)
+assert (response_issues, avoidable_blocks) == (50, 10)
 rate = lambda value: f'{value:.1f}%'.replace('.', ',')
 
 REASONS = [
-    ('Demora o disputa de entrega', 'Entregas demoradas o disputadas', 36,
-     'Reclamaron pedidos que no llegaron, demoras sin seguimiento y entregas marcadas como realizadas que negaron haber recibido.'),
-    ('Cambio de dirección, entrega o datos', 'Cambios de pedido o dirección', 26,
-     'Pidieron corregir domicilios o teléfonos y pasar de sucursal a domicilio. La IA no podía modificar el pedido.'),
-    ('Cancelación o reembolso', 'Cancelaciones y reembolsos', 23,
-     'Solicitaron cancelar compras o recuperar dinero por demoras, pedidos no recibidos o arrepentimiento. La IA no ejecutaba devoluciones.'),
-    ('Producto dañado, distinto o faltante', 'Productos dañados o faltantes', 18,
-     'Reportaron frascos rotos o con pérdidas y menos unidades que las compradas; por ejemplo, recibieron un shampoo de tres.'),
-    ('Acreditación o cobro', 'Pagos y cobros por verificar', 13,
-     'Enviaron comprobantes y reclamaron cobros sin pedido confirmado. La IA no podía verificar que el dinero hubiera ingresado.'),
-    ('Dato o decisión no verificada', 'Información o decisión comercial', 11,
-     'El cupón CARRITO25 falló y la web mostró falta de stock. También hubo dudas del producto y propuestas de canje publicitario.'),
-    ('Reclamo legal', 'Reclamos legales', 6,
-     'Hubo amenazas de denuncia y de carta documento, además de intimaciones para dejar de vender el producto.'),
-    ('Factura', 'Facturas', 2,
-     'Pidieron facturas A y C. Hubo una respuesta que solo confirmó la compra y otro cliente reiteró el pedido y anunció un reclamo.'),
+    ('Demora o disputa de entrega', 'Entregas demoradas o disputadas', 15,
+     'Reclamaron pedidos que no llegaron, falta de guía y demoras de despacho. Un pedido figuraba enviado, pero Andreani no lo registraba.'),
+    ('Dato o decisión no verificada', 'Información o decisión comercial', 10,
+     'CARRITO25 no funcionó y la web mostró falta de stock. Hubo dudas sobre el producto, puntos de retiro y propuestas de canje.'),
+    ('Cancelación o reembolso', 'Cancelaciones y reembolsos', 5,
+     'Pidieron cancelar o recuperar dinero por pedidos sin envío y direcciones incorrectas. Algunos insistieron tras ser enviados a WhatsApp.'),
+    ('Acreditación o cobro', 'Pagos y cobros por verificar', 5,
+     'Enviaron comprobantes de transferencia y hubo una tarjeta cobrada sin compra localizable. La IA no podía confirmar la acreditación.'),
+    ('Producto dañado, distinto o faltante', 'Productos dañados o faltantes', 4,
+     'Reclamaron menos unidades que las compradas, un envase rajado con pérdida y un reenvío prometido que no podían localizar.'),
+    ('Cambio de dirección, entrega o datos', 'Cambios de pedido o dirección', 3,
+     'Pidieron pasar de retiro en Punto Andreani a entrega a domicilio. Un pedido ya estaba en sucursal y la IA no podía modificarlo.'),
+    ('Reclamo legal', 'Reclamos legales', 1,
+     'Tras insistir por una dirección incorrecta y no recibir respuesta por WhatsApp, un cliente sospechó una estafa y mencionó acudir a la justicia.'),
 ]
 assert Counter(c['category'] for c in cases) == Counter({r[0]: r[2] for r in REASONS})
 
@@ -84,9 +89,9 @@ class PDF:
         OUT.parent.mkdir(parents=True, exist_ok=True)
         QA.mkdir(parents=True, exist_ok=True)
         self.c = canvas.Canvas(str(OUT), pagesize=(W, H), pageCompression=1)
-        self.c.setTitle('Revitaly | Resumen de auditoría y plan de trabajo | Riverz')
+        self.c.setTitle('Revitaly | Reporte de atención y plan de acción | Riverz')
         self.c.setAuthor('Riverz')
-        self.c.setSubject('Escalamientos reales, mejoras publicadas y propuestas en tres páginas')
+        self.c.setSubject('Análisis de conversaciones y escalamientos del 26 al 30 de septiembre de 2026 y plan de acción')
         self.page = 0
 
     def text(self, x, y, text, font='Sans', size=13, color=INK, width=511):
@@ -144,12 +149,6 @@ class PDF:
         self.text(523, 820, f'{self.page:02}', 'Semi', 9, MUTED)
         self.c.showPage()
 
-    def simple(self, y, title, body, height=65):
-        self.box(42, y, 511, height)
-        self.text(60, y+23, title, 'Semi', 15)
-        end = self.wrap(60, y+47, body, 475)
-        assert end-18+4 <= y+height-8, (self.page, title, end, y+height)
-
     def proposal(self, y, number, title, body, height=94):
         self.box(42, y, 511, height)
         self.box(60, y+10, 25, 25, LIME, 8)
@@ -160,40 +159,50 @@ class PDF:
 
 p = PDF()
 
-# 1. Cumulative recorded responses, genuine intervention and published fixes.
-p.header('Revitaly. Atención y mejoras.', '')
-for x, value, label, detail in [
-    (42, str(answered), 'Conversaciones\nrespondidas', f'{len(private)} respuestas de IA'),
-    (216, str(len(public)), 'Respuestas a\ncomentarios', f'En {public_threads} conversaciones'),
-    (390, rate(human_rate), 'Intervención\njustificada', '135 de 559 consultas'),
+# 1. One selected reporting period, activity totals and customer-only rates.
+p.header('Revitaly. Reporte de atención.', '26 al 30 de septiembre de 2026, hasta las 12:04 de Argentina.')
+for x, value, percentage, label, detail in [
+    (42, str(len(active_ids)), '100%', 'Conversaciones con\nactividad', 'Total del período'),
+    (304, str(len(cases)), rate(inbox_rate), 'Escalamientos\njustificados', 'Necesitaron intervención'),
 ]:
-    p.box(x, 182, 163, 137, PALE if x == 42 else CARD)
-    p.text(x+16, 226, value, 'Serif', 42, width=131)
-    end = p.wrap(x+16, 255, label, 131, size=12.5, leading=17, font='Semi')
-    assert end <= 289
-    p.text(x+16, 298, detail, size=12.5, width=131)
-p.text(42, 345, 'Corte: 30 de septiembre, 12:04 de Argentina.', size=12.5)
-end = p.wrap(42, 378, '2.098 conversaciones revisadas. El porcentaje considera solo consultas de clientes.')
-assert end-18+4 < 457
-p.text(42, 466, 'Tres mejoras ya publicadas', 'Serif', 27)
-p.simple(486, 'Transferencias',
-         'Envía titular, CVU y alias sin exigir pack ni dirección.', 87)
-p.simple(582, 'Consultas por correo',
-         'Responde preguntas del asunto aunque el correo no tenga texto.', 87)
-p.simple(678, 'Capturas de pantalla',
-         'Un botón de reembolso en una captura no provoca un escalamiento.', 87)
+    p.box(x, 182, 249, 138, PALE if x == 42 else CARD)
+    p.text(x+17, 226, value, 'Serif', 42, width=145)
+    p.text(x+164, 223, percentage, 'Semi', 20, width=68)
+    end = p.wrap(x+17, 262, label, 215, size=15, leading=19, font='Semi')
+    assert end <= 300
+    p.text(x+17, 307, detail, width=215)
+end = p.wrap(42, 352, 'La actividad total incluye avisos automáticos y mensajes salientes. La atención al cliente se mide aparte, sobre las consultas recibidas.')
+assert end-18+4 < 411
+p.text(42, 422, 'Atención al cliente', 'Serif', 27)
+p.box(42, 448, 511, 144)
+for i, (label, count, percentage) in enumerate([
+    ('Conversaciones con consultas', len(customer_ids), '100%'),
+    ('Con escalamiento justificado', len(cases), rate(human_rate)),
+    ('Sin motivo de escalamiento identificado', not_escalated, rate(100-human_rate)),
+]):
+    baseline = 478+i*48
+    p.text(60, baseline, label, 'Sans', 13, width=355)
+    p.text(436, baseline, str(count), 'Semi', 14, width=35)
+    p.text(485, baseline, percentage, 'Semi', 14, width=51)
+    if i < 2:
+        p.line(496+i*48)
+p.wrap(42, 621, 'Sin escalamiento identificado no equivale a resolución automática.', size=12.5)
+p.text(42, 672, 'Qué muestran los casos', 'Serif', 27)
+p.wrap(42, 703, 'Entregas demoradas o disputadas: 15 casos (34,9%). Información o decisiones comerciales: 10 (23,3%). Juntos concentraron el 58,1% de los 43 escalamientos.')
+end = p.wrap(42, 759, 'Además, se observaron 50 conversaciones con respuestas ausentes, tardías o incompletas y 10 bloqueos o derivaciones evitables.')
+assert end-18+4 <= 791
 p.end()
 
 # 2. The complete escalation analysis, grouped instead of listing customers.
-p.header('Por qué se escala a humano', 'Lo ocurrido en 135 casos revisados.')
+p.header('Por qué se escala a humano', 'Lo ocurrido en 43 casos del 26 al 30 de septiembre.')
 for i, (category, title, count, why) in enumerate(REASONS):
-    y = 174+i*75
-    p.box(42, y, 511, 70, CARD, 11)
+    y = 174+i*84
+    p.box(42, y, 511, 76, CARD, 11)
     p.text(60, y+22, title, 'Semi', 15, width=443)
     p.text(520, y+24, str(count), 'Serif', 25)
     end = p.wrap(60, y+44, why, 475, leading=17)
-    assert end-17+4 <= y+70-5, (title, end, y+70)
-p.wrap(42, 791, 'Histórico, no pendientes actuales. Puede incluir reclamos repetidos entre canales.', size=12.5)
+    assert end-17+4 <= y+76-5, (title, end, y+76)
+p.wrap(42, 791, 'Casos del período; no todos siguen pendientes y puede haber reclamos repetidos.', size=12.5)
 p.end()
 
 # 3. Six concrete customer-facing capabilities, covering all eight reasons.
@@ -205,8 +214,8 @@ plan = [
      'Sí, con seguimiento real de Andreani. Riverz informa el estado y avisa demoras. Si el cliente niega la entrega, logística debe investigar.'),
     ('Resolver faltantes y daños',
      'Parcialmente. Riverz reúne fotos y registra el reclamo. Para preparar un reemplazo en Shopify, hay que habilitar el flujo y acordar la política; el despacho queda en logística.'),
-    ('Confirmar pagos y enviar facturas',
-     'Puede automatizarse con nuevas conexiones: banco o billetera para verificar el pago, y sistema de facturación para emitir o reenviar la factura. Hoy requieren revisión del equipo.'),
+    ('Verificar transferencias y cobros',
+     'Puede automatizarse al conectar el banco o la billetera. Riverz compara el dinero recibido con el pedido; las diferencias o los cobros sin compra identificada pasan al equipo.'),
     ('Cancelar pedidos y devolver dinero',
      'Parcialmente: al habilitar la gestión, Riverz prepara pedido, monto y motivo. Una persona aprueba la cancelación o el reembolso; la IA no devuelve dinero por su cuenta.'),
     ('Responder más y escalar mejor',
@@ -224,13 +233,13 @@ assert len(doc) == p.page == 3
 assert len(doc.get_toc()) == 3
 text = '\n'.join(page.get_text() for page in doc)
 normalized_text = re.sub(r'\s+', ' ', text)
-assert all(token in normalized_text for token in ['186', '27', '838 respuestas de IA', '24,2%', '135 casos', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.'])
-assert all(token in normalized_text for token in ['Parcialmente', 'Puede automatizarse con nuevas conexiones', 'Una persona aprueba la cancelación o el reembolso', 'la IA no devuelve dinero por su cuenta'])
-assert all(token in normalized_text for token in ['CARRITO25 falló', 'un shampoo de tres', 'Pidieron facturas A y C', 'La IA no podía modificar el pedido'])
+assert all(token in normalized_text for token in ['425', '199', '43', '156', '10,1%', '21,6%', '78,4%', '26 al 30 de septiembre', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.'])
+assert all(token in normalized_text for token in ['Parcialmente', 'Puede automatizarse al conectar el banco', 'Una persona aprueba la cancelación o el reembolso', 'la IA no devuelve dinero por su cuenta'])
+assert all(token in normalized_text for token in ['CARRITO25 no funcionó', 'envase rajado con pérdida', 'IA no podía modificarlo'])
 assert 'Por qué se necesita al equipo' not in text and 'pedir el cambio al transportista' not in text
-assert all(removed not in normalized_text for removed in ['Validado en producción', 'RESULTADOS', 'ESCALAMIENTOS REALES', 'PLAN PROPUESTO', 'GUÍA DE CAPACIDADES', 'riverz.co |'])
+assert all(removed not in normalized_text for removed in ['mejoras', 'Mejoras', 'Validado en producción', 'RESULTADOS', 'ESCALAMIENTOS REALES', 'PLAN PROPUESTO', 'GUÍA DE CAPACIDADES', 'riverz.co |', '135 casos', '2.098', '24,2%'])
 assert '66,2%' not in text and '21,1%' not in text
-assert round(human_rate, 1) == 24.2 and round(inbox_rate, 1) == 6.4
+assert round(human_rate, 1) == 21.6 and round(inbox_rate, 1) == 10.1
 assert not re.search(r'\b[0-9a-f]{8}-[0-9a-f]{4}-', text)
 assert 'Anexo' not in text and '\ufffd' not in text
 bad_bounds = []
@@ -249,12 +258,15 @@ for i, page in enumerate(doc, 1):
     page.get_pixmap(matrix=pymupdf.Matrix(1.5, 1.5)).save(str(QA / f'page-{i:02}.png'))
 assert not bad_bounds, bad_bounds
 assert not small_body, small_body
-proof = {'file': str(OUT), 'pages': len(doc), 'historicalEscalations': 135,
-         'dataCapturedAt': source['capturedAt'], 'AIAnsweredConversations': answered,
-         'AIConversationMessages': len(private), 'publicCommentReplies': len(public),
-         'publicCommentThreads': public_threads, 'genuineInterventionDenominator': 559,
+proof = {'file': str(OUT), 'pages': len(doc), 'periodEscalations': len(cases),
+         'dataCapturedAt': source['capturedAt'], 'periodStartUTC': START.isoformat(),
+         'timezone': 'America/Argentina/Buenos_Aires', 'activeConversations': len(active_ids),
+         'receivedConversations': len(incoming_ids), 'customerConversations': len(customer_ids),
+         'withoutIdentifiedHumanNeed': not_escalated, 'genuineInterventionDenominator': len(customer_ids),
+         'responseIssueConversations': response_issues, 'avoidableBlockConversations': avoidable_blocks,
+         'genuineInterventionInboxPercent': round(inbox_rate, 1),
          'genuineInterventionPercent': round(human_rate, 1), 'proposedCapabilities': len(plan),
-         'escalationCategories': 8, 'individualCasesListed': False, 'appendices': False,
+         'escalationCategories': len(REASONS), 'individualCasesListed': False, 'appendices': False,
          'bodyFontPoints': 13, 'minimumSupportingTextPoints': 12.5,
          'undersizedBodyText': small_body,
          'outOfPageTextSpans': bad_bounds, 'bytes': OUT.stat().st_size}
