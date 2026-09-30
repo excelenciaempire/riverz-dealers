@@ -34,6 +34,16 @@ export const returns = {
 } satisfies Namespace;
 
 export const gaps = {
+  conflictCheck: { es:'Revisar posibles contradicciones',en:'Check possible contradictions' },
+  conflictWorking: { es:'Revisando fuentes…',en:'Checking sources…' },
+  conflictScope: { es:'Compara con reglas globales activas y las otras FAQs del producto elegido. No revisa documentos, otros productos ni reglas específicas de cada asistente. La revisión usa IA y consume saldo según tu configuración.',en:'Compares active global rules and other FAQs of the selected product. Does not review documents, other products or assistant-specific rules. The AI check uses credit according to your configuration.' },
+  conflictObserved: { es:'{n} fuentes revisadas · {date}',en:'{n} sources reviewed · {date}' },
+  conflictPartial: { es:'Se omitieron fuentes por el límite de cantidad o tamaño. La cobertura es parcial.',en:'Sources were omitted due to count or size limits. Coverage is partial.' },
+  conflictNoFindings: { es:'No se señalaron contradicciones en estas fuentes. Eso no garantiza que la respuesta sea correcta ni que se haya revisado todo el negocio.',en:'No contradictions were flagged in these sources. This does not guarantee that the answer is correct or that the entire business was reviewed.' },
+  conflictNoSources: { es:'No hay otras fuentes dentro del alcance de esta revisión para comparar.',en:'No other sources within this check’s scope are available for comparison.' },
+  conflictFailed: { es:'No se pudo completar la revisión. No se modificó el conocimiento.',en:'Could not complete the check. Knowledge was not changed.' },
+  conflictOpenSource: { es:'Ver fuente comparada',en:'View compared source' },
+  conflictDecision: { es:'Son avisos para tu revisión. Corrige o delimita la respuesta si hace falta; confirmar sigue siendo una decisión separada. Ninguna política se cambia automáticamente.',en:'These findings are for your review. Correct or narrow the answer if needed; confirmation remains a separate decision. No policy is changed automatically.' },
   caseContextUse: { es: 'Cuando vuelva a responder en este caso, el asistente puede consultar estas respuestas. Guardarlas no cambia quién atiende la conversación.', en: 'When it replies in this case again, the assistant can consult these answers. Saving them does not change who handles the conversation.' },
   caseNoticeTitle: { es: 'Riverz: pregunta pendiente para el equipo', en: 'Riverz: question awaiting the team' },
   caseNoticeBody: { es: 'Hay una pregunta pendiente de revisión. Ábrela y responde dentro de Riverz: {url}. Este aviso no recibe respuestas por WhatsApp.', en: 'A question needs review. Open it and answer inside Riverz: {url}. This notice does not accept WhatsApp replies.' },

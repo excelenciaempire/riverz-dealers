@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { useFormat } from '@/hooks/use-format';
 import Link from '@/components/i18n/locale-link';
+import { GapKnowledgeConflicts } from './gap-knowledge-conflicts';
 
 /**
  * Lo que el agente no supo contestar.
@@ -235,7 +236,7 @@ export function AnswerGapsPanel() {
                 className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-foreground/40"
               />
               {SHOW_RIVERZ_IMPROVEMENTS && <p className="text-xs text-muted-foreground">{t('gaps.permanent')}</p>}
-              {SHOW_RIVERZ_IMPROVEMENTS && review && <div className="space-y-2 rounded border p-2 text-xs"><p className="font-medium">{t('gaps.reviewTitle',{target:review.target_title})}</p><p className="whitespace-pre-wrap">{review.answer}</p>{review.previous_answers.length>0 && <div><p className="font-medium">{t('gaps.replaces')}</p>{review.previous_answers.map((a,i) => <p key={i} className="whitespace-pre-wrap">{a.a}</p>)}</div>}<p>{t('gaps.reviewSources',{n:fmt.number(review.source_count)})}</p><p>{t('gaps.reviewExpires',{date:fmt.dateTime(review.expires_at)})}</p><p>{t('gaps.notSent')}</p></div>}
+              {SHOW_RIVERZ_IMPROVEMENTS && review && <div className="space-y-2 rounded border p-2 text-xs"><p className="font-medium">{t('gaps.reviewTitle',{target:review.target_title})}</p><p className="whitespace-pre-wrap">{review.answer}</p>{review.previous_answers.length>0 && <div><p className="font-medium">{t('gaps.replaces')}</p>{review.previous_answers.map((a,i) => <p key={i} className="whitespace-pre-wrap">{a.a}</p>)}</div>}<p>{t('gaps.reviewSources',{n:fmt.number(review.source_count)})}</p><p>{t('gaps.reviewExpires',{date:fmt.dateTime(review.expires_at)})}</p><p>{t('gaps.notSent')}</p><GapKnowledgeConflicts key={review.id} reviewId={review.id} /></div>}
               <div className="flex justify-end">
                 <Button
                   type="button"

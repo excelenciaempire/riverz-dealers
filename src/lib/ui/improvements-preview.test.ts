@@ -23,7 +23,7 @@ describe('owner-controlled presentation of the Riverz improvements',() => {
    'src/components/inbox/shopify-contact-panel.tsx':['CaseOrderActions'],
    'src/components/inbox/conversation-list.tsx':['BulkCaseActions'],
    'src/components/ai/reglas-panel.tsx':['RuleVersions'],
-   'src/components/ai/answer-gaps-panel.tsx':['GapKnowledgeHistory'],
+   'src/components/ai/answer-gaps-panel.tsx':['GapKnowledgeHistory','GapKnowledgeConflicts'],
    'src/components/templates/template-builder.tsx':['TemplateAiDraft'],
   }
   for (const [path,names] of Object.entries(surfaces)) {
