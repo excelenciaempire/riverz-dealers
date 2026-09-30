@@ -127,12 +127,11 @@ class PDF:
         self.c.setLineWidth(.7)
         self.c.line(42, H-y, 553, H-y)
 
-    def header(self, label, title, subtitle):
+    def header(self, title, subtitle):
         self.page += 1
         self.c.setFillColor(BG)
         self.c.rect(0, 0, W, H, fill=1, stroke=0)
         self.text(42, 47, 'riverz', 'Logo', 24)
-        self.text(356, 44, label.upper(), 'Semi', 10, INK, 197)
         self.line(65)
         end = self.wrap(42, 118, title, size=34, leading=39, font='Serif')
         self.wrap(42, end-8, subtitle, size=13, leading=18)
@@ -142,7 +141,6 @@ class PDF:
 
     def end(self):
         self.line(802)
-        self.text(42, 820, 'riverz.co  |  Revitaly  |  30 septiembre 2026', size=9, color=MUTED)
         self.text(523, 820, f'{self.page:02}', 'Semi', 9, MUTED)
         self.c.showPage()
 
@@ -163,7 +161,7 @@ class PDF:
 p = PDF()
 
 # 1. Cumulative recorded responses, genuine intervention and published fixes.
-p.header('Resultados', 'Revitaly. Atención y mejoras.', '')
+p.header('Revitaly. Atención y mejoras.', '')
 for x, value, label, detail in [
     (42, str(answered), 'Conversaciones\nrespondidas', f'{len(private)} respuestas de IA'),
     (216, str(len(public)), 'Respuestas a\ncomentarios', f'En {public_threads} conversaciones'),
@@ -184,11 +182,10 @@ p.simple(582, 'Consultas por correo',
          'Responde preguntas del asunto aunque el correo no tenga texto.', 87)
 p.simple(678, 'Capturas de pantalla',
          'Un botón de reembolso en una captura no provoca un escalamiento.', 87)
-p.text(42, 787, 'Validado en producción.', size=12.5)
 p.end()
 
 # 2. The complete escalation analysis, grouped instead of listing customers.
-p.header('Escalamientos reales', 'Por qué se escala a humano', '135 casos históricos, por motivo principal.')
+p.header('Por qué se escala a humano', '135 casos históricos, por motivo principal.')
 for i, (category, title, count, why) in enumerate(REASONS):
     y = 182+i*70
     p.box(42, y, 511, 63, CARD, 11)
@@ -200,7 +197,7 @@ p.wrap(42, 764, 'Histórico, no pendientes actuales. Puede incluir reclamos repe
 p.end()
 
 # 3. Six concrete customer-facing capabilities, covering all eight reasons.
-p.header('Plan propuesto', 'Plan de acción', 'Acciones a habilitar según las reglas del comercio.')
+p.header('Plan de acción', 'Acciones a habilitar según las reglas del comercio.')
 plan = [
     ('Editar direcciones de pedidos',
      'En Shopify, cambiar calle, número, piso o código postal tras confirmar los datos con el cliente. Una vez despachado, no se modifica la dirección.'),
@@ -229,6 +226,7 @@ text = '\n'.join(page.get_text() for page in doc)
 normalized_text = re.sub(r'\s+', ' ', text)
 assert all(token in normalized_text for token in ['186', '27', '838 respuestas de IA', '24,2%', '135 casos', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'crear el pedido de reemplazo', 'Una vez despachado, no se modifica la dirección.'])
 assert 'Por qué se necesita al equipo' not in text and 'pedir el cambio al transportista' not in text
+assert all(removed not in normalized_text for removed in ['Validado en producción', 'RESULTADOS', 'ESCALAMIENTOS REALES', 'PLAN PROPUESTO', 'GUÍA DE CAPACIDADES', 'riverz.co |'])
 assert '66,2%' not in text and '21,1%' not in text
 assert round(human_rate, 1) == 24.2 and round(inbox_rate, 1) == 6.4
 assert not re.search(r'\b[0-9a-f]{8}-[0-9a-f]{4}-', text)
@@ -244,6 +242,8 @@ for i, page in enumerate(doc, 1):
                     bad_bounds.append((i, span['text'], span['bbox']))
                 if 75 <= y0 <= 792 and span['size'] < 12.5:
                     small_body.append((i, span['text'], span['size']))
+                if y0 < 75:
+                    assert span['text'] == 'riverz', (i, span['text'])
     page.get_pixmap(matrix=pymupdf.Matrix(1.5, 1.5)).save(str(QA / f'page-{i:02}.png'))
 assert not bad_bounds, bad_bounds
 assert not small_body, small_body
