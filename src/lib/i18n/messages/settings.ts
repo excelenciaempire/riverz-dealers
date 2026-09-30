@@ -1955,8 +1955,8 @@ export const settings = {
   },
   avisoGraciaCta: { es: 'Completar pago', en: 'Complete payment' },
   avisoMensualidadPausada: {
-    es: 'Tu IA está en pausa mientras completas la mensualidad. Puedes ponerte al día aquí y se reactivará automáticamente. Tu saldo se conserva.',
-    en: 'Your AI is paused while your monthly payment is pending. You can catch up here and it will resume automatically. Your balance is preserved.',
+    es: 'Tu cuenta está en modo lectura por ahora. Los mensajes y comentarios siguen llegando. Completa la mensualidad para volver a editar, responder y usar tu IA. Tu saldo se conserva.',
+    en: 'Your account is read-only for now. Messages and comments are still arriving. Complete your monthly payment to edit, reply and use AI again. Your balance is preserved.',
   },
   avisoSinSaldo: {
     es: 'Te quedaste sin saldo: la IA dejó de responder. La bandeja sigue abierta para contestar a mano.',
@@ -1968,6 +1968,39 @@ export const settings = {
     en: 'The AI is paused until the payment goes through. The inbox is still open to answer manually.',
   },
   impagoTitle: { es: 'La cuenta está pausada', en: 'Your account is paused' },
+  readOnlyTitle: { es: 'Tu cuenta está en modo lectura', en: 'Your account is read-only' },
+  billingRecoveryReview: {es:'Esta conversación quedó pendiente durante la pausa de mensualidad. Revísala antes de responder; puede tener una respuesta desde otra aplicación o necesitar atención manual.',en:'This conversation was pending during the monthly payment pause. Review it before replying; it may have been answered from another app or need manual attention.'},
+  readOnlyComposer: { es: 'Completa la mensualidad para volver a responder.', en: 'Complete your monthly payment to reply again.' },
+  readOnlyBody: {
+    es: 'Tus mensajes y comentarios siguen llegando. Completa la mensualidad para volver a editar, responder y usar tu IA. Tu saldo y tus datos se conservan.',
+    en: 'Messages and comments are still arriving. Complete your monthly payment to edit, reply and use AI again. Your balance and data are preserved.',
+  },
+  billingStateUnavailable: { es: 'No pudimos comprobar el pago. Intenta de nuevo en un momento.', en: 'We could not verify the payment. Please try again shortly.' },
+  billingPendingTitle: { es: 'Un pequeño recordatorio de tu mensualidad', en: 'A friendly reminder about your monthly payment' },
+  billingPendingBody: {
+    es: 'Hola, {nombre}. Tu mensualidad está pendiente. Puedes completar el pago aquí: {url}. Tienes hasta {fecha} para seguir usando Riverz con normalidad. Después, tu cuenta quedará en modo lectura: seguirás recibiendo mensajes y comentarios, pero no podrás editar, responder ni usar la IA. Tu saldo y tus datos se conservan.',
+    en: 'Hi, {nombre}. Your monthly payment is pending. You can complete it here: {url}. You have until {fecha} to keep using Riverz as usual. After that, your account becomes read-only: messages and comments will still arrive, but editing, replies and AI will pause. Your balance and data are preserved.',
+  },
+  billingPausedTitle: { es: 'Tu cuenta está en modo lectura por ahora', en: 'Your account is read-only for now' },
+  billingReminder6Title: { es: 'Un recordatorio antes de que termine tu plazo', en: 'A reminder before your grace period ends' },
+  billingReminder6Body: {
+    es: 'Hola, {nombre}. Te recordamos con tiempo que tu mensualidad sigue pendiente. El plazo de gracia termina a las {fecha}. Puedes completar el pago aquí: {url} para seguir editando, respondiendo y usando tu IA sin interrupciones. Si ya pagaste, actualizaremos tu cuenta en cuanto se confirme.',
+    en: 'Hi, {nombre}. A friendly reminder that your monthly payment is still pending. Your grace period ends at {fecha}. Complete your payment here: {url} to keep editing, replying and using AI without interruption. If you have already paid, your account will update as soon as it is confirmed.',
+  },
+  billingReminder1Title: { es: 'Tu plazo de gracia está por terminar', en: 'Your grace period is ending soon' },
+  billingReminder1Body: {
+    es: 'Hola, {nombre}. Tu mensualidad todavía aparece pendiente y el plazo de gracia termina a las {fecha}. Puedes ponerte al día aquí: {url}. Después, Riverz quedará en modo lectura hasta que se confirme el pago. Tus mensajes y comentarios seguirán llegando y tu saldo se conservará.',
+    en: 'Hi, {nombre}. Your monthly payment still appears pending and your grace period ends at {fecha}. You can get up to date here: {url}. After that, Riverz will be read-only until payment is confirmed. Messages and comments will keep arriving and your balance will be preserved.',
+  },
+  billingPausedBody: {
+    es: 'Hola, {nombre}. Tu mensualidad sigue pendiente y terminó el plazo de 24 horas. Puedes seguir consultando Riverz y recibiendo mensajes y comentarios. Las ediciones, las respuestas manuales y la IA están en pausa. Completa el pago aquí: {url}. Al confirmarse, todo se habilitará automáticamente y revisaremos los mensajes pendientes, sin repetir respuestas que ya hayas enviado desde tus aplicaciones.',
+    en: 'Hi, {nombre}. Your monthly payment is still pending and the 24-hour grace period has ended. You can still view Riverz and receive messages and comments. Editing, manual replies and AI are paused. Complete your payment here: {url}. Once confirmed, access resumes automatically and we review pending messages without repeating replies you already sent from your apps.',
+  },
+  billingActiveTitle: { es: 'Tu mensualidad ya está al día', en: 'Your monthly payment is up to date' },
+  billingActiveBody: {
+    es: 'Hola, {nombre}. Gracias, tu mensualidad ya está al día y se levantó la pausa por pago. Tu configuración y tu saldo se conservan. Revisaremos las conversaciones pendientes para que tu IA atienda las que sigan sin respuesta, cuando esté habilitada y tengas saldo disponible, según lo que permita cada canal. Las respuestas enviadas desde tus aplicaciones se tendrán en cuenta. Puedes ver todo en tu bandeja: {url}.',
+    en: 'Hi, {nombre}. Thank you, your monthly payment is up to date and the payment pause has been lifted. Your settings and balance are preserved. We will review pending conversations so your AI can handle those still unanswered, when enabled and with available credit, according to each channel’s permissions. Replies sent from your apps will be taken into account. View everything in your inbox: {url}.',
+  },
   impagoBody: {
     es: 'Tu suscripción necesita un pago para continuar. Completa el pago para reactivar tu cuenta.',
     en: 'Your subscription needs a payment to continue. Complete the payment to reactivate your account.',

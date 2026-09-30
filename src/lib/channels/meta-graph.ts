@@ -572,7 +572,8 @@ export async function getAppWebhookSubscriptions(): Promise<Record<
   if (!appId || !appSecret) return null;
   try {
     const r = await fetch(
-      `${GRAPH}/${appId}/subscriptions?access_token=${encodeURIComponent(`${appId}|${appSecret}`)}`
+      `${GRAPH}/${appId}/subscriptions?access_token=${encodeURIComponent(`${appId}|${appSecret}`)}`,
+      {signal:AbortSignal.timeout(15_000)}
     );
     if (!r.ok) return null;
     const j = (await r.json()) as {
@@ -673,7 +674,8 @@ export async function isWabaSubscribed(
       withAppsecretProof(
         `${GRAPH}/${wabaId}/subscribed_apps?access_token=${encodeURIComponent(token)}`,
         token
-      )
+      ),
+      {signal:AbortSignal.timeout(15_000)}
     );
     if (!r.ok) return null;
     const j = (await r.json()) as {

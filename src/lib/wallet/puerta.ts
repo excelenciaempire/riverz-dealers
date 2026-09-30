@@ -140,6 +140,8 @@ export interface Vistazo {
   /** Public agreement fingerprint: refresh open screens after admin changes. */
   revisionCobro?: string;
   mensualidad?: PendingPayment | null;
+  /** Reading and receipt stay enabled; every business write is disabled. */
+  soloLectura?: boolean;
   centavos: number;
   moneda: string;
   /** No gasta saldo y no se le muestra ninguno: no usa billetera o todavía no pagó. */
@@ -212,6 +214,7 @@ export async function estadoDeCobro(
 
     const exenta = sus?.estado === 'cortesia' || !usaSaldo(sus);
     const vistazo = { ...vistazoDe(billetera, exenta), sinPagar: sus?.estado === 'cortesia', mensualidad,
+      soloLectura: mensualidad?.blocked ?? (sus?.estado === 'vencida' && !acceso(sus).puede),
       revisionCobro: JSON.stringify([sus?.modeloCobro, sus?.estado, sus?.plan?.id,
         sus?.precioAcuerdoCentavos, sus?.incluidas, sus?.periodoHasta, sus?.cancelarAlFinal,
         mensualidad?.invoiceId, mensualidad?.graceUntil, mensualidad?.blocked, mensualidad?.hours]),

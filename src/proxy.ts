@@ -7,6 +7,9 @@ import { canonicalizePath, localizePath } from '@/lib/i18n/routes'
 import { signupsOpenForInstall } from '@/lib/auth/signups'
 import { adminLegacyRedirect, adminRewrite, isAdminHost, isAdminInternalPath, subdomainOnly } from '@/lib/admin/host'
 import { docsHost, docsRedirect, docsRewrite, isDocsHost } from '@/lib/docs/host'
+import { isBusinessMutation, workspaceReadOnly, BILLING_READ_ONLY } from '@/lib/billing/read-only'
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { translate } from '@/lib/i18n/translate'
 
 // Per-request CSP nonce. Next.js 16 reads the `'nonce-…'` value out of
 // the response's Content-Security-Policy header and stamps it onto the
@@ -379,6 +382,21 @@ export async function proxy(request: NextRequest) {
   if (!user && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
       !request.nextUrl.pathname.includes('/webhook')) {
     return withLocaleCookie(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
+  }
+
+  if (user && isBusinessMutation(canonicalPath, request.method)) {
+    try {
+      const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id)
+      if (workspaceId && await workspaceReadOnly(supabase, workspaceId)) {
+        return withLocaleCookie(NextResponse.json({
+          code: BILLING_READ_ONLY, error: translate(locale, 'settings.readOnlyBody'),
+        }, { status: 402 }))
+      }
+    } catch {
+      return withLocaleCookie(NextResponse.json({
+        error: translate(locale, 'settings.billingStateUnavailable'),
+      }, { status: 503 }))
+    }
   }
 
   return withLocaleCookie(supabaseResponse)

@@ -88,8 +88,8 @@ export default async function DashboardLayout({
       suspended =
         !platformAdmin &&
         (await isWorkspaceSuspended(supabaseAdmin(), workspaceId));
-      // Cobro: la mensualidad tiene 24 horas de gracia y luego pausa la IA.
-      // La bandeja manual sigue abierta. Un admin de
+      // Cobro: tras 24 horas de gracia, la cuenta queda en modo lectura.
+      // La recepción y el acceso a la factura siguen abiertos. Un admin de
       // plataforma que entra a mirar una cuenta impaga no ve la pared: la
       // necesita abierta justamente para ayudar a destrabarla.
       //

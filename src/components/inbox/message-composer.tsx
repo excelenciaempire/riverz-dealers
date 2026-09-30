@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ReplyQuote } from "./reply-quote";
 import { useT } from "@/hooks/use-locale";
+import { useSaldo } from "@/hooks/use-saldo";
+import Link from "@/components/i18n/locale-link";
 import { useSnippets } from "@/hooks/use-snippets";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import type { Channel } from "@/types";
@@ -80,7 +82,7 @@ export function MessageComposer({
   conversationId,
   attachmentDropZoneRef,
   channel,
-  sessionExpired,
+  sessionExpired: channelSessionExpired,
   onSend,
   onSendMedia,
   onOpenTemplates,
@@ -89,6 +91,9 @@ export function MessageComposer({
   onComposingChange,
 }: MessageComposerProps) {
   const t = useT();
+  const { saldo } = useSaldo();
+  const readOnly=saldo?.soloLectura === true;
+  const sessionExpired=channelSessionExpired || readOnly;
   const fetchWithCsrf = useFetchWithCsrf();
   // Capacidades por canal, según lo que el adapter sabe enviar de verdad.
   // WhatsApp, Instagram y Messenger envían medios por Meta; los correos
@@ -581,6 +586,14 @@ export function MessageComposer({
     [adjustHeight, snippetMenu],
   );
 
+  if (readOnly) return (
+    <div className="border-t px-4 py-3 text-sm text-muted-foreground">
+      {t('settings.readOnlyComposer')}{' '}
+      {saldo?.mensualidad?.invoiceUrl
+        ? <a href={saldo.mensualidad.invoiceUrl} target="_blank" rel="noopener noreferrer" className="font-medium underline">{t('settings.avisoGraciaCta')}</a>
+        : <Link href="/ajustes?tab=billing" className="font-medium underline">{t('settings.avisoGraciaCta')}</Link>}
+    </div>
+  );
   return (
     <div className="border-t border-border bg-card px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       {replyTo && (

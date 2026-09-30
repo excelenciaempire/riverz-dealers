@@ -3,6 +3,8 @@ import { isSimpleClosure, reconcileHumanAttention } from '@/lib/inbox/reconcile-
 import { enrichConversationEvidence } from '@/lib/ai/conversation-evidence';
 import { motorApagado } from '@/lib/workspaces/motor';
 import { puertaDeIa } from '@/lib/wallet/puerta';
+import { workspaceReadOnly } from '@/lib/billing/read-only';
+import { shouldDeferBillingReply } from '@/lib/billing/reply-backlog';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Channel,
@@ -326,6 +328,7 @@ export async function ingestInboundEvent(
     message_id: event.externalMessageId,
     status: event.outbound ? "sent" : "delivered",
     created_at: event.receivedAt,
+    billing_recovery_eligible: shouldDeferBillingReply(event,conversation),
     // De qué interacción nació (respuesta a historia, mención en historia).
     // Null en la inmensa mayoría: es un mensaje normal.
     engagement_kind: event.engagementKind ?? null,
@@ -449,7 +452,15 @@ export async function ingestInboundEvent(
   // sumando no leído (`suppressAutoReply`, no `historical`), así que se ve y se
   // puede contestar a mano. `historical` corta por la misma razón, un grado más
   // fuerte: eso ni siquiera se cuenta como pendiente.
+  // Persist first. Billing never disables ingestion, including native app echoes.
+  // Only live, answerable customer messages become recovery work.
+  let paymentPaused=false;
+  if(!event.outbound && !event.historical) {
+    try { paymentPaused=await workspaceReadOnly(db,workspaceId); }
+    catch { paymentPaused=true; }
+  }
   if (
+    !paymentPaused &&
     event.comment &&
     message &&
     !event.outbound &&
@@ -531,7 +542,7 @@ export async function ingestInboundEvent(
       } else {
         await markOptedIn(db, workspaceId, contact.id);
       }
-      await acknowledgeOptChange(db, {
+      if (!paymentPaused) await acknowledgeOptChange(db, {
         channel,
         connection: event.connection,
         conversation,
@@ -541,6 +552,8 @@ export async function ingestInboundEvent(
       return { contact, conversation, message: message as Message };
     }
   }
+
+  if(paymentPaused) return {contact,conversation,message:message as Message};
 
   // Un DM de Instagram que es SOLO una mención en historia o una publicación
   // compartida se guarda para que la conversación se vea completa, pero no le

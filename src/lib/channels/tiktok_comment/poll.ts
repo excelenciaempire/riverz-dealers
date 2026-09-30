@@ -631,11 +631,12 @@ export async function ingestVideoComments(
     fromMs?: number;
     untilMs?: number;
     suppressAutoReply?: boolean;
+    requireComplete?: boolean;
   } = {},
 ): Promise<number> {
-  return (
-    await readVideoComments(db, conn, businessId, token, videoId, caption, opts)
-  ).ingested;
+  const result=await readVideoComments(db, conn, businessId, token, videoId, caption, opts);
+  if(opts.requireComplete && !result.complete)throw new Error('tiktok_comment_sync_incomplete');
+  return result.ingested;
 }
 
 /**
@@ -664,7 +665,7 @@ async function readVideoComments(
     /** Página desde la que retomar un video que quedó a medias. */
     startCursor?: TikTokCursor;
   },
-): Promise<{ ingested: number; nextCursor: TikTokCursor | null }> {
+): Promise<{ ingested: number; nextCursor: TikTokCursor | null; complete:boolean }> {
   let ingested = 0;
   let cursor: TikTokCursor | undefined = opts.startCursor;
   let nextCursor: TikTokCursor | null = null;
@@ -761,7 +762,7 @@ async function readVideoComments(
   if (apiError) {
     throw new Error(`comment/list incompleto para ${videoId}: ${apiError}`);
   }
-  return { ingested, nextCursor };
+  return { ingested, nextCursor, complete:listaCompleta };
 }
 
 /** ¿Este comentario lo escribió la cuenta del comercio? */

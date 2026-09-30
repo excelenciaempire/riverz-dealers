@@ -116,7 +116,7 @@ export function filtroOutlook(
     : `${campo} gt ${desdeIso}`;
 }
 
-async function pollOne(
+export async function pollOne(
   admin: SupabaseClient,
   connection: ChannelConnection,
 ): Promise<number> {

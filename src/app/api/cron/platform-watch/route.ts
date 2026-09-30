@@ -399,7 +399,6 @@ async function inspectPlatformState(admin: SupabaseClient, estadoRow: WatchState
   const delivery = await deliverPlatformNotifications({
     db: admin, state: estadoRow, fingerprint, history: rememberAlerts(history, nuevas),
     newKeys: nuevas, lines: actuales, recipients,
-    whatsappOnlyKeys: new Set(nuevas.filter(key => key.startsWith(ANTHROPIC_FUNDING_ALERT_PREFIX))),
     whatsappTitle: title, emailTitle: `Riverz · ${title}`,
     sendWhatsApp: async (to, title, body) => {
       // Owner alerts must work outside the 24-hour conversation window.

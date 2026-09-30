@@ -173,6 +173,10 @@ export const admin = {
     es: 'Revisa consumos pendientes y recupera recargas cobradas.',
     en: 'Checks pending usage and recovers paid top-ups.',
   },
+  cronBillingRecovery: {
+    es: 'Recordatorios de mensualidad y recuperación de conversaciones tras el pago.',
+    en: 'Monthly payment reminders and conversation recovery after payment.',
+  },
   title: { es: 'Admin', en: 'Admin' },
   subtitle: {
     es: 'Ajustes globales de la plataforma',

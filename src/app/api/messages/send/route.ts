@@ -3,6 +3,7 @@ import { NextResponse, after } from "next/server";
 import { enrichConversationEvidence } from '@/lib/ai/conversation-evidence';
 import { motorApagado } from '@/lib/workspaces/motor';
 import { puertaDeIa } from '@/lib/wallet/puerta';
+import { workspaceReadOnly, BILLING_READ_ONLY } from '@/lib/billing/read-only';
 import { createClient } from "@/lib/supabase/server";
 import { getAdapter } from "@/lib/channels/registry";
 import {
@@ -139,6 +140,14 @@ export async function POST(req: Request): Promise<Response> {
       { error: translate(locale, "errInbox.forbidden") },
       { status: 403 },
     );
+  }
+
+  try {
+    if (await workspaceReadOnly(admin, conversation.workspace_id)) {
+      return NextResponse.json({ code: BILLING_READ_ONLY, error: translate(locale, 'settings.readOnlyBody') }, { status: 402 });
+    }
+  } catch {
+    return NextResponse.json({ error: translate(locale, 'settings.billingStateUnavailable') }, { status: 503 });
   }
 
   if (media) {

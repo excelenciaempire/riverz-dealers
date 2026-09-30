@@ -127,7 +127,7 @@ export function consultaGmail(desdeMs: number, hastaMs?: number): string {
   return `${FILTRO_DE_CONVERSACIONES} ${tramo.join(" ")}`;
 }
 
-async function pollOne(
+export async function pollOne(
   admin: SupabaseClient,
   connection: ChannelConnection,
 ): Promise<number> {

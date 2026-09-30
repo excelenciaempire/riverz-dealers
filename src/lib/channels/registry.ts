@@ -15,6 +15,8 @@ import { tikTokCommentAdapter } from "./tiktok_comment/adapter";
 import { voiceAdapter } from "./voice/adapter";
 import { webchatAdapter } from "./webchat/adapter";
 import { assertConnectionCanSend } from "./send-guard";
+import { assertWorkspaceWritable } from "@/lib/billing/read-only";
+import { assertRecoveryStillUnanswered } from "@/lib/billing/recovery-send-guard";
 
 const ADAPTERS: Record<Channel, ChannelAdapter> = {
   whatsapp: whatsappAdapter,
@@ -47,6 +49,8 @@ export function getAdapter(channel: Channel): ChannelAdapter {
     ...adapter,
     sendText: async (input: Parameters<typeof adapter.sendText>[0]) => {
       assertConnectionCanSend(input.connection);
+      await assertWorkspaceWritable(supabaseAdmin(), input.connection.workspace_id);
+      await assertRecoveryStillUnanswered(supabaseAdmin(), input.conversation.id);
       const text = input.text.includes("http")
         ? await prepararTextoParaCanal(supabaseAdmin(), {
             texto: input.text,
@@ -64,12 +68,16 @@ export function getAdapter(channel: Channel): ChannelAdapter {
   if (adapter.sendMedia) {
     guarded.sendMedia = async (input) => {
       assertConnectionCanSend(input.connection);
+      await assertWorkspaceWritable(supabaseAdmin(), input.connection.workspace_id);
+      await assertRecoveryStillUnanswered(supabaseAdmin(), input.conversation.id);
       return adapter.sendMedia!(input);
     };
   }
   if (adapter.sendTemplate) {
     guarded.sendTemplate = async (input) => {
       assertConnectionCanSend(input.connection);
+      await assertWorkspaceWritable(supabaseAdmin(), input.connection.workspace_id);
+      await assertRecoveryStillUnanswered(supabaseAdmin(), input.conversation.id);
       return adapter.sendTemplate!(input);
     };
   }

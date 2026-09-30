@@ -144,7 +144,7 @@ export function recorridoZohoTerminado(
   return tiempos.length < limite || tiempos.some((t) => t > 0 && t <= desdeMs);
 }
 
-async function pollOne(
+export async function pollOne(
   admin: SupabaseClient,
   connection: ChannelConnection
 ): Promise<number> {

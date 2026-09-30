@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isPresentationWorkspace } from './presentation'
+import { workspaceReadOnly } from '@/lib/billing/read-only'
 
 /**
  * El motor de una cuenta: ¿puede salir algo hacia afuera?
@@ -26,6 +27,9 @@ export async function motorApagado(
 ): Promise<boolean> {
   if (isPresentationWorkspace(workspaceId)) return true
   if (!workspaceId) return false
+  // Receipt ingestion never calls this gate. Only outbound/business actions do.
+  try { if (await workspaceReadOnly(db, workspaceId)) return true }
+  catch { return true }
   try {
     const { data } = await db
       .from('workspaces')

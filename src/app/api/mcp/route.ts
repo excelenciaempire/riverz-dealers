@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { limitByKey } from '@/lib/rate-limit'
 import { ALL_TOOLS, findTool, type McpTool } from '@/lib/mcp/registry'
+import { assertWorkspaceWritable } from '@/lib/billing/read-only'
 import { resolveActor, rateKey, sameSecret, type McpActor } from '@/lib/mcp/tokens'
 import { issuer } from '@/lib/mcp/oauth'
 
@@ -366,6 +367,10 @@ export async function POST(request: Request) {
         return rpcError(body.id, -32003, scoped.motivo)
       }
       const args = scoped.args
+      if (actor.kind === 'workspace' && tool.risk !== 'lectura' && args.workspace_id) {
+        try { await assertWorkspaceWritable(supabaseAdmin(), String(args.workspace_id)) }
+        catch { return rpcError(body.id, -32003, 'subscription_read_only') }
+      }
 
       // Lo irreversible se muestra antes de hacerse.
       if (tool.risk === 'irreversible') {

@@ -21,7 +21,6 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { destinosDeAviso, avisarATodos } from '@/lib/avisos/destinos';
-import { acceso, aSuscripcion } from '@/lib/billing/plan';
 import { localeDeCuenta } from '@/lib/i18n/cuenta';
 import { translate } from '@/lib/i18n/translate';
 
@@ -30,17 +29,6 @@ const UMBRAL_POR_DEFECTO_CENTAVOS = 500;
 
 /** Nadie recibe el mismo aviso dos veces en menos de esto. */
 const CADA_HORAS = 24;
-
-/**
- * Cuánto se espera antes de avisar que el cobro falló.
- *
- * Stripe crea la suscripción en `incomplete` y recién la pasa a `active` cuando
- * el pago se confirma — con 3D Secure eso son minutos, y para nosotros
- * `incomplete` es "vencida". Sin esta espera, alguien que está tecleando el
- * código del banco recibía un WhatsApp diciéndole que no pudimos cobrarle. La
- * primera hora se la damos al banco.
- */
-const ESPERA_ANTES_DE_AVISAR_HORAS = 1;
 
 const HACE = (horas: number) =>
   new Date(Date.now() - horas * 60 * 60 * 1000).toISOString();
@@ -189,88 +177,12 @@ async function avisarSaldo(
   return { n, detalle };
 }
 
-/**
- * Avisa al que tiene el cobro de la mensualidad caído.
- *
- * Sólo cuando el cobro **falló**: avisar "se te renueva en tres días" a alguien
- * que está al día y con tarjeta puesta es recordarle que paga, y no hay nada
- * que pueda hacer con esa información salvo arrepentirse.
- */
-async function avisarPlan(
-  db: SupabaseClient
-): Promise<{ n: number; detalle: string[] }> {
-  const detalle: string[] = [];
-  const { data, error } = await db
-    .from('workspace_subscriptions')
-    .select(
-      `workspace_id, plan_id, estado, prueba_hasta, periodo_desde, periodo_hasta,
-       vencida_desde, aviso_plan_en, precio_centavos_override, incluidas_override,
-       excedente_centavos_override, nota, stripe_customer_id, stripe_subscription_id,
-       cancelar_al_final, modelo_cobro,
-       billing_plans ( id, slug, nombre, activo, precio_centavos, moneda, incluidas,
-                       excedente_centavos, stripe_price_id, stripe_price_excedente_id, orden )`
-    )
-    .eq('estado', 'vencida');
-  if (error) throw new Error(`[wallet/avisos] ${error.message}`);
-
-  let n = 0;
-  for (const cruda of (data ?? []) as unknown as Record<string, unknown>[]) {
-    const avisadoEn = cruda.aviso_plan_en as string | null;
-    if (avisadoEn && avisadoEn > HACE(CADA_HORAS)) continue;
-
-    // Recién vencida: puede ser un pago que se está confirmando ahora mismo.
-    const desdeCuando = cruda.vencida_desde as string | null;
-    if (desdeCuando && desdeCuando > HACE(ESPERA_ANTES_DE_AVISAR_HORAS))
-      continue;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const s = aSuscripcion(cruda as any);
-    const a = acceso(s);
-    const telefonos = await destinosDeAviso(db, s.workspaceId, 'plata');
-    if (telefonos.length === 0) {
-      detalle.push(`${s.workspaceId}: sin número cargado`);
-      continue;
-    }
-
-    const locale = await localeDeCuenta(db, s.workspaceId);
-    const titulo = translate(
-      locale,
-      a.puede
-        ? 'settings.avisoPlanFalloTitulo'
-        : 'settings.avisoPlanPausadaTitulo'
-    );
-    const cuerpo = a.puede
-      ? translate(locale, 'settings.avisoPlanFalloCuerpo', {
-          horas: a.horasDeGracia ?? 24,
-        })
-      : translate(locale, 'settings.avisoPlanPausadaCuerpo');
-    const r = await avisarATodos(telefonos, { title: titulo, body: cuerpo });
-    await db
-      .from('workspace_subscriptions')
-      .update({ aviso_plan_en: new Date().toISOString() })
-      .eq('workspace_id', s.workspaceId);
-    if (r.ok) n += 1;
-    detalle.push(`${s.workspaceId}: plan → ${r.ok ? 'avisado' : r.error}`);
+/** Monthly notices use billing-recovery; this pass only handles prepaid credit. */
+export async function avisarLoQueHagaFalta(db:SupabaseClient):Promise<Avisados> {
+  try {
+    const saldo=await avisarSaldo(db);
+    return {saldo:saldo.n,plan:0,detalle:saldo.detalle};
+  } catch(error) {
+    return {saldo:0,plan:0,detalle:['saldo: '+String(error)]};
   }
-  return { n, detalle };
-}
-
-/** Los dos avisos, en una pasada. Ninguno puede tumbar al otro. */
-export async function avisarLoQueHagaFalta(
-  db: SupabaseClient
-): Promise<Avisados> {
-  const [s, p] = await Promise.allSettled([avisarSaldo(db), avisarPlan(db)]);
-  const saldo =
-    s.status === 'fulfilled'
-      ? s.value
-      : { n: 0, detalle: [`saldo: ${s.reason}`] };
-  const plan =
-    p.status === 'fulfilled'
-      ? p.value
-      : { n: 0, detalle: [`plan: ${p.reason}`] };
-  return {
-    saldo: saldo.n,
-    plan: plan.n,
-    detalle: [...saldo.detalle, ...plan.detalle],
-  };
 }
