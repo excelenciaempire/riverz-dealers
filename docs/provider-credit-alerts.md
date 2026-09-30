@@ -3,6 +3,19 @@
 `platform-watch` runs every 15 minutes. Its recipients are the administrator's
 technical alert phone/email, never a merchant's contact or API phone line.
 
+Anthropic has a separate owner-requested WhatsApp-only warning strictly below
+US$3. Its balance is explicitly estimated from the last confirmed prepaid
+balance minus Riverz's recorded platform usage, bound to the active API key.
+Monitoring keeps deducting usage after the dashboard's 24-hour freshness window;
+this does not turn an old observation into a live balance API. Missing,
+invalid, rotated-key or postpaid observations do not invent a cash warning.
+The message includes the recommended top-up to back current USD merchant
+wallet balances (including reservations), the Anthropic billing link, and a
+reminder to confirm the new balance in Admin after recharging. A confirmed
+funding observation starts a new incident episode; unchanged low credit does
+not generate repeated messages. Failed WhatsApp sends use the existing durable
+outbox and backoff. These warnings do not add an email notification.
+
 - Providers exposing balances use the existing low-credit thresholds: Telnyx
   USD 10, Fish USD 5, Deepgram USD 15, ElevenLabs 5,000 remaining characters.
 - Empty credit and low credit have different incident keys; depletion is

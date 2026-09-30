@@ -124,6 +124,10 @@ export const admin = {
     es: ' (quedan {value} {unit})',
     en: ' ({value} {unit} remaining)',
   },
+  anthropicLowBalanceAlert: {
+    es: '· Anthropic: saldo estimado {balance}, por debajo de US$3. Recarga recomendada: {amount}. Agregar fondos: {url}. Si ya recargaste, confirma el nuevo saldo en {adminUrl}.',
+    en: '· Anthropic: estimated balance {balance}, below US$3. Recommended top-up: {amount}. Add funds: {url}. If you already topped up, confirm the new balance at {adminUrl}.',
+  },
   providerAlertEmpty: {
     es: '· {name} SIN SALDO — revisar: {url}',
     en: '· {name} OUT OF CREDIT — check: {url}',

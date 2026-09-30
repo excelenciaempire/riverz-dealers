@@ -9,7 +9,9 @@ import {
   needsCronFailureConfirmation,
 } from '@/lib/cron/recovery'
 import { platformTechnicalAlertRecipients, platformWhatsAppStatus, sendPlatformAlert } from '@/lib/admin/platform-whatsapp'
-import { leerProveedores } from '@/lib/admin/proveedores'
+import { claveParaSaldo, leerProveedores } from '@/lib/admin/proveedores'
+import type { FundingSnapshot } from '@/lib/admin/funding'
+import { anthropicFundingAlert, ANTHROPIC_FUNDING_ALERT_PREFIX } from '@/lib/health/anthropic-funding-alert'
 import { getLogger } from '@/lib/log/logger'
 import {alertCandidates, rememberAlerts, type AlertHistory} from '@/lib/health/alert-history'
 import { deliverPlatformNotifications, type WatchState } from '@/lib/health/platform-notifications'
@@ -354,6 +356,25 @@ async function inspectPlatformState(admin: SupabaseClient, estadoRow: WatchState
     })
   }
 
+  // The owner's explicit $3 threshold uses the confirmed credit minus actual
+  // Riverz consumption. The free Anthropic model probe contains no USD balance.
+  let anthropicLowBalance: { estimatedBalanceUsd: number; topUpUsd: number } | null = null
+  try {
+    const [snapshot, key] = await Promise.all([
+      admin.rpc('admin_funding_snapshot'), claveParaSaldo('anthropic'),
+    ])
+    if (snapshot.error || !snapshot.data) throw new Error('anthropic_funding_snapshot_unavailable')
+    const alert = anthropicFundingAlert(snapshot.data as FundingSnapshot, key, locale)
+    if (alert) {
+      actuales.set(alert.key, alert.line)
+      anthropicLowBalance = { estimatedBalanceUsd: alert.estimatedBalanceUsd, topUpUsd: alert.topUpUsd }
+    }
+  } catch {
+    lecturasFallidas.push('anthropic_funding')
+    conservarPrefijo(ANTHROPIC_FUNDING_ALERT_PREFIX)
+    log.warn('no se pudo evaluar el umbral de Anthropic')
+  }
+
   // Una conexión en error se avisa recién si sigue en error en el tick
   // siguiente. Un tropiezo de la Graph API deja `ig_comment` en error hasta la
   // próxima sincronización, que lo limpia; avisarlo al instante mandaba
@@ -378,6 +399,7 @@ async function inspectPlatformState(admin: SupabaseClient, estadoRow: WatchState
   const delivery = await deliverPlatformNotifications({
     db: admin, state: estadoRow, fingerprint, history: rememberAlerts(history, nuevas),
     newKeys: nuevas, lines: actuales, recipients,
+    whatsappOnlyKeys: new Set(nuevas.filter(key => key.startsWith(ANTHROPIC_FUNDING_ALERT_PREFIX))),
     whatsappTitle: title, emailTitle: `Riverz · ${title}`,
     sendWhatsApp: async (to, title, body) => {
       // Owner alerts must work outside the 24-hour conversation window.
@@ -400,6 +422,7 @@ async function inspectPlatformState(admin: SupabaseClient, estadoRow: WatchState
     via: delivery.via,
     notificacionesPendientes: delivery.pending,
     whatsappPendientes: delivery.whatsappPending,
+    anthropicLowBalance,
   })
 }
 

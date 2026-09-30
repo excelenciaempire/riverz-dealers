@@ -41,6 +41,8 @@ export async function deliverPlatformNotifications(args: {
   fingerprint: string;
   history: AlertHistory;
   newKeys: string[];
+  /** Owner requests a WhatsApp alert without adding an unsolicited email. */
+  whatsappOnlyKeys?: ReadonlySet<string>;
   lines: Map<string, string>;
   whatsappTitle: string;
   emailTitle: string;
@@ -57,7 +59,9 @@ export async function deliverPlatformNotifications(args: {
   if (args.newKeys.length) {
     for (const channel of ['whatsapp', 'email'] as const) {
       if (channel === 'email' && !args.recipients.email) continue;
-      for (const keys of notificationBatches(args.newKeys, (key) => args.lines.get(key)!)) pending.push({
+      const channelKeys = channel === 'email'
+        ? args.newKeys.filter(key => !args.whatsappOnlyKeys?.has(key)) : args.newKeys;
+      for (const keys of notificationBatches(channelKeys, (key) => args.lines.get(key)!)) pending.push({
         id: randomUUID(), channel, keys,
         title: channel === 'whatsapp' ? args.whatsappTitle : args.emailTitle,
         lines: Object.fromEntries(keys.map((key) => [key, args.lines.get(key)!])),

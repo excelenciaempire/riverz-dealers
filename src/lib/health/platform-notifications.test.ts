@@ -38,6 +38,20 @@ describe('durable owner notification delivery', () => {
     expect(result).toEqual({ via: ['whatsapp', 'correo'], pending: 0, whatsappPending: 0 });
     expect(writes.at(-1)?.pending_notifications).toEqual([]);
   });
+  it('routes the requested Anthropic warning only to WhatsApp while preserving email for other incidents', async () => {
+    const { args, writes } = setup();
+    const anthropic = 'saldo:anthropic:menos_3:episode';
+    const options = { ...args, newKeys: [anthropic, key], fingerprint: [anthropic, key].join('|'),
+      lines: new Map([[anthropic, 'Anthropic low'], [key, 'Fish low']]),
+      whatsappOnlyKeys: new Set([anthropic]) };
+    await deliverPlatformNotifications(options);
+    expect(writes[0].pending_notifications).toEqual(expect.arrayContaining([
+      expect.objectContaining({ channel: 'whatsapp', keys: [anthropic, key] }),
+      expect.objectContaining({ channel: 'email', keys: [key] }),
+    ]));
+    expect(args.sendWhatsApp.mock.calls[0][2]).toContain('Anthropic low');
+    expect(args.sendEmail.mock.calls[0][2]).not.toContain('Anthropic low');
+  });
   it('does not discard WhatsApp when email succeeds; retries even with unchanged fingerprint', async () => {
     const { args, writes } = setup(); args.sendWhatsApp.mockResolvedValue(false);
     expect((await deliverPlatformNotifications(args)).whatsappPending).toBe(1);

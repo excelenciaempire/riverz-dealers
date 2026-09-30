@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { creditKeyDigest } from '@/lib/admin/provider-credit';
+import type { FundingSnapshot } from '@/lib/admin/funding';
 
 const m = vi.hoisted(() => ({
   previous: '', history:{} as Record<string,string>, readError: false, saveError: false, won: true,
@@ -6,11 +8,12 @@ const m = vi.hoisted(() => ({
   latest: 'error', completed: 'error',
   saved: [] as Array<{ fingerprint: string }>,
   collect: vi.fn(), providers: vi.fn(), send: vi.fn(),
+  funding: null as FundingSnapshot | null, fundingError: false,
 }));
 vi.mock('@/lib/auth/cron', () => ({ assertCronAuth: vi.fn() }));
 vi.mock('@/lib/cron/heartbeat', () => ({ withCronRun: (_: string, handler: unknown) => handler }));
 vi.mock('@/lib/health/issues', () => ({ collectPlatformIssues: m.collect }));
-vi.mock('@/lib/admin/proveedores', () => ({ leerProveedores: m.providers }));
+vi.mock('@/lib/admin/proveedores', () => ({ leerProveedores: m.providers, claveParaSaldo: async () => 'synthetic-platform-key' }));
 vi.mock('@/lib/admin/platform-whatsapp', () => ({
   platformTechnicalAlertRecipients: async () => ({ phone: 'test', email: null }),
   platformWhatsAppStatus: async () => ({ templateLanguage: 'es', templateName: 'riverz_aviso' }),
@@ -25,7 +28,8 @@ vi.mock('@/lib/automations/admin-client', () => ({
     rpc: async (name: string) => name === 'claim_platform_watch_notifications' ? {
       data: m.won ? [{ fingerprint: m.previous, alert_history: m.history, pending_notifications: [], notification_lease_id: 'lease' }] : [],
       error: m.readError ? { message: 'read timeout' } : null,
-    } : name === 'release_platform_watch_notifications' ? { data: null, error: null } : ({
+    } : name === 'release_platform_watch_notifications' ? { data: null, error: null } :
+      name === 'admin_funding_snapshot' ? { data: m.funding, error: m.fundingError ? {message:'timeout'} : null } : ({
       data: [{ name: 'instagram-external-enrich', status: m.latest }],
       error: m.healthError ? { message: 'timeout' } : null,
     }),
@@ -66,6 +70,8 @@ describe('platform incident continuity', () => {
     Object.assign(m, { previous: incident, readError: false, saveError: false,
       won: true, healthError: false, confirmationError: false,
       latest: 'error', completed: 'error', saved: [], history:{} });
+    m.fundingError = false;
+    m.funding = {wallets:[],manual:[],usage:[],measured_at:new Date().toISOString()};
     m.collect.mockResolvedValue(new Map());
     m.providers.mockResolvedValue({ proveedores: [] });
     m.send.mockResolvedValue({ ok: true, messageId: 'wamid.test' });
@@ -78,6 +84,30 @@ describe('platform incident continuity', () => {
     m.healthError = false;
     expect((await GET(request())).status).toBe(200);
     expect(m.send).not.toHaveBeenCalled();
+  });
+  it('sends a below-$3 Anthropic warning once per funding episode to the configured admin', async () => {
+    m.previous = ''; m.latest = 'ok';
+    m.funding!.wallets = [{currency:'USD',accounts:1,balance_cents:4400,reserved_cents:0,available_cents:4400}];
+    m.funding!.manual = [{provider:'anthropic',balance_usd:11.94,spent_since_usd:9.5,
+      confirmed_at:new Date(Date.now()-3600000).toISOString(),key_digest:creditKeyDigest('synthetic-platform-key')}];
+    const response = await GET(request());
+    expect(await response.json()).toMatchObject({anthropicLowBalance:{topUpUsd:42}});
+    expect(m.send).toHaveBeenCalledWith(expect.objectContaining({to:'test',body:expect.stringContaining('Anthropic: saldo estimado')}));
+    m.previous = m.saved.at(-1)!.fingerprint;
+    m.send.mockClear();
+    await GET(request());
+    expect(m.send).not.toHaveBeenCalled();
+    m.funding!.manual[0].confirmed_at = new Date().toISOString();
+    m.previous = '';
+    await GET(request());
+    expect(m.send).toHaveBeenCalledOnce();
+  });
+  it('preserves pending Anthropic warnings when the funding read fails without inventing a new balance', async () => {
+    m.latest = 'ok'; m.previous = 'saldo:anthropic:menos_3:existing'; m.fundingError = true;
+    const response = await GET(request());
+    expect(response.status).toBe(207);
+    expect(m.send).not.toHaveBeenCalled();
+    expect(m.saved).toHaveLength(0);
   });
 
   it('preserves an incident when its confirmation query fails', async () => {

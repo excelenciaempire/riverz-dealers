@@ -1950,13 +1950,13 @@ export const settings = {
 
   // ── Avisos de cobro ──
   avisoGracia: {
-    es: 'Te recordamos que tu mensualidad está pendiente. Tienes {n} horas del período de gracia de 24 horas para pagar y mantener tu IA activa.',
-    en: 'A friendly reminder: your monthly payment is pending. You have {n} hours left in your 24-hour grace period to pay and keep your AI active.',
+    es: 'Un pequeño recordatorio: tu mensualidad está pendiente. Puedes completar el pago aquí. Tu IA seguirá activa durante las próximas {n} horas.',
+    en: 'A little reminder: your monthly payment is pending. You can complete the payment here. Your AI will stay active for the next {n} hours.',
   },
-  avisoGraciaCta: { es: 'Pagar mensualidad', en: 'Pay monthly invoice' },
+  avisoGraciaCta: { es: 'Completar pago', en: 'Complete payment' },
   avisoMensualidadPausada: {
-    es: 'Tu IA está pausada porque la mensualidad sigue pendiente después de 24 horas. Al pagar se reactivará automáticamente. Tu saldo se conserva.',
-    en: 'Your AI is paused because your monthly payment is still pending after 24 hours. It will resume automatically once you pay. Your balance is preserved.',
+    es: 'Tu IA está en pausa mientras completas la mensualidad. Puedes ponerte al día aquí y se reactivará automáticamente. Tu saldo se conserva.',
+    en: 'Your AI is paused while your monthly payment is pending. You can catch up here and it will resume automatically. Your balance is preserved.',
   },
   avisoSinSaldo: {
     es: 'Te quedaste sin saldo: la IA dejó de responder. La bandeja sigue abierta para contestar a mano.',
