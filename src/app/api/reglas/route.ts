@@ -1,179 +1,66 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { csrfGuard } from '@/lib/csrf';
-import { serverError } from '@/lib/api/errors';
-import { getLocale } from '@/lib/i18n/server';
-import { translate } from '@/lib/i18n/translate';
-import { MAX_REGLAS, MAX_TEXTO_REGLA } from '@/lib/ai/guidance';
-
-/**
- * Las reglas del comercio (migración 200).
- *
- *   GET    /api/reglas          — todas, activas y apagadas.
- *   POST   /api/reglas          — crea una. { titulo, cuando?, hacer, agent_id? }
- *   PATCH  /api/reglas?id=…     — edita o prende/apaga.
- *   DELETE /api/reglas?id=…     — borra.
- *
- * Va con el cliente de sesión y no con la llave de servicio: la RLS de la
- * tabla ya recorta por cuenta, así que no hace falta resolver el workspace
- * para leer, y para escribir se resuelve una vez y la política vuelve a
- * comprobarlo.
- */
-
-const MAX_TITULO = 80;
-const MAX_TEXTO = MAX_TEXTO_REGLA;
-
-async function sesion() {
-  const locale = await getLocale();
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return {
-      error: NextResponse.json(
-        { error: translate(locale, 'errInbox.unauthorized') },
-        { status: 401 },
-      ),
-    };
-  }
-  return { supabase, user, locale };
-}
-
+import { NextResponse } from 'next/server'
+import { csrfGuard } from '@/lib/csrf'
+import { guidanceSession,guidanceError } from '@/lib/ai/guidance-server'
+import { guidanceCreateInput,guidanceSnapshot } from '@/lib/ai/guidance-versions'
+import { UUID } from '@/lib/inbox/collaboration'
+import { assertWorkspaceWritable,BillingReadOnlyError } from '@/lib/billing/read-only'
+import { serverError } from '@/lib/api/errors'
+const columns='id,agent_id,titulo,cuando,hacer,activa,orden,origen,clave,live_revision'
+const headers={ 'Cache-Control':'private, no-store' }
 export async function GET() {
-  const s = await sesion();
-  if ('error' in s) return s.error;
-
-  const { data, error } = await s.supabase
-    .from('agent_guidance')
-    .select('id, agent_id, titulo, cuando, hacer, activa, orden, origen, clave')
-    .order('orden', { ascending: true })
-    .order('created_at', { ascending: true });
-  if (error) return serverError(error);
-  return NextResponse.json({ reglas: data ?? [] });
+  const ctx=await guidanceSession();if (ctx.response) return ctx.response
+  const result=await ctx.db.from('agent_guidance').select(columns).eq('workspace_id',ctx.workspaceId).order('orden',{ ascending:true }).order('created_at',{ ascending:true })
+  if (result.error) return serverError(result.error,ctx.t('saveFailed'))
+  return NextResponse.json({ reglas:result.data ?? [],is_admin:ctx.isAdmin },{ headers })
 }
-
-export async function POST(request: Request) {
-  const block = await csrfGuard(request);
-  if (block) return block;
-  const s = await sesion();
-  if ('error' in s) return s.error;
-
-  const body = (await request.json().catch(() => null)) as {
-    titulo?: unknown;
-    cuando?: unknown;
-    hacer?: unknown;
-    agent_id?: unknown;
-  } | null;
-
-  const texto = (v: unknown, max: number) =>
-    typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '';
-  const titulo = texto(body?.titulo, MAX_TITULO);
-  const hacer = typeof body?.hacer === 'string' ? body.hacer.trim().slice(0, MAX_TEXTO) : '';
-  if (!titulo || !hacer) {
-    return NextResponse.json(
-      { error: translate(s.locale, 'errInbox.missingName') },
-      { status: 400 },
-    );
-  }
-
-  const { data: member } = await s.supabase
-    .from('workspace_members')
-    .select('workspace_id')
-    .eq('user_id', s.user.id)
-    .limit(1)
-    .maybeSingle();
-  if (!member?.workspace_id) {
-    return NextResponse.json(
-      { error: translate(s.locale, 'errInbox.noWorkspace') },
-      { status: 400 },
-    );
-  }
-
-  // Un tope, y el mismo que el del prompt: dejar cargar cincuenta reglas de
-  // las que sólo entran veinticinco es prometer algo que no pasa.
-  const { count } = await s.supabase
-    .from('agent_guidance')
-    .select('id', { count: 'exact', head: true })
-    .eq('workspace_id', member.workspace_id);
-  if ((count ?? 0) >= MAX_REGLAS) {
-    return NextResponse.json({ error: 'too_many' }, { status: 409 });
-  }
-
-  const { data, error } = await s.supabase
-    .from('agent_guidance')
-    .insert({
-      workspace_id: member.workspace_id,
-      agent_id: typeof body?.agent_id === 'string' && body.agent_id ? body.agent_id : null,
-      titulo,
-      cuando: texto(body?.cuando, MAX_TEXTO) || null,
-      hacer,
-      orden: count ?? 0,
-    })
-    .select('id, agent_id, titulo, cuando, hacer, activa, orden, origen, clave')
-    .single();
-  if (error) return serverError(error);
-  return NextResponse.json({ regla: data }, { status: 201 });
+export async function POST(request:Request) {
+  const csrf=await csrfGuard(request);if (csrf) return csrf
+  const ctx=await guidanceSession();if (ctx.response) return ctx.response
+  const input=guidanceCreateInput(await request.json().catch(() => null))
+  if (!input) return NextResponse.json({ error:ctx.t('invalid') },{ status:400 })
+  if (!input.draft && !ctx.isAdmin) return NextResponse.json({ error:ctx.t('adminRequired') },{ status:403 })
+  const result=await ctx.db.rpc('create_guidance_rule',{ p_workspace_id:ctx.workspaceId,p_actor_id:ctx.userId,p_id:crypto.randomUUID(),p_agent_id:input.agent_id,p_snapshot:input.snapshot,p_draft:input.draft })
+  if (result.error) return guidanceError(result.error,ctx.t)
+  return NextResponse.json({ regla:result.data },{ status:201,headers })
 }
-
-export async function PATCH(request: Request) {
-  const block = await csrfGuard(request);
-  if (block) return block;
-  const s = await sesion();
-  if ('error' in s) return s.error;
-
-  const id = new URL(request.url).searchParams.get('id');
-  if (!id) {
-    return NextResponse.json(
-      { error: translate(s.locale, 'errInbox.missingId') },
-      { status: 400 },
-    );
+export async function PATCH(request:Request) {
+  const csrf=await csrfGuard(request);if (csrf) return csrf
+  const ctx=await guidanceSession();if (ctx.response) return ctx.response
+  if (!ctx.isAdmin) return NextResponse.json({ error:ctx.t('adminRequired') },{ status:403 })
+  const id=new URL(request.url).searchParams.get('id')
+  if (!id || !UUID.test(id)) return NextResponse.json({ error:ctx.t('notFound') },{ status:404 })
+  const body=await request.json().catch(() => null) as Record<string,unknown> | null
+  if (!body || typeof body!=='object' || Array.isArray(body) || Object.keys(body).some(key => !['titulo','cuando','hacer','activa','live_revision'].includes(key)) || !['titulo','cuando','hacer','activa'].some(key => key in body) || body.activa!==undefined && typeof body.activa!=='boolean' || body.live_revision!==undefined && (typeof body.live_revision!=='number' || !Number.isInteger(body.live_revision) || body.live_revision<1 || body.live_revision>=2147483647)) return NextResponse.json({ error:ctx.t('invalid') },{ status:400 })
+  const current=await ctx.db.from('agent_guidance').select('*').eq('workspace_id',ctx.workspaceId).eq('id',id).maybeSingle()
+  if (current.error) return serverError(current.error,ctx.t('saveFailed'))
+  if (!current.data) return NextResponse.json({ error:ctx.t('notFound') },{ status:404 })
+  if (body.live_revision!==undefined && body.live_revision!==current.data.live_revision) return NextResponse.json({ error:ctx.t('changed') },{ status:409 })
+  const snapshot=guidanceSnapshot({ titulo:'titulo' in body ? body.titulo : current.data.titulo,cuando:'cuando' in body ? body.cuando : current.data.cuando,hacer:'hacer' in body ? body.hacer : current.data.hacer })
+  if (!snapshot) return NextResponse.json({ error:ctx.t('invalid') },{ status:400 })
+  if (body.activa===true && current.data.activa===false && Object.keys(body).every(key => ['activa','live_revision'].includes(key))) {
+    const draft=await ctx.db.from('guidance_drafts').select('*').eq('workspace_id',ctx.workspaceId).eq('rule_id',id).maybeSingle()
+    if (draft.error) return serverError(draft.error,ctx.t('saveFailed'))
+    if (draft.data?.base_revision===current.data.live_revision && JSON.stringify(guidanceSnapshot(draft.data.snapshot))===JSON.stringify(snapshot)) {
+      const published=await ctx.db.rpc('publish_guidance_draft',{ p_workspace_id:ctx.workspaceId,p_rule_id:id,p_actor_id:ctx.userId,p_live_revision:current.data.live_revision,p_draft_revision:draft.data.draft_revision })
+      if (published.error) return guidanceError(published.error,ctx.t)
+      return NextResponse.json({ regla:published.data },{ headers })
+    }
   }
-  const body = (await request.json().catch(() => null)) as {
-    titulo?: unknown;
-    cuando?: unknown;
-    hacer?: unknown;
-    activa?: unknown;
-  } | null;
-
-  const patch: Record<string, unknown> = {};
-  if (typeof body?.titulo === 'string') {
-    patch.titulo = body.titulo.replace(/\s+/g, ' ').trim().slice(0, MAX_TITULO);
-  }
-  if (typeof body?.cuando === 'string') {
-    patch.cuando = body.cuando.replace(/\s+/g, ' ').trim().slice(0, MAX_TEXTO) || null;
-  }
-  if (typeof body?.hacer === 'string') patch.hacer = body.hacer.trim().slice(0, MAX_TEXTO);
-  if (typeof body?.activa === 'boolean') patch.activa = body.activa;
-  if (Object.keys(patch).length === 0) {
-    return NextResponse.json({ error: 'bad_request' }, { status: 400 });
-  }
-
-  const { data, error } = await s.supabase
-    .from('agent_guidance')
-    .update(patch)
-    .eq('id', id)
-    .select('id, agent_id, titulo, cuando, hacer, activa, orden, origen, clave')
-    .maybeSingle();
-  if (error) return serverError(error);
-  if (!data) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  return NextResponse.json({ regla: data });
+  try { await assertWorkspaceWritable(ctx.db,ctx.workspaceId) } catch(e) { return e instanceof BillingReadOnlyError ? NextResponse.json({ error:ctx.t('readOnly') },{ status:402 }) : serverError(e,ctx.t('saveFailed')) }
+  const result=await ctx.client.from('agent_guidance').update({ ...snapshot,...(body.activa!==undefined ? { activa:body.activa } : {}) }).eq('workspace_id',ctx.workspaceId).eq('id',id).eq('live_revision',current.data.live_revision).select(columns).maybeSingle()
+  if (result.error) return guidanceError(result.error,ctx.t)
+  if (!result.data) return NextResponse.json({ error:ctx.t('changed') },{ status:409 })
+  return NextResponse.json({ regla:result.data },{ headers })
 }
-
-export async function DELETE(request: Request) {
-  const block = await csrfGuard(request);
-  if (block) return block;
-  const s = await sesion();
-  if ('error' in s) return s.error;
-
-  const id = new URL(request.url).searchParams.get('id');
-  if (!id) {
-    return NextResponse.json(
-      { error: translate(s.locale, 'errInbox.missingId') },
-      { status: 400 },
-    );
-  }
-  const { error } = await s.supabase.from('agent_guidance').delete().eq('id', id);
-  if (error) return serverError(error);
-  return NextResponse.json({ ok: true });
+export async function DELETE(request:Request) {
+  const csrf=await csrfGuard(request);if (csrf) return csrf
+  const ctx=await guidanceSession();if (ctx.response) return ctx.response
+  if (!ctx.isAdmin) return NextResponse.json({ error:ctx.t('adminRequired') },{ status:403 })
+  const id=new URL(request.url).searchParams.get('id')
+  if (!id || !UUID.test(id)) return NextResponse.json({ error:ctx.t('notFound') },{ status:404 })
+  try { await assertWorkspaceWritable(ctx.db,ctx.workspaceId) } catch(e) { return e instanceof BillingReadOnlyError ? NextResponse.json({ error:ctx.t('readOnly') },{ status:402 }) : serverError(e,ctx.t('saveFailed')) }
+  const result=await ctx.client.from('agent_guidance').delete().eq('workspace_id',ctx.workspaceId).eq('id',id).select('id').maybeSingle()
+  if (result.error) return guidanceError(result.error,ctx.t)
+  if (!result.data) return NextResponse.json({ error:ctx.t('notFound') },{ status:404 })
+  return NextResponse.json({ ok:true },{ headers })
 }

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { MAX_TEXTO_REGLA } from '@/lib/ai/guidance';
+import { RuleVersions } from './rule-versions';
 
 /**
  * Las reglas del comercio.
@@ -30,7 +31,8 @@ interface Regla {
   cuando: string | null;
   hacer: string;
   activa: boolean;
-  origen: 'comercio' | 'pliego';
+  origen: 'comercio' | 'pliego' | 'base' | 'hueco';
+  live_revision: number;
 }
 
 export function ReglasPanel() {
@@ -42,14 +44,17 @@ export function ReglasPanel() {
   const [titulo, setTitulo] = useState('');
   const [cuando, setCuando] = useState('');
   const [hacer, setHacer] = useState('');
+  const [isAdmin,setIsAdmin]=useState(false);
+  const [loadError,setLoadError]=useState(false);
 
   const cargar = useCallback(async () => {
     try {
       const res = await fetch('/api/reglas', { cache: 'no-store' });
       const json = await res.json();
-      setReglas(res.ok ? (json.reglas ?? []) : []);
+      if (!res.ok) throw new Error(String(res.status));
+      setReglas(json.reglas ?? []);setIsAdmin(json.is_admin===true);setLoadError(false);
     } catch {
-      setReglas([]);
+      setReglas(previous => previous ?? []);setLoadError(true);
     }
   }, []);
 
@@ -64,7 +69,7 @@ export function ReglasPanel() {
       const res = await fetchWithCsrf('/api/reglas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titulo, cuando, hacer }),
+        body: JSON.stringify({ titulo, cuando, hacer, draft:true }),
       });
       if (!res.ok) throw new Error(String(res.status));
       setTitulo('');
@@ -88,11 +93,13 @@ export function ReglasPanel() {
     const res = await fetchWithCsrf(`/api/reglas?id=${encodeURIComponent(r.id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ activa: !r.activa }),
+      body: JSON.stringify({ activa: !r.activa,live_revision:r.live_revision }),
     }).catch(() => null);
     if (!res?.ok) {
       toast.error(t('reglas.saveFailed'));
       await cargar();
+    } else {
+      const data=await res.json();setReglas(previous => (previous ?? []).map(x => x.id===r.id ? data.regla : x));
     }
   };
 
@@ -121,7 +128,7 @@ export function ReglasPanel() {
         <ul className="divide-y divide-border">
           {reglas.map((r) => (
             <li key={r.id} className="flex items-start gap-3 py-2.5">
-              <Switch checked={r.activa} onCheckedChange={() => void alternar(r)} />
+              <Switch checked={r.activa} disabled={!isAdmin} onCheckedChange={() => void alternar(r)} />
               <div className="min-w-0 flex-1">
                 <p
                   className={
@@ -136,11 +143,13 @@ export function ReglasPanel() {
                   {r.cuando ? `${r.cuando}: ` : ''}
                   {r.hacer}
                 </p>
+                <RuleVersions ruleId={r.id} onChanged={cargar} />
               </div>
               <button
                 type="button"
                 aria-label={r.titulo}
                 onClick={() => void borrar(r)}
+                disabled={!isAdmin}
                 className="mt-0.5 text-muted-foreground transition hover:text-foreground"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -180,7 +189,7 @@ export function ReglasPanel() {
           />
           <div className="flex gap-2">
             <Button type="submit" size="sm" disabled={guardando || !titulo.trim() || !hacer.trim()}>
-              {guardando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t('reglas.save')}
+              {guardando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t('reglas.saveDraft')}
             </Button>
             <Button type="button" size="sm" variant="ghost" onClick={() => setCreando(false)}>
               {t('reglas.cancel')}
@@ -199,6 +208,7 @@ export function ReglasPanel() {
           <span className="ml-1.5">{t('reglas.add')}</span>
         </Button>
       )}
+      {loadError && <p role="alert" className="mt-2 text-xs">{t('reglas.saveFailed')}</p>}
     </div>
   );
 }
