@@ -38,7 +38,7 @@ type Client = keyof typeof CLIENTS;
 const PROVIDERS = [
   { name: 'Claude Code', logo: '/logos/claude.ico', clients: ['claude'] },
   {
-    name: 'OpenAI (ChatGPT / Codex)',
+    name: 'OpenAI',
     logo: '/logos/codex.png',
     clients: ['codex', 'chatgpt'],
   },
