@@ -14,6 +14,9 @@ La portada contiene únicamente título, descripción e ilustración de marca.
 La navegación se conserva en los marcadores del PDF; no hay índice en la portada
 ni textos a la derecha del logo en ninguna página. Los diálogos llevan una nota de ejemplo ilustrativo.
 Las conversaciones dibujadas son ejemplos ilustrativos, no métricas ni testimonios reales.
+Los 20 ejemplos usan productos y situaciones diferentes: moda, accesorios,
+tecnología, muebles, hogar, mascotas, deporte, joyería y libros. Las preguntas,
+respuestas y referencias de pedidos varían sin cambiar la capacidad que ilustran.
 
 ## Orden editorial de la guía
 
