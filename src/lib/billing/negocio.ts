@@ -85,6 +85,11 @@ export interface CuentaDelNegocio {
   pruebaHasta: string | null
   /** Desde cuándo el cobro viene fallando. Con esto se ve quién está en gracia. */
   vencidaDesde: string | null
+  graceHours?: number
+  graceUntil?: string | null
+  readOnly?: boolean
+  invoiceUrl?: string | null
+  reservadoCentavos?: number
   // ── Billetera ──
   /** Lo que le queda. Puede ser negativo dentro del descubierto. */
   saldoCentavos: number
@@ -150,7 +155,7 @@ export async function leerNegocio(
     db.from('workspace_subscriptions').select(
       `workspace_id, plan_id, estado, prueba_hasta, periodo_desde, periodo_hasta,
        precio_centavos_override, incluidas_override, excedente_centavos_override,
-       nota, stripe_customer_id, stripe_subscription_id, cancelar_al_final, modelo_cobro,
+       nota, vencida_desde, grace_hours, stripe_customer_id, stripe_subscription_id, cancelar_al_final, modelo_cobro,
        billing_plans ( id, slug, nombre, activo, precio_centavos, moneda, incluidas,
                        excedente_centavos, stripe_price_id, stripe_price_excedente_id, orden )`,
     ),
@@ -160,7 +165,7 @@ export async function leerNegocio(
       .order('workspace_id', { ascending: true }), {
       select: 'workspace_id, conversaciones, costo_usd', orderBy: 'dia', strict: true,
     }).then(data => ({ data, error: null })),
-    db.from('wallet_accounts').select('workspace_id, saldo_centavos, bloquear_sin_saldo, cobrar_a_costo'),
+    db.from('wallet_accounts').select('workspace_id, saldo_centavos, reservado_centavos, resto_costo_centavos, bloquear_sin_saldo, cobrar_a_costo'),
     db.rpc('wallet_business_totals', { p_desde: periodo.desde.toISOString(), p_hasta: periodo.hasta.toISOString() }),
     // Sólo si existe; la clave nunca sale de la base.
     db.from('ai_agents').select('workspace_id').not('api_key_encrypted', 'is', null),
@@ -201,12 +206,15 @@ export async function leerNegocio(
     ((billeterasRes.data ?? []) as {
       workspace_id: string
       saldo_centavos: number
+      reservado_centavos?: number
+      resto_costo_centavos?: number
       bloquear_sin_saldo: boolean
       cobrar_a_costo: boolean
     }[]).map((b) => [
       b.workspace_id,
       {
         saldo: Number(b.saldo_centavos ?? 0),
+        reservado: Number(b.reservado_centavos ?? 0) + Math.ceil(Number(b.resto_costo_centavos ?? 0)),
         bloquea: b.bloquear_sin_saldo === true,
         aCosto: b.cobrar_a_costo === true,
       },
@@ -233,7 +241,7 @@ export async function leerNegocio(
     .map(([workspaceId, identidad]): CuentaDelNegocio => {
       const s = suscripciones.get(workspaceId)
       const u = uso.get(workspaceId) ?? { conversaciones: 0, costoUsd: 0 }
-      const b = billeteras.get(workspaceId) ?? { saldo: 0, bloquea: false, aCosto: false }
+      const b = billeteras.get(workspaceId) ?? { saldo: 0, reservado: 0, bloquea: false, aCosto: false }
       const l = libro.get(workspaceId) ?? { cargado: 0, gastado: 0, costo: 0 }
       const admiteLinkPago = !s || (s.billingProvider === 'stripe' &&
         (!s.stripeSubscriptionId || s.estado === 'cancelada'))
@@ -263,6 +271,8 @@ export async function leerNegocio(
         costoUsd: u.costoUsd,
         pruebaHasta: s?.pruebaHasta ?? null,
         vencidaDesde: s?.vencidaDesde ?? null,
+        graceHours: s?.graceHours ?? 24,
+        reservadoCentavos: b.reservado,
         saldoCentavos: b.saldo,
         cargadoCentavos: l.cargado,
         gastadoCentavos: l.gastado,

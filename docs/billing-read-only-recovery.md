@@ -53,3 +53,33 @@ human review instead of forcing an automatic send.
 Platform Anthropic balance below US$3 uses the existing independent WhatsApp
 and email administrator outbox. This is an estimate from a manually confirmed
 balance minus recorded platform consumption, not a live balance API.
+
+## Per-merchant pricing administration
+
+Migration 315 adds a 24–720-hour payment grace policy, shared by invoice persistence,
+legacy subscription access, database write guards, banners and notifications.
+Changing it recalculates current unpaid invoices from their original due time;
+paid/void invoice history and debt amounts are preserved. Six-hour and one-hour
+reminders have a unique deadline key, so extending grace cancels old deadlines
+and permits reminders for the new deadline without reporting a payment.
+The new worker activates deadline uniqueness after the rolling deployment.
+
+The merchant editor in `/admin/negocio?tab=cuentas` keeps billing changes separate
+from grace changes. Stripe approves the agreement before local publication;
+an exclusive per-merchant lease rejects overlapping admin updates. Webhooks
+retrieve current Stripe state and reconcile admin-managed flat-rate mode/prices.
+Active scheduled agreements and Shopify charges require their own approved flow;
+the ordinary editor cannot silently overwrite them. Existing unpaid invoices,
+wallet funds, cards and AI settings remain independent of mode changes.
+Leaving balance mode clears automatic recharge inside the same database transaction.
+
+Wallet adjustments are available only in balance mode. Additions are administrative
+credit, not a claim that a Stripe payment was received. Deductions require a reason,
+cannot remove funds reserved for active operations, and cannot create a negative
+available balance. A UUID makes retries idempotent. The append-only movement and
+admin audit commit together. These adjustments do not refund or charge a card.
+Legacy cost/block switches are no longer shown: prepaid usage always requires
+available funds and uses actual provider cost, as enforced by the billing engine.
+Provider operations snapshot whether the wallet paid at reservation; settlements
+and late receipts preserve that payer even after a mode change. BYOK never falls
+back to the platform key when the billing model cannot be verified.

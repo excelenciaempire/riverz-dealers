@@ -1993,8 +1993,8 @@ export const settings = {
     en: 'Hi, {nombre}. Your monthly payment still appears pending and your grace period ends at {fecha}. You can get up to date here: {url}. After that, Riverz will be read-only until payment is confirmed. Messages and comments will keep arriving and your balance will be preserved.',
   },
   billingPausedBody: {
-    es: 'Hola, {nombre}. Tu mensualidad sigue pendiente y terminó el plazo de 24 horas. Puedes seguir consultando Riverz y recibiendo mensajes y comentarios. Las ediciones, las respuestas manuales y la IA están en pausa. Completa el pago aquí: {url}. Al confirmarse, todo se habilitará automáticamente y revisaremos los mensajes pendientes, sin repetir respuestas que ya hayas enviado desde tus aplicaciones.',
-    en: 'Hi, {nombre}. Your monthly payment is still pending and the 24-hour grace period has ended. You can still view Riverz and receive messages and comments. Editing, manual replies and AI are paused. Complete your payment here: {url}. Once confirmed, access resumes automatically and we review pending messages without repeating replies you already sent from your apps.',
+    es: 'Hola, {nombre}. Tu mensualidad sigue pendiente y terminó tu plazo de gracia. Puedes seguir consultando Riverz y recibiendo mensajes y comentarios. Las ediciones, las respuestas manuales y la IA están en pausa. Completa el pago aquí: {url}. Al confirmarse, todo se habilitará automáticamente y revisaremos los mensajes pendientes, sin repetir respuestas que ya hayas enviado desde tus aplicaciones.',
+    en: 'Hi, {nombre}. Your monthly payment is still pending and your grace period has ended. You can still view Riverz and receive messages and comments. Editing, manual replies and AI are paused. Complete your payment here: {url}. Once confirmed, access resumes automatically and we review pending messages without repeating replies you already sent from your apps.',
   },
   billingActiveTitle: { es: 'Tu mensualidad ya está al día', en: 'Your monthly payment is up to date' },
   billingActiveBody: {

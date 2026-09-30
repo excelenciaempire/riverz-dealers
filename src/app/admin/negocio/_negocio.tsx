@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "@/components/i18n/locale-link";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import {
   FIRST_MONTH_DISCOUNT_PERCENT,
 } from "@/lib/billing/first-month-offer";
 import type { Tarifa } from "@/lib/wallet/tarifas";
+import { BillingGraceEditor } from '../_components/billing-grace-editor';
 import {
   useAdminData,
   PageHeader,
@@ -225,28 +226,10 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
       });
       if (!response.ok) throw new Error((await response.json()).error || t('admin.billingSaveFailed'));
       reload();
+      return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('admin.billingSaveFailed'));
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  const cambiarBloqueo = async (
-    workspace_id: string,
-    cambio: Record<string, unknown>,
-  ) => {
-    setGuardando(true);
-    try {
-      const response = await fetchWithCsrf("/api/admin/billing", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ billetera: { workspace_id, ...cambio } }),
-      });
-      if (!response.ok) throw new Error((await response.json()).error || t('admin.billingSaveFailed'));
-      reload();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('admin.billingSaveFailed'));
+      return false;
     } finally {
       setGuardando(false);
     }
@@ -545,7 +528,7 @@ export function Negocio({ vista }: { vista: "cuentas" | "precios" }) {
                 onGuardar={guardarCuenta}
                 onCerrar={() => setEditando(null)}
                 onMover={moverSaldo}
-                onBloqueo={cambiarBloqueo}
+                onChanged={reload}
               />
             </div>
           </DialogContent>
@@ -572,25 +555,34 @@ function BloqueBilletera({
   cuenta,
   guardando,
   onMover,
-  onBloqueo,
 }: {
   cuenta: CuentaDelNegocio;
   guardando: boolean;
-  onMover: (s: Record<string, unknown>) => void;
-  onBloqueo: (workspaceId: string, cambio: Record<string, unknown>) => void;
+  onMover: (s: Record<string, unknown>) => Promise<boolean>;
 }) {
   const t = useT();
   const [monto, setMonto] = useState("");
+  const [direction, setDirection] = useState<'add' | 'remove'>('add');
+  const [reason, setReason] = useState('');
+  const operationId = useRef<string | null>(null);
+  const moving = useRef(false);
+  const amount = billingAmount(monto);
+  const available = Math.max(0, cuenta.saldoCentavos - (cuenta.reservadoCentavos ?? 0));
+  const valid = amount != null && amount > 0 && amount <= 100000000 &&
+    (direction === 'add' || amount <= available && reason.trim().length > 0);
 
-  const cargar = () => {
-    const dolares = Number(monto.replace(",", "."));
-    if (!Number.isFinite(dolares) || dolares === 0) return;
-    onMover({
+  const cargar = async () => {
+    if (!valid || amount == null || moving.current) return;
+    const id = operationId.current ?? crypto.randomUUID();
+    operationId.current = id;
+    moving.current = true;
+    try { if (await onMover({
       workspace_id: cuenta.workspaceId,
-      centavos: Math.round(dolares * 100),
-      tipo: "bono",
-    });
-    setMonto("");
+      centavos: direction === 'add' ? amount : -amount,
+      tipo: direction === 'add' ? 'bono' : 'ajuste',
+      motivo: reason.trim() || null, operation_id: id,
+    })) { setMonto(''); setReason(''); operationId.current = null; } }
+    finally { moving.current = false; }
   };
 
   return (
@@ -605,35 +597,15 @@ function BloqueBilletera({
             {t("admin.walletSpent")} {usd(cuenta.gastadoCentavos)}
           </Muted>
         </p>
-        <div className="flex flex-wrap items-center gap-4">
-          <label className="flex items-center gap-2 text-sm text-foreground">
-            <input
-              type="checkbox"
-              checked={cuenta.bloqueaSinSaldo}
-              disabled={guardando}
-              onChange={(e) =>
-                onBloqueo(cuenta.workspaceId, { bloquear_sin_saldo: e.target.checked })
-              }
-            />
-            {t("admin.walletBlockToggle")}
-          </label>
-          {/* Pasarle el costo sin margen. Es por cuenta y no global: al primer
-              cliente se le pasa a costo mientras el precio se descubre; al que
-              entre en seis meses, no. */}
-          <label className="flex items-center gap-2 text-sm text-foreground">
-            <input
-              type="checkbox"
-              checked={cuenta.cobraACosto}
-              disabled={guardando}
-              onChange={(e) =>
-                onBloqueo(cuenta.workspaceId, { cobrar_a_costo: e.target.checked })
-              }
-            />
-            {t("admin.walletAtCost")}
-          </label>
-        </div>
       </div>
-      <div className="flex items-end gap-2">
+      <div className="flex flex-wrap items-end gap-2">
+        <Campo label={t('admin.walletAdjustment')}>
+          <select className={INPUT} value={direction} disabled={guardando}
+            onChange={e => { setDirection(e.target.value as 'add' | 'remove'); operationId.current = null; }}>
+            <option value="add">{t('admin.walletGrant')}</option>
+            <option value="remove">{t('admin.walletRemove')}</option>
+          </select>
+        </Campo>
         <div className="w-40">
           <Campo label={t("admin.walletGrantAmount")}>
             <input
@@ -641,19 +613,25 @@ function BloqueBilletera({
               inputMode="decimal"
               placeholder="50"
               value={monto}
-              onChange={(e) => setMonto(e.target.value)}
+              disabled={guardando}
+              onChange={(e) => { setMonto(e.target.value); operationId.current = null; }}
             />
           </Campo>
         </div>
         <button
           type="button"
-          disabled={guardando || !monto}
+          disabled={guardando || !valid}
           onClick={cargar}
           className="h-[34px] rounded-lg border border-border px-3 text-xs font-medium text-foreground disabled:opacity-50"
         >
-          {t("admin.walletGrant")}
+          {t(direction === 'add' ? 'admin.walletGrant' : 'admin.walletRemove')}
         </button>
       </div>
+      <Campo label={t(direction === 'remove' ? 'admin.walletAdjustmentReasonRequired' : 'admin.walletAdjustmentReason')}>
+        <input className={INPUT} maxLength={500} value={reason} disabled={guardando}
+          onChange={e => { setReason(e.target.value); operationId.current = null; }} />
+      </Campo>
+      {direction === 'remove' && <p className="text-xs text-muted-foreground">{t('admin.walletAvailable', { amount: usd(available) })}</p>}
     </div>
   );
 }
@@ -842,7 +820,7 @@ function FormularioCuenta({
   onGuardar,
   onCerrar,
   onMover,
-  onBloqueo,
+  onChanged,
 }: {
   cuenta: CuentaDelNegocio;
   generandoLink: boolean;
@@ -852,8 +830,8 @@ function FormularioCuenta({
   error: string | null;
   onGuardar: (c: Record<string, unknown>) => Promise<boolean>;
   onCerrar: () => void;
-  onMover: (s: Record<string, unknown>) => void;
-  onBloqueo: (workspaceId: string, cambio: Record<string, unknown>) => void;
+  onMover: (s: Record<string, unknown>) => Promise<boolean>;
+  onChanged: () => void;
 }) {
   const t = useT();
   const [f, setF] = useState({
@@ -1045,12 +1023,12 @@ function FormularioCuenta({
         antesDeArmar={guardarPendiente}
         onGenerando={onGenerandoLink}
       />
+      {cuenta.tieneSuscripcion && <BillingGraceEditor account={cuenta} disabled={guardando || generandoLink} onChanged={onChanged} />}
       {f.modelo === "saldo" && cuenta.modeloCobro === "saldo" ? (
         <BloqueBilletera
           cuenta={cuenta}
           guardando={guardando || generandoLink}
           onMover={onMover}
-          onBloqueo={onBloqueo}
         />
       ) : oficial ? (
         <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">

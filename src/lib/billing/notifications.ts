@@ -9,6 +9,10 @@ import type { Locale } from '@/lib/i18n/config';
 import { aplicarEvento, stripe, stripeDisponible } from './stripe';
 import type Stripe from 'stripe';
 import { createHash } from 'node:crypto';
+import { resolvedGraceHours } from './grace';
+export function billingNoticeSchedule(payment: PendingPayment | null) {
+  return payment ? new Date(payment.graceUntil).toISOString() : 'paid';
+}
 
 export type BillingPhase = 'pending' | 'reminder6' | 'reminder1' | 'paused' | 'active';
 export function billingPhase(payment: PendingPayment | null, now=Date.now()): BillingPhase {
@@ -46,11 +50,11 @@ export function billingNoticeMessage(phase: BillingPhase, locale: Locale, args: 
 
 async function accountState(db: SupabaseClient, workspaceId: string) {
   const payment=await pendingSubscriptionPayment(db,workspaceId);
-  const sub=await db.from('workspace_subscriptions').select('estado,vencida_desde,stripe_customer_id')
+  const sub=await db.from('workspace_subscriptions').select('estado,vencida_desde,grace_hours,stripe_customer_id')
     .eq('workspace_id',workspaceId).maybeSingle();
   if(sub.error)throw new Error('billing_notice_subscription_unavailable');
   if(!payment && sub.data?.estado==='vencida' && sub.data.vencida_desde) {
-    const graceUntil=new Date(Date.parse(sub.data.vencida_desde)+24*3_600_000).toISOString();
+    const graceUntil=new Date(Date.parse(sub.data.vencida_desde)+resolvedGraceHours(sub.data.grace_hours)*3_600_000).toISOString();
     const legacy: PendingPayment={invoiceId:'legacy:'+workspaceId+':'+sub.data.vencida_desde,
       invoiceUrl:null,graceUntil,blocked:Date.parse(graceUntil)<=Date.now(),
       hours:Math.max(0,Math.ceil((Date.parse(graceUntil)-Date.now())/3_600_000))};
@@ -79,10 +83,12 @@ async function accountInfo(db: SupabaseClient, workspaceId: string, customerId?:
 }
 
 type Notice={id:string;workspace_id:string;invoice_id:string;phase:BillingPhase;channel:'whatsapp'|'email';
-  recipient:string;lease_id:string;attempts:number};
+  recipient:string;lease_id:string;attempts:number;schedule_key:string};
 
 /** Durable, independent delivery by invoice, phase, recipient and channel. No daily suppression. */
 export async function maintainBillingNotifications(db: SupabaseClient) {
+  const scheduleSchema=await db.rpc('activate_billing_notice_schedules');
+  if(scheduleSchema.error)throw new Error('billing_notice_schedule_schema_unavailable');
   const candidates=await db.rpc('billing_notice_accounts');
   if(candidates.error)throw new Error('billing_notice_discovery_unavailable');
   const accounts=new Map<string,Set<string>>();
@@ -110,18 +116,21 @@ export async function maintainBillingNotifications(db: SupabaseClient) {
       if(!phones.length)failures.push(workspaceId+':missing_whatsapp_recipient');
       if(!info.emails.length)failures.push(workspaceId+':missing_email_recipient');
       const rows=invoiceIds.flatMap(invoiceId=>[
-        ...phones.map(recipient=>({workspace_id:workspaceId,invoice_id:invoiceId,phase:state.phase,channel:'whatsapp',recipient})),
-        ...info.emails.map(recipient=>({workspace_id:workspaceId,invoice_id:invoiceId,phase:state.phase,channel:'email',recipient})),
+        ...phones.map(recipient=>({workspace_id:workspaceId,invoice_id:invoiceId,phase:state.phase,channel:'whatsapp',recipient,schedule_key:billingNoticeSchedule(state.payment)})),
+        ...info.emails.map(recipient=>({workspace_id:workspaceId,invoice_id:invoiceId,phase:state.phase,channel:'email',recipient,schedule_key:billingNoticeSchedule(state.payment)})),
       ]);
       if(rows.length) {
         const saved=await db.from('workspace_billing_notices').upsert(rows,{
-          onConflict:'workspace_id,invoice_id,phase,channel,recipient',ignoreDuplicates:true,
+          onConflict:'workspace_id,invoice_id,phase,channel,recipient,schedule_key',ignoreDuplicates:true,
         });
         if(saved.error)throw saved.error;
       } else if(invoiceIds.length) failures.push(workspaceId+':missing_billing_recipient');
       const stale=await db.from('workspace_billing_notices').update({status:'cancelled'})
         .eq('workspace_id',workspaceId).eq('status','pending').neq('phase',state.phase);
       if(stale.error)throw stale.error;
+      const rescheduled=await db.from('workspace_billing_notices').update({status:'cancelled'})
+        .eq('workspace_id',workspaceId).eq('status','pending').neq('schedule_key',billingNoticeSchedule(state.payment));
+      if(rescheduled.error)throw rescheduled.error;
     } catch {failures.push(workspaceId+':billing_notice_preparation_failed');}
   }
   const claimed=await db.rpc('claim_billing_notices',{p_limit:20});
@@ -138,6 +147,7 @@ export async function maintainBillingNotifications(db: SupabaseClient) {
       }
       const state=await accountState(db,notice.workspace_id);
       obsolete=state.phase!==notice.phase ||
+        notice.schedule_key!==billingNoticeSchedule(state.payment) ||
         (state.payment!==null && state.payment.invoiceId!==notice.invoice_id) ||
         (notice.phase==='active' && !['activa','prueba'].includes(state.sub?.estado??''));
       if(!obsolete) {

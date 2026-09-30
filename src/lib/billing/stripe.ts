@@ -298,6 +298,14 @@ export async function sincronizarPrecioSuscripcion(
   const sub = await stripe().subscriptions.retrieve(s.stripeSubscriptionId)
   const base = sub.items.data.find((i) => i.price.recurring?.usage_type !== 'metered')
   if (!base) throw new Error('La suscripción de Stripe no tiene una mensualidad editable.')
+  const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id
+  if (customerId !== s.stripeCustomerId || !['active','trialing','past_due','unpaid'].includes(sub.status)) {
+    throw new Error('billing_subscription_state_conflict')
+  }
+  if (sub.schedule && (base.price.unit_amount !== precioCentavos || base.price.currency !== moneda ||
+      modelo !== s.modeloCobro || (cambio && cambio.planId !== s.plan?.id))) {
+    throw new Error('billing_schedule_managed')
+  }
   const medidos = sub.items.data.filter((i) => i.price.recurring?.usage_type === 'metered')
   const cambiaPrecio = base.price.unit_amount !== precioCentavos || base.price.currency !== moneda
   const quitarMedidos = modelo !== 'saldo' || sinMedido
@@ -331,6 +339,7 @@ export async function sincronizarPrecioSuscripcion(
       metadata: {
         plan_id: cambio.planId,
         modelo_cobro: modelo,
+        ...(!cambio.invoiceId && !sub.schedule ? { billing_agreement: 'admin_fixed_price' } : {}),
         ...(cambio.invoiceId ? { capacity_upgrade_invoice_id: cambio.invoiceId } : {}),
       },
     } : {}),
@@ -606,20 +615,28 @@ export async function aplicarEvento(
   const estado =
     tipo === 'customer.subscription.deleted' ? 'cancelada' : estadoDe(sub.status)
 
-  if (estado === 'activa') await prepareSubscriptionWallet(db, stripe(), workspaceId, sub);
-
   // El reloj de la gracia.
   //
   // Se marca la PRIMERA vez que el cobro falla y no se vuelve a tocar mientras
   // siga fallando: Stripe reintenta y manda `updated` varias veces, y si cada
   // uno reiniciara la marca la gracia no terminaría nunca. Volver a estar al
   // día la borra.
-  const { data: previa } = await db
+  const { data: previa, error: previousError } = await db
     .from('workspace_subscriptions')
-    .select('estado, vencida_desde')
+    .select('estado, vencida_desde, stripe_subscription_id, stripe_customer_id')
     .eq('workspace_id', workspaceId)
     .maybeSingle()
+  if (previousError) throw new Error('billing_subscription_state_unavailable')
   const estadoPrevio = (previa as { estado?: string } | null)?.estado ?? null
+  const currentId = previa?.stripe_subscription_id as string | null | undefined
+  const verifiedReplacement = tipo.startsWith('checkout.session.') &&
+    ['cancelada','cortesia','prueba'].includes(estadoPrevio ?? '')
+  if (currentId && currentId !== sub.id && !verifiedReplacement) return `ignorado: suscripción anterior ${sub.id}`
+  const subCustomerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id
+  if (previa?.stripe_customer_id && previa.stripe_customer_id !== subCustomerId) {
+    throw new Error('billing_subscription_account_mismatch')
+  }
+  if (estado === 'activa') await prepareSubscriptionWallet(db, stripe(), workspaceId, sub);
 
   let vencidaDesde: string | null | undefined
   if (estado === 'vencida') {
@@ -649,12 +666,15 @@ export async function aplicarEvento(
       cancelar_al_final: sub.cancel_at_period_end === true,
       // Fixed-price schedules advance the agreed monthly price automatically.
       // Only schedules explicitly managed by Riverz carry this marker.
-      ...(sub.metadata?.billing_agreement === 'scheduled_fixed_price' &&
+      ...(['scheduled_fixed_price','admin_fixed_price'].includes(sub.metadata?.billing_agreement ?? '') &&
           sub.items.data.length === 1 && (sub.discounts?.length ?? 0) === 0 &&
           item?.price?.currency === 'usd' &&
           item.price.recurring?.interval === 'month' &&
           item.price.unit_amount != null && item.price.unit_amount > 0
         ? { precio_centavos_override: item.price.unit_amount } : {}),
+      ...(sub.metadata?.billing_agreement === 'admin_fixed_price' &&
+          ['oficial','saldo','byok'].includes(sub.metadata?.modelo_cobro ?? '')
+        ? { modelo_cobro: sub.metadata.modelo_cobro } : {}),
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'workspace_id' },

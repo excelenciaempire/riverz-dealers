@@ -51,8 +51,7 @@ export function invalidatePlatformKeyCache(): void {
  * suscripción no tiene políticas de lectura, y un cliente de sesión la vería
  * vacía y le daría la clave de Riverz a una cuenta BYOK.
  *
- * Si la consulta falla se responde que no: una base caída no puede dejar muda
- * a todas las cuentas. Ese resultado no se cachea.
+ * Si la consulta falla, no se autoriza sustituir al pagador con la clave de Riverz.
  */
 export async function esCuentaByok(workspaceId: string): Promise<boolean> {
   if (!workspaceId) return false
@@ -64,11 +63,11 @@ export async function esCuentaByok(workspaceId: string): Promise<boolean> {
       .select('modelo_cobro')
       .eq('workspace_id', workspaceId)
       .maybeSingle()
-    if (error) return false
+    if (error) throw new Error('billing_model_unavailable')
     const value = (data as { modelo_cobro?: string } | null)?.modelo_cobro === 'byok'
     return value
   } catch {
-    return false
+    throw new Error('billing_model_unavailable')
   }
 }
 

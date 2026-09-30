@@ -60,6 +60,18 @@ describe('ampliación de capacidad en Stripe', () => {
     mocks.retrieveSubscription.mockResolvedValue(stripeSubscription)
     mocks.listInvoices.mockResolvedValue({ data: [] })
   })
+  it('protects a scheduled introductory agreement from a silent mode or price change', async () => {
+    mocks.retrieveSubscription.mockResolvedValue({ ...stripeSubscription, schedule: 'sub_sched_pilar' });
+    await expect(sincronizarPrecioSuscripcion(suscripcion, 39900, 'usd', 'saldo', { planId: 'saldo' }))
+      .rejects.toThrow('billing_schedule_managed');
+    expect(mocks.updateSubscription).not.toHaveBeenCalled(); expect(mocks.createPrice).not.toHaveBeenCalled();
+  });
+  it('rejects a provider subscription belonging to another customer', async () => {
+    mocks.retrieveSubscription.mockResolvedValue({ ...stripeSubscription, customer: 'cus_other' });
+    await expect(sincronizarPrecioSuscripcion(suscripcion, 39900, 'usd', 'saldo', { planId: 'saldo' }))
+      .rejects.toThrow('billing_subscription_state_conflict');
+    expect(mocks.updateSubscription).not.toHaveBeenCalled();
+  });
 
   it('cotiza la diferencia completa y conserva el inicio del ciclo', async () => {
     const quote = await previsualizarAmpliacion(suscripcion, destino.precioCentavos, 'usd')
@@ -101,7 +113,7 @@ describe('ampliación de capacidad en Stripe', () => {
       product_data: { name: 'Riverz · Nuevo plan' }, unit_amount: 99900,
     }), expect.anything())
     expect(mocks.updateSubscription).toHaveBeenCalledWith('sub_1', expect.objectContaining({
-      metadata: { plan_id: 'new', modelo_cobro: modelo },
+      metadata: { plan_id: 'new', modelo_cobro: modelo, billing_agreement: 'admin_fixed_price' },
       items: [{ id: 'si_1', price: 'price_new', quantity: 1 }, { id: 'si_meter', deleted: true }],
       billing_cycle_anchor: 'unchanged', proration_behavior: 'none',
     }), undefined)

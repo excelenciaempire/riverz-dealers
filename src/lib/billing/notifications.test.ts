@@ -8,16 +8,16 @@ vi.mock('@/lib/avisos/destinos',()=>({destinosDeAviso:async()=>['15555555555']})
 vi.mock('@/lib/admin/platform-whatsapp',()=>({sendPlatformAlert:mocks.wa}));
 vi.mock('@/lib/admin/correo',()=>({enviarCorreo:mocks.email}));
 vi.mock('@/lib/i18n/cuenta',()=>({localeDeCuenta:async()=> 'es'}));
-import { billingNoticeMessage, billingPhase, maintainBillingNotifications } from './notifications';
+import { billingNoticeMessage, billingNoticeSchedule, billingPhase, maintainBillingNotifications } from './notifications';
 const now=Date.parse('2026-10-01T00:00:00Z');
 const payment:PendingPayment={invoiceId:'in_test',invoiceUrl:'https://invoice.stripe.com/i/pay/test',graceUntil:new Date(now+24*3_600_000).toISOString(),blocked:false,hours:24};
-function database(phases:string[]=['reminder6']) {
+function database(phases:string[]=['reminder6'], scheduleKey=payment.graceUntil) {
  const changes:Array<{table:string;values:Record<string,unknown>;filters:Record<string,unknown>}>=[];
  const db={
   auth:{admin:{getUserById:async()=>({data:{user:{email:'owner@example.com'}}})}},
   rpc:async(name:string)=>({data:name==='billing_notice_accounts'?[]:phases.flatMap((phase,i)=>[
-   {id:'wa'+i,workspace_id:'w',invoice_id:'in_test',phase,channel:'whatsapp',recipient:'15555555555',lease_id:'lease',attempts:1},
-   {id:'email'+i,workspace_id:'w',invoice_id:'in_test',phase,channel:'email',recipient:'owner@example.com',lease_id:'lease',attempts:1},
+   {id:'wa'+i,workspace_id:'w',invoice_id:'in_test',phase,channel:'whatsapp',recipient:'15555555555',lease_id:'lease',attempts:1,schedule_key:scheduleKey},
+   {id:'email'+i,workspace_id:'w',invoice_id:'in_test',phase,channel:'email',recipient:'owner@example.com',lease_id:'lease',attempts:1,schedule_key:scheduleKey},
   ])}),
   from:(table:string)=>{
    const filters:Record<string,unknown>={};
@@ -57,9 +57,10 @@ describe('monthly reminders',()=>{
   expect(changes.map(c=>c.values.status)).toEqual(['cancelled','cancelled']);
  });
  it('retries failed email independently without resending accepted WhatsApp',async()=>{
-  mocks.payment.mockResolvedValue({...payment,graceUntil:new Date(Date.now()+4*3_600_000).toISOString()});
+  const current={...payment,graceUntil:new Date(Date.now()+4*3_600_000).toISOString()};
+  mocks.payment.mockResolvedValue(current);
   mocks.email.mockResolvedValue(false);
-  const {db,changes}=database();
+  const {db,changes}=database(['reminder6'],billingNoticeSchedule(current));
   const result=await maintainBillingNotifications(db);
   expect(result.sent).toBe(1);
   expect(changes.map(c=>c.values.status)).toEqual(['sent','pending']);
@@ -70,5 +71,13 @@ describe('monthly reminders',()=>{
   mocks.payment.mockResolvedValue({...payment,graceUntil:new Date(Date.now()+30*60_000).toISOString()});
   const {db}=database();await maintainBillingNotifications(db);
   expect(mocks.wa).not.toHaveBeenCalled();expect(mocks.email).not.toHaveBeenCalled();
+ });
+ it('cancels a reminder from an earlier deadline after a grace extension',async()=>{
+  const prior={...payment,graceUntil:new Date(Date.now()+2*3_600_000).toISOString()};
+  mocks.payment.mockResolvedValue({...prior,graceUntil:new Date(Date.now()+5*3_600_000).toISOString()});
+  const {db,changes}=database(['reminder6'],billingNoticeSchedule(prior));
+  await maintainBillingNotifications(db);
+  expect(mocks.wa).not.toHaveBeenCalled();expect(mocks.email).not.toHaveBeenCalled();
+  expect(changes.map(c=>c.values.status)).toEqual(['cancelled','cancelled']);
  });
 });

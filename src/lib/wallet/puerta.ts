@@ -216,6 +216,7 @@ export async function estadoDeCobro(
     const vistazo = { ...vistazoDe(billetera, exenta), sinPagar: sus?.estado === 'cortesia', mensualidad,
       soloLectura: mensualidad?.blocked ?? (sus?.estado === 'vencida' && !acceso(sus).puede),
       revisionCobro: JSON.stringify([sus?.modeloCobro, sus?.estado, sus?.plan?.id,
+        sus?.graceHours,
         sus?.precioAcuerdoCentavos, sus?.incluidas, sus?.periodoHasta, sus?.cancelarAlFinal,
         mensualidad?.invoiceId, mensualidad?.graceUntil, mensualidad?.blocked, mensualidad?.hours]),
     };

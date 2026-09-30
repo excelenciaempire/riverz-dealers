@@ -25,7 +25,7 @@ export async function pendingSubscriptionPayment(
     .select('invoice_id,hosted_invoice_url,grace_until')
     .eq('workspace_id', workspaceId).in('status', ['open', 'uncollectible'])
     .gt('amount_remaining', 0).lte('unpaid_since', new Date(now).toISOString())
-    .order('unpaid_since').limit(1).maybeSingle();
+    .order('grace_until').order('unpaid_since').limit(1).maybeSingle();
   if (error) throw new Error('subscription_payment_state_unavailable');
   if (!data) return null;
   const remaining = new Date(data.grace_until).getTime() - now;

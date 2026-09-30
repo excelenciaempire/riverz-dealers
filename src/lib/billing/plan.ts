@@ -13,6 +13,7 @@
  * apagada desaparece del cuadro— sino con `cortesia` y los `*_override`.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { DEFAULT_GRACE_HOURS, resolvedGraceHours } from './grace'
 
 export type EstadoSuscripcion =
   | 'prueba'
@@ -55,6 +56,7 @@ export interface Suscripcion {
   periodoHasta: string | null
   /** Desde cuándo el cobro viene fallando. Es el reloj de la gracia. */
   vencidaDesde: string | null
+  graceHours?: number
   nota: string | null
   stripeCustomerId: string | null
   stripeSubscriptionId: string | null
@@ -90,7 +92,7 @@ export const DIAS_DE_PRUEBA = 5
  * comercio en el minuto uno lo deja sin atender a SUS clientes por un problema
  * administrativo que todavía no tuvo tiempo de arreglar.
  */
-export const HORAS_DE_GRACIA = 24
+export const HORAS_DE_GRACIA = DEFAULT_GRACE_HOURS
 
 const COLUMNAS_PLAN =
   'id, slug, nombre, activo, precio_centavos, moneda, incluidas, excedente_centavos, stripe_price_id, stripe_price_excedente_id, orden'
@@ -117,6 +119,7 @@ interface FilaSuscripcion {
   periodo_desde: string | null
   periodo_hasta: string | null
   vencida_desde: string | null
+  grace_hours?: number
   precio_centavos_override: number | null
   incluidas_override: number | null
   excedente_centavos_override: number | null
@@ -167,7 +170,7 @@ export async function leerSuscripcion(
     .from('workspace_subscriptions')
     .select(
       `workspace_id, plan_id, estado, prueba_hasta, periodo_desde, periodo_hasta,
-       vencida_desde, precio_centavos_override, incluidas_override, excedente_centavos_override,
+       vencida_desde, grace_hours, precio_centavos_override, incluidas_override, excedente_centavos_override,
        nota, stripe_customer_id, stripe_subscription_id, cancelar_al_final, modelo_cobro,
        billing_plans ( ${COLUMNAS_PLAN} )`,
     )
@@ -195,6 +198,7 @@ export function aSuscripcion(f: FilaSuscripcion): Suscripcion {
     periodoDesde: f.periodo_desde,
     periodoHasta: f.periodo_hasta,
     vencidaDesde: f.vencida_desde,
+    graceHours: resolvedGraceHours(f.grace_hours),
     nota: f.nota,
     stripeCustomerId: f.stripe_customer_id,
     stripeSubscriptionId: f.stripe_subscription_id,
@@ -339,12 +343,13 @@ export function acceso(s: Suscripcion | null): Acceso {
   // vencida antes de que esta columna existiera no tiene por qué pagar ese
   // hueco con su operación.
   if (s.estado === 'vencida') {
+    const graceHours = resolvedGraceHours(s.graceHours)
     const desde = s.vencidaDesde ? Date.parse(s.vencidaDesde) : null
     if (desde === null || !Number.isFinite(desde)) {
-      return { puede: true, estado: 'vencida', diasDePrueba: null, horasDeGracia: HORAS_DE_GRACIA }
+      return { puede: true, estado: 'vencida', diasDePrueba: null, horasDeGracia: graceHours }
     }
     const pasadas = (Date.now() - desde) / (60 * 60 * 1000)
-    const quedan = HORAS_DE_GRACIA - pasadas
+    const quedan = graceHours - pasadas
     return {
       puede: quedan > 0,
       estado: 'vencida',

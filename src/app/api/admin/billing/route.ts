@@ -12,6 +12,8 @@ import { translate } from '@/lib/i18n/translate';
 import { leerNegocio } from '@/lib/billing/negocio';
 import { listarTarifas } from '@/lib/wallet/tarifas';
 import { compatibleBillingPlan } from '@/lib/billing/admin-agreement';
+import { validGraceHours } from '@/lib/billing/grace';
+import { safeInvoiceUrl } from '@/lib/billing/pending-payment';
 
 /**
  * El negocio y sus perillas, en un solo lugar.
@@ -40,6 +42,17 @@ export async function GET(request: Request) {
       leerNegocio(db, { desde: from, hasta: to }),
       listarTarifas(db),
     ]);
+    const invoices = await db.from('workspace_billing_invoices').select('workspace_id,grace_until,hosted_invoice_url')
+      .in('status', ['open','uncollectible']).gt('amount_remaining', 0).lte('unpaid_since', new Date().toISOString())
+      .order('grace_until');
+    if (invoices.error) throw invoices.error;
+    for (const account of negocio.cuentas) {
+      const invoice = invoices.data?.find(i => i.workspace_id === account.workspaceId);
+      account.graceUntil = invoice?.grace_until ?? (account.estado === 'vencida' && account.vencidaDesde
+        ? new Date(Date.parse(account.vencidaDesde) + (account.graceHours ?? 24) * 3_600_000).toISOString() : null);
+      account.readOnly = account.graceUntil != null && Date.parse(account.graceUntil) <= Date.now();
+      account.invoiceUrl = safeInvoiceUrl(invoice?.hosted_invoice_url);
+    }
     return { planes, negocio, tarifas, diasDePrueba: DIAS_DE_PRUEBA };
   });
 }
@@ -76,6 +89,7 @@ interface CuerpoSaldo {
   centavos: number;
   tipo?: 'bono' | 'ajuste';
   motivo?: string | null;
+  operation_id: string;
 }
 
 interface CuerpoTarifa {
@@ -110,8 +124,25 @@ export async function PUT(request: Request) {
     saldo?: CuerpoSaldo;
     billetera?: CuerpoBilletera;
     tarifa?: CuerpoTarifa;
+    gracia?: { workspace_id: string; horas: number; horas_previas: number };
   } | null;
   const db = supabaseAdmin();
+  if (!body || Object.keys(body).length !== 1) {
+    return NextResponse.json({ error: translate(await getLocale(), 'admin.billingInvalidAgreement') }, { status: 400 });
+  }
+
+  if (body.gracia) {
+    const g = body.gracia;
+    if (!g.workspace_id || !validGraceHours(g.horas) || !validGraceHours(g.horas_previas)) {
+      return NextResponse.json({ error: translate(await getLocale(), 'admin.billingInvalidGrace') }, { status: 400 });
+    }
+    const { data, error } = await db.rpc('admin_set_billing_grace', {
+      p_workspace: g.workspace_id, p_hours: g.horas, p_expected: g.horas_previas, p_actor: gate.actor.userId, p_actor_email: gate.actor.email,
+    });
+    if (error) return NextResponse.json({ error: translate(await getLocale(),
+      error.message.includes('billing_policy_conflict') ? 'admin.billingConcurrentChange' : 'admin.billingSaveFailed') }, { status: 409 });
+    return NextResponse.json({ ok: true, ...data });
+  }
 
   if (body?.plan) {
     const p = body.plan;
@@ -173,9 +204,12 @@ export async function PUT(request: Request) {
     if (!c.workspace_id) {
       return NextResponse.json({ error: 'falta workspace_id' }, { status: 400 });
     }
+    const lock = await db.rpc('claim_billing_admin_lease', { p_workspace: c.workspace_id });
+    if (lock.error || !lock.data) return NextResponse.json({ error: translate(await getLocale(), 'admin.billingConcurrentChange') }, { status: 409 });
+    try {
     const previa = await leerSuscripcion(db, c.workspace_id);
     const { data: antes, error: antesError } = await db.from('workspace_subscriptions')
-      .select('plan_id,estado,prueba_hasta,precio_centavos_override,incluidas_override,excedente_centavos_override,modelo_cobro,nota')
+      .select('plan_id,estado,prueba_hasta,vencida_desde,precio_centavos_override,incluidas_override,excedente_centavos_override,modelo_cobro,nota')
       .eq('workspace_id', c.workspace_id).maybeSingle();
     if (antesError) return NextResponse.json({ error: antesError.message }, { status: 400 });
     const planes = await listarPlanes(db);
@@ -214,6 +248,13 @@ export async function PUT(request: Request) {
     const suscripcionStripeViva = previa?.billingProvider === 'stripe' &&
       Boolean(previa?.stripeSubscriptionId) &&
       (previa?.estado === 'activa' || previa?.estado === 'vencida');
+    const resolvedPriceOverride = c.precio_centavos_override === undefined
+      ? (antes as { precio_centavos_override?: number | null } | null)?.precio_centavos_override ?? null
+      : c.precio_centavos_override;
+    const nextPrice = resolvedPriceOverride ?? plan?.precioCentavos ?? 0;
+    if (suscripcionStripeViva && nextPrice <= 0) return NextResponse.json({
+      error: translate(await getLocale(), 'admin.billingActivePriceRequired'),
+    }, { status: 400 });
     if (c.estado === 'cortesia' && suscripcionStripeViva) {
       return NextResponse.json({
         error: translate(await getLocale(), 'admin.billingCancelBeforeComping'),
@@ -236,6 +277,8 @@ export async function PUT(request: Request) {
       const estado = estadoAlConfigurar(previa, override ?? plan?.precioCentavos ?? 0);
       if (estado) fila.estado = estado;
     }
+    if (fila.estado === 'vencida' && !antes?.vencida_desde) fila.vencida_desde = new Date().toISOString();
+    if (fila.estado === 'activa') fila.vencida_desde = null;
     if (c.prueba_hasta !== undefined) fila.prueba_hasta = c.prueba_hasta || null;
     else if (!previa && c.estado === 'prueba') {
       fila.prueba_hasta = new Date(Date.now() + DIAS_DE_PRUEBA * 24 * 60 * 60 * 1000).toISOString();
@@ -268,56 +311,31 @@ export async function PUT(request: Request) {
       }
     }
 
-    const { error } = await db
-      .from('workspace_subscriptions')
-      .upsert(fila, { onConflict: 'workspace_id' });
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    // Quién paga la IA depende del sistema de cobro: BYOK deja de usar la de
-    // Riverz ya, no cuando venza la caché.
-    if (c.modelo_cobro !== undefined) invalidatePlatformKeyCache();
-
+    let syncedStripe = false;
     if (previa && suscripcionStripeViva) {
       try {
-        const nueva = await leerSuscripcion(db, c.workspace_id);
-        if (!nueva) throw new Error('billing_subscription_read_failed');
         if (
-          nueva.precioCentavos !== previa.precioCentavos ||
-          nueva.modeloCobro !== previa.modeloCobro ||
-          nueva.plan?.moneda !== previa.plan?.moneda ||
-          nueva.plan?.id !== previa.plan?.id ||
-          (nueva.plan?.slug === 'saldo-ilimitado' && previa.plan?.slug !== 'saldo-ilimitado')
-        ) await sincronizarPrecioSuscripcion(
-          previa, nueva.precioAcuerdoCentavos, nueva.plan?.moneda ?? 'usd', nueva.modeloCobro,
-          nueva.plan ? { planId: nueva.plan.id, planName: nueva.plan.nombre } : undefined,
-          nueva.plan?.slug === 'saldo-ilimitado',
-        );
+          nextPrice !== previa.precioAcuerdoCentavos || modelo !== previa.modeloCobro ||
+          plan?.moneda !== previa.plan?.moneda || plan?.id !== previa.plan?.id
+        ) {
+          await sincronizarPrecioSuscripcion(previa, nextPrice, plan?.moneda ?? 'usd', modelo,
+            plan ? { planId: plan.id, planName: plan.nombre } : undefined, plan?.slug === 'saldo-ilimitado');
+          syncedStripe = true;
+        }
       } catch (stripeError) {
-        const { error: rollbackError } = await db.from('workspace_subscriptions')
-          .update(antes ?? {})
-          .eq('workspace_id', c.workspace_id);
-        invalidatePlatformKeyCache();
-        console.error('[billing] no se pudo sincronizar Stripe', stripeError, rollbackError);
+        console.error('[billing] no se pudo sincronizar Stripe', stripeError);
         return NextResponse.json({
-          error: translate(await getLocale(), rollbackError ? 'admin.billingSyncNeedsReview' : 'admin.billingStripeSyncFailed'),
+          error: translate(await getLocale(), stripeError instanceof Error && stripeError.message === 'billing_schedule_managed'
+            ? 'admin.billingScheduledAgreement' : 'admin.billingStripeSyncFailed'),
         }, { status: 502 });
       }
     }
-
-    // Al dejar el saldo se apaga cualquier recarga automática anterior.
-    // Se conserva la tarjeta y el libro por si el acuerdo vuelve a saldo.
-    if (c.modelo_cobro !== undefined && c.modelo_cobro !== 'saldo') {
-      const { error: walletError } = await db
-        .from('wallet_accounts')
-        .update({
-          auto_recarga_centavos: null,
-          auto_umbral_centavos: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('workspace_id', c.workspace_id);
-      if (walletError) {
-        return NextResponse.json({ error: walletError.message }, { status: 400 });
-      }
-    }
+    // Publish locally only after the provider accepts the agreement. The database
+    // trigger clears auto-recharge atomically when leaving balance billing.
+    const { error } = await db.from('workspace_subscriptions').upsert(fila, { onConflict: 'workspace_id' });
+    if (error) return NextResponse.json({ error: translate(await getLocale(), syncedStripe
+      ? 'admin.billingSyncNeedsReview' : 'admin.billingSaveFailed') }, { status: 502 });
+    if (c.modelo_cobro !== undefined) invalidatePlatformKeyCache();
 
     await recordAdminAction(gate.actor, request, {
       action: 'update.billing_subscription',
@@ -326,6 +344,10 @@ export async function PUT(request: Request) {
       meta: { before: antes, after: fila },
     });
     return NextResponse.json({ ok: true });
+    } finally {
+      const release = await db.rpc('release_billing_admin_lease', { p_workspace: c.workspace_id, p_lease: lock.data });
+      if (release.error) console.error('[billing] admin lease release failed', release.error.code);
+    }
   }
 
   // Cargar saldo a mano: el bono del piloto, la disculpa por una falla, la
@@ -334,33 +356,22 @@ export async function PUT(request: Request) {
   // es regalar plata.
   if (body?.saldo) {
     const sa = body.saldo;
-    const centavos = Math.round(Number(sa.centavos));
-    if (!sa.workspace_id || !Number.isFinite(centavos) || centavos === 0) {
-      return NextResponse.json({ error: 'falta workspace_id o monto' }, { status: 400 });
+    const centavos = sa.centavos;
+    if (!sa.workspace_id || !Number.isSafeInteger(centavos) || centavos === 0 || Math.abs(centavos) > 100000000 ||
+        typeof sa.operation_id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sa.operation_id) ||
+        (sa.motivo != null && typeof sa.motivo !== 'string') || (sa.motivo?.length ?? 0) > 500 ||
+        (centavos < 0 && !sa.motivo?.trim()) || (sa.tipo !== undefined && !['bono','ajuste'].includes(sa.tipo))) {
+      return NextResponse.json({ error: translate(await getLocale(), 'admin.walletInvalidAdjustment') }, { status: 400 });
     }
-    const tipo = sa.tipo === 'ajuste' ? 'ajuste' : 'bono';
-    const { data, error } = await db.rpc('wallet_mover', {
-      p_workspace: sa.workspace_id,
-      p_tipo: tipo,
-      p_concepto: tipo,
-      p_centavos: centavos,
-      p_costo: 0,
-      p_cantidad: null,
-      p_unidad: null,
-      p_referencia_tipo: 'admin',
-      p_referencia_id: gate.actor?.userId ?? null,
-      p_stripe_id: null,
-      p_detalle: { motivo: sa.motivo?.trim() || null },
-      p_creado_por: gate.actor?.userId ?? null,
+    const { data, error } = await db.rpc('admin_adjust_wallet', {
+      p_workspace: sa.workspace_id, p_centavos: centavos, p_operation: sa.operation_id,
+      p_kind: centavos < 0 || sa.tipo === 'ajuste' ? 'ajuste' : 'bono',
+      p_reason: sa.motivo?.trim() || null, p_actor: gate.actor.userId, p_actor_email: gate.actor.email,
     });
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-
-    await recordAdminAction(gate.actor, request, {
-      action: 'update.wallet_balance',
-      targetType: 'workspace',
-      targetId: sa.workspace_id,
-      meta: { centavos, tipo, motivo: sa.motivo ?? null },
-    });
+    if (error) return NextResponse.json({ error: translate(await getLocale(),
+      error.message.includes('billing_balance_mode_required') ? 'admin.walletBalanceModeRequired' :
+      error.message.includes('billing_insufficient_available_balance') ? 'admin.walletInsufficientAvailable' :
+      error.message.includes('billing_adjustment_conflict') ? 'admin.billingConcurrentChange' : 'admin.walletInvalidAdjustment') }, { status: 409 });
     const fila = (Array.isArray(data) ? data[0] : data) as
       | { saldo_centavos?: number }
       | undefined;
@@ -372,6 +383,10 @@ export async function PUT(request: Request) {
   // se prendió una regla nueva.
   if (body?.billetera) {
     const bi = body.billetera;
+    if ((bi.bloquear_sin_saldo !== undefined && bi.bloquear_sin_saldo !== true) ||
+        (bi.cobrar_a_costo !== undefined && bi.cobrar_a_costo !== true)) return NextResponse.json({
+      error: translate(await getLocale(), 'admin.walletPrepaidPolicy'),
+    }, { status: 400 });
     if (!bi.workspace_id) {
       return NextResponse.json({ error: 'falta workspace_id' }, { status: 400 });
     }

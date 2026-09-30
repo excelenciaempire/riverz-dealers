@@ -5,7 +5,7 @@ const h = vi.hoisted(() => {
   // Una base de mentira: cada tabla devuelve sus filas a cualquier consulta.
   const fake = (rows: Record<string, unknown>) => ({
     from: (table: string) => {
-      const result = { data: rows[table] ?? null, error: null }
+      const result = { data: rows[table] ?? null, error: rows['error:'+table] ?? null }
       const q: Record<string, unknown> = {}
       for (const m of ['select', 'eq', 'not', 'order', 'limit']) q[m] = () => q
       q.maybeSingle = async () => result
@@ -123,4 +123,8 @@ describe('resolveAnthropicKey con cuentas BYOK', () => {
     await expect(resolveAnthropicKey(db, { workspaceId: 'w1' }))
       .resolves.toEqual({ key: 'sk-riverz', source: 'platform' })
   })
+  it('does not fall back to Riverz when the billing model cannot be verified', async () => {
+    h.servicio.rows = { 'error:workspace_subscriptions': { message: 'unavailable' } };
+    await expect(resolveAnthropicKey(db, { workspaceId: 'w1' })).rejects.toThrow('billing_model_unavailable');
+  });
 })

@@ -19,9 +19,10 @@ vi.mock('@/lib/i18n/cuenta', () => ({ localeDeCuenta: async () => 'es' }));
 import { aplicarEvento } from './stripe';
 function fixture(status = 'trialing') {
   const writes: Record<string, unknown>[] = [];
+  const previous: { estado: string; stripe_subscription_id?: string; stripe_customer_id?: string } = { estado: 'activa' };
   const query = {
     eq: () => query,
-    maybeSingle: async () => ({ data: { estado: 'activa' }, error: null }),
+    maybeSingle: async () => ({ data: previous, error: null }),
   };
   const db = {
     from: () => ({
@@ -53,7 +54,7 @@ function fixture(status = 'trialing') {
     },
   } as unknown as Stripe.Event;
   m.retrieve.mockResolvedValue(sub);
-  return { db, writes, event, sub };
+  return { db, writes, event, sub, previous };
 }
 beforeEach(() => {
   vi.clearAllMocks();
@@ -110,6 +111,20 @@ it('does not grant active access for an incomplete payment', async () => {
   await aplicarEvento(f.db, f.event);
   expect(f.writes[0].estado).toBe('vencida');
   expect(m.wallet).not.toHaveBeenCalled();
+});
+it('ignores deletion of an older subscription after a merchant renewed with a replacement', async () => {
+  const f = fixture('canceled');
+  f.previous.stripe_subscription_id = 'sub-new';
+  const event = { type: 'customer.subscription.deleted', data: { object: f.sub } } as unknown as Stripe.Event;
+  expect(await aplicarEvento(f.db,event)).toContain('ignorado');
+  expect(f.writes).toHaveLength(0); expect(m.wallet).not.toHaveBeenCalled();
+});
+it('reconciles provider-confirmed admin mode and price after a local write interruption', async () => {
+  const f = fixture('active');
+  Object.assign(f.sub.metadata, { billing_agreement: 'admin_fixed_price', modelo_cobro: 'byok' });
+  Object.assign(f.sub.items.data[0], { price: { unit_amount: 9900, currency: 'usd', recurring: { interval: 'month' } } });
+  await aplicarEvento(f.db, f.event);
+  expect(f.writes[0]).toMatchObject({ modelo_cobro: 'byok', precio_centavos_override: 9900 });
 });
 it('rejects a checkout for another customer', async () => {
   const f = fixture();
