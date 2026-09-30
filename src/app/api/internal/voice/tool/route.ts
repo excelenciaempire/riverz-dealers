@@ -18,6 +18,7 @@ import {
 import { sendWhatsAppDuringCall } from '@/lib/voice/whatsapp-during-call';
 import type { Contact, VoiceCall } from '@/types';
 import { NextResponse } from 'next/server';
+import { exigirMensualidad } from '@/lib/wallet/puerta';
 
 /**
  * POST /api/internal/voice/tool
@@ -60,6 +61,8 @@ export async function POST(request: Request) {
     if (!callRow)
       return NextResponse.json({ error: 'call_not_found' }, { status: 404 });
     const call = callRow as VoiceCall;
+    const paymentBlock = await exigirMensualidad(db, call.workspace_id);
+    if (paymentBlock) return paymentBlock;
 
     const { data: contactRow } = await db
       .from('contacts')

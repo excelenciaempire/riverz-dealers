@@ -16,6 +16,7 @@
  * debe plata sería tomarle de rehén a sus clientes, que no deben nada.
  */
 import { acceso, leerSuscripcion, usaSaldo } from '@/lib/billing/plan';
+import { pendingSubscriptionPayment, type PendingPayment } from '@/lib/billing/pending-payment';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { pilotoConTecho, pilotoVivo } from '@/lib/piloto';
@@ -41,10 +42,15 @@ export async function puertaDeIa(
   workspaceId: string
 ): Promise<Puerta> {
   try {
-    const [sus, billetera] = await Promise.all([
+    const [sus, billetera, mensualidad] = await Promise.all([
       leerSuscripcion(db, workspaceId),
       leerBilletera(db, workspaceId),
+      pendingSubscriptionPayment(db, workspaceId),
     ]);
+
+    // Monthly debt outranks wallet credit, BYOK, pilots and unpaid-account tests.
+    if (mensualidad?.blocked) return { puede: false,
+      motivo: 'suscripcion_vencida', saldoCentavos: billetera.saldoCentavos };
 
     if (sus?.estado === 'cortesia') {
       // Probar antes de pagar sí se puede (`wallet/prueba`), y el piloto en vivo
@@ -58,7 +64,7 @@ export async function puertaDeIa(
       };
     }
 
-    if (sus && !acceso(sus).puede) {
+    if (sus && !(mensualidad && sus.estado === 'vencida') && !acceso(sus).puede) {
       return {
         puede: false,
         motivo: 'suscripcion_vencida',
@@ -102,7 +108,21 @@ export async function puedeUsarIa(
   return (await puertaDeIa(db, workspaceId)).puede;
 }
 
-export type Aviso = 'gracia' | 'sin_saldo' | 'sin_pagar' | null;
+/** For ongoing prepaid calls: check monthly debt without reserving credit twice. */
+export async function exigirMensualidad(db: SupabaseClient, workspaceId: string): Promise<NextResponse | null> {
+  try {
+    const [payment, sus] = await Promise.all([
+      pendingSubscriptionPayment(db, workspaceId), leerSuscripcion(db, workspaceId),
+    ]);
+    const overdue = payment?.blocked ?? (sus?.estado === 'vencida' && !acceso(sus).puede);
+    if (!overdue) return null;
+    return NextResponse.json({ error: 'suscripcion_vencida' }, { status: 402 });
+  } catch {
+    return NextResponse.json({ error: 'subscription_payment_state_unavailable' }, { status: 503 });
+  }
+}
+
+export type Aviso = 'gracia' | 'mensualidad_pausada' | 'sin_saldo' | 'sin_pagar' | null;
 
 /**
  * El saldo tal como se muestra de un vistazo, en cualquier pantalla.
@@ -119,6 +139,7 @@ export interface Vistazo {
   sinPagar?: boolean;
   /** Public agreement fingerprint: refresh open screens after admin changes. */
   revisionCobro?: string;
+  mensualidad?: PendingPayment | null;
   centavos: number;
   moneda: string;
   /** No gasta saldo y no se le muestra ninguno: no usa billetera o todavía no pagó. */
@@ -135,7 +156,7 @@ export interface Vistazo {
 export const UMBRAL_VISTAZO_CENTAVOS = 500;
 
 export interface EstadoDeCobro {
-  /** La cuenta se cerró: pasaron las 48 horas y sigue sin pagar. */
+  /** Expired trials/cancelled accounts. Monthly debt only pauses AI. */
   bloqueado: boolean;
   /** Qué cartel corresponde arriba de la pantalla. */
   aviso: Aviso;
@@ -183,16 +204,22 @@ export async function estadoDeCobro(
   workspaceId: string
 ): Promise<EstadoDeCobro> {
   try {
-    const [sus, billetera] = await Promise.all([
+    const [sus, billetera, mensualidad] = await Promise.all([
       leerSuscripcion(db, workspaceId),
       leerBilletera(db, workspaceId),
+      pendingSubscriptionPayment(db, workspaceId),
     ]);
 
     const exenta = sus?.estado === 'cortesia' || !usaSaldo(sus);
-    const vistazo = { ...vistazoDe(billetera, exenta), sinPagar: sus?.estado === 'cortesia',
+    const vistazo = { ...vistazoDe(billetera, exenta), sinPagar: sus?.estado === 'cortesia', mensualidad,
       revisionCobro: JSON.stringify([sus?.modeloCobro, sus?.estado, sus?.plan?.id,
-        sus?.precioAcuerdoCentavos, sus?.incluidas, sus?.periodoHasta, sus?.cancelarAlFinal]),
+        sus?.precioAcuerdoCentavos, sus?.incluidas, sus?.periodoHasta, sus?.cancelarAlFinal,
+        mensualidad?.invoiceId, mensualidad?.graceUntil, mensualidad?.blocked, mensualidad?.hours]),
     };
+
+    if (mensualidad) return { bloqueado: false,
+      aviso: mensualidad.blocked ? 'mensualidad_pausada' : 'gracia',
+      horas: mensualidad.hours, saldoCentavos: billetera.saldoCentavos, vistazo };
 
     if (sus?.estado === 'cortesia') {
       return {
@@ -207,8 +234,8 @@ export async function estadoDeCobro(
     const a = acceso(sus);
     if (!a.puede) {
       return {
-        bloqueado: true,
-        aviso: null,
+        bloqueado: sus?.estado !== 'vencida',
+        aviso: sus?.estado === 'vencida' ? 'mensualidad_pausada' : null,
         horas: null,
         saldoCentavos: billetera.saldoCentavos,
         vistazo,

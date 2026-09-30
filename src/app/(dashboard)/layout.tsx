@@ -57,6 +57,7 @@ export default async function DashboardLayout({
   let aviso: Aviso = null;
   let horasDeGracia: number | null = null;
   let saldo: Vistazo | null = null;
+  let invoiceUrl: string | null = null;
   try {
     const supabase = await createClient();
     const {
@@ -87,8 +88,8 @@ export default async function DashboardLayout({
       suspended =
         !platformAdmin &&
         (await isWorkspaceSuspended(supabaseAdmin(), workspaceId));
-      // Cobro: la cuenta se cierra recien cuando pasaron las 48 horas de
-      // gracia. Antes de eso se avisa y se sigue trabajando. Un admin de
+      // Cobro: la mensualidad tiene 24 horas de gracia y luego pausa la IA.
+      // La bandeja manual sigue abierta. Un admin de
       // plataforma que entra a mirar una cuenta impaga no ve la pared: la
       // necesita abierta justamente para ayudar a destrabarla.
       //
@@ -99,6 +100,11 @@ export default async function DashboardLayout({
       if (workspaceId) {
         const cobro = await estadoDeCobro(supabaseAdmin(), workspaceId);
         saldo = cobro.vistazo;
+        invoiceUrl = cobro.vistazo.mensualidad?.invoiceUrl ?? null;
+        if (cobro.vistazo.mensualidad) {
+          aviso = cobro.aviso;
+          horasDeGracia = cobro.horas;
+        }
         if (!platformAdmin) {
           impago = cobro.bloqueado;
           aviso = cobro.aviso;
@@ -131,7 +137,7 @@ export default async function DashboardLayout({
       <DashboardShell
         flags={flags}
         isPlatformAdmin={platformAdmin}
-        aviso={<AvisoDeCobro aviso={aviso} horas={horasDeGracia} />}
+        aviso={<AvisoDeCobro aviso={aviso} horas={horasDeGracia} invoiceUrl={invoiceUrl} />}
         saldo={saldo}
       >
         {children}

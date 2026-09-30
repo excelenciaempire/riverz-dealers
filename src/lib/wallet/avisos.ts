@@ -241,7 +241,7 @@ async function avisarPlan(
     );
     const cuerpo = a.puede
       ? translate(locale, 'settings.avisoPlanFalloCuerpo', {
-          horas: a.horasDeGracia ?? 48,
+          horas: a.horasDeGracia ?? 24,
         })
       : translate(locale, 'settings.avisoPlanPausadaCuerpo');
     const r = await avisarATodos(telefonos, { title: titulo, body: cuerpo });

@@ -8,6 +8,7 @@ vi.mock('@/lib/auth/cron', () => ({ assertCronAuth: () => undefined }));
 vi.mock('@/lib/cron/heartbeat', () => ({ withCronRun: (_name: string, handler: unknown) => handler }));
 vi.mock('@/lib/billing/stripe', () => ({ stripeDisponible: () => true, stripe: () => ({ paymentIntents: { retrieve: mocks.retrieve } }) }));
 vi.mock('@/lib/wallet/recarga', () => ({ acreditarDesdeEvento: mocks.credit }));
+vi.mock('@/lib/billing/pending-payment', () => ({ reconcileSubscriptionInvoices: async () => ({ synced: 0, failures: [] }) }));
 vi.mock('@/lib/wallet/operacion', () => ({ cancelar: mocks.cancel, liquidar: mocks.settle }));
 vi.mock('@/lib/channels/admin-client', () => ({
   supabaseAdmin: () => ({ from: (table: string) => {

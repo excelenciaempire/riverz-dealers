@@ -1950,10 +1950,14 @@ export const settings = {
 
   // ── Avisos de cobro ──
   avisoGracia: {
-    es: 'El último cobro falló. Tienes {n} horas para actualizar el pago antes de perder el acceso.',
-    en: 'The last charge failed. You have {n} hours to update your payment before losing access.',
+    es: 'Te recordamos que tu mensualidad está pendiente. Tienes {n} horas del período de gracia de 24 horas para pagar y mantener tu IA activa.',
+    en: 'A friendly reminder: your monthly payment is pending. You have {n} hours left in your 24-hour grace period to pay and keep your AI active.',
   },
-  avisoGraciaCta: { es: 'Actualizar pago', en: 'Update payment' },
+  avisoGraciaCta: { es: 'Pagar mensualidad', en: 'Pay monthly invoice' },
+  avisoMensualidadPausada: {
+    es: 'Tu IA está pausada porque la mensualidad sigue pendiente después de 24 horas. Al pagar se reactivará automáticamente. Tu saldo se conserva.',
+    en: 'Your AI is paused because your monthly payment is still pending after 24 hours. It will resume automatically once you pay. Your balance is preserved.',
+  },
   avisoSinSaldo: {
     es: 'Te quedaste sin saldo: la IA dejó de responder. La bandeja sigue abierta para contestar a mano.',
     en: "You're out of balance: the AI stopped replying. The inbox is still open to answer manually.",
@@ -1965,8 +1969,8 @@ export const settings = {
   },
   impagoTitle: { es: 'La cuenta está pausada', en: 'Your account is paused' },
   impagoBody: {
-    es: 'El cobro de la suscripción no entró y pasaron las 48 horas. Pon una tarjeta y vuelve todo enseguida.',
-    en: "The subscription payment didn't go through and the 48 hours are up. Add a card and everything comes back right away.",
+    es: 'Tu suscripción necesita un pago para continuar. Completa el pago para reactivar tu cuenta.',
+    en: 'Your subscription needs a payment to continue. Complete the payment to reactivate your account.',
   },
   impagoCta: { es: 'Pagar ahora', en: 'Pay now' },
   impagoError: {

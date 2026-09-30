@@ -3,6 +3,7 @@ import { guardedAnthropicFetch } from './guarded-fetch';
 import { UNTRUSTED_CONTENT_POLICY as policy, secureSystemPrompt } from './input-security';
 import { meteredAnthropicFetch } from './metered-fetch';
 import type { SupabaseClient } from '@supabase/supabase-js';
+vi.mock('@/lib/wallet/puerta', () => ({ exigirMensualidad: async () => null }));
 
 it.each([undefined, 'merchant persona', [{ type: 'text', text: 'cached persona', cache_control: { type: 'ephemeral' } }]])(
   'protects the final system prompt before transport: %j', async system => {

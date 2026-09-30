@@ -176,7 +176,7 @@ describe('quién puede seguir usando Riverz', () => {
       }),
     )
     expect(a.puede).toBe(true)
-    expect(a.horasDeGracia).toBe(47)
+    expect(a.horasDeGracia).toBe(23)
   })
 
   it('vencida hace tres días ya no puede', () => {
@@ -195,7 +195,7 @@ describe('quién puede seguir usando Riverz', () => {
     // esa columna existiera no tiene por qué pagar ese hueco con su operación.
     const a = acceso(sus({ estado: 'vencida' }))
     expect(a.puede).toBe(true)
-    expect(a.horasDeGracia).toBe(48)
+    expect(a.horasDeGracia).toBe(24)
   })
 })
 

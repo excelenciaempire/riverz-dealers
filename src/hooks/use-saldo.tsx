@@ -93,9 +93,16 @@ export function SaldoProvider({
     // Refresh visible sessions without requiring a logout.
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void leer(true);
-    }, saldo?.sinPagar ? 10_000 : 30_000);
+    }, saldo?.sinPagar || saldo?.mensualidad ? 10_000 : 30_000);
     return () => window.clearInterval(timer);
-  }, [saldo?.sinPagar, leer]);
+  }, [saldo?.sinPagar, saldo?.mensualidad, leer]);
+
+  useEffect(() => {
+    if (!saldo?.mensualidad || saldo.mensualidad.blocked) return;
+    const remaining = new Date(saldo.mensualidad.graceUntil).getTime() - Date.now();
+    const timer = window.setTimeout(() => void leer(true), Math.max(0, Math.min(remaining + 50, 2_147_483_647)));
+    return () => window.clearTimeout(timer);
+  }, [saldo?.mensualidad, leer]);
 
   useEffect(() => {
     void leer(false);

@@ -2,6 +2,7 @@ import { AlertTriangle, Wallet } from 'lucide-react';
 import Link from '@/components/i18n/locale-link';
 import { getT } from '@/lib/i18n/server';
 import type { Aviso } from '@/lib/wallet/puerta';
+import { safeInvoiceUrl } from '@/lib/billing/pending-payment';
 
 /**
  * La barra de arriba cuando algo del cobro necesita atención.
@@ -20,41 +21,47 @@ import type { Aviso } from '@/lib/wallet/puerta';
 export async function AvisoDeCobro({
   aviso,
   horas,
+  invoiceUrl,
 }: {
   aviso: Aviso;
   horas: number | null;
+  invoiceUrl?: string | null;
 }) {
   if (!aviso) return null;
   const t = await getT();
 
   const gracia = aviso === 'gracia';
+  const pausada = aviso === 'mensualidad_pausada';
   const sinPagar = aviso === 'sin_pagar';
   const texto = gracia
     ? t('settings.avisoGracia', { n: horas ?? 0 })
-    : sinPagar
+    : pausada ? t('settings.avisoMensualidadPausada') : sinPagar
       ? t('settings.avisoSinPagar')
       : t('settings.avisoSinSaldo');
-  const cta = gracia ? t('settings.avisoGraciaCta') : t('settings.avisoSinSaldoCta');
+  const cta = gracia || pausada ? t('settings.avisoGraciaCta') : t('settings.avisoSinSaldoCta');
   const href = gracia ? '/ajustes?tab=billing' : '/ajustes?tab=saldo';
+  const factura = safeInvoiceUrl(invoiceUrl);
 
   return (
     <div
       className={
-        gracia
+        gracia || pausada
           ? 'flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-foreground'
           : 'flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-border bg-muted px-4 py-2 text-sm text-foreground'
       }
     >
-      {gracia ? (
+      {gracia || pausada ? (
         <AlertTriangle className="size-4 shrink-0 text-destructive" />
       ) : (
         <Wallet className="size-4 shrink-0 text-muted-foreground" />
       )}
       <span>{texto}</span>
       {!sinPagar && (
-        <Link href={href} className="font-medium underline underline-offset-2">
-          {cta}
-        </Link>
+        factura ? <a href={factura} target="_blank" rel="noopener noreferrer"
+          className="font-medium underline underline-offset-2">{cta}</a> :
+          <Link href={pausada ? '/ajustes?tab=billing' : href} className="font-medium underline underline-offset-2">
+            {cta}
+          </Link>
       )}
     </div>
   );

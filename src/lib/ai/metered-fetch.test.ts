@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { meteredAnthropicFetch, anthropicUsageCost } from './metered-fetch';
 import { downloadPublicMedia } from '@/lib/security/download-public-media';
+import { exigirMensualidad } from '@/lib/wallet/puerta';
+vi.mock('@/lib/wallet/puerta', () => ({ exigirMensualidad: vi.fn().mockResolvedValue(null) }));
 vi.mock('@/lib/security/download-public-media', () => ({ downloadPublicMedia: vi.fn() }));
 const params = {
   model: 'claude-haiku-4-5',
@@ -22,6 +24,16 @@ function setup(allowed = true, source = 'platform') {
   return { ctx, rpc };
 }
 describe('metered Anthropic HTTP boundary', () => {
+  it('blocks overdue monthly debt before BYOK or transport, then resumes after paid confirmation', async () => {
+    const { ctx } = setup(true, 'agent');
+    const transport = vi.fn().mockResolvedValue(Response.json({ usage: {} }));
+    vi.mocked(exigirMensualidad).mockResolvedValueOnce(new Response(null, { status: 402 }) as never);
+    const fetchModel = meteredAnthropicFetch(ctx, transport);
+    await expect(fetchModel('https://api.anthropic.com/v1/messages', { body: JSON.stringify(params) })).rejects.toThrow('suscripcion_vencida');
+    expect(transport).not.toHaveBeenCalled();
+    await fetchModel('https://api.anthropic.com/v1/messages', { body: JSON.stringify(params) });
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
   it('counts and generates with identical inline media, then settles actual usage', async () => {
     vi.mocked(downloadPublicMedia).mockResolvedValue({ buffer: Buffer.from('photo'), mime: 'image/jpeg' });
     const { ctx, rpc } = setup();

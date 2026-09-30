@@ -6,6 +6,7 @@ import { assertVoiceWorkerAuth } from '@/lib/voice/auth';
 import { buildVoiceContext } from '@/lib/voice/context';
 import { resolveInboundCall } from '@/lib/voice/inbound';
 import { roomNameForCall } from '@/lib/voice/livekit';
+import { exigirMensualidad } from '@/lib/wallet/puerta';
 
 /**
  * GET /api/internal/voice/context
@@ -43,6 +44,8 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'call_not_found' }, { status: 404 });
       }
       call = data as VoiceCall;
+      const paymentBlock = await exigirMensualidad(db, call.workspace_id);
+      if (paymentBlock) return paymentBlock;
       // Mark dialing (outbound) — the worker is about to place the call.
       if (call.direction === 'outbound' && call.status === 'queued') {
         await db

@@ -8,7 +8,8 @@ import { NextResponse } from 'next/server';
 import { assertCronAuth } from '@/lib/auth/cron';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { withCronRun } from '@/lib/cron/heartbeat';
-import { stripe, stripeDisponible } from '@/lib/billing/stripe';
+import { aplicarEvento, stripe, stripeDisponible } from '@/lib/billing/stripe';
+import { reconcileSubscriptionInvoices } from '@/lib/billing/pending-payment';
 import { acreditarDesdeEvento } from '@/lib/wallet/recarga';
 import type Stripe from 'stripe';
 async function handler(request: Request) {
@@ -34,6 +35,15 @@ async function handler(request: Request) {
   let released = 0;
   const unresolved = [];
   const paymentFailures: string[] = [];
+  let subscriptionPayments = { synced: 0, failures: [] as string[] };
+  if (stripeDisponible()) {
+    try {
+      subscriptionPayments = await reconcileSubscriptionInvoices(db, stripe(), id => aplicarEvento(db,
+        { type: 'customer.subscription.updated', data: { object: { id } } } as unknown as Stripe.Event, false));
+    } catch {
+      subscriptionPayments.failures.push('reconciliation_unavailable');
+    }
+  }
   for (const op of pending ?? []) {
     if (op.proveedor === 'apify' && typeof op.detalle?.runId === 'string') {
       try {
@@ -178,9 +188,9 @@ async function handler(request: Request) {
     return Number.isFinite(ageMs) && ageMs < 24 * 60 * 60 * 1000
       && typeof op.detalle?.runId !== 'string' && typeof op.detalle?.crawlId !== 'string';
   });
-  const failed = unresolved.length > waiting.length || paymentFailures.length > 0;
+  const failed = unresolved.length > waiting.length || paymentFailures.length > 0 || subscriptionPayments.failures.length > 0;
   return NextResponse.json(
-    { ok: !failed, pending: unresolved, waiting: waiting.length, paymentFailures, recovered, released },
+    { ok: !failed, pending: unresolved, waiting: waiting.length, paymentFailures, recovered, released, subscriptionPayments },
     { status: failed ? 207 : 200 }
   );
 }

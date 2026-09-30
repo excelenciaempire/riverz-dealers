@@ -1,5 +1,6 @@
 import type { BillingContext } from '@/lib/wallet/operacion';
 import { reservar, liquidar, cancelar } from '@/lib/wallet/operacion';
+import { exigirMensualidad } from '@/lib/wallet/puerta';
 
 /** Usage credits only. Never derive a unit cost from a monthly subscription. */
 export function ttsCost(provider: string, text: string): number {
@@ -21,6 +22,7 @@ export async function synthesizeBilled(
     format?: string;
   }
 ) {
+  if (await exigirMensualidad(ctx.db, ctx.workspaceId)) throw new Error('suscripcion_vencida');
   const usd = ttsCost(opts.provider, opts.text);
   const id = await reservar(ctx, opts.provider, usd, { modelo: opts.model });
   const fish = opts.provider === 'fish';

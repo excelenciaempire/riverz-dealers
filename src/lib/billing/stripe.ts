@@ -19,6 +19,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { leerSuscripcion, listarPlanes, type ModeloCobro, type Plan, type Suscripcion } from './plan'
 import { costoAmpliacionCentavos } from './upgrade-policy'
 import { prepareSubscriptionWallet } from './subscription-wallet'
+import { syncSubscriptionInvoice } from './pending-payment'
 import { attachAffiliateWorkspace } from '@/lib/affiliates/program'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { translate } from '@/lib/i18n/translate'
@@ -545,11 +546,23 @@ function estadoDe(s: Stripe.Subscription.Status): string {
 export async function aplicarEvento(
   db: SupabaseClient,
   evento: Stripe.Event,
+  notifyActivation = true,
 ): Promise<string> {
   const tipo = evento.type
   if (tipo === 'invoice.paid') {
     const workspaceId = await aplicarAmpliacionPagada(db, evento.data.object as Stripe.Invoice)
-    return workspaceId ? `${workspaceId}: capacidad ampliada` : `ignorado: ${tipo}`
+    if (workspaceId) return `${workspaceId}: capacidad ampliada`
+  }
+  if (['invoice.paid', 'invoice.payment_succeeded', 'invoice.payment_failed',
+    'invoice.payment_action_required', 'invoice.finalized', 'invoice.updated',
+    'invoice.voided', 'invoice.marked_uncollectible'].includes(tipo)) {
+    const payment = await syncSubscriptionInvoice(db, stripe(), (evento.data.object as Stripe.Invoice).id)
+    if (!payment) return `ignorado: ${tipo}`
+    // Also restore subscription state from Stripe after payment; an old failure
+    // must not leave the legacy gate closed after the invoice has been paid.
+    await aplicarEvento(db, { type: 'customer.subscription.updated',
+      data: { object: { id: payment.subscriptionId } } } as unknown as Stripe.Event, false)
+    return `${payment.workspaceId}: factura ${payment.status}`
   }
   let sub: Stripe.Subscription;
   if (tipo === 'checkout.session.completed' || tipo === 'checkout.session.async_payment_succeeded') {
@@ -655,7 +668,7 @@ export async function aplicarEvento(
   // enterarse de eso por una IA que dejó de contestar sería la peor forma.
   // `bloquear_sin_saldo` NO se toca acá: nace apagado y se prende cuando la
   // cuenta ya cargó, no en el minuto en que pagó su primera mensualidad.
-  if (estado === 'activa' && estadoPrevio !== 'activa') {
+  if (notifyActivation && estado === 'activa' && estadoPrevio !== 'activa') {
     void darLaBienvenida(db, workspaceId).catch((e) =>
       console.error('[billing] no se pudo avisar la activación', e),
     )

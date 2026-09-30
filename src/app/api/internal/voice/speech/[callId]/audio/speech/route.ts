@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { assertVoiceWorkerAuth } from '@/lib/voice/auth';
 import { getVoiceModelResolved } from '@/lib/voice/model-config';
 import { synthesizeBilled } from '@/lib/voice/tts-billing';
+import { exigirMensualidad } from '@/lib/wallet/puerta';
 export const runtime = 'nodejs';
 export async function POST(
   request: Request,
@@ -22,6 +23,8 @@ export async function POST(
     .maybeSingle();
   if (error || !call || call.ended_at)
     return new Response(null, { status: 404 });
+  const paymentBlock = await exigirMensualidad(db, call.workspace_id);
+  if (paymentBlock) return paymentBlock;
   const body = await request.json();
   if (
     typeof body.input !== 'string' ||

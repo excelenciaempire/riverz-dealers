@@ -90,7 +90,7 @@ export const DIAS_DE_PRUEBA = 5
  * comercio en el minuto uno lo deja sin atender a SUS clientes por un problema
  * administrativo que todavía no tuvo tiempo de arreglar.
  */
-export const HORAS_DE_GRACIA = 48
+export const HORAS_DE_GRACIA = 24
 
 const COLUMNAS_PLAN =
   'id, slug, nombre, activo, precio_centavos, moneda, incluidas, excedente_centavos, stripe_price_id, stripe_price_excedente_id, orden'
@@ -332,7 +332,7 @@ export function acceso(s: Suscripcion | null): Acceso {
       horasDeGracia: null,
     }
   }
-  // Vencida: 48 horas para arreglar la tarjeta y después se cierra.
+  // Vencida: 24 horas para arreglar el pago antes de pausar la IA.
   //
   // Sin `vencidaDesde` no se puede contar la gracia, y la respuesta correcta
   // ahí es darla igual: la marca la escribe el webhook, y una cuenta que quedó

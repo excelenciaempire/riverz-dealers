@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { safeSecretEqual } from '@/lib/auth/cron';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { meteredAnthropicFetch } from '@/lib/ai/metered-fetch';
+import { exigirMensualidad } from '@/lib/wallet/puerta';
 export const runtime = 'nodejs';
 export async function POST(
   request: Request,
@@ -29,6 +30,8 @@ export async function POST(
     (call.ended_at && Date.now() - Date.parse(call.ended_at) > 300000)
   )
     return new Response(null, { status: 404 });
+  const paymentBlock = await exigirMensualidad(db, call.workspace_id);
+  if (paymentBlock) return paymentBlock;
   const model = await getVoiceModelResolved(db);
   if (model.llm_provider !== 'anthropic' || model.llm_base_url)
     return new Response(null, { status: 503 });

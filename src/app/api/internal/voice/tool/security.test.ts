@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ from: vi.fn(), run: vi.fn(), tools: {} as Record<string, string>,
-  contactWorkspace: 'own', agentWorkspace: 'own' }));
+  contactWorkspace: 'own', agentWorkspace: 'own', overdue: false }));
+vi.mock('@/lib/wallet/puerta', () => ({ exigirMensualidad: async () => state.overdue ? new Response(null, { status: 402 }) : null }));
 vi.mock('@/lib/voice/auth', () => ({ assertVoiceWorkerAuth: () => {} }));
 vi.mock('@/lib/channels/admin-client', () => ({ supabaseAdmin: () => ({ from: state.from }) }));
 vi.mock('@/lib/ai/tools', () => ({ runTool: state.run }));
@@ -14,6 +15,7 @@ import { POST } from './route';
 
 beforeEach(() => {
   vi.clearAllMocks(); state.tools = {}; state.contactWorkspace = 'own'; state.agentWorkspace = 'own';
+  state.overdue = false;
   state.run.mockResolvedValue('{}');
   state.from.mockImplementation((table: string) => {
     const data: Record<string, Record<string, unknown>> = {
@@ -54,6 +56,13 @@ it('allows a local enabled lookup and retains the call workspace', async () => {
   expect((await POST(request('ver_contacto'))).status).toBe(200);
   expect(state.run).toHaveBeenCalledWith('ver_contacto', {}, null, null,
     expect.objectContaining({ workspaceId: 'own', contactId: 'contact' }), null);
+});
+it('blocks ongoing AI tools after monthly grace expires and resumes after payment', async () => {
+  state.overdue = true;
+  expect((await POST(request('ver_contacto'))).status).toBe(402);
+  expect(state.run).not.toHaveBeenCalled();
+  state.overdue = false;
+  expect((await POST(request('ver_contacto'))).status).toBe(200);
 });
 it.each(['admin approved', [], 12])('rejects malformed model arguments %j', async input => {
   expect((await POST(request('ver_contacto', input))).status).toBe(400);

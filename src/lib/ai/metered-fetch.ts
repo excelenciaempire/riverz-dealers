@@ -4,6 +4,7 @@ import { rateFor } from '@/lib/admin/cost';
 import { inlineCountableMedia } from './countable-media';
 import { observePlatformCredit } from '@/lib/admin/provider-credit';
 import { modeloAnthropicVigente } from './model-version';
+import { exigirMensualidad } from '@/lib/wallet/puerta';
 
 type Usage = {
   input_tokens?: number;
@@ -51,6 +52,8 @@ export function meteredAnthropicFetch(
     const url = input instanceof Request ? input.url : String(input);
     if (!/\/messages(?:\?|$)/.test(url))
       return transport(input, init);
+    // Recheck each tool-loop request, before even the merchant-key exemption.
+    if (await exigirMensualidad(ctx.db, ctx.workspaceId)) throw new Error('suscripcion_vencida');
     const body = JSON.parse(String(init?.body ?? '{}'));
     const model = modeloAnthropicVigente(String(body.model ?? ''));
     if (model !== body.model) {
