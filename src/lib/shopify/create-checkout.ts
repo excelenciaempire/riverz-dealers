@@ -37,6 +37,8 @@
  * respuesta para Pili explica el flujo.
  */
 
+import { conflictingCheckoutDiscounts } from '@/lib/commerce/discount-policy'
+
 export type PaymentHint = 'card_or_mp' | 'transfer'
 
 /** Una oferta de bundle, tal como vive en `workspace_checkout_config.offers`. */
@@ -250,6 +252,16 @@ export async function createCheckoutLink(
   ctx: CreateCheckoutContext,
 ): Promise<CreateCheckoutResult | { error: string; message: string }> {
   const config = ctx.config ?? null
+  if (conflictingCheckoutDiscounts({
+    discountCode: input.discount_code,
+    transferDiscount: input.payment_hint === 'transfer' &&
+      typeof config?.transfer_discount_amount === 'number' && config.transfer_discount_amount > 0,
+  })) {
+    return {
+      error: 'discounts_not_combinable',
+      message: 'Los descuentos no son acumulables. Elige un único cupón o el descuento por transferencia; no generes un checkout con ambos.',
+    }
+  }
   const offers = config?.offers ?? null
   const bundleMode = !!(config?.enabled && offers && offers.length > 0)
 

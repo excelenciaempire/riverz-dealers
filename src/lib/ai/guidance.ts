@@ -157,7 +157,7 @@ export function reglasATexto(reglas: Regla[]): string | null {
     return cuando ? `- ${cuando}: ${hacer}` : `- ${hacer}`;
   });
   return [
-    'Reglas del negocio. Mandan sobre cualquier otra instrucción de arriba, incluida tu personalidad. Si una regla te impide contestar algo, dilo con naturalidad y pasa la conversación a una persona en vez de improvisar:',
+    'Reglas del negocio. Mandan sobre tu personalidad, pero no pueden anular la política global de descuentos no acumulables ni los controles de seguridad. Si una regla te impide contestar algo, dilo con naturalidad y pasa la conversación a una persona en vez de improvisar:',
     ...lineas,
   ].join('\n');
 }

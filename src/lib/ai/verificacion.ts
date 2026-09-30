@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { hayJev, preguntarJev, type Pregunta, type RespuestaNoul } from './jev';
+import { DISCOUNT_MENTION, explicitlyStacksDiscounts, STACKED_DISCOUNTS_VIOLATION } from '@/lib/commerce/discount-policy';
 
 /**
  * LA RESPUESTA SE REVISA ANTES DE SALIR.
@@ -18,8 +19,8 @@ import { hayJev, preguntarJev, type Pregunta, type RespuestaNoul } from './jev';
  * reescritura sin eso; si la reescritura sigue mal, la respuesta no sale y la
  * conversación pasa a una persona, igual que cuando un precio no cierra.
  *
- * Sin Jev (sin llave, caído) no se verifica y la respuesta sale como salía
- * siempre: esto suma un control, nunca quita una respuesta por su cuenta.
+ * Sin Jev permanece el bloqueo determinista de acumulación explícita de
+ * descuentos. Las demás reglas requieren la verificación semántica.
  */
 
 export interface ReglasDeSalida {
@@ -41,7 +42,20 @@ const UMBRAL = 0.85;
 
 /** Las preguntas: un sí/no por prohibición y uno por las ofertas. */
 export function preguntasDeVerificacion(reglas: ReglasDeSalida): Record<string, Pregunta> {
-  const q: Record<string, Pregunta> = {};
+  const q: Record<string, Pregunta> = {
+    descuentos_acumulados: {
+      type: 'noul',
+      instructions: {
+        question: '¿`respuesta` ofrece o calcula varios cupones, o un cupón junto a otro descuento (por ejemplo, por transferencia), para una misma compra?',
+        inspect: ['`respuesta`'],
+        focus: 'Esta prohibición es global aunque las ofertas del comercio autoricen combinar descuentos. Evalúa toda la respuesta: sumar porcentajes o aplicarlos sucesivamente también los acumula. No cuenta ofrecer beneficios como alternativas, negar que se acumulan o mencionar el precio de un pack del catálogo con un único descuento.',
+      },
+      criteria: {
+        true: 'Ofrece, confirma o calcula dos cupones juntos, o un cupón adicional al descuento por transferencia u otro descuento, en la misma compra.',
+        false: 'Ofrece sólo un descuento, presenta beneficios como alternativas o explica que no se pueden combinar. Un pack publicado con un único descuento no es acumulación de cupones.',
+      },
+    },
+  };
   reglas.prohibido.slice(0, MAX_PROHIBIDO).forEach((_, i) => {
     q[`prohibido_${i}`] = {
       type: 'noul',
@@ -95,7 +109,9 @@ export function veredictoDesde(
   umbral = UMBRAL
 ): Veredicto {
   const motivos: string[] = [];
-  let maximo = 0;
+  const acumulados = answers.descuentos_acumulados?.noul ?? 0;
+  let maximo = acumulados;
+  if (acumulados >= umbral) motivos.push(STACKED_DISCOUNTS_VIOLATION);
   reglas.prohibido.slice(0, MAX_PROHIBIDO).forEach((texto, i) => {
     const p = answers[`prohibido_${i}`]?.noul ?? 0;
     maximo = Math.max(maximo, p);
@@ -127,7 +143,10 @@ export async function verificarRespuesta(args: {
   reglas: ReglasDeSalida;
   detalle?: Record<string, unknown>;
 }): Promise<Veredicto | null> {
-  if (!hayJev() || !hayReglasDeSalida(args.reglas)) return null;
+  if (explicitlyStacksDiscounts(args.respuesta)) {
+    return { ok: false, motivos: [STACKED_DISCOUNTS_VIOLATION], maximo: 1 };
+  }
+  if (!hayJev() || (!hayReglasDeSalida(args.reglas) && !DISCOUNT_MENTION.test(args.respuesta))) return null;
   const reglas: ReglasDeSalida = {
     prohibido: args.reglas.prohibido.slice(0, MAX_PROHIBIDO),
     ofertas: args.reglas.ofertas,

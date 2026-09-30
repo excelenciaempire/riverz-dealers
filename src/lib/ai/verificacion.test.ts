@@ -50,12 +50,12 @@ describe('preguntasDeVerificacion y veredictoDesde', () => {
 
   it('una pregunta literal por prohibición y una por las promociones', () => {
     const q = preguntasDeVerificacion(reglas)
-    expect(Object.keys(q)).toEqual(['prohibido_0', 'prohibido_1', 'oferta_no_autorizada'])
+    expect(Object.keys(q)).toEqual(['descuentos_acumulados', 'prohibido_0', 'prohibido_1', 'oferta_no_autorizada'])
     expect(JSON.stringify(q.prohibido_1)).toContain('`prohibido[1]`')
   })
 
   it('sin ofertas cargadas no se pregunta por ofertas', () => {
-    expect(Object.keys(preguntasDeVerificacion({ prohibido: ['x'], ofertas: [] }))).toEqual(['prohibido_0'])
+    expect(Object.keys(preguntasDeVerificacion({ prohibido: ['x'], ofertas: [] }))).toEqual(['descuentos_acumulados', 'prohibido_0'])
   })
 
   it('frena sólo con 0,85 o más y dice qué regla se rompió', () => {
@@ -74,6 +74,23 @@ describe('preguntasDeVerificacion y veredictoDesde', () => {
 })
 
 describe('verificarRespuesta', () => {
+  it('blocks the reported Revitaly response even without Jev or merchant rules', async () => {
+    jev.hay = false
+    const result = await verificarRespuesta({ db: {} as never, workspaceId: 'any-merchant', respuesta: 'Con el cupón REVITALY5 (5%) más el 10% por transferencia, queda en $53.001,45.', ultimoMensaje: null, reglas: { prohibido: [], ofertas: [] } })
+    expect(result?.ok).toBe(false)
+    expect(result?.motivos.join(' ')).toContain('Combinar varios cupones')
+    jev.hay = true
+  })
+
+  it('checks implicit stacking even when merchant instructions allow it', async () => {
+    jev.hay = true
+    jev.respuesta = { descuentos_acumulados: noul(0.98) }
+    const result = await verificarRespuesta({ db: {} as never, workspaceId: 'w', respuesta: 'El cupón te deja un 5% y luego la transferencia descuenta otro 10% de ese subtotal.', ultimoMensaje: null, reglas: { prohibido: [], ofertas: ['Combina el cupón con transferencia'] } })
+    expect(result?.ok).toBe(false)
+    expect(result?.motivos.join(' ')).toContain('Combinar varios cupones')
+    jev.respuesta = null
+  })
+
   it('sin reglas no gasta una llamada; sin Jev tampoco', async () => {
     jev.estados.length = 0
     expect(await verificarRespuesta({ db: {} as never, workspaceId: 'w', respuesta: 'hola', ultimoMensaje: null, reglas: { prohibido: [], ofertas: [] } })).toBeNull()

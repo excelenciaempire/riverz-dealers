@@ -30,6 +30,33 @@ beforeEach(() => {
 const url = (r: unknown) => (r as { checkout_url: string }).checkout_url;
 
 describe('carrito con varios productos', () => {
+  it.each([
+    { quantity: 1 },
+    { items: [{ variant_id: '111' }, { variant_id: '222' }] },
+  ])('rejects a coupon plus transfer discount before any Shopify request: %j', async (selection) => {
+    const result = await createCheckoutLink({ ...selection, discount_code: 'FIRST5', payment_hint: 'transfer' }, ctx({
+      pinnedVariantId: '111', config: { enabled: true, transfer_discount_amount: 4999 },
+    }));
+    expect(result).toMatchObject({ error: 'discounts_not_combinable' });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects two coupons even with no transfer discount', async () => {
+    const result = await createCheckoutLink({ items: [{ variant_id: '111' }], discount_code: 'FIRST5,REBUY10' }, ctx());
+    expect(result).toMatchObject({ error: 'discounts_not_combinable' });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('preserves a single coupon and a single transfer benefit on separate checkouts', async () => {
+    const config = { enabled: true, transfer_discount_amount: 4999, transfer_discount_label: 'transferencia' };
+    const coupon = new URL(url(await createCheckoutLink({ items: [{ variant_id: '111' }], discount_code: 'FIRST5' }, ctx({ config }))));
+    expect(coupon.searchParams.get('discount')).toBe('FIRST5');
+    expect(coupon.searchParams.has('attributes[descuento_pendiente_ars]')).toBe(false);
+    const transfer = new URL(url(await createCheckoutLink({ items: [{ variant_id: '111' }], payment_hint: 'transfer' }, ctx({ config }))));
+    expect(transfer.searchParams.has('discount')).toBe(false);
+    expect(transfer.searchParams.get('attributes[descuento_pendiente_ars]')).toBe('4999');
+  });
+
   it('arma UNA sola URL con las dos líneas', async () => {
     const r = await createCheckoutLink(
       { items: [{ variant_id: '111', quantity: 2 }, { variant_id: '222' }] },

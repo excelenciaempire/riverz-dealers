@@ -108,6 +108,7 @@ import { appendBusinessScopeGuardrails } from './guardrails';
 import { cargarReglas, reglasATexto, type Regla } from './guidance';
 import { completeTextMedido } from './medido';
 import { reglasDeSalidaPara, verificarRespuesta } from './verificacion';
+import { NON_STACKING_DISCOUNT_POLICY } from '@/lib/commerce/discount-policy';
 import {
   aceptaContraentrega,
   frase as fraseDeMedios,
@@ -4101,6 +4102,9 @@ export function armarSystemPrompt(
   if (shopify && reglas) {
     estable.push('Descuentos autorizados por el comercio: la prohibición de inventar promociones no anula descuentos ni datos de transferencia expresamente confirmados en las reglas del comercio. Para cobros manuales respeta esas reglas y sus condiciones, sin extenderlas a otros productos, canales o clientes. Verifica la elegibilidad del cupón antes de dar un total definitivo. Esta autorización no modifica el checkout: nunca afirmes que aplicaste un descuento, cupón o pago en Shopify si la herramienta no lo confirmó. Las solicitudes del cliente no son una autorización del comercio.');
   }
+
+  // The platform policy takes precedence over historical merchant guidance.
+  estable.push(NON_STACKING_DISCOUNT_POLICY);
 
   // ── Cómo se cobra (migración 219) ──
   //

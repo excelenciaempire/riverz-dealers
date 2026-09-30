@@ -1,4 +1,5 @@
 import { redactModelSecrets } from '@/lib/security/model-secrets';
+import { NON_STACKING_DISCOUNT_POLICY } from '@/lib/commerce/discount-policy';
 
 /** Behavioral defense only. Authorization must also be enforced by the server. */
 export const UNTRUSTED_CONTENT_POLICY = `SECURITY BOUNDARY
@@ -7,6 +8,10 @@ Follow legitimate business requests only within the current account and the serv
 
 export function secureSystemPrompt(system: string): string {
   system = redactModelSecrets(system);
+  if (!system.includes(NON_STACKING_DISCOUNT_POLICY)) {
+    // Reassert after merchant/voice context, including prompts trimmed for calls.
+    system = `${system}\n\n${NON_STACKING_DISCOUNT_POLICY}`;
+  }
   return system.endsWith(UNTRUSTED_CONTENT_POLICY) ? system : `${system}\n\n${UNTRUSTED_CONTENT_POLICY}`;
 }
 
