@@ -31,12 +31,30 @@ def read(name):
     return json.loads((DATA / f'{name}.json').read_text(encoding='utf-8'))
 
 metrics, cases = read('metrics'), read('escalamientos')
+source = read('source')
+assert source['capturedAt'] == metrics['capturedAt']
 assert metrics['all']['total'] == 2098
 assert metrics['customer_service']['total'] == 559
 assert (metrics['all']['missed_reply'], metrics['all']['premature']) == (53, 10)
 assert (metrics['sinceSept26']['total'], metrics['sinceSept26']['ai_only_period'],
         metrics['sinceSept26']['human_required_in_period']) == (204, 135, 43)
 assert len(cases) == 135
+
+# Count recorded successful AI sends, not attempts or manual/outbound campaigns.
+# Comment-generated private replies belong to conversations, not public replies.
+channels = {c['id']: c['channel'] for c in source['conversations']}
+sent = [m for m in source['messages']
+        if m['sender_type'] in {'agent', 'bot'}
+        and m['origin'] in {'ai_agent', 'comment_ai'}
+        and m['status'] in {'sent', 'delivered', 'read'}]
+public = [m for m in sent if channels[m['conversation_id']] in {'fb_comment', 'ig_comment'}]
+private = [m for m in sent if channels[m['conversation_id']] not in {'fb_comment', 'ig_comment'}]
+answered = len({m['conversation_id'] for m in private})
+public_threads = len({m['conversation_id'] for m in public})
+assert (answered, len(private), len(public), public_threads) == (186, 838, 27, 26)
+human_rate = 100 * len(cases) / metrics['customer_service']['total']
+inbox_rate = 100 * len(cases) / metrics['all']['total']
+rate = lambda value: f'{value:.1f}%'.replace('.', ',')
 
 REASONS = [
     ('Demora o disputa de entrega', 'Entregas demoradas o disputadas', 36,
@@ -134,39 +152,38 @@ class PDF:
         end = self.wrap(60, y+47, body, 475)
         assert end-18+4 <= y+height-8, (self.page, title, end, y+height)
 
-    def proposal(self, y, number, title, body, height=140):
+    def proposal(self, y, number, title, body, height=94):
         self.box(42, y, 511, height)
-        self.box(60, y+12, 27, 27, LIME, 8)
-        self.text(69, y+31, str(number), 'Semi', 12.5)
-        self.text(99, y+31, title, 'Semi', 15, width=436)
-        end = self.wrap(60, y+54, body, 475)
-        assert end-18+4 <= y+height-8, (self.page, title, end, y+height)
+        self.box(60, y+10, 25, 25, LIME, 8)
+        self.text(68, y+28, str(number), 'Semi', 12.5)
+        self.text(97, y+28, title, 'Semi', 15, width=438)
+        end = self.wrap(60, y+49, body, 475)
+        assert end-18+4 <= y+height-5, (self.page, title, end, y+height)
 
 p = PDF()
 
-# 1. Results and only the three confirmed, published fixes.
-p.header('Resultados', 'Revitaly. Resultados y mejoras.', 'Qué encontramos y qué corregimos en la atención con IA.')
-for x, rate, label, count in [
-    (42, '66,2%', 'Atención solo con IA', '135 de 204 consultas'),
-    (304, '21,1%', 'Intervención necesaria', '43 de 204 consultas'),
+# 1. Cumulative recorded responses, genuine intervention and published fixes.
+p.header('Resultados', 'Revitaly. Atención y mejoras.', 'Lo respondido por IA y cuándo se necesitó al equipo.')
+for x, value, label, detail in [
+    (42, str(answered), 'Conversaciones\nrespondidas', f'{len(private)} respuestas de IA'),
+    (216, str(len(public)), 'Respuestas a\ncomentarios', f'En {public_threads} conversaciones'),
+    (390, rate(human_rate), 'Intervención\njustificada', '135 de 559 consultas'),
 ]:
-    p.box(x, 182, 249, 114, PALE if x == 42 else CARD)
-    p.text(x+17, 226, rate, 'Serif', 42)
-    p.text(x+17, 254, label, 'Semi', 12.5)
-    p.text(x+17, 278, count)
-end = p.wrap(42, 315, 'Se revisaron 2.098 hilos: 559 de atención al cliente. Los porcentajes usan 204 consultas del 26 al 30 de septiembre, con corte a las 12:04 de Argentina.')
-assert end-18+4 < 369
-end = p.wrap(42, 379, '«Solo con IA» no prueba resolución: no hubo respuesta humana registrada en el período. Los porcentajes pueden coincidir en un mismo hilo.', size=12.5)
-assert end-18+4 < 430
-p.simple(430, '53 hilos con respuesta insuficiente',
-         'Además, 10 bloqueos evitables. Se corrigieron tres causas.', 67)
-p.text(42, 530, 'Tres mejoras ya publicadas', 'Serif', 27)
-p.simple(549, 'Transferencias',
-         'Envía titular, CVU y alias cuando el cliente los solicita.')
-p.simple(623, 'Consultas por correo',
-         'Responde a preguntas en el asunto, aunque el cuerpo esté vacío.')
-p.simple(697, 'Capturas de pantalla',
-         'No confunde botones de una captura con pedidos de reembolso.')
+    p.box(x, 182, 163, 137, PALE if x == 42 else CARD)
+    p.text(x+16, 226, value, 'Serif', 42, width=131)
+    end = p.wrap(x+16, 255, label, 131, size=12.5, leading=17, font='Semi')
+    assert end <= 289
+    p.text(x+16, 298, detail, size=12.5, width=131)
+p.text(42, 345, 'Respuestas registradas al 30 de septiembre, 12:04 de Argentina.', size=12.5)
+end = p.wrap(42, 378, 'Se revisaron 2.098 conversaciones: 559 eran consultas de clientes. En 135, la intervención del equipo estaba justificada: 24,2% de las consultas y 6,4% de toda la bandeja.')
+assert end-18+4 < 457
+p.text(42, 466, 'Tres mejoras ya publicadas', 'Serif', 27)
+p.simple(486, 'Transferencias',
+         'Envía titular, CVU y alias configurados cuando se los piden, sin exigir primero elegir un pack o dar la dirección.', 87)
+p.simple(582, 'Consultas por correo',
+         'Reconoce la consulta en el asunto, incluso si el cuerpo del correo está vacío o contiene solo una firma.', 87)
+p.simple(678, 'Capturas de pantalla',
+         'Distingue lo que pide el cliente de los botones de una captura y evita escalar por un reembolso que nadie solicitó.', 87)
 p.text(42, 787, 'Publicado y validado: 76 pruebas y comprobación en producción.', size=12.5)
 p.end()
 
@@ -182,21 +199,25 @@ for i, (category, title, count, why) in enumerate(REASONS):
 p.wrap(42, 764, 'Los 135 hilos no son pendientes actuales: incluyen casos resueltos y reclamos repetidos en distintos canales.', size=12.5)
 p.end()
 
-# 3. Four plain-language work packages covering every escalation category.
-p.header('Plan propuesto', 'Plan de trabajo.', 'Qué conectar y qué hacer para automatizar más consultas.')
+# 3. Six concrete customer-facing capabilities, covering all eight reasons.
+p.header('Plan propuesto', 'Que la IA también resuelva.', 'Acciones que proponemos habilitar con las reglas del comercio.')
 plan = [
-    ('Información y seguimiento',
-     'Conectar los pedidos de Shopify con el seguimiento real de Andreani. Mantener precios, stock, cupones y guías actualizados. La IA debe recibir el correo, pedido o foto que solicitó antes de pausar la conversación.'),
-    ('Cambios y reposiciones',
-     'Permitir cambios antes del despacho y gestionar los posteriores con el transportista. Definir qué fotos y condiciones permiten reponer productos dañados o faltantes. Habilitar esas acciones en la tienda.'),
-    ('Pagos, facturas y devoluciones',
-     'Conectar banco o billetera para verificar el dinero recibido y el sistema de facturación para obtener o emitir facturas. Acordar las reglas para cancelar pedidos o devolver dinero y habilitar esas gestiones en la tienda y el medio de pago.'),
-    ('Excepciones y activación',
-     'Asignar una persona para reclamos legales y excepciones comerciales. Acordar las reglas con el cliente, probar cada conexión con casos reales y activar por etapas. Medir lo resuelto y los motivos que siguen requiriendo al equipo.'),
+    ('Editar direcciones de pedidos',
+     'En Shopify, cambiar calle, número, piso o código postal antes del despacho, tras confirmar los datos con el cliente. Si ya salió, pedir el cambio al transportista.'),
+    ('Seguir entregas y anticipar demoras',
+     'Consultar Andreani, explicar dónde está el pedido y avisar si se retrasa. Ante una entrega disputada, reunir los datos y pedir revisión. Así el cliente no tiene que insistir para recibir novedades.'),
+    ('Resolver faltantes y daños',
+     'Pedir fotos y comprobar lo comprado. Con reglas de reposición acordadas, crear el pedido de reemplazo y enviar su seguimiento; pasar solo las excepciones al equipo.'),
+    ('Confirmar pagos y enviar facturas',
+     'Conectar banco o billetera para comprobar el ingreso y compararlo con el pedido. Obtener o emitir la factura en el sistema del comercio y enviarla al cliente.'),
+    ('Cancelar pedidos y devolver dinero',
+     'Conectar la tienda con el medio de pago para cancelar pedidos o devolver dinero cuando las condiciones del comercio lo permitan. Las excepciones necesitan aprobación.'),
+    ('Responder más y escalar mejor',
+     'Usar precios, stock, promociones y guías actualizados. Recibir correo, pedido y fotos antes de pausar. Entregar un resumen al equipo para excepciones comerciales o reclamos legales.'),
 ]
 for i, (title, body) in enumerate(plan):
-    p.proposal(182+i*146, i+1, title, body)
-p.text(42, 786, 'Estas conexiones son propuestas; las tres correcciones ya están publicadas.', size=12.5)
+    p.proposal(184+i*98, i+1, title, body)
+p.text(42, 786, 'Activar por etapas y probar cada acción con casos reales del cliente.', size=12.5)
 p.end()
 p.c.save()
 
@@ -205,7 +226,9 @@ doc = pymupdf.open(OUT)
 assert len(doc) == p.page == 3
 assert len(doc.get_toc()) == 3
 text = '\n'.join(page.get_text() for page in doc)
-assert all(token in text for token in ['66,2%', '21,1%', '135 hilos', '53 hilos', '10 bloqueos', '76 pruebas'])
+assert all(token in text for token in ['186', '27', '838 respuestas de IA', '24,2%', '6,4%', '135 hilos', '76 pruebas', 'Editar direcciones', 'crear el pedido de reemplazo'])
+assert '66,2%' not in text and '21,1%' not in text
+assert round(human_rate, 1) == 24.2 and round(inbox_rate, 1) == 6.4
 assert not re.search(r'\b[0-9a-f]{8}-[0-9a-f]{4}-', text)
 assert 'Anexo' not in text and '\ufffd' not in text
 bad_bounds = []
@@ -223,6 +246,10 @@ for i, page in enumerate(doc, 1):
 assert not bad_bounds, bad_bounds
 assert not small_body, small_body
 proof = {'file': str(OUT), 'pages': len(doc), 'historicalEscalations': 135,
+         'dataCapturedAt': source['capturedAt'], 'AIAnsweredConversations': answered,
+         'AIConversationMessages': len(private), 'publicCommentReplies': len(public),
+         'publicCommentThreads': public_threads, 'genuineInterventionDenominator': 559,
+         'genuineInterventionPercent': round(human_rate, 1), 'proposedCapabilities': len(plan),
          'escalationCategories': 8, 'individualCasesListed': False, 'appendices': False,
          'bodyFontPoints': 13, 'minimumSupportingTextPoints': 12.5,
          'undersizedBodyText': small_body,
