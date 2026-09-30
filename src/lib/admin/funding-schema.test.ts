@@ -19,7 +19,16 @@ it('totals every wallet atomically, separates currencies and blocks browser role
     await db.exec(migration);
     await db.exec(migration);
     await db.exec(
-      "INSERT INTO platform_provider_balances VALUES ('anthropic',20,'digest',now()-interval '1 hour','admin'); SET ROLE service_role"
+      "INSERT INTO platform_provider_balances VALUES ('anthropic',20,'digest',now()-interval '1 hour','admin')"
+    );
+    const billingMigration = readFileSync(
+      'supabase/migrations/302_provider_billing_mode.sql',
+      'utf8'
+    );
+    await db.exec(billingMigration);
+    await db.exec(billingMigration);
+    await db.exec(
+      "INSERT INTO platform_provider_balances (provider,balance_usd,key_digest,updated_by,billing_mode) VALUES ('groq',0,'digest','admin','postpaid'); SET ROLE service_role"
     );
     const result = (
       await db.query<{
@@ -39,7 +48,16 @@ it('totals every wallet atomically, separates currencies and blocks browser role
       balance_cents: 300,
     });
     expect(result.usage).toEqual([{ provider: 'anthropic', usd_week: 0.0025 }]);
-    expect(result.manual[0].spent_since_usd).toBe(0.0025);
+    expect(result.manual.find((m) => m.provider === 'anthropic')).toMatchObject(
+      {
+        balance_usd: 20,
+        billing_mode: 'prepaid',
+        spent_since_usd: 0.0025,
+      }
+    );
+    expect(result.manual.find((m) => m.provider === 'groq')?.billing_mode).toBe(
+      'postpaid'
+    );
     for (const role of ['anon', 'authenticated']) {
       await db.exec(`RESET ROLE; SET ROLE ${role}`);
       await expect(db.query('SELECT admin_funding_snapshot()')).rejects.toThrow(

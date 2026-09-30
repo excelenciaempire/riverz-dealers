@@ -151,4 +151,169 @@ describe('provider funding plan', () => {
   it('falls back to seven days for an invalid horizon', () => {
     expect(planFunding(snapshot(), [], NaN, now).days).toBe(7);
   });
+  it('does not report known usage quotas as missing monetary balances', () => {
+    const result = planFunding(
+      snapshot(),
+      [
+        provider('firecrawl', 977, 'credits'),
+        provider('elevenlabs', 9397, 'chars'),
+        provider('anthropic', null),
+      ],
+      7,
+      now
+    );
+    expect(result.unknown).toBe(1);
+    expect(result.providers.find((p) => p.id === 'firecrawl')).toMatchObject({
+      billingMode: 'quota',
+      targetUsd: 0,
+      topUpUsd: null,
+      needsConfirmation: false,
+    });
+  });
+  it('requires a confirmed postpaid plan and never represents it as cash', () => {
+    const data = snapshot();
+    data.manual = [
+      {
+        provider: 'groq',
+        balance_usd: 0,
+        spent_since_usd: 4,
+        billing_mode: 'postpaid',
+        confirmed_at: new Date(now - 7 * 86400000).toISOString(),
+      },
+    ];
+    data.usage = [{ provider: 'groq', usd_week: 70 }];
+    const result = planFunding(data, [provider('groq', null)], 30, now);
+    expect(result.providers[0]).toMatchObject({
+      source: 'postpaid',
+      billingMode: 'postpaid',
+      saldo: null,
+      topUpUsd: 0,
+      targetUsd: 0,
+      daysLeft: null,
+      dailyUsd: 10,
+    });
+    expect(result.unknown).toBe(0);
+    expect(
+      planFunding(snapshot(), [provider('groq', null)], 7, now).unknown
+    ).toBe(1);
+  });
+  it('preserves billing errors even on a confirmed postpaid plan', () => {
+    const data = snapshot();
+    data.manual = [
+      {
+        provider: 'groq',
+        balance_usd: 0,
+        spent_since_usd: 0,
+        billing_mode: 'postpaid',
+        confirmed_at: new Date(now).toISOString(),
+      },
+    ];
+    for (const estado of ['error', 'sin_saldo', 'sin_llave'] as const) {
+      const row = planFunding(
+        data,
+        [{ ...provider('groq', null), estado }],
+        7,
+        now
+      ).providers[0];
+      expect(row.estado).toBe(estado);
+      expect(row.topUpUsd).toBeNull();
+    }
+  });
+  it('keeps a real API balance authoritative over a manual billing declaration', () => {
+    const data = snapshot();
+    data.manual = [
+      {
+        provider: 'anthropic',
+        balance_usd: 0,
+        spent_since_usd: 0,
+        billing_mode: 'postpaid',
+        confirmed_at: new Date(now).toISOString(),
+      },
+    ];
+    expect(
+      planFunding(data, [provider('anthropic', 5)], 7, now).providers[0]
+    ).toMatchObject({
+      saldo: 5,
+      source: 'api',
+      billingMode: 'prepaid',
+      topUpUsd: 5,
+    });
+  });
+  it('does not request a balance for an unconnected provider', () => {
+    expect(
+      planFunding(
+        snapshot(),
+        [{ ...provider('openai', null), estado: 'sin_llave' }],
+        7,
+        now
+      ).providers[0].needsConfirmation
+    ).toBe(false);
+  });
+  it('backs current merchant balances dollar for dollar rather than projecting days', () => {
+    const data = snapshot();
+    data.wallets = [
+      {
+        currency: 'USD',
+        accounts: 15,
+        balance_cents: 4434,
+        reserved_cents: 20,
+        available_cents: 4414,
+      },
+      {
+        currency: 'EUR',
+        accounts: 1,
+        balance_cents: 99900,
+        reserved_cents: 0,
+        available_cents: 99900,
+      },
+    ];
+    data.usage = [{ provider: 'anthropic', usd_week: 60 }];
+    const result = planFunding(
+      data,
+      [provider('anthropic', 11.94), provider('deepgram', 500)],
+      30,
+      now,
+      'merchants'
+    );
+    expect(result.backing).toEqual({
+      targetUsd: 44.34,
+      balanceUsd: 11.94,
+      gapUsd: 32.4,
+      topUpUsd: 33,
+    });
+    expect(result.providers.find((p) => p.id === 'anthropic')).toMatchObject({
+      targetUsd: 44.34,
+      topUpUsd: 33,
+    });
+    expect(result.topUpUsd).toBe(33);
+  });
+  it('recomputes backing on merchant top-ups, preserves unknown balances and never suggests a negative deposit', () => {
+    const data = snapshot();
+    data.wallets = [
+      {
+        currency: 'USD',
+        accounts: 1,
+        balance_cents: 5000,
+        reserved_cents: 0,
+        available_cents: 5000,
+      },
+    ];
+    expect(
+      planFunding(data, [provider('anthropic', 10)], 7, now, 'merchants')
+        .backing.topUpUsd
+    ).toBe(40);
+    expect(
+      planFunding(data, [provider('anthropic', 100)], 7, now, 'merchants')
+        .backing.topUpUsd
+    ).toBe(0);
+    expect(
+      planFunding(data, [provider('anthropic', null)], 7, now, 'merchants')
+        .backing.topUpUsd
+    ).toBeNull();
+    data.wallets[0].balance_cents = 10000;
+    expect(
+      planFunding(data, [provider('anthropic', 10)], 7, now, 'merchants')
+        .backing.topUpUsd
+    ).toBe(90);
+  });
 });

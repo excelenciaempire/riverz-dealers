@@ -4,6 +4,27 @@ import type { Namespace } from './types';
 export const admin = {
   fundingTitle: { es: 'Cuánto recargar', en: 'How much to top up' },
   fundingHorizon: { es: 'Días de cobertura', en: 'Coverage days' },
+  fundingCriterion: { es: 'Objetivo de recarga', en: 'Top-up goal' },
+  fundingMerchantGoal: {
+    es: 'Respaldar saldo de comercios',
+    en: 'Back merchant balances',
+  },
+  fundingAnthropicTopUp: {
+    es: 'Recargar en Anthropic',
+    en: 'Top up Anthropic',
+  },
+  fundingAnthropicBalance: {
+    es: 'Saldo de Anthropic',
+    en: 'Anthropic balance',
+  },
+  fundingBackingGap: {
+    es: 'Faltan {amount} para igualar el saldo en USD',
+    en: '{amount} needed to match the USD balance',
+  },
+  fundingBackingPolicy: {
+    es: 'Anthropic: saldo disponible de comercios en USD menos saldo de Anthropic. Los otros proveedores conservan su reserva según consumo.',
+    en: 'Anthropic: available USD merchant balance minus Anthropic balance. Other providers retain their usage-based reserve.',
+  },
   fundingDays: { es: '{n} días', en: '{n} days' },
   fundingTopUp: { es: 'Recarga recomendada', en: 'Recommended top-up' },
   fundingPartial: {
@@ -40,6 +61,22 @@ export const admin = {
   fundingConfirm: { es: 'Saldo por confirmar', en: 'Confirm balance' },
   fundingLiveApi: { es: 'Consultado por API', en: 'Queried via API' },
   fundingRecord: { es: 'Confirmar saldo', en: 'Confirm balance' },
+  fundingConfigure: { es: 'Configurar saldo', en: 'Configure balance' },
+  fundingBillingMode: { es: 'Forma de pago', en: 'Billing method' },
+  fundingPrepaid: { es: 'Saldo prepago', en: 'Prepaid balance' },
+  fundingPostpaid: { es: 'Facturación automática', en: 'Automatic billing' },
+  fundingPostpaidHint: {
+    es: 'Selecciona esta opción solo si el proveedor cobra automáticamente por uso.',
+    en: 'Select this only if the provider automatically bills for usage.',
+  },
+  fundingNoTopUp: { es: 'Sin recarga', en: 'No top-up' },
+  fundingViewPlan: { es: 'Ver plan', en: 'View plan' },
+  fundingCheckConnection: { es: 'Revisar conexión', en: 'Check connection' },
+  fundingQuota: { es: 'Cuota de uso', en: 'Usage quota' },
+  fundingConfirmedBilling: {
+    es: 'Modalidad confirmada',
+    en: 'Confirmed billing method',
+  },
   fundingBalanceUsd: {
     es: 'Saldo actual en USD',
     en: 'Current balance in USD',
@@ -83,20 +120,47 @@ export const admin = {
     en: 'Headroom to spending limit; not prepaid credit',
   },
 
-  providerAlertRemaining: { es: ' (quedan {value} {unit})', en: ' ({value} {unit} remaining)' },
-  providerAlertEmpty: { es: '· {name} SIN SALDO — revisar: {url}', en: '· {name} OUT OF CREDIT — check: {url}' },
-  providerAlertLow: { es: '· {name} con poco saldo{balance} — recargar: {url}', en: '· {name} low credit{balance} — top up: {url}' },
-  providerAlertQuota: { es: '· {name} alcanzó un límite de uso — revisar: {url}', en: '· {name} reached a usage limit — check: {url}' },
+  providerAlertRemaining: {
+    es: ' (quedan {value} {unit})',
+    en: ' ({value} {unit} remaining)',
+  },
+  providerAlertEmpty: {
+    es: '· {name} SIN SALDO — revisar: {url}',
+    en: '· {name} OUT OF CREDIT — check: {url}',
+  },
+  providerAlertLow: {
+    es: '· {name} con poco saldo{balance} — recargar: {url}',
+    en: '· {name} low credit{balance} — top up: {url}',
+  },
+  providerAlertQuota: {
+    es: '· {name} alcanzó un límite de uso — revisar: {url}',
+    en: '· {name} reached a usage limit — check: {url}',
+  },
   platformAlertTitle: { es: 'aviso de la plataforma', en: 'platform alert' },
   platformAlertTestTitle: { es: 'Prueba de alertas', en: 'Alert test' },
-  platformAlertTestBody: { es: 'Riverz enviará a este WhatsApp los avisos de saldo bajo o agotado que pueda detectar. Este es un mensaje de prueba.', en: 'Riverz will send detectable low-credit and depleted-credit alerts to this WhatsApp. This is a test message.' },
-  cronVoiceNumbers: { es: 'Activación y renovación de números por comercio', en: 'Merchant number activation and renewals' },
+  platformAlertTestBody: {
+    es: 'Riverz enviará a este WhatsApp los avisos de saldo bajo o agotado que pueda detectar. Este es un mensaje de prueba.',
+    en: 'Riverz will send detectable low-credit and depleted-credit alerts to this WhatsApp. This is a test message.',
+  },
+  cronVoiceNumbers: {
+    es: 'Activación y renovación de números por comercio',
+    en: 'Merchant number activation and renewals',
+  },
   concepto_numero_telefono: { es: 'Número telefónico', en: 'Phone number' },
-  unlockUnconfigured: { es: 'El panel no tiene contraseña configurada.', en: 'The panel password has not been configured.' },
+  unlockUnconfigured: {
+    es: 'El panel no tiene contraseña configurada.',
+    en: 'The panel password has not been configured.',
+  },
   unlockIncorrect: { es: 'Contraseña incorrecta', en: 'Incorrect password' },
-  unlockRateLimited: { es: 'Demasiados intentos. Inténtalo más tarde.', en: 'Too many attempts. Try again later.' },
+  unlockRateLimited: {
+    es: 'Demasiados intentos. Inténtalo más tarde.',
+    en: 'Too many attempts. Try again later.',
+  },
   syncPending: { es: 'Sincronización pendiente', en: 'Sync pending' },
-  syncLiveOnly: { es: 'Eventos en vivo; sin historial recuperable', en: 'Live events; history unavailable' },
+  syncLiveOnly: {
+    es: 'Eventos en vivo; sin historial recuperable',
+    en: 'Live events; history unavailable',
+  },
   errCoexistenceEchoesMissing: {
     es: 'Las respuestas enviadas desde el teléfono no llegan: clientes escribiendo y ningún eco en 24 h. Revisa el campo smb_message_echoes del webhook de la app de Meta o reconecta el número.',
     en: 'Replies sent from the phone aren’t arriving: customers writing and no echo in 24 h. Check the smb_message_echoes webhook field in the Meta app or reconnect the number.',
@@ -289,7 +353,10 @@ export const admin = {
   },
   featureSaved: { es: 'Guardado', en: 'Saved' },
   featureSaveError: { es: 'No se pudo guardar', en: "Couldn't save" },
-  featureInvalidInput: { es: 'La configuración de la funcionalidad no es válida.', en: 'The feature configuration is invalid.' },
+  featureInvalidInput: {
+    es: 'La configuración de la funcionalidad no es válida.',
+    en: 'The feature configuration is invalid.',
+  },
   // Experiencias opt-in: arrancan apagadas y se prenden por comercio
   experiencesTitle: { es: 'Experiencias', en: 'Experiences' },
   experiencesDesc: {
@@ -382,7 +449,10 @@ export const admin = {
     en: 'unprocessed webhooks',
   },
   alertCrons: { es: 'trabajos con error', en: 'jobs with errors' },
-  alertWalletPending: { es: 'reservas pendientes de conciliación', en: 'reservations awaiting reconciliation' },
+  alertWalletPending: {
+    es: 'reservas pendientes de conciliación',
+    en: 'reservations awaiting reconciliation',
+  },
   walletReconciliationWindow: {
     es: 'Sin recibo, se liberan a favor del comercio al cumplir 24 h.',
     en: 'Without a receipt, funds are released back to the merchant after 24 hours.',
@@ -510,7 +580,10 @@ export const admin = {
     es: 'Drena pasos de espera de automatizaciones',
     en: 'Drains automation wait steps',
   },
-  cronAutomationTemplates: {es:'Sincroniza la aprobación de plantillas sin repetir envíos',en:'Syncs template approvals without replaying deliveries'},
+  cronAutomationTemplates: {
+    es: 'Sincroniza la aprobación de plantillas sin repetir envíos',
+    en: 'Syncs template approvals without replaying deliveries',
+  },
   cronFlowsRetries: {
     es: 'Reintenta ejecuciones de flujo fallidas',
     en: 'Retries failed flow runs',
@@ -690,11 +763,20 @@ export const admin = {
     es: 'Se eliminará este registro de evaluación y sus propuestas pendientes relacionadas. No se borran chats ni plantillas activas, ni se revierten cambios ya aplicados.',
     en: 'This evaluation record and its related pending proposals will be deleted. Live chats and templates are not deleted, and previously applied changes are not reverted.',
   },
-  mejorasSinFeedbackNuevo: { es: 'No hay feedback nuevo.', en: 'No new feedback.' },
+  mejorasSinFeedbackNuevo: {
+    es: 'No hay feedback nuevo.',
+    en: 'No new feedback.',
+  },
   mejorasAntes: { es: 'Antes', en: 'Before' },
   mejorasDespues: { es: 'Después', en: 'After' },
-  mejorasAprobarCambio: { es: 'Aprobar y enviar a Meta', en: 'Approve and send to Meta' },
-  mejorasNuevaPlantilla: { es: 'Nueva plantilla: {nombre}', en: 'New template: {nombre}' },
+  mejorasAprobarCambio: {
+    es: 'Aprobar y enviar a Meta',
+    en: 'Approve and send to Meta',
+  },
+  mejorasNuevaPlantilla: {
+    es: 'Nueva plantilla: {nombre}',
+    en: 'New template: {nombre}',
+  },
   mejorasCambio_pendiente: { es: 'Pendiente', en: 'Pending' },
   mejorasCambio_aprobado: { es: 'Aprobado', en: 'Approved' },
   mejorasCambio_descartado: { es: 'Descartado', en: 'Dismissed' },
@@ -715,7 +797,10 @@ export const admin = {
   mejorasEstado_en_curso: { es: 'En curso', en: 'In progress' },
   mejorasEstado_resuelta: { es: 'Resuelta', en: 'Resolved' },
   mejorasEstado_descartada: { es: 'Descartada', en: 'Dismissed' },
-  mejorasReglasAplicadas: { es: '{n} de {total} reglas aplicadas', en: '{n} of {total} rules applied' },
+  mejorasReglasAplicadas: {
+    es: '{n} de {total} reglas aplicadas',
+    en: '{n} of {total} rules applied',
+  },
   mejorasError: { es: 'No se pudo guardar.', en: "Couldn't save." },
   mejorasFeedbackCuenta: { es: '{n} de feedback', en: '{n} feedback' },
   mejorasDatosTapados: {
@@ -907,8 +992,14 @@ export const admin = {
   },
   // Los conceptos de la billetera que dependen de cada llave.
   billingPayLink: { es: 'Generar link de pago', en: 'Create payment link' },
-  billingLinkFailed: { es: 'No se pudo generar el link de pago.', en: 'Could not create the payment link.' },
-  billingStripeUnavailable: { es: 'Stripe no está configurado.', en: 'Stripe is not configured.' },
+  billingLinkFailed: {
+    es: 'No se pudo generar el link de pago.',
+    en: 'Could not create the payment link.',
+  },
+  billingStripeUnavailable: {
+    es: 'Stripe no está configurado.',
+    en: 'Stripe is not configured.',
+  },
   billingNoSubscription: {
     es: 'Esta cuenta todavía no tiene una suscripción cargada.',
     en: 'This account has no subscription yet.',
@@ -1072,13 +1163,31 @@ export const admin = {
   billingEdit: { es: 'Configurar', en: 'Configure' },
   billingEditTitle: { es: 'Configurar cuenta', en: 'Configure account' },
   billingManageAgreement: { es: 'Plan y facturación', en: 'Plan and billing' },
-  billingAlreadyConfigured: { es: 'El comercio ya está configurado. Edita su acuerdo desde Cuentas.', en: 'This merchant is already configured. Edit their agreement in Accounts.' },
-  billingCopyFailed: { es: 'No se pudo copiar. Selecciona el enlace y cópialo manualmente.', en: 'Could not copy. Select the link and copy it manually.' },
-  billingExistingChange: { es: 'Al guardar, cambia el acceso y se actualiza la mensualidad futura en Stripe, sin cobrar un prorrateo ni mover la renovación.', en: 'Saving changes access and updates the future Stripe monthly fee, without a prorated charge or changing the renewal date.' },
-  billingInvalidAgreement: { es: 'Revisa el plan, la modalidad y los importes. Los contactos incluidos deben ser mayores que cero.', en: 'Check the plan, billing model and amounts. Included contacts must be greater than zero.' },
-  billingShopifyManaged: { es: 'Este comercio paga por Shopify. El cambio requiere su aprobación desde Facturación; no se modificó su acuerdo.', en: 'This merchant pays through Shopify. Changes require their approval in Billing; the agreement was not changed.' },
+  billingAlreadyConfigured: {
+    es: 'El comercio ya está configurado. Edita su acuerdo desde Cuentas.',
+    en: 'This merchant is already configured. Edit their agreement in Accounts.',
+  },
+  billingCopyFailed: {
+    es: 'No se pudo copiar. Selecciona el enlace y cópialo manualmente.',
+    en: 'Could not copy. Select the link and copy it manually.',
+  },
+  billingExistingChange: {
+    es: 'Al guardar, cambia el acceso y se actualiza la mensualidad futura en Stripe, sin cobrar un prorrateo ni mover la renovación.',
+    en: 'Saving changes access and updates the future Stripe monthly fee, without a prorated charge or changing the renewal date.',
+  },
+  billingInvalidAgreement: {
+    es: 'Revisa el plan, la modalidad y los importes. Los contactos incluidos deben ser mayores que cero.',
+    en: 'Check the plan, billing model and amounts. Included contacts must be greater than zero.',
+  },
+  billingShopifyManaged: {
+    es: 'Este comercio paga por Shopify. El cambio requiere su aprobación desde Facturación; no se modificó su acuerdo.',
+    en: 'This merchant pays through Shopify. Changes require their approval in Billing; the agreement was not changed.',
+  },
   billingFirstMonth: { es: 'Primer mes', en: 'First month' },
-  billingFirstMonthPromo: { es: '{percent} % de descuento', en: '{percent}% off' },
+  billingFirstMonthPromo: {
+    es: '{percent} % de descuento',
+    en: '{percent}% off',
+  },
   billingFirstMonthFree: { es: 'Sin cargo', en: 'Free' },
   billingFullPrice: { es: 'Precio completo', en: 'Full price' },
   billingFirstMonthSummary: {
@@ -1094,7 +1203,10 @@ export const admin = {
     es: 'Elige un plan activo para generar el link.',
     en: 'Choose an active plan to create the link.',
   },
-  billingSearchAccounts: { es: 'Buscar tienda o correo', en: 'Search store or email' },
+  billingSearchAccounts: {
+    es: 'Buscar tienda o correo',
+    en: 'Search store or email',
+  },
   billingUnlimitedRequiresBalance: {
     es: 'Este plan requiere el modelo de cobro por saldo.',
     en: 'This plan requires balance-based billing.',
@@ -1110,7 +1222,10 @@ export const admin = {
     es: 'Cancela la suscripción en Stripe antes de poner esta cuenta en cortesía.',
     en: 'Cancel the Stripe subscription before marking this account as comped.',
   },
-  billingSyncNeedsReview: { es: 'No se pudo sincronizar ni restaurar el acuerdo. Revisa la cuenta y Stripe antes de reintentar.', en: 'The agreement could not be synced or restored. Review the account and Stripe before retrying.' },
+  billingSyncNeedsReview: {
+    es: 'No se pudo sincronizar ni restaurar el acuerdo. Revisa la cuenta y Stripe antes de reintentar.',
+    en: 'The agreement could not be synced or restored. Review the account and Stripe before retrying.',
+  },
   billingStripeSyncFailed: {
     es: 'No se pudo actualizar el cobro en Stripe. No se guardó el cambio.',
     en: 'Could not update billing in Stripe. The change was not saved.',
@@ -1119,7 +1234,10 @@ export const admin = {
     es: 'Una suscripción activa requiere una mensualidad mayor que cero.',
     en: 'An active subscription requires a monthly fee greater than zero.',
   },
-  billingSaveFailed: { es: 'No se pudo guardar el cambio.', en: 'Could not save the change.' },
+  billingSaveFailed: {
+    es: 'No se pudo guardar el cambio.',
+    en: 'Could not save the change.',
+  },
   billingPlanHasSubscribers: {
     es: 'Este plan tiene suscripciones activas. Crea otro plan para nuevos precios o cambia una cuenta individual.',
     en: 'This plan has active subscriptions. Create another plan for new prices or change an individual account.',

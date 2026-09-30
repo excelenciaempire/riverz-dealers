@@ -40,6 +40,7 @@ import { activeCreditState, creditFailure } from './provider-credit'
 
 export async function claveParaSaldo(id: string): Promise<string | null> {
   if (id === 'anthropic') return leerClaveAnthropicParaSonda()
+  if (id === 'gemini') return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || null
   const provider = proveedorConClave(id)
   return provider ? process.env[provider.envVar] || null : null
 }
@@ -540,6 +541,9 @@ export async function leerSaldosParaRecarga(): Promise<{
       .select('provider, key_digest, state')
     const keys: Record<string, string | null | undefined> = {
       anthropic: await leerClaveAnthropicParaSonda().catch(() => null),
+      groq: process.env.GROQ_API_KEY,
+      openai: process.env.OPENAI_API_KEY,
+      cerebras: process.env.CEREBRAS_API_KEY,
       gemini: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
       typesafe: process.env.TYPESAFE_API_KEY,
     }

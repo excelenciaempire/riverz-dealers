@@ -37,9 +37,17 @@ export async function GET(request: Request) {
     fundingSnapshot.manual = manual.filter(
       (row): row is NonNullable<typeof row> => row !== null
     );
-    const days = Number(new URL(request.url).searchParams.get('days') ?? 7);
+    const params = new URL(request.url).searchParams;
+    const days = Number(params.get('days') ?? 7);
+    const basis = params.get('basis') === 'usage' ? 'usage' : 'merchants';
     return {
-      ...planFunding(fundingSnapshot, providers.data?.proveedores ?? [], days),
+      ...planFunding(
+        fundingSnapshot,
+        providers.data?.proveedores ?? [],
+        days,
+        Date.now(),
+        basis
+      ),
       providersCheckedAt: providers.data?.consultadoAt ?? null,
       providersError: providers.error,
     };
@@ -58,13 +66,20 @@ export async function PUT(request: Request) {
   if (!rl.success) return rateLimitResponse(rl);
   const t = await getT();
   const body = await request.json().catch(() => null);
+  const billingMode = body?.billingMode ?? 'prepaid';
+  const validBalance =
+    typeof body?.balanceUsd === 'number' &&
+    Number.isFinite(body.balanceUsd) &&
+    body.balanceUsd >= 0 &&
+    body.balanceUsd <= 1_000_000;
   if (
     !body ||
     !MANUAL_BALANCE_PROVIDERS.some((id) => id === body.provider) ||
-    typeof body.balanceUsd !== 'number' ||
-    !Number.isFinite(body.balanceUsd) ||
-    body.balanceUsd < 0 ||
-    body.balanceUsd > 1_000_000
+    !['prepaid', 'postpaid'].includes(billingMode) ||
+    (billingMode === 'prepaid' && !validBalance) ||
+    (billingMode === 'postpaid' &&
+      body.balanceUsd !== undefined &&
+      !validBalance)
   ) {
     return NextResponse.json(
       { error: t('admin.fundingInvalidBalance') },
@@ -82,7 +97,8 @@ export async function PUT(request: Request) {
     .upsert(
       {
         provider: body.provider,
-        balance_usd: body.balanceUsd,
+        balance_usd: billingMode === 'postpaid' ? 0 : body.balanceUsd,
+        billing_mode: billingMode,
         key_digest: creditKeyDigest(key),
         confirmed_at: new Date().toISOString(),
         updated_by: gate.actor.email,
@@ -98,7 +114,10 @@ export async function PUT(request: Request) {
     action: 'update.provider_balance',
     targetType: 'provider',
     targetId: body.provider,
-    meta: { balanceUsd: body.balanceUsd },
+    meta: {
+      billingMode,
+      ...(billingMode === 'prepaid' ? { balanceUsd: body.balanceUsd } : {}),
+    },
   });
   return NextResponse.json(
     { ok: true },

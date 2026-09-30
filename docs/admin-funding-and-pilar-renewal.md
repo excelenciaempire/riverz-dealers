@@ -2,6 +2,12 @@
 
 The admin home and provider page show merchant wallet balances, recorded
 daily consumption, and independent recommended top-ups for 7, 14 or 30 days.
+By default, the Anthropic funding goal equals the current USD wallet balance
+across every merchant, including reserved balances. The displayed deficit is
+that outstanding balance minus the current Anthropic balance; the suggested
+top-up rounds up to whole dollars. Historical deposits already spent are not
+counted, foreign currencies are not converted, and balances in other providers
+never offset Anthropic. The 7/14/30-day forecasts remain separate selectable goals.
 Merchant totals refresh every 10 seconds while visible. Free provider probes
 are shared for 55 seconds; no model generations are triggered by this panel.
 
@@ -18,6 +24,14 @@ are bound to the active credential digest, so rotating a key invalidates them.
 Admin authentication, CSRF, rate limiting and audit protect confirmations.
 Migration 301 keeps financial observations and its aggregate RPC private to
 the service role. No merchant wallet entries are changed.
+
+Migration 302 adds an explicitly confirmed billing method for providers without
+a balance endpoint. Automatically billed plans retain their recorded consumption
+but never display a fictitious cash balance or recommend a prepaid top-up. This
+setting remains tied to the same active credential, and does not clear billing
+failures. It must be confirmed by the administrator; a working model catalog
+does not prove the account's billing plan. Known character and credit quotas do
+not inflate the count of providers with unconfirmed monetary balances.
 
 Pilar's agreement is USD 99 for the first three months, then USD 399. Its
 September renewal incorrectly totaled zero: a USD 300 pilot coupon was still

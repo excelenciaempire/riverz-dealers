@@ -30,27 +30,34 @@ export function FundingPanel() {
   const t = useT();
   const format = useFormat();
   const [days, setDays] = useState(7);
+  const [basis, setBasis] = useState<'merchants' | 'usage'>('merchants');
   const [now, setNow] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 10_000);
     return () => clearInterval(timer);
   }, []);
   const { data, loading, error, reload } = useAdminData<Funding>(
-    `/api/admin/funding?days=${days}`,
+    `/api/admin/funding?days=${days}&basis=${basis}`,
     10_000
   );
   const stale = !!data && now - new Date(data.measuredAt).getTime() > 30_000;
+  const anthropic = data?.providers.find((p) => p.id === 'anthropic');
   return (
     <Panel
       title={t('admin.fundingTitle')}
       actions={
         <div className="flex items-center gap-2">
           <select
-            aria-label={t('admin.fundingHorizon')}
+            aria-label={t('admin.fundingCriterion')}
             className="border-border bg-background h-8 rounded-md border px-2 text-xs"
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
+            value={basis === 'merchants' ? 'merchants' : days}
+            onChange={(e) => {
+              setBasis(e.target.value === 'merchants' ? 'merchants' : 'usage');
+              if (e.target.value !== 'merchants')
+                setDays(Number(e.target.value));
+            }}
           >
+            <option value="merchants">{t('admin.fundingMerchantGoal')}</option>
             {[7, 14, 30].map((n) => (
               <option key={n} value={n}>
                 {t('admin.fundingDays', { n })}
@@ -69,14 +76,43 @@ export function FundingPanel() {
         <div className="space-y-4 p-4">
           <div className="grid gap-3 sm:grid-cols-3">
             <Stat
-              label={t('admin.fundingTopUp')}
+              label={t(
+                data.basis === 'merchants'
+                  ? 'admin.fundingAnthropicTopUp'
+                  : 'admin.fundingTopUp'
+              )}
               value={
-                stale || data.providersError
+                stale ||
+                data.providersError ||
+                (data.basis === 'merchants' && data.backing.topUpUsd === null)
                   ? '—'
-                  : format.currency(data.topUpUsd, 'USD')
+                  : format.currency(
+                      data.basis === 'merchants'
+                        ? data.backing.topUpUsd!
+                        : data.topUpUsd,
+                      'USD'
+                    )
               }
-              tone={data.topUpUsd > 0 ? 'warn' : undefined}
-              hint={t('admin.fundingPartial', { n: data.unknown })}
+              tone={
+                (data.basis === 'merchants'
+                  ? (data.backing.topUpUsd ?? 0)
+                  : data.topUpUsd) > 0
+                  ? 'warn'
+                  : undefined
+              }
+              hint={
+                data.basis === 'merchants'
+                  ? data.backing.gapUsd === null
+                    ? t(
+                        anthropic?.billingMode === 'postpaid'
+                          ? 'admin.fundingNoTopUp'
+                          : 'admin.fundingConfirm'
+                      )
+                    : t('admin.fundingBackingGap', {
+                        amount: format.currency(data.backing.gapUsd, 'USD'),
+                      })
+                  : t('admin.fundingPartial', { n: data.unknown })
+              }
             />
             {data.wallets.length ? (
               data.wallets.map((w) => (
@@ -97,9 +133,31 @@ export function FundingPanel() {
               />
             )}
             <Stat
-              label={t('admin.fundingDaily')}
-              value={format.currency(data.dailyUsd, 'USD')}
-              hint={t('admin.fundingBasis')}
+              label={t(
+                data.basis === 'merchants'
+                  ? 'admin.fundingAnthropicBalance'
+                  : 'admin.fundingDaily'
+              )}
+              value={
+                data.basis === 'merchants'
+                  ? anthropic?.billingMode === 'postpaid'
+                    ? t('admin.fundingPostpaid')
+                    : data.backing.balanceUsd === null
+                      ? '—'
+                      : format.currency(data.backing.balanceUsd, 'USD')
+                  : format.currency(data.dailyUsd, 'USD')
+              }
+              hint={t(
+                data.basis === 'merchants'
+                  ? anthropic?.source === 'postpaid'
+                    ? 'admin.fundingConfirmedBilling'
+                    : anthropic?.source === 'api'
+                      ? 'admin.fundingLiveApi'
+                      : data.backing.balanceUsd === null
+                        ? 'admin.fundingConfirm'
+                        : 'admin.fundingEstimated'
+                  : 'admin.fundingBasis'
+              )}
             />
           </div>
           {(stale || data.providersError) && (
@@ -111,7 +169,11 @@ export function FundingPanel() {
             </p>
           )}
           <p className="text-muted-foreground text-xs">
-            {t('admin.fundingPolicy')}
+            {t(
+              data.basis === 'merchants'
+                ? 'admin.fundingBackingPolicy'
+                : 'admin.fundingPolicy'
+            )}
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -148,15 +210,19 @@ export function FundingPanel() {
                     <td className="px-2 py-3 tabular-nums">
                       <Balance provider={p} />
                       <div className="text-muted-foreground mt-1 text-xs">
-                        {p.source === 'estimate'
-                          ? t('admin.fundingEstimated')
-                          : p.saldo === null
-                            ? t('admin.fundingConfirm')
-                            : t(
-                                p.unidad === 'limit_USD'
-                                  ? 'admin.fundingUsageLimit'
-                                  : 'admin.fundingLiveApi'
-                              )}
+                        {p.source === 'postpaid'
+                          ? t('admin.fundingConfirmedBilling')
+                          : p.source === 'estimate'
+                            ? t('admin.fundingEstimated')
+                            : p.billingMode === 'quota' && p.saldo !== null
+                              ? t('admin.fundingQuota')
+                              : p.saldo === null
+                                ? t('admin.fundingConfirm')
+                                : t(
+                                    p.unidad === 'limit_USD'
+                                      ? 'admin.fundingUsageLimit'
+                                      : 'admin.fundingLiveApi'
+                                  )}
                       </div>
                       {p.confirmedAt && (
                         <div className="text-muted-foreground text-xs">
@@ -175,13 +241,20 @@ export function FundingPanel() {
                       <div className="font-medium">
                         {stale
                           ? '—'
-                          : p.topUpUsd === null
-                            ? t(
-                                p.estado === 'sin_llave'
-                                  ? 'admin.keyMissing'
-                                  : 'admin.fundingConfirm'
-                              )
-                            : format.currency(p.topUpUsd, 'USD')}
+                          : p.billingMode === 'postpaid' && p.topUpUsd === 0
+                            ? t('admin.fundingNoTopUp')
+                            : p.topUpUsd === null
+                              ? t(
+                                  p.estado === 'sin_llave'
+                                    ? 'admin.keyMissing'
+                                    : p.estado === 'error' ||
+                                        p.estado === 'sin_saldo'
+                                      ? 'admin.fundingCheckConnection'
+                                      : p.billingMode === 'quota'
+                                        ? 'admin.fundingViewPlan'
+                                        : 'admin.fundingConfirm'
+                                )
+                              : format.currency(p.topUpUsd, 'USD')}
                       </div>
                       {p.targetUsd > 0 && (
                         <div className="text-muted-foreground mt-1 text-xs">
@@ -241,6 +314,7 @@ export function FundingPanel() {
 function Balance({ provider: p }: { provider: FundingProvider }) {
   const t = useT();
   const format = useFormat();
+  if (p.billingMode === 'postpaid') return <>{t('admin.fundingPostpaid')}</>;
   if (p.saldo === null) return <>—</>;
   if (p.unidad === 'chars')
     return <>{t('admin.providersChars', { n: format.number(p.saldo) })}</>;
@@ -268,6 +342,9 @@ function ConfirmBalance({
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
+  const [billingMode, setBillingMode] = useState<'prepaid' | 'postpaid'>(
+    provider.billingMode === 'postpaid' ? 'postpaid' : 'prepaid'
+  );
   const amount = value.trim() === '' ? NaN : Number(value);
   if (!open)
     return (
@@ -276,7 +353,11 @@ function ConfirmBalance({
         className="text-accent-ink text-xs hover:underline"
         onClick={() => setOpen(true)}
       >
-        {t('admin.fundingRecord')}
+        {t(
+          provider.billingMode === 'postpaid'
+            ? 'admin.fundingConfigure'
+            : 'admin.fundingRecord'
+        )}
       </button>
     );
   return (
@@ -289,7 +370,11 @@ function ConfirmBalance({
           const r = await fetchWithCsrf('/api/admin/funding', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ provider: provider.id, balanceUsd: amount }),
+            body: JSON.stringify({
+              provider: provider.id,
+              billingMode,
+              ...(billingMode === 'prepaid' ? { balanceUsd: amount } : {}),
+            }),
           });
           if (!r.ok) {
             toast.error(t('admin.fundingSaveError'));
@@ -307,26 +392,50 @@ function ConfirmBalance({
       }}
     >
       <label className="text-muted-foreground block text-xs">
-        {t('admin.fundingBalanceUsd')}
-        <input
-          type="number"
-          step="0.01"
-          min="0"
-          max="1000000"
-          required
-          aria-label={`${provider.nombre}: ${t('admin.fundingBalanceUsd')}`}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          className="border-border bg-background mt-1 w-28 rounded-md border px-2 py-1 text-sm"
-        />
+        {t('admin.fundingBillingMode')}
+        <select
+          aria-label={`${provider.nombre}: ${t('admin.fundingBillingMode')}`}
+          value={billingMode}
+          onChange={(e) =>
+            setBillingMode(e.target.value as 'prepaid' | 'postpaid')
+          }
+          className="border-border bg-background mt-1 block rounded-md border px-2 py-1 text-sm"
+        >
+          <option value="prepaid">{t('admin.fundingPrepaid')}</option>
+          <option value="postpaid">{t('admin.fundingPostpaid')}</option>
+        </select>
       </label>
+      {billingMode === 'prepaid' && (
+        <label className="text-muted-foreground block text-xs">
+          {t('admin.fundingBalanceUsd')}
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            max="1000000"
+            required
+            aria-label={`${provider.nombre}: ${t('admin.fundingBalanceUsd')}`}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="border-border bg-background mt-1 w-28 rounded-md border px-2 py-1 text-sm"
+          />
+        </label>
+      )}
       <p className="text-muted-foreground max-w-60 text-xs">
-        {t('admin.fundingManualHint')}
+        {t(
+          billingMode === 'prepaid'
+            ? 'admin.fundingManualHint'
+            : 'admin.fundingPostpaidHint'
+        )}
       </p>
       <div className="flex gap-2 text-xs">
         <button
           type="submit"
-          disabled={saving || !Number.isFinite(amount) || amount < 0}
+          disabled={
+            saving ||
+            (billingMode === 'prepaid' &&
+              (!Number.isFinite(amount) || amount < 0))
+          }
           className="bg-primary text-primary-foreground rounded-md px-2 py-1 disabled:opacity-50"
         >
           {t(saving ? 'admin.fundingSaving' : 'admin.fundingSave')}
