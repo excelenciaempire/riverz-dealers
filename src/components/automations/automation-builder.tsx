@@ -1,4 +1,5 @@
 'use client';
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { VoiceNoteEditor } from '@/components/voice/voice-note-editor';
 import type { VoiceNoteConfig } from '@/lib/voice-notes/types';
 
@@ -2411,7 +2412,7 @@ function TriggerCard({
                 }
                 className="bg-muted text-foreground"
               />
-                <Input
+                {SHOW_RIVERZ_IMPROVEMENTS && <><Input
                   aria-label={t('automations.scheduleTimezone')}
                   placeholder={t('automations.workspaceTimezone')}
                   value={(config.timezone as string) ?? ''}
@@ -2422,7 +2423,7 @@ function TriggerCard({
                     onConfigChange(next)
                   }}
                 />
-                <p className="text-xs text-muted-foreground">{t('automations.scheduleAudience')}</p>
+                <p className="text-xs text-muted-foreground">{t('automations.scheduleAudience')}</p></>}
               </div>
             )}
             {type === 'payment_pending' && <p className="text-muted-foreground text-xs">{t('automations.mpPendingCoverage')}</p>}

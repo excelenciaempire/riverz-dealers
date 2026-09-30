@@ -1,5 +1,6 @@
 "use client";
 
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { emailPreview } from '@/lib/channels/email/preview';
 import { BulkCaseActions } from './bulk-case-actions';
 
@@ -386,7 +387,7 @@ export function ConversationList({
               <X className="h-3.5 w-3.5" />
               {t("inbox.cancel")}
             </button>
-          ) : (
+          ) : (isAdmin || SHOW_RIVERZ_IMPROVEMENTS) ? (
             <button
               onClick={() => setSelectMode(true)}
               className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -394,7 +395,7 @@ export function ConversationList({
               <CheckSquare className="h-3.5 w-3.5" />
               {t("inbox.select")}
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -454,7 +455,7 @@ export function ConversationList({
       </div>
 
       {/* Bulk action bar — only while selecting. */}
-      {selectMode && <div className="border-t border-border px-3 py-2"><BulkCaseActions ids={[...selectedIds]} onApplied={() => onBulkDeleted?.()} /></div>}
+      {SHOW_RIVERZ_IMPROVEMENTS && selectMode && <div className="border-t border-border px-3 py-2"><BulkCaseActions ids={[...selectedIds]} onApplied={() => onBulkDeleted?.()} /></div>}
       {selectMode && (
         <div className="flex items-center justify-between gap-2 border-t border-border bg-card p-3">
           <div className="flex items-center gap-2">
@@ -656,7 +657,7 @@ const ConversationItem = memo(function ConversationItem({
             <span className="truncate text-sm font-medium text-foreground">
               {displayName}
             </span>
-            {conversation.case_priority && conversation.case_priority !== 'normal' && <span className="shrink-0 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">{t(`inbox.casePriority_${conversation.case_priority}`)}</span>}
+            {SHOW_RIVERZ_IMPROVEMENTS && conversation.case_priority && conversation.case_priority !== 'normal' && <span className="shrink-0 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">{t(`inbox.casePriority_${conversation.case_priority}`)}</span>}
             {/* ML: marca pregunta (pública) vs mensaje (post-venta) */}
             <MlKindBadge
               channel={conversation.channel}

@@ -1,5 +1,6 @@
 "use client";
 
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPhoneDisplay } from "@/lib/whatsapp/phone-utils";
@@ -275,7 +276,7 @@ export function ContactSidebar({ contact, onClose, conversationId }: ContactSide
           <div className="mt-3">
             <CommerceLinkButton contactId={contact.id} />
           </div>
-          <OperationLinks contactId={contact.id} />
+          {SHOW_RIVERZ_IMPROVEMENTS && <OperationLinks contactId={contact.id} />}
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />

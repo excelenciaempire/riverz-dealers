@@ -1,5 +1,6 @@
 "use client";
 
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -815,6 +816,7 @@ export default function InboxPage() {
 
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
+      if (!SHOW_RIVERZ_IMPROVEMENTS) return;
       const target = event.target instanceof HTMLElement ? event.target : null;
       const typing = !!target?.closest('input,textarea,select,[contenteditable="true"]');
       const action = inboxShortcut(event, typing);
@@ -965,9 +967,9 @@ export default function InboxPage() {
                 filtraba en memoria y sólo sobre el texto de la vista previa,
                 así que buscar una palabra dicha adentro de una conversación
                 no encontraba nada. */}
-            <div className="flex items-center border-b border-border"><div className="min-w-0 flex-1"><InboxSearchBox onResults={setSearch} /></div><TeamNotifications /></div>
-            <SavedViews onChange={applySavedView} />
-            <TeamCapacity />
+            {SHOW_RIVERZ_IMPROVEMENTS ? <div className="flex items-center border-b border-border"><div className="min-w-0 flex-1"><InboxSearchBox onResults={setSearch} /></div><TeamNotifications /></div> : <InboxSearchBox onResults={setSearch} />}
+            {SHOW_RIVERZ_IMPROVEMENTS && <SavedViews onChange={applySavedView} />}
+            {SHOW_RIVERZ_IMPROVEMENTS && <TeamCapacity />}
             <InboxTabs
               value={inboxTab}
               onChange={handleTabChange}

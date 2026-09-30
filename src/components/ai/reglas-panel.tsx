@@ -1,5 +1,6 @@
 'use client';
 
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
@@ -69,7 +70,7 @@ export function ReglasPanel() {
       const res = await fetchWithCsrf('/api/reglas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titulo, cuando, hacer, draft:true }),
+        body: JSON.stringify({ titulo, cuando, hacer, draft:SHOW_RIVERZ_IMPROVEMENTS }),
       });
       if (!res.ok) throw new Error(String(res.status));
       setTitulo('');
@@ -143,7 +144,7 @@ export function ReglasPanel() {
                   {r.cuando ? `${r.cuando}: ` : ''}
                   {r.hacer}
                 </p>
-                <RuleVersions ruleId={r.id} onChanged={cargar} />
+                {SHOW_RIVERZ_IMPROVEMENTS && <RuleVersions ruleId={r.id} onChanged={cargar} />}
               </div>
               <button
                 type="button"
@@ -189,7 +190,7 @@ export function ReglasPanel() {
           />
           <div className="flex gap-2">
             <Button type="submit" size="sm" disabled={guardando || !titulo.trim() || !hacer.trim()}>
-              {guardando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t('reglas.saveDraft')}
+              {guardando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t(SHOW_RIVERZ_IMPROVEMENTS ? 'reglas.saveDraft' : 'reglas.save')}
             </Button>
             <Button type="button" size="sm" variant="ghost" onClick={() => setCreando(false)}>
               {t('reglas.cancel')}
@@ -202,6 +203,7 @@ export function ReglasPanel() {
           size="sm"
           variant="outline"
           className="mt-3"
+          disabled={!isAdmin && !SHOW_RIVERZ_IMPROVEMENTS}
           onClick={() => setCreando(true)}
         >
           <Plus className="h-3.5 w-3.5" />

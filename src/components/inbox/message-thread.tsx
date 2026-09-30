@@ -1,5 +1,6 @@
 "use client";
 
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
@@ -905,7 +906,7 @@ export function MessageThread({
     async (text: string, replyToId?: string) => {
       if (!conversation) return;
 
-      await checkReplyCollision(conversation.id, t);
+      if (SHOW_RIVERZ_IMPROVEMENTS) await checkReplyCollision(conversation.id, t);
       const tempId = `temp-${Date.now()}`;
 
       // Optimistic update — shows the message immediately with "sending" status
@@ -967,7 +968,7 @@ export function MessageThread({
   const handleSendMedia = useCallback(
     async (file: File, caption: string, replyToId?: string) => {
       if (!conversation) return;
-      await checkReplyCollision(conversation.id, t);
+      if (SHOW_RIVERZ_IMPROVEMENTS) await checkReplyCollision(conversation.id, t);
       const tempId = `temp-${Date.now()}`;
       const localUrl = URL.createObjectURL(file);
       const kind: "image" | "video" | "audio" | "document" =
@@ -1097,7 +1098,7 @@ export function MessageThread({
   const handleSendTemplate = useCallback(
     async (template: MessageTemplate, params: string[], headerImage?: File) => {
       if (!conversation) return;
-      await checkReplyCollision(conversation.id, t);
+      if (SHOW_RIVERZ_IMPROVEMENTS) await checkReplyCollision(conversation.id, t);
 
       const renderedBody = renderTemplateBody(template.body_text, params);
       const officialWhatsAppTemplate = isOfficialTemplateSend(conversation.channel);
@@ -2017,8 +2018,8 @@ export function MessageThread({
 
       {/* Voice conversations are a call log: show the call card + transcript,
           no composer (you can't type a reply to a phone call). */}
-      <ConversationCollaboration key={conversation.id} conversationId={conversation.id} composing={composing} />
-      <ConversationUnderstanding key={`understanding-${conversation.id}`} conversationId={conversation.id} conversation={conversation} />
+      {SHOW_RIVERZ_IMPROVEMENTS && <ConversationCollaboration key={conversation.id} conversationId={conversation.id} composing={composing} />}
+      {SHOW_RIVERZ_IMPROVEMENTS && <ConversationUnderstanding key={`understanding-${conversation.id}`} conversationId={conversation.id} conversation={conversation} />}
       {conversation.channel === "voice" ? (
         <VoiceCallCard conversationId={conversation.id} />
       ) : mlThreadKind(conversation.channel, conversation.thread_external_id) ===

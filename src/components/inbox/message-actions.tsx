@@ -1,5 +1,6 @@
 "use client";
 
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { useState, type ReactNode } from "react";
 import { CornerUpLeft, Copy, Pencil, SmilePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -223,7 +224,7 @@ export function MessageActions({
           isAgent ? "right-3" : "left-3",
         )}
       >
-        {(message.sender_type==='bot' || message.sender_type==='customer') && <MessageEvidence conversationId={message.conversation_id} messageId={message.id} />}
+        {SHOW_RIVERZ_IMPROVEMENTS && (message.sender_type==='bot' || message.sender_type==='customer') && <MessageEvidence conversationId={message.conversation_id} messageId={message.id} />}
         {canQuickAct && (
           <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
             <PopoverTrigger

@@ -1,5 +1,6 @@
 'use client';
 
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { useMemo, useState } from 'react';
 import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { toast } from 'sonner';
@@ -507,11 +508,11 @@ export function TemplateBuilder() {
             <div className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Label className="text-foreground">{t('templates.fieldMessage')}</Label>
-                <TemplateAiDraft language={language} category={category} onApply={(draft) => {
+                {SHOW_RIVERZ_IMPROVEMENTS && <TemplateAiDraft language={language} category={category} onApply={(draft) => {
                   setBodyText(draft);
                   setSamples({});
                   setFields({});
-                }} />
+                }} />}
                 <button
                   type="button"
                   onClick={insertVariable}

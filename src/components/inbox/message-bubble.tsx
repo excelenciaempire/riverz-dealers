@@ -1,5 +1,6 @@
 "use client";
 
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import {
   useState,
   useEffect,
@@ -1306,7 +1307,7 @@ export function MessageBubble({
               </p>
             )}
             <MessageContent message={message} contactName={contactName} contactPhone={contactPhone} />
-            <MessageUnderstanding key={message.id} message={message} />
+            {SHOW_RIVERZ_IMPROVEMENTS && <MessageUnderstanding key={message.id} message={message} />}
           </>
         )}
         <div

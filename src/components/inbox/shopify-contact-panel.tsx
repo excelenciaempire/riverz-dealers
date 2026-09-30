@@ -1,5 +1,6 @@
 'use client';
 
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { useEffect, useState } from 'react';
 import { ShoppingBag, ExternalLink, Package, Truck, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -255,7 +256,7 @@ export function ShopifyContactPanel({
                       )}
                     </div>
                   </div>
-                  {conversationId && <CaseOrderActions key={`${conversationId}:${o.id}`} conversationId={conversationId} shopifyOrderId={String(o.id)} />}
+                  {SHOW_RIVERZ_IMPROVEMENTS && conversationId && <CaseOrderActions key={`${conversationId}:${o.id}`} conversationId={conversationId} shopifyOrderId={String(o.id)} />}
                 </li>
               );
             })}

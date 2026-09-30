@@ -1,5 +1,6 @@
 "use client";
 
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { useState, useRef, useCallback, useEffect, useMemo, KeyboardEvent } from "react";
 import {
   Send,
@@ -780,7 +781,7 @@ export function MessageComposer({
         </div>
       )}
 
-      <OutgoingTranslation key={conversationId} conversationId={conversationId} draft={text} onApply={setText} disabled={sessionExpired || sending || improving || drafting} />
+      {SHOW_RIVERZ_IMPROVEMENTS && <OutgoingTranslation key={conversationId} conversationId={conversationId} draft={text} onApply={setText} disabled={sessionExpired || sending || improving || drafting} />}
       <div className="relative flex items-end gap-2">
         {supportsVoiceNotes(channel) && <VoiceNoteComposer key={conversationId} channel={channel} conversationId={conversationId} disabled={sessionExpired || sending} />}
         {canAttachMedia && (
