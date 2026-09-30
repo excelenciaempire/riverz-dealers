@@ -58,21 +58,21 @@ rate = lambda value: f'{value:.1f}%'.replace('.', ',')
 
 REASONS = [
     ('Demora o disputa de entrega', 'Entregas demoradas o disputadas', 36,
-     'Plazo vencido, entrega negada o seguimiento contradictorio.'),
+     'Reclamaron pedidos que no llegaron, demoras sin seguimiento y entregas marcadas como realizadas que negaron haber recibido.'),
     ('Cambio de dirección, entrega o datos', 'Cambios de pedido o dirección', 26,
-     'Modificar una compra exige comprobar si ya fue despachada.'),
+     'Pidieron corregir domicilios o teléfonos y pasar de sucursal a domicilio. La IA no podía modificar el pedido.'),
     ('Cancelación o reembolso', 'Cancelaciones y reembolsos', 23,
-     'Hay que validar las condiciones y ejecutar la devolución.'),
+     'Solicitaron cancelar compras o recuperar dinero por demoras, pedidos no recibidos o arrepentimiento. La IA no ejecutaba devoluciones.'),
     ('Producto dañado, distinto o faltante', 'Productos dañados o faltantes', 18,
-     'Requiere comprobar lo recibido y resolver una reposición.'),
+     'Reportaron frascos rotos o con pérdidas y menos unidades que las compradas; por ejemplo, recibieron un shampoo de tres.'),
     ('Acreditación o cobro', 'Pagos y cobros por verificar', 13,
-     'El comprobante debe contrastarse con el dinero recibido.'),
+     'Enviaron comprobantes y reclamaron cobros sin pedido confirmado. La IA no podía verificar que el dinero hubiera ingresado.'),
     ('Dato o decisión no verificada', 'Información o decisión comercial', 11,
-     'Falta confirmar un dato o autorizar una excepción comercial.'),
+     'El cupón CARRITO25 falló y la web mostró falta de stock. También hubo dudas del producto y propuestas de canje publicitario.'),
     ('Reclamo legal', 'Reclamos legales', 6,
-     'Una persona responsable debe evaluar y responder el reclamo.'),
+     'Hubo amenazas de denuncia y de carta documento, además de intimaciones para dejar de vender el producto.'),
     ('Factura', 'Facturas', 2,
-     'Se necesita el sistema del comercio para obtener la factura.'),
+     'Pidieron facturas A y C. Hubo una respuesta que solo confirmó la compra y otro cliente reiteró el pedido y anunció un reclamo.'),
 ]
 assert Counter(c['category'] for c in cases) == Counter({r[0]: r[2] for r in REASONS})
 
@@ -185,32 +185,32 @@ p.simple(678, 'Capturas de pantalla',
 p.end()
 
 # 2. The complete escalation analysis, grouped instead of listing customers.
-p.header('Por qué se escala a humano', '135 casos históricos, por motivo principal.')
+p.header('Por qué se escala a humano', 'Lo ocurrido en 135 casos revisados.')
 for i, (category, title, count, why) in enumerate(REASONS):
-    y = 182+i*70
-    p.box(42, y, 511, 63, CARD, 11)
+    y = 174+i*75
+    p.box(42, y, 511, 70, CARD, 11)
     p.text(60, y+22, title, 'Semi', 15, width=443)
     p.text(520, y+24, str(count), 'Serif', 25)
-    end = p.wrap(60, y+47, why, 475)
-    assert end-18+4 <= y+63-8, (title, end, y+63)
-p.wrap(42, 764, 'Histórico, no pendientes actuales. Puede incluir reclamos repetidos entre canales.', size=12.5)
+    end = p.wrap(60, y+44, why, 475, leading=17)
+    assert end-17+4 <= y+70-5, (title, end, y+70)
+p.wrap(42, 791, 'Histórico, no pendientes actuales. Puede incluir reclamos repetidos entre canales.', size=12.5)
 p.end()
 
 # 3. Six concrete customer-facing capabilities, covering all eight reasons.
-p.header('Plan de acción', 'Acciones a habilitar según las reglas del comercio.')
+p.header('Plan de acción', 'Qué puede resolver Riverz y cómo habilitarlo.')
 plan = [
     ('Editar direcciones de pedidos',
-     'En Shopify, cambiar calle, número, piso o código postal tras confirmar los datos con el cliente. Una vez despachado, no se modifica la dirección.'),
+     'Sí, antes del despacho. Habilitar a la IA para actualizar Shopify tras confirmar la dirección con el cliente. Una vez despachado, no se modifica la dirección.'),
     ('Seguimiento y avisos de demora',
-     'Consultar Andreani, avisar demoras y explicar dónde está el pedido. Si la entrega se disputa, reunir los datos y escalar.'),
+     'Sí, con seguimiento real de Andreani. Riverz informa el estado y avisa demoras. Si el cliente niega la entrega, logística debe investigar.'),
     ('Resolver faltantes y daños',
-     'Verificar fotos y pedido. Si la política de reposición lo permite, crear el pedido de reemplazo y enviar su seguimiento.'),
+     'Parcialmente. Riverz reúne fotos y registra el reclamo. Para preparar un reemplazo en Shopify, hay que habilitar el flujo y acordar la política; el despacho queda en logística.'),
     ('Confirmar pagos y enviar facturas',
-     'Conectar banco o billetera para verificar el pago y asociarlo al pedido. Conectar el sistema de facturación para emitir o reenviar la factura.'),
+     'Puede automatizarse con nuevas conexiones: banco o billetera para verificar el pago, y sistema de facturación para emitir o reenviar la factura. Hoy requieren revisión del equipo.'),
     ('Cancelar pedidos y devolver dinero',
-     'Conectar la tienda y el medio de pago. Cancelar o reembolsar según las condiciones del comercio; pedir aprobación para excepciones.'),
+     'Parcialmente: al habilitar la gestión, Riverz prepara pedido, monto y motivo. Una persona aprueba la cancelación o el reembolso; la IA no devuelve dinero por su cuenta.'),
     ('Responder más y escalar mejor',
-     'Usar precios, stock, promociones y guías actualizados. Recibir los datos solicitados antes de pausar. Enviar al equipo un resumen de excepciones o reclamos legales.'),
+     'Sí, con información vigente y recibiendo datos antes de pausar. Riverz responde precios, stock y guías; resume las excepciones comerciales y los reclamos legales, que decide el equipo.'),
 ]
 for i, (title, body) in enumerate(plan):
     p.proposal(184+i*98, i+1, title, body)
@@ -224,7 +224,9 @@ assert len(doc) == p.page == 3
 assert len(doc.get_toc()) == 3
 text = '\n'.join(page.get_text() for page in doc)
 normalized_text = re.sub(r'\s+', ' ', text)
-assert all(token in normalized_text for token in ['186', '27', '838 respuestas de IA', '24,2%', '135 casos', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'crear el pedido de reemplazo', 'Una vez despachado, no se modifica la dirección.'])
+assert all(token in normalized_text for token in ['186', '27', '838 respuestas de IA', '24,2%', '135 casos', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.'])
+assert all(token in normalized_text for token in ['Parcialmente', 'Puede automatizarse con nuevas conexiones', 'Una persona aprueba la cancelación o el reembolso', 'la IA no devuelve dinero por su cuenta'])
+assert all(token in normalized_text for token in ['CARRITO25 falló', 'un shampoo de tres', 'Pidieron facturas A y C', 'La IA no podía modificar el pedido'])
 assert 'Por qué se necesita al equipo' not in text and 'pedir el cambio al transportista' not in text
 assert all(removed not in normalized_text for removed in ['Validado en producción', 'RESULTADOS', 'ESCALAMIENTOS REALES', 'PLAN PROPUESTO', 'GUÍA DE CAPACIDADES', 'riverz.co |'])
 assert '66,2%' not in text and '21,1%' not in text
