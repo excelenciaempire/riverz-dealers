@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isPresentationWorkspace } from '@/lib/workspaces/presentation';
 
 export interface BillingContext {
   db: SupabaseClient;
@@ -16,6 +17,8 @@ export async function reservar(
   detalle: Record<string, unknown> = {},
   operationId?: string
 ) {
+  if (isPresentationWorkspace(ctx.workspaceId))
+    throw new Error('presentation_provider_disabled');
   if (!ctx.workspaceId || !Number.isFinite(maxUsd) || maxUsd <= 0)
     throw new Error('wallet_invalid_reservation');
   const id = operationId ?? randomUUID();
@@ -40,6 +43,7 @@ export async function liquidar(
   detalle: Record<string, unknown> = {},
   cantidad = 1
 ) {
+  if (isPresentationWorkspace(ctx.workspaceId)) return null;
   if (!Number.isFinite(usd) || usd < 0) throw new Error('wallet_invalid_cost');
   // A lost response can be retried safely: the operation ID is unique in PostgreSQL.
   let lastError: unknown;
@@ -68,6 +72,7 @@ export async function liquidar(
 }
 
 export async function cancelar(ctx: BillingContext, id: string) {
+  if (isPresentationWorkspace(ctx.workspaceId)) return;
   const { error } = await ctx.db.rpc('wallet_cancelar_reserva', {
     p_workspace: ctx.workspaceId,
     p_id: id,

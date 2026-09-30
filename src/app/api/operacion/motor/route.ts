@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { estadoDelMotor, ponerMotor } from '@/lib/workspaces/motor'
+import { isPresentationWorkspace } from '@/lib/workspaces/presentation'
 
 /**
  * El motor de la cuenta, del lado del comercio.
@@ -56,6 +57,7 @@ export async function GET() {
   return NextResponse.json(
     {
       ...motor,
+      ejecucion_bloqueada: isPresentationWorkspace(ctx.workspaceId),
       hechos: (setup.applied ?? []).filter((h) => h.ok),
       instalado_por: setup.instalado_por ?? null,
       instalado: Boolean(setup.completed_at),

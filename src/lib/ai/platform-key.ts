@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { isPresentationWorkspace } from '@/lib/workspaces/presentation'
 
 /**
  * De quién es la clave que paga una llamada a Anthropic.
@@ -159,6 +160,7 @@ export async function resolveAnthropicKey(
   db: SupabaseClient,
   opts: { workspaceId: string; agentKeyEncrypted?: string | null },
 ): Promise<ResolvedKey | null> {
+  if (isPresentationWorkspace(opts.workspaceId)) return null
   if (opts.agentKeyEncrypted) {
     try {
       const k = decrypt(opts.agentKeyEncrypted)

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { isPresentationWorkspace } from './presentation'
 
 /**
  * El motor de una cuenta: ¿puede salir algo hacia afuera?
@@ -23,6 +24,7 @@ export async function motorApagado(
   db: SupabaseClient,
   workspaceId: string | null | undefined,
 ): Promise<boolean> {
+  if (isPresentationWorkspace(workspaceId)) return true
   if (!workspaceId) return false
   try {
     const { data } = await db
