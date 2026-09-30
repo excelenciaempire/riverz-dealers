@@ -1,7 +1,11 @@
 # Recursos para los PDFs visuales de Riverz
 
 Los dos PDFs se regeneran con `py -X utf8 scripts/build-riverz-visual-pdfs.py`.
-El Word original permanece intacto; el generador lee directamente sus tablas y párrafos.
+El Word original permanece intacto; el generador lee sus ejemplos y presenta la guía
+en lenguaje para clientes. Las notas internas de grabación no se incluyen.
+Para actualizar solo la guía, usa `py -X utf8 scripts/build-riverz-visual-pdfs.py --guide-only`.
+La guía incluye 22 automatizaciones, 5 roles, 8 escenarios y ejemplos de comentarios,
+campañas y llamadas. El índice conserva enlaces y marcadores de navegación.
 Las conversaciones dibujadas son ejemplos ilustrativos, no métricas ni testimonios reales.
 
 ## Branding

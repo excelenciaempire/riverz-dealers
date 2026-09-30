@@ -6,7 +6,7 @@ Run: py -X utf8 scripts/build-riverz-visual-pdfs.py
 """
 from pathlib import Path
 from io import BytesIO
-import hashlib, json, re, zipfile
+import argparse, hashlib, json, re, zipfile
 import xml.etree.ElementTree as ET
 import pymupdf
 from PIL import Image, ImageDraw
@@ -69,11 +69,35 @@ assert len(scenarios)==8 and all(len(s['parts'])==5 for s in scenarios)
 rules = between('Decisiones que deben conservar control humano','Cómo decirlo en el video')
 rules=rules[rules.index('Regla recomendada')+1:]
 human_rules=list(zip(rules[::2],rules[1::2]))
-video=between('Cómo decirlo en el video','Qué mostrar durante la explicación')
-video=video[video.index('Texto sugerido')+1:]
-video_pairs=list(zip(video[::2],video[1::2]))
-show=paras[paras.index('Qué mostrar durante la explicación')+1:]
-assert len(human_rules)==6 and len(video_pairs)==6
+assert len(human_rules)==6
+
+# The Word also contains internal filming notes. Only customer-facing material
+# belongs in the guide; keep the original source unchanged.
+GUIDE_REWRITES = {
+    'El flujo se detiene': 'El seguimiento se detiene',
+    'Cuando la integración informa una demora': 'Si el seguimiento del pedido informa una demora',
+    'abre una tarea': 'avisa a tu equipo',
+    'La ejecución sigue la política y el nivel de aprobación definido.':
+        'Tu equipo decide según las condiciones de tu tienda.',
+    'La acreditación manual se valida cuando no existe confirmación automática.':
+        'Tu equipo revisa el pago si todavía no aparece confirmado.',
+}
+
+def client_copy(text):
+    for original, replacement in GUIDE_REWRITES.items():
+        text = text.replace(original, replacement)
+    return text
+
+GUIDE_CHATS = [
+    [('client','Busco algo para regalar, pero no sé cuál elegir.'),
+     ('ai','Claro. ¿Para quién es el regalo y cuánto te gustaría gastar?')],
+    [('client','Quería comprar, pero mi tarjeta no pasó.'),
+     ('ai','Te ayudo a retomar la compra. ¿Te apareció algún mensaje al intentar pagar?')],
+    [('client','Mi pedido no llega y ya estoy preocupada.'),
+     ('ai','Entiendo tu preocupación. ¿Me compartes el número de pedido para revisar qué pasó?')],
+    [('client','Quiero pedir otra vez el que compré la última vez.'),
+     ('ai','Claro, te ayudo. ¿Quieres la misma presentación y cantidad?')],
+]
 
 AGENTS = [
  ('VENTAS','Ayuda a elegir', 'Antes de la compra',
@@ -215,7 +239,7 @@ class PDF:
         # Intentionally illustrative: no fake revenue, metrics or live status.
         heights=[]
         for role,msg in messages:
-            heights.append(20+len(self.lines(msg,w-54,'Sans',size))*15)
+            heights.append(20+len(self.lines(msg,w-65,'Sans',size))*15)
         h=53+sum(heights)+8*(len(messages)-1)+14
         self.box(x,y,w,h,CARD,16,LINE)
         self.icon(channel,x+15,y+14,20)
@@ -410,36 +434,38 @@ def guide():
     p=PDF(OUT/'riverz-guia-detallada-automatizaciones-y-agentes.pdf',
           'Riverz | Guía completa de automatizaciones y agentes de IA')
     p.header('Guía detallada','Automatizaciones y agentes\npara tu ecommerce.',
-             '22 procesos, 5 roles y 8 escenarios completos. Qué ocurre, cómo responde la IA y dónde decide tu equipo.')
+             'Asistentes que conversan en lenguaje natural y seguimientos que acompañan a tus clientes antes y después de comprar.')
     p.image(ASSETS/'riverz-flota-original.png',42,223,511,341)
     p.note(591,'Un sistema adaptado a tu operación.',
-           'Riverz conecta los canales, configura los agentes y establece los seguimientos, los permisos y las aprobaciones.',94)
-    p.wrap(42,720,'Los ejemplos son configuraciones posibles. El alcance depende de tus conexiones, datos y políticas. Los diálogos son ilustrativos; no representan resultados comerciales reales.',511,size=11.5,leading=17,color=MUTED,max_lines=3)
+           'Asesoría, recuperación de compras, atención de pedidos y recompras. Tu marca define cómo atender; nosotros lo dejamos preparado.',94)
+    p.wrap(42,720,'22 automatizaciones, 5 roles de IA y 8 situaciones del día a día. Incluye ejemplos de conversación, atención de comentarios, campañas y llamadas.',511,size=11.5,leading=17,color=MUTED,max_lines=3)
+    p.text(42,784,'Ejemplos ilustrativos, adaptables a las necesidades de tu tienda.','Sans',10.3,MUTED)
     p.end()
     p.header('Cómo recorrer la guía','Busca el problema\nque quieres resolver.',
-             'Puedes leerla por secciones. Cada escenario combina el evento, la automatización, la IA y el control humano.')
+             'Explora lo que Riverz puede hacer en cada etapa: desde la primera pregunta hasta la próxima compra.')
     for i,(a,b,n) in enumerate([
-      ('Cómo se personaliza','Información, reglas, permisos y puesta en marcha.','03–04'),
+      ('Adaptado a tu marca','Cómo trabaja Riverz y cómo habla con tus clientes.','03-04'),
       ('El equipo de agentes','Ventas, recuperación, postventa, retención y supervisor.','05–09'),
-      ('Las automatizaciones','Los 22 procesos del documento original.','10–14'),
+      ('Las automatizaciones','22 seguimientos para ventas, pedidos y postventa.','10-14'),
       ('Escenarios completos','Ocho situaciones explicadas paso a paso.','15–22'),
-      ('Control e instalación','Decisiones sensibles y configuración por marca.','23–24'),
-      ('Apoyo para el video','Qué decir y qué mostrar durante la explicación.','25–26')]):
+      ('Tu equipo conserva el control','Qué decisiones revisas y cómo lo adaptamos a tu tienda.','23-24'),
+      ('Más formas de atender y vender','Comentarios, campañas y llamadas.','25-26')]):
         y=225+i*82;p.box(42,y,511,69)
         p.circle(65,y+33,12,LIME);p.text(61,y+37,str(i+1),'Semi',10,INK)
         p.text(89,y+28,a,'Serif',22,INK)
         p.text(89,y+51,b,'Sans',10.8,INK,width=395)
         p.text(497,y+28,n.replace('–','-'),'Semi',10,MUTED)
         p.c.linkRect('',f'section-{i}',(42,H-y-69,553,H-y),relative=0,thickness=0)
-    p.text(42,760,'Guía complementaria a la propuesta comercial de Riverz.','Sans',11.5,MUTED)
-    p.end();p.c.bookmarkPage('section-0');p.c.addOutlineEntry('Cómo se personaliza','section-0',0);personalize(p)
-    p.header('Qué instalamos','No empiezas con\nuna herramienta vacía.',
-             'El equipo adapta el sistema a la operación real de tu tienda y prueba contigo antes de activar.')
+    p.text(42,760,'Elige una sección del índice para ir directamente a sus ejemplos.','Sans',11.1,MUTED)
+    p.end();p.c.bookmarkPage('section-0');p.c.addOutlineEntry('Adaptado a tu marca','section-0',0)
+    client_personalize(p)
+    p.header('Tu marca, tu forma de atender','Habla como tu marca.\nResponde según tu tienda.',
+             'Cada asistente trabaja con tu catálogo, tus condiciones de venta y el estilo de atención que prefieras.')
     for i,(title,body,kind) in enumerate([
-      ('Conexiones','Tu tienda, los canales de conversación y las fuentes disponibles para consultar productos, clientes y pedidos.','parcel'),
-      ('Automatizaciones','Eventos, esperas, condiciones, mensajes y reglas para detener seguimientos o evitar duplicados.','clock'),
-      ('Agentes de IA','Trabajo de cada especialista, catálogo, tono, instrucciones, objetivos y acciones permitidas.','chat'),
-      ('Permisos y aprobaciones','Qué puede resolver solo, cuándo debe pedir aprobación y cómo entregar el caso a tu equipo.','check')]):
+      ('Conoce tus productos','Presentaciones, tallas, precios, disponibilidad y diferencias entre las opciones que vendes.','parcel'),
+      ('Respeta tus condiciones','Envíos, formas de pago, descuentos, cambios, devoluciones y garantías de tu marca.','check'),
+      ('Conversa con tu estilo','Un tono cercano, formal o directo. Hace preguntas, entiende la respuesta y continúa con contexto.','chat'),
+      ('Sabe cuándo pedir ayuda','Si falta información, hay una excepción o el cliente pide una persona, entrega el caso a tu equipo.','clock')]):
         y=223+i*92;p.box(42,y,511,79);p.pictogram(kind,58,y+20,34)
         p.text(109,y+28,title,'Semi',12.5,INK)
         p.wrap(109,y+50,body,425,size=11.5,leading=15.5,max_lines=2)
@@ -450,24 +476,24 @@ def guide():
     for title,rows in automation_groups:
         chunks=[rows] if len(rows)<=5 else [rows[:4],rows[4:]]
         for chunk_index,chunk in enumerate(chunks):
-            p.header('Recetas de automatización',title + ('.' if chunk_index==0 else ': continuación.'),
-                     'Eventos y tiempos de ejemplo. Ajustamos las condiciones, el canal y los mensajes a tu tienda.')
+            p.header('Automatizaciones',title + ('.' if chunk_index==0 else ': continuación.'),
+                     'Seguimientos que podemos preparar para tu tienda. Los tiempos de ejemplo se ajustan a tus clientes.')
             rowh=108 if len(chunk)==5 else 127 if len(chunk)==4 else 154
             for i,(name,body) in enumerate(chunk):
                 y=210+i*rowh;p.box(42,y,511,rowh-12)
                 p.pictogram('clock' if 'pago' in name.lower() else 'parcel' if 'pedido' in name.lower() else 'chat',58,y+19,30)
                 p.text(106,y+31,name,'Serif',21,INK,width=429)
-                p.wrap(106,y+56,body,429,size=11.3,leading=16,max_lines=5)
-            p.text(42,783,'La IA continúa cuando el cliente responde o hace falta interpretar el caso.','Sans',10.5,MUTED)
+                p.wrap(106,y+56,client_copy(body),429,size=11.3,leading=16,max_lines=5)
+            p.text(42,783,'Si el cliente responde, el asistente atiende su duda y continúa la conversación.','Sans',10.3,MUTED)
             p.end()
     scenario_chats=[
-      [('client','El envío me parece caro.'),('ai','Te explico las opciones de envío disponibles y cómo retomar tu compra.')],
-      [('client','Mi tarjeta no pasó. ¿Qué hago?'),('ai','Primero verifico si el pedido sigue pendiente. Después revisamos las formas de pago disponibles.')],
-      [('client','Ya hice la transferencia. Te envío el comprobante.'),('ai','Lo recibo y preparo la revisión. El pago se confirma con la integración o con tu equipo.')],
-      AGENTS[0][4], AGENTS[2][4],
-      [('client','Sí, llegó bien y me gustó.'),('ai','Qué bueno. Te comparto el enlace de reseña de la tienda.')],
-      [('client','El producto llegó dañado.'),('ai','Compárteme el número de pedido y una foto. Preparo el caso para que el equipo revise la solución.')],
-      AGENTS[3][4],
+      [('client','El envío me parece caro.'),('ai','Entiendo. ¿A qué ciudad lo necesitas? Así te ayudo a revisar las opciones de envío.')],
+      GUIDE_CHATS[1],
+      [('client','Ya hice la transferencia. Te envío el comprobante.'),('ai','Gracias. Compárteme también el número de pedido para que el equipo pueda revisar el pago.')],
+      GUIDE_CHATS[0], GUIDE_CHATS[2],
+      [('client','Sí, llegó bien y me gustó.'),('ai','¡Qué bueno! Si te gustaría contar tu experiencia, aquí puedes dejar una reseña.')],
+      [('client','El producto llegó dañado.'),('ai','Lamento que haya llegado así. ¿Me compartes una foto y el número de pedido para ayudarte?')],
+      GUIDE_CHATS[3],
     ]
     p.c.bookmarkPage('section-3');p.c.addOutlineEntry('Los 8 escenarios completos','section-3',0)
     for i,scenario in enumerate(scenarios):
@@ -484,6 +510,13 @@ def guide():
                                   'La tienda da una nueva oportunidad de completar una compra iniciada.')
                 body=body.replace('La marca genera recompra a partir de clientes que ya la conocen.',
                                   'La marca facilita la recompra de clientes que ya la conocen.')
+            body=body.replace('cuando la integración no puede confirmarlo automáticamente.',
+                              'si el pago todavía no aparece confirmado.')
+            body=body.replace('El contacto se detiene si el cliente pide la baja o presenta un reclamo.',
+                              'Tu equipo revisa las condiciones especiales; si hay un reclamo, se atiende antes de ofrecer otra compra.')
+            label={'Evento':'Qué ocurre','Automatización':'Cómo hace el seguimiento',
+                   'Agente de IA':'Cómo conversa el asistente','Aprobación humana':'Cuándo interviene tu equipo',
+                   'Resultado':'Qué aporta a tu tienda'}[label]
             p.circle(54,y+3,10,LIME);p.text(51,y+7,str(j+1),'Semi',9,INK)
             p.text(77,y+7,label,'Semi',11.6,INK)
             yy=p.wrap(77,y+29,body,476,size=11.5,leading=16,max_lines=4)
@@ -491,50 +524,88 @@ def guide():
             y=yy+18
         assert y<=801,(scenario['title'],y)
         p.end()
-    p.c.bookmarkPage('section-4');p.c.addOutlineEntry('Control e instalación','section-4',0)
+    p.c.bookmarkPage('section-4');p.c.addOutlineEntry('Tu equipo conserva el control','section-4',0)
     p.header('Control humano','La IA prepara el caso.\nTu equipo decide lo sensible.',
              'La marca define qué puede ejecutar cada agente y qué debe esperar aprobación.')
     for i,(title,body) in enumerate(human_rules):
         y=220+i*88;p.box(42,y,511,77)
         p.pictogram('check',58,y+20,30)
         p.text(106,y+28,title,'Semi',12,INK)
-        p.wrap(106,y+51,body,429,size=11.5,leading=15.5,max_lines=2)
+        p.wrap(106,y+51,client_copy(body),429,size=11.5,leading=15.5,max_lines=2)
     p.end()
-    p.header('Instalación por marca','Esto definimos contigo\nantes de encenderlo.',
-             'La reunión convierte los ejemplos de esta guía en un alcance concreto para tu ecommerce.')
+    p.header('Preparado para tu tienda','Nos cuentas cómo trabajas.\nNosotros lo adaptamos.',
+             'Elegimos contigo las prioridades y probamos cómo atenderá Riverz a tus clientes antes de empezar.')
     for i,(a,b) in enumerate([
       ('1. Información de tu tienda','Catálogo, variantes, disponibilidad, políticas de envío, cambios, devoluciones y horarios.'),
-      ('2. Canales e historial','Accesos e integraciones disponibles. Revisamos la importación de chats y qué contexto puede recuperarse.'),
-      ('3. Procesos prioritarios','Elegimos qué automatizaciones instalar primero y sus eventos, tiempos y reglas de salida.'),
-      ('4. Permisos del equipo','Descuentos permitidos, pagos, cambios de pedido, aprobaciones y responsables de cada excepción.'),
-      ('5. Prueba y aprobación','Probamos respuestas y acciones contigo. Confirmamos alcance, plazo y costos antes de la activación.')]):
+      ('2. Tu manera de conversar','Cómo quieres saludar, resolver dudas, recomendar productos y acompañar a cada cliente.'),
+      ('3. Tus prioridades','Las preguntas que más recibes, las compras que quedan pendientes y los seguimientos que te quitan tiempo.'),
+      ('4. Lo que decide tu equipo','Descuentos especiales, pagos por revisar, cambios de pedido y personas responsables de atender excepciones.'),
+      ('5. Ejemplos y ajustes','Revisas conversaciones de prueba. Ajustamos las respuestas y los seguimientos para que encajen con tu marca.')]):
         y=223+i*99;p.box(42,y,511,86)
         p.text(61,y+30,a,'Semi',12.5,INK)
         p.wrap(61,y+54,b,473,size=11.5,leading=16,max_lines=2)
-    p.note(733,'Tú no tienes que diseñar los flujos.',
-           'Nosotros adaptamos, configuramos y ajustamos lo acordado.',55)
+    p.note(733,'Nosotros lo dejamos preparado.',
+           'También nos encargamos de los ajustes que acuerdes con el equipo.',55)
     p.end()
-    p.c.bookmarkPage('section-5');p.c.addOutlineEntry('Apoyo para el video','section-5',0)
-    p.header('Apoyo para el video','Cómo explicarlo\nsin entrar en detalles técnicos.',
-             'Seis momentos para conectar la promesa del anuncio con lo que vas a mostrar por dentro.')
-    for i,(title,body) in enumerate(video_pairs):
-        y=220+i*88;p.box(42,y,511,77)
-        p.text(59,y+25,title.upper(),'Semi',8.5,MUTED)
-        p.wrap(59,y+47,body,477,size=11.3,leading=15.5,max_lines=3)
+    p.c.bookmarkPage('section-5');p.c.addOutlineEntry('Comentarios, campañas y llamadas','section-5',0)
+    client_channels(p)
+    client_campaigns(p)
+    p.finish();return p.path
+
+def client_personalize(p):
+    p.header('Cómo trabaja Riverz','El seguimiento empieza.\nLa conversación continúa.',
+             'La automatización actúa en el momento adecuado. El asistente entiende lo que el cliente necesita y le responde.')
+    flow(p,224,[('Ocurre','Carrito pendiente'),('Riverz escribe','Ofrece ayuda'),('El cliente habla','La IA responde')])
+    p.chat(42,320,511,[('client','No terminé porque no sé si me llegará antes del viernes.'),
+                      ('ai','¿A qué ciudad lo necesitas? Así revisamos el plazo de envío antes de que compres.')],
+           'Una duda expresada en lenguaje natural',size=12)
+    for i,(title,body,kind) in enumerate([
+        ('Automatización','Inicia el seguimiento: un carrito, un pago o una entrega.','clock'),
+        ('Asistente de IA','Hace preguntas y responde según la conversación.','chat'),
+        ('Tu equipo','Interviene en los casos que necesitan una persona.','check')]):
+        y=560+i*64;p.pictogram(kind,42,y,34)
+        p.text(91,y+16,title,'Semi',12,INK)
+        p.text(91,y+37,body,'Sans',11.1,INK,width=462)
+    p.text(42,781,'El cliente puede preguntar con sus propias palabras y cambiar de tema.','Sans',10.6,MUTED)
     p.end()
-    p.header('Qué mostrar','La pantalla debe probar\nlo que acabas de explicar.',
-             'Recorre escenarios reconocibles y muestra qué ocurrió, qué consultó el agente y quién debe aprobar.')
-    for i,body in enumerate(show[:6]):
-        y=221+i*62;p.pictogram(['chat','clock','chat','parcel','check','clock'][i],42,y,32)
-        p.wrap(92,y+17,body,461,size=12,leading=17,max_lines=2)
-    p.note(624,'Termina con la instalación hecha por Riverz.',show[-1],133)
-    p.text(42,784,'Usa la propuesta comercial para la oferta y las preguntas frecuentes vigentes.','Sans',10.5,MUTED)
-    p.end();p.finish();return p.path
+
+def client_channels(p):
+    p.header('Conversaciones y comentarios','Atiende donde\ntus clientes te escriben.',
+             'Preguntas de compra, consultas de pedidos y comentarios en redes: cada uno recibe la atención que necesita.')
+    for i,(channel,title,body) in enumerate([
+        ('whatsapp','Mensajes y consultas','WhatsApp, Instagram, Messenger, correo y chat web. El asistente asesora, resuelve dudas y acompaña la compra.'),
+        ('instagram','Comentarios en redes','Consultas como precio, disponibilidad o envíos en Facebook, Instagram y TikTok. Respuestas según las condiciones de tu marca.')]):
+        y=219+i*113;p.box(42,y,511,99);p.icon(channel,59,y+19,24)
+        p.text(100,y+31,title,'Serif',22,INK)
+        p.wrap(100,y+56,body,433,size=11.5,leading=16,max_lines=3)
+    p.chat(42,466,511,[('client','¿Tienen talla M? ¿Cómo lo compro?'),
+                      ('ai','¡Hola! Te ayudamos a revisar la talla M. Escríbenos por privado y te orientamos con tu compra.')],
+           'Ejemplo: comentario en una publicación',channel='instagram',size=11.5)
+    p.note(660,'Lo personal se atiende en privado.',
+           'Si hace falta revisar un pedido, un pago o datos de contacto, invitamos al cliente a continuar por mensaje privado.',87)
+    p.wrap(42,772,'Acordamos los canales de tu tienda y las acciones disponibles en cada uno.',511,size=10.5,leading=14,color=MUTED,max_lines=1)
+    p.end()
+
+def client_campaigns(p):
+    p.header('Campañas y llamadas','Más formas de acompañar\na tus clientes.',
+             'Además de responder, Riverz puede ayudarte a iniciar conversaciones relevantes y continuar la atención.')
+    for i,(kind,title,body) in enumerate([
+        ('chat','Campañas para tu base de clientes','Anuncia novedades, promociones o productos que vuelven a estar disponibles. Elige a quién escribir según su historial e interés.'),
+        ('cart','La respuesta sigue con un asistente','Si alguien responde a una campaña, la IA atiende las dudas, compara productos y ayuda a avanzar con la compra.'),
+        ('parcel','Llamadas con un agente de voz','Podemos preparar llamadas para confirmar pedidos, aclarar datos de entrega o hacer seguimiento. El cliente conversa en lenguaje natural.')]):
+        y=224+i*128;p.box(42,y,511,113);p.pictogram(kind,58,y+21,32)
+        p.text(106,y+33,title,'Serif',21,INK,width=429)
+        p.wrap(106,y+59,body,429,size=11.5,leading=16,max_lines=3)
+    p.note(633,'Cada contacto tiene un propósito.',
+           'Definimos contigo el público, el momento y el mensaje. El seguimiento se detiene cuando el cliente compra, resuelve su duda o pide no recibirlo.',99)
+    p.wrap(42,764,'Las acciones sobre pedidos, los canales y las llamadas se acuerdan según las herramientas que uses y las necesidades de tu tienda.',511,size=10.7,leading=14,color=MUTED,max_lines=2)
+    p.c.linkURL('https://riverz.co',(42,H-794,553,H-752))
+    p.end()
 
 def agent_guide(p):
     # Supervisor first, followed by four operational roles. Five pages total.
     p.header('Equipo de agentes','Una conversación,\nel especialista correcto.',
-             'El agente general recibe el mensaje y conserva el contexto al transferirlo.')
+             'El asistente general entiende qué necesita el cliente y lo acompaña con el especialista adecuado.')
     for i,(label,title,when,examples,chat) in enumerate(AGENTS):
         x=42+(i%2)*263;y=220+(i//2)*113
         p.box(x,y,248,98);p.pictogram('chat',x+15,y+15,30)
@@ -544,12 +615,12 @@ def agent_guide(p):
     y=469
     for i,s in enumerate(agent_lists[4]):
         p.circle(49,y+4,3,INK);y=p.wrap(65,y+8,s,488,size=12,leading=17,max_lines=2)+17
-    p.note(704,'El supervisor también respeta los permisos.',
-           'Detecta urgencia, molestia y pedidos de atención humana. Prepara el resumen y entrega las excepciones al equipo.',81)
+    p.note(704,'Tu cliente no tiene que repetirlo todo.',
+           'El equipo recibe el contexto de la conversación cuando hace falta intervenir. Tú decides qué puede resolver cada asistente.',81)
     p.end()
     for i,(label,title,when,examples,chat) in enumerate(AGENTS):
-        p.header('Agente · '+label.lower(),title+'.',when+'. Usa tu información y los límites que acordamos contigo.')
-        end=p.chat(42,187,511,chat,size=11.5)
+        p.header('Agente · '+label.lower(),title+'.',when+'. Conversa con el estilo de tu marca y conoce las condiciones de tu tienda.')
+        end=p.chat(42,210,511,GUIDE_CHATS[i],channel=['instagram','whatsapp','gmail','whatsapp'][i],size=11.5)
         y=end+30
         p.text(42,y,'QUÉ PUEDE HACER','Semi',9,MUTED);y+=26
         for s in agent_lists[i]:
@@ -561,7 +632,8 @@ def agent_guide(p):
             p.text(60,y+51+j*24,q,'Semi',10.8,INK,width=243)
             p.text(306,y+51+j*24,a,'Sans',10,INK,width=229)
         assert y+125<796,(label,y)
-        p.wrap(42,y+147,'Límite: '+agent_limits[i],511,size=10.5,leading=14,color=MUTED,max_lines=2)
+        p.wrap(42,y+147,'Tu equipo: '+agent_limits[i].replace('No crea una venta nueva. Su trabajo es cerrar una compra que ya había empezado.',
+               'Revisa pagos que no estén confirmados y condiciones especiales para completar la compra.'),511,size=10.5,leading=14,color=MUTED,max_lines=2)
         p.end()
 
 def verify(path,expected):
@@ -578,9 +650,21 @@ def verify(path,expected):
         pg.get_pixmap(matrix=pymupdf.Matrix(1.6,1.6),alpha=False).save(target/f'page-{i+1:02}.png')
     if expected==26:
         assert all(name in alltext for _,rows in automation_groups for name,_ in rows)
-        assert all(body in alltext.replace('\n',' ') for _,rows in automation_groups for _,body in rows)
+        assert all(client_copy(body) in alltext.replace('\n',' ') for _,rows in automation_groups for _,body in rows)
         assert all(s['title'] in alltext for s in scenarios)
         assert all(s in alltext.replace('\n',' ') for ls in agent_lists for s in ls)
+        forbidden=['apoyo para el video','qué mostrar','documento original','promesa del anuncio',
+                   'demostración','detalles técnicos','integración','flujo','webhook',
+                   'Supabase','saldo','credenciales','US$','guion','Qué decir']
+        assert not any(term.casefold() in alltext.casefold() for term in forbidden), [
+            term for term in forbidden if term.casefold() in alltext.casefold()]
+        assert not re.search(r'\b(?:demo|API)\b',alltext,re.IGNORECASE)
+        assert all(term in alltext for term in ['lenguaje natural','Comentarios en redes',
+            'Campañas para tu base de clientes','Llamadas con un agente de voz'])
+        # The linked index must remain useful after editorial changes.
+        toc=d.get_toc();assert len(toc)==6
+        assert [entry[2] for entry in toc]==[3,5,10,15,23,25],toc
+        assert len(list(d[1].get_links()))==6
     else:
         assert all(q in alltext.replace('\n',' ') for q,_ in FAQS)
         assert 'US$259' in alltext and 'US$399' in alltext and '35% OFF' in alltext
@@ -595,10 +679,15 @@ def verify(path,expected):
             'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'copies_identical':path.read_bytes()==(DOCS/path.name).read_bytes()}
 
 if __name__=='__main__':
-    a=commercial();b=guide()
-    report={'commercial':verify(a,10),'guide':verify(b,26),'recipes':22,'full_scenarios':8,'agent_roles':5,
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--guide-only',action='store_true',help='Update the client guide without rewriting the commercial proposal.')
+    args=parser.parse_args()
+    report={}
+    if not args.guide_only:
+        report['commercial']=verify(commercial(),10)
+    report.update({'guide':verify(guide(),26),'recipes':22,'full_scenarios':8,'agent_roles':5,
             'source_sha256':hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
-            'price_source':'https://riverz.co','price_checked':'2026-09-29',
-            'illustrations':['riverz-flota-original.png','riverz-control-humano.png']}
-    (QA/'validation.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+            'audience':'Clientes de ecommerce; sin instrucciones internas ni notas de grabación.',
+            'illustrations':['riverz-flota-original.png','riverz-control-humano.png']})
+    (QA/('guide-validation.json' if args.guide_only else 'validation.json')).write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps(report,ensure_ascii=False,indent=2))
