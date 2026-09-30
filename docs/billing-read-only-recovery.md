@@ -1,7 +1,9 @@
 # Monthly payment grace, reminders and recovery
 
-Migration 306 must be applied before deployment. `check-billing-recovery-schema.cjs`
+Migrations 306 and 308 must be applied before deployment. `check-billing-recovery-schema.cjs`
 checks the receipt column, private queues and database write gate during Render builds.
+It also installs the same guard on newly introduced tenant tables under a database
+advisory lock. The installer is service-role only and preserves existing read access.
 
 The first confirmed unpaid monthly invoice establishes a stable 24-hour deadline.
 Partial payment does not clear a remaining debt. Prepaid wallet credit does not

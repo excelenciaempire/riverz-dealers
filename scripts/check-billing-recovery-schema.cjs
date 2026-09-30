@@ -8,5 +8,10 @@
  }
  const gate=await fetch(`${url}/rest/v1/rpc/workspace_billing_write_allowed`,{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({p_workspace:'00000000-0000-0000-0000-000000000000'}),signal:AbortSignal.timeout(15000)});
  if(!gate.ok || typeof await gate.json()!=='boolean')throw new Error('Billing write gate is unavailable. Apply migration 306.');
+ // Extend the guard to new business tables before publishing code that uses them.
+ for(const rpc of ['install_billing_business_guards','billing_business_guards_covered']) {
+  const r=await fetch(`${url}/rest/v1/rpc/${rpc}`,{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(30000)});
+  if(!r.ok || rpc==='billing_business_guards_covered' && await r.json()!==true)throw new Error('Billing business table coverage is unavailable. Apply migration 308.');
+ }
  console.log('Billing read-only, notification and recovery schema verified.');
 })().catch(error=>{console.error(error.message);process.exitCode=1;});
