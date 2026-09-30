@@ -1,4 +1,4 @@
-"""Build the five-page Riverz client summary from the preserved Revitaly audit.
+"""Build the three-page Riverz client summary from the preserved Revitaly audit.
 
 Run from the repo: py -X utf8 scripts/build-revitaly-audit-pdf.py
 Requires reportlab and PyMuPDF. Source customer records remain in ignored output/.
@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / 'output/reevitaly-audit'
 ASSETS = ROOT / 'docs/documentos-riverz/assets'
 OUT = ROOT / 'output/pdf/riverz-revitaly-resumen-y-plan.pdf'
-QA = ROOT / 'tmp/pdfs/revitaly-five-pages'
+QA = ROOT / 'tmp/pdfs/revitaly-three-pages'
 W, H = 595.276, 841.89
 BG, INK, MUTED, CARD, LINE, LIME, PALE = map(HexColor, [
     '#F3F0EB', '#12201F', '#53615A', '#FAF7F1', '#E8DECB', '#F7FF9E', '#E8EDDD',
@@ -40,21 +40,21 @@ assert len(cases) == 135
 
 REASONS = [
     ('Demora o disputa de entrega', 'Entregas demoradas o disputadas', 36,
-     'El plazo venció, el cliente no recibió el paquete o el seguimiento no coincide. Hay que comprobarlo y gestionar con logística.'),
+     'Plazo vencido, entrega negada o seguimiento contradictorio.'),
     ('Cambio de dirección, entrega o datos', 'Cambios de pedido o dirección', 26,
-     'Hay que modificar una compra existente y verificar si ya salió. Hoy la IA no ejecuta esos cambios.'),
+     'Modificar una compra exige comprobar si ya fue despachada.'),
     ('Cancelación o reembolso', 'Cancelaciones y reembolsos', 23,
-     'Hay que comprobar las condiciones de devolución y ejecutar una operación sobre dinero o un pedido.'),
+     'Hay que validar las condiciones y ejecutar la devolución.'),
     ('Producto dañado, distinto o faltante', 'Productos dañados o faltantes', 18,
-     'Hay que verificar lo recibido y decidir una reposición o compensación según la política del comercio.'),
+     'Requiere comprobar lo recibido y resolver una reposición.'),
     ('Acreditación o cobro', 'Pagos y cobros por verificar', 13,
-     'Un comprobante no demuestra que el dinero ingresó. Hay que revisar la transacción y posibles diferencias o duplicados.'),
+     'El comprobante debe contrastarse con el dinero recibido.'),
     ('Dato o decisión no verificada', 'Información o decisión comercial', 11,
-     'Falta confirmar un dato de stock, cupón o condiciones, o decidir una excepción o un canje comercial.'),
+     'Falta confirmar un dato o autorizar una excepción comercial.'),
     ('Reclamo legal', 'Reclamos legales', 6,
-     'Necesitan una persona responsable que evalúe el reclamo y decida la respuesta final.'),
+     'Una persona responsable debe evaluar y responder el reclamo.'),
     ('Factura', 'Facturas', 2,
-     'La IA todavía no tiene una conexión habilitada para recuperar o emitir la factura del comercio.'),
+     'Se necesita el sistema del comercio para obtener la factura.'),
 ]
 assert Counter(c['category'] for c in cases) == Counter({r[0]: r[2] for r in REASONS})
 
@@ -68,10 +68,10 @@ class PDF:
         self.c = canvas.Canvas(str(OUT), pagesize=(W, H), pageCompression=1)
         self.c.setTitle('Revitaly | Resumen de auditoría y plan de trabajo | Riverz')
         self.c.setAuthor('Riverz')
-        self.c.setSubject('Escalamientos reales, mejoras publicadas y propuestas en cinco páginas')
+        self.c.setSubject('Escalamientos reales, mejoras publicadas y propuestas en tres páginas')
         self.page = 0
 
-    def text(self, x, y, text, font='Sans', size=11.5, color=INK, width=511):
+    def text(self, x, y, text, font='Sans', size=13, color=INK, width=511):
         text = clean(text)
         tw = pdfmetrics.stringWidth(text, font, size)
         assert x >= 30 and x + tw <= W - 30 and tw <= width + .1, (self.page, text, tw)
@@ -82,7 +82,7 @@ class PDF:
         self.c.setFillColor(color)
         self.c.drawString(x, H-y, text)
 
-    def wrap(self, x, y, text, width=511, size=11.5, leading=16, font='Sans', color=INK):
+    def wrap(self, x, y, text, width=511, size=13, leading=18, font='Sans', color=INK):
         lines = []
         for paragraph in clean(text).split('\n'):
             line = ''
@@ -114,132 +114,102 @@ class PDF:
         self.c.setFillColor(BG)
         self.c.rect(0, 0, W, H, fill=1, stroke=0)
         self.text(42, 47, 'riverz', 'Logo', 24)
-        self.text(356, 44, label.upper(), 'Semi', 8.1, MUTED, 197)
+        self.text(356, 44, label.upper(), 'Semi', 10, INK, 197)
         self.line(65)
         end = self.wrap(42, 118, title, size=34, leading=39, font='Serif')
-        self.wrap(42, end-8, subtitle, size=11.2, leading=16, color=MUTED)
+        self.wrap(42, end-8, subtitle, size=13, leading=18)
         key = f'page-{self.page}'
         self.c.bookmarkPage(key)
         self.c.addOutlineEntry(title, key, level=0)
 
     def end(self):
         self.line(802)
-        self.text(42, 820, 'riverz.co  |  Revitaly  |  30 septiembre 2026', size=8, color=MUTED)
-        self.text(523, 820, f'{self.page:02}', 'Semi', 8, MUTED)
+        self.text(42, 820, 'riverz.co  |  Revitaly  |  30 septiembre 2026', size=9, color=MUTED)
+        self.text(523, 820, f'{self.page:02}', 'Semi', 9, MUTED)
         self.c.showPage()
 
-    def simple(self, y, title, body, height=70):
+    def simple(self, y, title, body, height=65):
         self.box(42, y, 511, height)
-        self.text(60, y+23, title, 'Semi', 12)
-        end = self.wrap(60, y+45, body, 475, size=11.2, leading=15, color=MUTED)
-        assert end-15+4 <= y+height-5, (self.page, title, end, y+height)
+        self.text(60, y+23, title, 'Semi', 15)
+        end = self.wrap(60, y+47, body, 475)
+        assert end-18+4 <= y+height-8, (self.page, title, end, y+height)
 
-    def proposal(self, y, number, title, body, height=130):
+    def proposal(self, y, number, title, body, height=140):
         self.box(42, y, 511, height)
-        self.box(60, y+17, 27, 27, LIME, 8)
-        self.text(69, y+36, str(number), 'Semi', 11)
-        self.text(99, y+37, title, 'Serif', 22, width=436)
-        end = self.wrap(60, y+65, body, 475, size=11.5, leading=16, color=MUTED)
-        assert end-16+4 <= y+height-10, (self.page, title, end, y+height)
-
-    def note(self, y, title, body, height=108):
-        self.box(42, y, 511, height, INK)
-        self.text(60, y+31, title, 'Serif', 23, LIME, 475)
-        end = self.wrap(60, y+56, body, 475, size=11.2, leading=16, color=CARD)
-        assert end-16+4 <= y+height-10, (self.page, title, end, y+height)
+        self.box(60, y+12, 27, 27, LIME, 8)
+        self.text(69, y+31, str(number), 'Semi', 12.5)
+        self.text(99, y+31, title, 'Semi', 15, width=436)
+        end = self.wrap(60, y+54, body, 475)
+        assert end-18+4 <= y+height-8, (self.page, title, end, y+height)
 
 p = PDF()
 
-# 1. One clear denominator, concise findings and the three published fixes.
-p.header('Resumen', 'Revitaly. Auditoría y plan.', 'Qué encontramos, qué corregimos y cómo ampliar la automatización.')
+# 1. Results and only the three confirmed, published fixes.
+p.header('Resultados', 'Revitaly. Resultados y mejoras.', 'Qué encontramos y qué corregimos en la atención con IA.')
 for x, rate, label, count in [
-    (42, '66,2%', 'IA sin respuesta humana', '135 de 204 consultas recientes'),
-    (304, '21,1%', 'Intervención justificada', '43 de 204 consultas recientes'),
+    (42, '66,2%', 'Atención solo con IA', '135 de 204 consultas'),
+    (304, '21,1%', 'Intervención necesaria', '43 de 204 consultas'),
 ]:
-    p.box(x, 189, 249, 113, PALE if x == 42 else CARD)
-    p.text(x+17, 231, rate, 'Serif', 37)
-    p.text(x+17, 258, label, 'Semi', 10.4)
-    p.text(x+17, 281, count, size=9.6, color=MUTED)
-p.wrap(42, 330, 'Revisamos 2.098 hilos del historial; 559 son consultas reales. Los porcentajes de arriba corresponden a las 204 consultas del 26 al 30 de septiembre, hasta las 12:04 de Argentina.', size=11.2, leading=16, color=MUTED)
-p.wrap(42, 390, 'La atención por IA no equivale a resolución completa. Un hilo puede recibir respuestas de IA y luego necesitar una intervención humana.', size=10.6, leading=15, color=MUTED)
-p.simple(432, '53 hilos con respuesta insuficiente. 10 bloqueos evitables.',
-         'Se observaron omisiones, demoras y respuestas incompletas. Se corrigieron tres causas concretas; las demás mejoras forman parte del plan.', 78)
-p.text(42, 543, 'Tres mejoras ya publicadas', 'Serif', 26)
-p.simple(563, 'Transferencias',
-         'La IA entrega el titular, CVU y alias configurados cuando el cliente los solicita.', 62)
-p.simple(636, 'Consultas por correo',
-         'Reconoce preguntas escritas en el asunto, aunque el cuerpo esté vacío o sea una firma.', 62)
-p.simple(709, 'Capturas de pantalla',
-         'Un botón de reembolso visible en una captura ya no se interpreta como una petición del cliente.', 70)
+    p.box(x, 182, 249, 114, PALE if x == 42 else CARD)
+    p.text(x+17, 226, rate, 'Serif', 42)
+    p.text(x+17, 254, label, 'Semi', 12.5)
+    p.text(x+17, 278, count)
+end = p.wrap(42, 315, 'Se revisaron 2.098 hilos: 559 de atención al cliente. Los porcentajes usan 204 consultas del 26 al 30 de septiembre, con corte a las 12:04 de Argentina.')
+assert end-18+4 < 369
+end = p.wrap(42, 379, '«Solo con IA» no prueba resolución: no hubo respuesta humana registrada en el período. Los porcentajes pueden coincidir en un mismo hilo.', size=12.5)
+assert end-18+4 < 430
+p.simple(430, '53 hilos con respuesta insuficiente',
+         'Además, 10 bloqueos evitables. Se corrigieron tres causas.', 67)
+p.text(42, 530, 'Tres mejoras ya publicadas', 'Serif', 27)
+p.simple(549, 'Transferencias',
+         'Envía titular, CVU y alias cuando el cliente los solicita.')
+p.simple(623, 'Consultas por correo',
+         'Responde a preguntas en el asunto, aunque el cuerpo esté vacío.')
+p.simple(697, 'Capturas de pantalla',
+         'No confunde botones de una captura con pedidos de reembolso.')
+p.text(42, 787, 'Publicado y validado: 76 pruebas y comprobación en producción.', size=12.5)
 p.end()
 
 # 2. The complete escalation analysis, grouped instead of listing customers.
-p.header('Escalamientos reales', 'Cuándo necesita a tu equipo.', '135 hilos históricos justificaron intervención. Cada uno cuenta en un motivo principal.')
+p.header('Escalamientos reales', 'Por qué se necesita al equipo.', '135 hilos históricos, agrupados por su motivo principal.')
 for i, (category, title, count, why) in enumerate(REASONS):
-    y = 192+i*68
-    p.box(42, y, 511, 62, CARD, 11)
-    p.text(60, y+21, title, 'Semi', 11.6, width=443)
-    p.text(520, y+23, str(count), 'Serif', 22)
-    end = p.wrap(60, y+41, why, 475, size=10.5, leading=14, color=MUTED)
-    assert end-14+3 <= y+62-4, (title, end, y+62)
-p.wrap(42, 763, 'Son motivos encontrados en el historial, no 135 pendientes actuales. Algunos casos ya se resolvieron o repiten un reclamo en otro canal.', size=10.3, leading=14, color=MUTED)
+    y = 182+i*70
+    p.box(42, y, 511, 63, CARD, 11)
+    p.text(60, y+22, title, 'Semi', 15, width=443)
+    p.text(520, y+24, str(count), 'Serif', 25)
+    end = p.wrap(60, y+47, why, 475)
+    assert end-18+4 <= y+63-8, (title, end, y+63)
+p.wrap(42, 764, 'Los 135 hilos no son pendientes actuales: incluyen casos resueltos y reclamos repetidos en distintos canales.', size=12.5)
 p.end()
 
-# 3. Plain language: information sources, invoicing and accountable escalation.
-p.header('Plan propuesto / Conexiones', 'Conectar la información correcta.', 'Qué necesitamos conectar o definir para resolver más consultas automáticamente.')
-connections = [
-    ('Entregas y seguimiento',
-     'Aprovechar los pedidos de Shopify y completar la conexión con el seguimiento real de Andreani. La IA podrá explicar dónde está el paquete y detectar demoras. Los destinos incorrectos o las entregas disputadas pasarán a gestión logística.'),
-    ('Información comercial y guías',
-     'Centralizar precios, stock, promociones, condiciones de compra y enlaces de las guías. El equipo mantendrá esa información actualizada. La IA podrá responder preguntas habituales y reenviar el material que corresponda a cada compra.'),
-    ('Facturas',
-     'Conectar el sistema que utiliza el comercio para facturar. La IA podrá localizar y reenviar facturas existentes. Para emitirlas, se definirán los datos necesarios y las condiciones que debe cumplir.'),
-    ('Reclamos legales',
-     'Definir una persona responsable y cómo se le entrega el caso. La IA recopilará el pedido y los antecedentes para evitar preguntas repetidas. La evaluación y la respuesta final seguirán a cargo de esa persona.'),
+# 3. Four plain-language work packages covering every escalation category.
+p.header('Plan propuesto', 'Plan de trabajo.', 'Qué conectar y qué hacer para automatizar más consultas.')
+plan = [
+    ('Información y seguimiento',
+     'Conectar los pedidos de Shopify con el seguimiento real de Andreani. Mantener precios, stock, cupones y guías actualizados. La IA debe recibir el correo, pedido o foto que solicitó antes de pausar la conversación.'),
+    ('Cambios y reposiciones',
+     'Permitir cambios antes del despacho y gestionar los posteriores con el transportista. Definir qué fotos y condiciones permiten reponer productos dañados o faltantes. Habilitar esas acciones en la tienda.'),
+    ('Pagos, facturas y devoluciones',
+     'Conectar banco o billetera para verificar el dinero recibido y el sistema de facturación para obtener o emitir facturas. Acordar las reglas para cancelar pedidos o devolver dinero y habilitar esas gestiones en la tienda y el medio de pago.'),
+    ('Excepciones y activación',
+     'Asignar una persona para reclamos legales y excepciones comerciales. Acordar las reglas con el cliente, probar cada conexión con casos reales y activar por etapas. Medir lo resuelto y los motivos que siguen requiriendo al equipo.'),
 ]
-for i, (title, body) in enumerate(connections):
-    p.proposal(195+i*144, i+1, title, body)
-p.end()
-
-# 4. The four operational capabilities and their business rules.
-p.header('Plan propuesto / Gestiones', 'Habilitar acciones sobre pedidos.', 'La IA ejecutará únicamente las operaciones permitidas por las reglas acordadas.')
-operations = [
-    ('Cambios de dirección o entrega',
-     'Habilitar la modificación de pedidos y definir hasta cuándo se permiten cambios. La IA comprobará si el pedido ya salió, confirmará el nuevo destino con el cliente y hará los cambios permitidos. Después del despacho, se gestionará con el transportista.'),
-    ('Productos dañados o faltantes',
-     'Definir la política de reposición y conectar la gestión de esos envíos. La IA pedirá fotos, comprobará lo comprado y preparará o ejecutará la reposición dentro de las condiciones acordadas.'),
-    ('Transferencias y cobros',
-     'Conectar la fuente donde el comercio verifica el dinero recibido: banco, billetera o sistema de cobros. La IA comparará el pago con el pedido y confirmará solo coincidencias verificadas. Las diferencias o duplicados tendrán revisión humana.'),
-    ('Cancelaciones y reembolsos',
-     'Definir las condiciones de devolución y habilitar su gestión en la tienda y el medio de pago. La IA comprobará si el caso cumple esas condiciones y preparará la devolución. La ejecución automática seguirá las reglas acordadas.'),
-]
-for i, (title, body) in enumerate(operations):
-    p.proposal(195+i*144, i+5, title, body)
-p.end()
-
-# 5. A concrete sequence without a speculative timeline or extra technical detail.
-p.header('Orden de trabajo', 'Cómo lo pondremos en marcha.', 'Las tres correcciones anteriores ya están publicadas. Las conexiones siguientes son propuestas.')
-p.proposal(196, 1, 'Confirmar sistemas y reglas',
-           'El cliente confirma cómo verifica transferencias y cómo emite facturas. También definimos las condiciones de cambios, reposiciones y devoluciones, y quién aprueba las excepciones.', 123)
-p.proposal(331, 2, 'Conectar consultas y habilitar gestiones',
-           'Primero completamos la información de pedidos, seguimiento y condiciones comerciales. Después habilitamos las operaciones permitidas y dejamos registro de cada acción, evitando duplicados.', 123)
-p.proposal(466, 3, 'Probar con casos reales y activar',
-           'Comprobamos que la IA consulte el pedido correcto, responda y ejecute solo lo autorizado. Tras activar cada flujo, medimos las consultas resueltas y los motivos que siguen necesitando al equipo.', 123)
-p.note(615, 'Primera prioridad: completar la conversación',
-       'Si la IA pide correo, número de pedido o foto, debe poder recibirlos antes de pausar. Así el equipo recibirá un caso identificado y el cliente evitará repetir su explicación.', 116)
-p.wrap(42, 759, 'Validación de lo publicado: 76 pruebas aprobadas y comprobación en producción de la transferencia y de una respuesta generativa.', size=10.5, leading=15, color=MUTED)
+for i, (title, body) in enumerate(plan):
+    p.proposal(182+i*146, i+1, title, body)
+p.text(42, 786, 'Estas conexiones son propuestas; las tres correcciones ya están publicadas.', size=12.5)
 p.end()
 p.c.save()
 
 # Validate the brief's scope, pagination, readable text and page geometry.
 doc = pymupdf.open(OUT)
-assert len(doc) == p.page == 5
-assert len(doc.get_toc()) == 5
+assert len(doc) == p.page == 3
+assert len(doc.get_toc()) == 3
 text = '\n'.join(page.get_text() for page in doc)
 assert all(token in text for token in ['66,2%', '21,1%', '135 hilos', '53 hilos', '10 bloqueos', '76 pruebas'])
 assert not re.search(r'\b[0-9a-f]{8}-[0-9a-f]{4}-', text)
 assert 'Anexo' not in text and '\ufffd' not in text
 bad_bounds = []
+small_body = []
 for i, page in enumerate(doc, 1):
     for block in page.get_text('dict')['blocks']:
         for line in block.get('lines', []):
@@ -247,10 +217,15 @@ for i, page in enumerate(doc, 1):
                 x0, y0, x1, y1 = span['bbox']
                 if x0 < 29 or x1 > W-29 or y0 < 15 or y1 > H-12:
                     bad_bounds.append((i, span['text'], span['bbox']))
+                if 75 <= y0 <= 792 and span['size'] < 12.5:
+                    small_body.append((i, span['text'], span['size']))
     page.get_pixmap(matrix=pymupdf.Matrix(1.5, 1.5)).save(str(QA / f'page-{i:02}.png'))
 assert not bad_bounds, bad_bounds
+assert not small_body, small_body
 proof = {'file': str(OUT), 'pages': len(doc), 'historicalEscalations': 135,
          'escalationCategories': 8, 'individualCasesListed': False, 'appendices': False,
+         'bodyFontPoints': 13, 'minimumSupportingTextPoints': 12.5,
+         'undersizedBodyText': small_body,
          'outOfPageTextSpans': bad_bounds, 'bytes': OUT.stat().st_size}
 (QA / 'validation.json').write_text(json.dumps(proof, ensure_ascii=False, indent=2), encoding='utf-8')
 doc.close()
