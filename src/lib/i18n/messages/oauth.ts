@@ -10,6 +10,18 @@ import type { Namespace } from './types';
  */
 export const oauth: Namespace = {
   connectTitle: { es: 'Elige tu asistente', en: 'Choose your assistant' },
+  addToClient: { es: 'Añadir a {client}', en: 'Add to {client}' },
+  useClient: { es: 'Usar {client}', en: 'Use {client}' },
+  desktopDirectSteps: {
+    es: 'En {client}, pulsa Enviar en la solicitud que ya está preparada. Autoriza tu cuenta de Riverz cuando se abra el inicio de sesión.',
+    en: 'In {client}, send the request that is already prepared. Authorize your Riverz account when sign-in opens.',
+  },
+  desktopDidNotOpen: { es: '¿No se abrió la app?', en: 'App did not open?' },
+  desktopRequired: {
+    es: 'Necesitas {client} instalado en este equipo. También puedes usar la opción web de la tarjeta o abrir Configuración manual.',
+    en: 'You need {client} installed on this computer. You can also use the card’s web option or open Manual setup.',
+  },
+  downloadClient: { es: 'Descargar {client}', en: 'Download {client}' },
   claudeCard: {
     es: 'También disponible en Claude Code.',
     en: 'Also available in Claude Code.',
@@ -30,8 +42,8 @@ export const oauth: Namespace = {
   },
   closeHelp: { es: 'Cerrar ayuda de conexión', en: 'Close connection help' },
   claudeQuickSteps: {
-    es: 'Riverz ya está rellenado. Confirma que quieres agregarlo y autoriza tu cuenta de Riverz. Si Claude te pide iniciar sesión, vuelve a pulsar Conectar Claude aquí.',
-    en: 'Riverz is already filled in. Confirm you want to add it and authorize your Riverz account. If Claude asks you to sign in, select Connect Claude here again.',
+    es: 'Riverz ya está rellenado. Confirma que quieres agregarlo y autoriza tu cuenta de Riverz. Si Claude te pide iniciar sesión, vuelve a pulsar Añadir a Claude aquí.',
+    en: 'Riverz is already filled in. Confirm you want to add it and authorize your Riverz account. If Claude asks you to sign in, select Add to Claude here again.',
   },
   chatgptQuickAdd: {
     es: 'En el formulario que se abre, escribe Riverz como nombre y pega la dirección de abajo.',

@@ -20,6 +20,7 @@ import {
 } from '@/lib/mcp/connections';
 import {
   CHATGPT_INSTALL_URL,
+  CLAUDE_CONNECTORS_URL,
   CLAUDE_INSTALL_URL,
   desktopSetupUrl,
   editorInstallUrl,
@@ -27,32 +28,71 @@ import {
   MCP_URL,
 } from '@/lib/mcp/setup';
 
+const CLIENTS = {
+  'claude-chat': {
+    name: 'Claude',
+    logo: '/logos/claude.ico',
+    href: CLAUDE_INSTALL_URL,
+  },
+  claude: { name: 'Claude Code', logo: '/logos/claude.ico' },
+  codex: { name: 'Codex', logo: '/logos/codex.png' },
+  chatgpt: {
+    name: 'ChatGPT',
+    logo: '/logos/openai.png',
+    href: CHATGPT_INSTALL_URL,
+  },
+} as const;
+
 const ASSISTANTS = [
   {
     name: 'Claude',
     logo: '/logos/claude.ico',
-    href: CLAUDE_INSTALL_URL,
-    clients: ['claude-chat', 'claude'],
-    description: 'oauth.claudeCard',
+    primary: 'claude-chat',
+    secondary: 'claude',
+    products: 'Claude / Claude Code',
   },
   {
-    name: 'ChatGPT',
+    name: 'OpenAI',
     logo: '/logos/openai.png',
-    href: CHATGPT_INSTALL_URL,
-    clients: ['chatgpt', 'codex'],
-    description: 'oauth.chatgptCard',
+    primary: 'codex',
+    secondary: 'chatgpt',
+    products: 'ChatGPT / Codex',
   },
 ] as const;
-type Assistant = (typeof ASSISTANTS)[number];
 
 /** The assistant owns OAuth. Opening a link is never proof of connection. */
 export function McpOauthConnect() {
   const t = useT();
-  const [selected, setSelected] = useState<Assistant | null>(null);
+  const [selected, setSelected] = useState<McpClient | null>(null);
   const [connected, setConnected] = useState<Set<McpClient>>(new Set());
   const [statusFailed, setStatusFailed] = useState(false);
   const [copied, setCopied] = useState(false);
-  const selectedConnected = selected && connected.has(selected.clients[0]);
+  const selectedConnected = selected !== null && connected.has(selected);
+  const selectedClient = selected && CLIENTS[selected];
+
+  const clientHref = (id: McpClient) => {
+    const client = CLIENTS[id];
+    if (connected.has(id)) {
+      if (id === 'claude-chat') return CLAUDE_CONNECTORS_URL;
+      if (id === 'chatgpt') return 'https://chatgpt.com/plugins';
+      return id === 'codex' ? 'codex://threads/new' : 'claude://code/new';
+    }
+    if (id === 'claude-chat' || id === 'chatgpt') return CLIENTS[id].href;
+    return desktopSetupUrl(
+      id,
+      t('oauth.desktopSetupRequest', {
+        client: client.name,
+        url: MCP_URL,
+        commands: MCP_SETUP_COMMANDS[id],
+      })
+    );
+  };
+
+  const startConnection = (id: McpClient) => {
+    setSelected(id);
+    setCopied(false);
+    if (id === 'chatgpt') void copyUrl();
+  };
 
   useEffect(() => {
     let active = true;
@@ -124,49 +164,74 @@ export function McpOauthConnect() {
               <div>
                 <h4 className="text-sm font-medium">{assistant.name}</h4>
                 <p className="text-muted-foreground mt-1 text-xs">
-                  {t(assistant.description)}
+                  {assistant.products}
                 </p>
               </div>
             </div>
             <Button
               className="mt-auto h-9 w-full"
-              variant="outline"
+              variant="default"
               render={
                 <a
-                  href={assistant.href}
-                  target="_blank"
+                  href={clientHref(assistant.primary)}
+                  target={
+                    assistant.primary === 'claude-chat' ? '_blank' : undefined
+                  }
                   rel="noopener noreferrer"
                 />
               }
               nativeButton={false}
-              onClick={() => {
-                setSelected(assistant);
-                setCopied(false);
-                if (assistant.name === 'ChatGPT') void copyUrl();
-              }}
+              onClick={() => startConnection(assistant.primary)}
             >
-              {connected.has(assistant.clients[0]) ? (
+              {connected.has(assistant.primary) ? (
                 <Check className="text-emerald-600" />
               ) : (
-                <ExternalLink />
+                <Image
+                  src={CLIENTS[assistant.primary].logo}
+                  alt=""
+                  width={18}
+                  height={18}
+                  unoptimized
+                  className="size-4.5 rounded-sm"
+                />
               )}
               {t(
-                connected.has(assistant.clients[0])
+                connected.has(assistant.primary)
                   ? 'oauth.manageClient'
-                  : 'oauth.connectClient',
-                { client: assistant.name }
+                  : 'oauth.addToClient',
+                { client: CLIENTS[assistant.primary].name }
+              )}
+              {assistant.primary === 'claude-chat' ? (
+                <ExternalLink className="ml-auto" />
+              ) : (
+                <Monitor className="ml-auto" />
               )}
             </Button>
+            <a
+              href={clientHref(assistant.secondary)}
+              target={assistant.secondary === 'chatgpt' ? '_blank' : undefined}
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground flex items-center justify-center gap-1.5 text-xs underline-offset-4 hover:underline"
+              onClick={() => startConnection(assistant.secondary)}
+            >
+              {connected.has(assistant.secondary) && (
+                <Check className="size-3 text-emerald-600" />
+              )}
+              {t('oauth.useClient', {
+                client: CLIENTS[assistant.secondary].name,
+              })}
+              <ChevronRight className="size-3" />
+            </a>
           </div>
         ))}
       </div>
-      {selected && (
+      {selected && selectedClient && (
         <div className="border-border bg-muted/30 max-w-2xl space-y-3 rounded-xl border p-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-medium" role="status">
               {selectedConnected
-                ? t('oauth.connectedClient', { client: selected.name })
-                : t('oauth.finishClient', { client: selected.name })}
+                ? t('oauth.connectedClient', { client: selectedClient.name })
+                : t('oauth.finishClient', { client: selectedClient.name })}
             </p>
             <Button
               variant="ghost"
@@ -178,10 +243,41 @@ export function McpOauthConnect() {
             </Button>
           </div>
           {!selectedConnected &&
-            (selected.name === 'Claude' ? (
+            (selected === 'claude-chat' ? (
               <p className="text-muted-foreground text-sm">
                 {t('oauth.claudeQuickSteps')}
               </p>
+            ) : selected === 'claude' || selected === 'codex' ? (
+              <>
+                <p className="text-muted-foreground text-sm">
+                  {t('oauth.desktopDirectSteps', {
+                    client: selectedClient.name,
+                  })}
+                </p>
+                <details className="text-xs">
+                  <summary className="text-muted-foreground cursor-pointer">
+                    {t('oauth.desktopDidNotOpen')}
+                  </summary>
+                  <p className="text-muted-foreground mt-2">
+                    {t('oauth.desktopRequired', {
+                      client: selectedClient.name,
+                    })}
+                  </p>
+                  <a
+                    href={
+                      selected === 'codex'
+                        ? 'https://chatgpt.com/download'
+                        : 'https://claude.ai/download'
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 underline underline-offset-4"
+                  >
+                    {t('oauth.downloadClient', { client: selectedClient.name })}
+                    <ExternalLink className="size-3" />
+                  </a>
+                </details>
+              </>
             ) : (
               <>
                 <ol className="text-muted-foreground list-decimal space-y-2 pl-5 text-sm">
