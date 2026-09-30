@@ -682,11 +682,15 @@ export const settings = {
   uploadPhoto: { es: 'Subir foto', en: 'Upload photo' },
   displayName: { es: 'Nombre para mostrar', en: 'Display name' },
   emailLabel: { es: 'Correo', en: 'Email' },
-  tabMcp: { es: 'Agentes (MCP)', en: 'Agents (MCP)' },
-  mcpTitle: { es: 'Agentes (MCP)', en: 'Agents (MCP)' },
+  tabMcp: { es: 'Asistentes de IA', en: 'AI assistants' },
+  mcpTitle: {
+    es: 'Conecta tu asistente de IA',
+    en: 'Connect your AI assistant',
+  },
+  mcpManual: { es: 'Configuración manual', en: 'Manual setup' },
   mcpDesc: {
-    es: 'Conecta tu asistente de IA a esta cuenta.',
-    en: 'Connect your AI assistant to this account.',
+    es: 'Consulta y gestiona tu negocio desde el asistente que ya usas.',
+    en: 'View and manage your business from the assistant you already use.',
   },
   mcpStep1: { es: 'Crea una llave', en: 'Create a key' },
   mcpStep2: {

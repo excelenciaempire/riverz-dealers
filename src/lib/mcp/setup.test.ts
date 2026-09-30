@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { translate } from '@/lib/i18n/translate';
 import {
   CHATGPT_SETTINGS_URL,
+  CHATGPT_INSTALL_URL,
+  CLAUDE_INSTALL_URL,
   CLAUDE_CONNECTORS_URL,
   CLAUDE_DESKTOP_URL,
   desktopSetupUrl,
+  editorInstallUrl,
   MCP_SETUP_COMMANDS,
   MCP_URL,
 } from './setup';
@@ -55,6 +58,45 @@ describe('MCP desktop handoff', () => {
     expect(url.origin).toBe('https://chatgpt.com');
     expect(url.pathname).toBe('/');
     expect(url.hash).toBe('#settings/Connectors');
+  });
+
+  it('opens the ChatGPT creation dialog with its supported hash parameter', () => {
+    const url = new URL(CHATGPT_INSTALL_URL);
+    expect(url.origin).toBe('https://chatgpt.com');
+    const [route, query] = url.hash.split('?');
+    expect(route).toBe('#settings/Connectors');
+    expect(new URLSearchParams(query).get('create-connector')).toBe('true');
+  });
+
+  it('prefills the actual Claude connector form without credentials', () => {
+    const url = new URL(CLAUDE_INSTALL_URL);
+    expect(url.origin).toBe('https://claude.ai');
+    expect(url.searchParams.get('modal')).toBe('add-custom-connector');
+    expect(url.searchParams.get('connectorName')).toBe('Riverz');
+    expect(url.searchParams.get('connectorUrl')).toBe(MCP_URL);
+    expect([...url.searchParams.keys()]).toHaveLength(3);
+  });
+
+  it('hands Cursor its HTTP configuration rather than an mcpServers wrapper', () => {
+    const url = new URL(editorInstallUrl('cursor'));
+    expect(url.protocol).toBe('cursor:');
+    expect(url.host).toBe('anysphere.cursor-deeplink');
+    expect(url.pathname).toBe('/mcp/install');
+    expect(url.searchParams.get('name')).toBe('riverz');
+    expect(JSON.parse(atob(url.searchParams.get('config')!))).toEqual({
+      url: MCP_URL,
+    });
+  });
+
+  it('hands VS Code a complete encoded HTTP server configuration', () => {
+    const url = new URL(editorInstallUrl('vscode'));
+    expect(url.protocol).toBe('vscode:');
+    expect(url.pathname).toBe('mcp/install');
+    expect(JSON.parse(decodeURIComponent(url.search.slice(1)))).toEqual({
+      name: 'riverz',
+      type: 'http',
+      url: MCP_URL,
+    });
   });
 
   it('routes Claude account setup to connectors and desktop chat to the chat tab', () => {

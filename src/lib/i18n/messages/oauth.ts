@@ -9,7 +9,42 @@ import type { Namespace } from './types';
  * a un cliente real no son lo mismo.
  */
 export const oauth: Namespace = {
-  connectTitle: { es: 'Conectar con OAuth', en: 'Connect with OAuth' },
+  connectTitle: { es: 'Elige tu asistente', en: 'Choose your assistant' },
+  claudeCard: {
+    es: 'También disponible en Claude Code.',
+    en: 'Also available in Claude Code.',
+  },
+  chatgptCard: {
+    es: 'Tu negocio en tus conversaciones.',
+    en: 'Your business in your conversations.',
+  },
+  otherAssistants: { es: 'Otros asistentes', en: 'Other assistants' },
+  manageClient: { es: 'Abrir {client}', en: 'Open {client}' },
+  connectedClient: {
+    es: '{client} está conectado',
+    en: '{client} is connected',
+  },
+  finishClient: {
+    es: 'Completa la conexión en {client}',
+    en: 'Finish connecting in {client}',
+  },
+  closeHelp: { es: 'Cerrar ayuda de conexión', en: 'Close connection help' },
+  claudeQuickSteps: {
+    es: 'Riverz ya está rellenado. Confirma que quieres agregarlo y autoriza tu cuenta de Riverz. Si Claude te pide iniciar sesión, vuelve a pulsar Conectar Claude aquí.',
+    en: 'Riverz is already filled in. Confirm you want to add it and authorize your Riverz account. If Claude asks you to sign in, select Connect Claude here again.',
+  },
+  chatgptQuickAdd: {
+    es: 'En el formulario que se abre, escribe Riverz como nombre y pega la dirección de abajo.',
+    en: 'In the form that opens, enter Riverz as the name and paste the address below.',
+  },
+  chatgptQuickAuthorize: {
+    es: 'Elige OAuth, pulsa Crear e inicia sesión en Riverz para autorizar el acceso.',
+    en: 'Choose OAuth, select Create and sign in to Riverz to authorize access.',
+  },
+  connectionReturn: {
+    es: 'Al terminar, vuelve aquí para comprobar la conexión.',
+    en: 'When finished, return here to check the connection.',
+  },
   connected: { es: 'Conectado', en: 'Connected' },
   waitingForClient: {
     es: 'Esperando la conexión del asistente',
@@ -135,8 +170,8 @@ export const oauth: Namespace = {
     en: "It can't change anything or message anyone.",
   },
   revokeHint: {
-    es: 'Puedes cortarle el acceso cuando quieras desde Ajustes → Agentes (MCP).',
-    en: 'You can cut off access any time from Settings → Agents (MCP).',
+    es: 'Puedes quitarle el acceso desde Ajustes → Asistentes de IA → Configuración manual.',
+    en: 'You can remove access from Settings → AI assistants → Manual setup.',
   },
   allow: { es: 'Autorizar', en: 'Authorize' },
   deny: { es: 'Cancelar', en: 'Cancel' },
