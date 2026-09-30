@@ -4,6 +4,14 @@ import { markOrderPaid } from '@/lib/shopify/mark-paid'
 import { cancelOrder, refundOrder } from '@/lib/shopify/order-cancel'
 import { cancelarPedidoEnLaTienda } from '@/lib/commerce/order-cancel'
 import { APROBACION_PENDIENTE } from './ask'
+import { localeDeCuenta } from '@/lib/i18n/cuenta'
+import { translate } from '@/lib/i18n/translate'
+
+const REFUND_ERRORS: Record<string, string> = {
+  invalid_refund_amount: 'refundAmountInvalid', refund_pending: 'refundPending',
+  refund_already_returned: 'refundAlreadyReturned', refund_history_unverified: 'refundHistoryUnverified',
+  refund_result_unverified: 'refundResultUnverified',
+}
 
 /**
  * La vuelta del humano en el medio: qué pasa cuando el comercio contesta.
@@ -276,6 +284,9 @@ async function ejecutar(
         return { ok: true, message: 'El pedido quedó cancelado en la tienda.' }
       }
 
+      if (!cancelando && fila.payload.amount != null && typeof fila.payload.amount !== 'number') {
+        return { ok: false, message: translate(await localeDeCuenta(db, fila.workspace_id), 'approvals.refundAmountInvalid') }
+      }
       let res = cancelando
         ? await cancelOrder(admin, shopifyOrderId, {
             reason: String(fila.payload.reason ?? 'customer'),
@@ -287,6 +298,8 @@ async function ejecutar(
           })
 
       if (!res.ok) {
+        const refundErrorKey = REFUND_ERRORS[res.error ?? '']
+        if (refundErrorKey) return { ok: false, message: translate(await localeDeCuenta(db, fila.workspace_id), `approvals.${refundErrorKey}`) }
         // El caso con arreglo se nombra: la tienda se conectó antes de que el
         // set de permisos incluyera escritura y hay que reconectarla.
         if (res.error === 'missing_write_scope') {
@@ -323,7 +336,7 @@ async function ejecutar(
       if (cancelando && res.ok && res.financialStatus && res.financialStatus !== 'refunded') {
         if (res.financialStatus === 'paid' || res.financialStatus === 'partially_refunded') {
           const vuelto = await refundOrder(admin, shopifyOrderId, { reason: 'cancelación' })
-          if (vuelto.ok) res = { ok: true, financialStatus: 'refunded' }
+          if (vuelto.ok) res = vuelto
           else {
             console.warn(
               `[aprobaciones] pedido ${shopifyOrderId} cancelado pero el reembolso falló:`,
@@ -349,7 +362,7 @@ async function ejecutar(
                   // número que después se cuadra contra la caja.
                   financial_status: res.financialStatus ?? 'voided',
                 }
-              : { financial_status: 'refunded' },
+              : { financial_status: res.financialStatus },
           )
           .eq('id', orderId)
           .eq('workspace_id', fila.workspace_id)

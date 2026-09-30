@@ -89,6 +89,11 @@ export const unify = {
 } satisfies Namespace;
 
 export const approvals = {
+  refundAmountInvalid: { es: 'El importe de reembolso no es válido.', en: 'The refund amount is invalid.' },
+  refundPending: { es: 'Hay un reembolso en proceso. Revisa su estado en Shopify antes de solicitar otro.', en: 'A refund is pending. Check its status in Shopify before requesting another.' },
+  refundAlreadyReturned: { es: 'No queda saldo disponible para reembolsar.', en: 'There is no remaining balance available to refund.' },
+  refundHistoryUnverified: { es: 'No pudimos verificar el saldo pendiente de devolución. No se creó un reembolso.', en: 'We could not verify the remaining refundable balance. No refund was created.' },
+  refundResultUnverified: { es: 'El resultado del reembolso requiere revisión en Shopify. Verifica la operación antes de crear otra solicitud.', en: 'The refund result requires review in Shopify. Verify the operation before creating another request.' },
   viewAll: { es: 'Ver todas', en: 'View all' },
   title: { es: "Esperando tu sí", en: "Waiting on you" },
   subtitle: {

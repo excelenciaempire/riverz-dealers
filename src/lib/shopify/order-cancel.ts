@@ -1,4 +1,5 @@
 import { ShopifyAdminClient, ShopifyUnauthorizedError } from './admin-client'
+import { planRefund, verifiedRefundTransactions, type RefundTransaction } from './refund-plan'
 
 /**
  * Cancelar y reembolsar un pedido.
@@ -27,6 +28,9 @@ export interface CancelResult {
   ok: boolean
   /** Estado financiero tras la operación, tal como lo informa Shopify. */
   financialStatus?: string | null
+  refundId?: string
+  refundedAmount?: string
+  currency?: string
   error?: string
 }
 
@@ -86,71 +90,29 @@ export async function refundOrder(
 ): Promise<CancelResult> {
   try {
     const c = client(admin)
-
-    const { transactions = [] } = await c.rest<{
-      transactions?: Array<{
-        id: number
-        kind: string
-        status: string
-        amount: string
-        gateway: string
-      }>
-    }>(`/orders/${orderId}/transactions.json`)
-
-    const cobros = transactions.filter(
-      (t) => (t.kind === 'sale' || t.kind === 'capture') && t.status === 'success',
-    )
-    if (cobros.length === 0) {
-      // Pasa con contrareembolso y con transferencias que nadie registró: no
-      // hay nada que devolver por API porque el dinero nunca entró por acá.
-      return { ok: false, error: 'sin_cobro_registrado' }
-    }
-
-    // TODAS las transacciones, no la primera.
-    //
-    // Un pedido pagado en parte con gift card y en parte con tarjeta tiene dos
-    // cobros. Devolviendo sólo el primero se reembolsaba una fracción, se
-    // informaba "listo" y la clienta reclamaba el resto — con el caso ya
-    // cerrado del lado del comercio.
-    let restante = opts?.amount != null ? opts.amount : null
-    const lineas: Array<Record<string, unknown>> = []
-    for (const t of cobros) {
-      const disponible = Number(t.amount)
-      if (!Number.isFinite(disponible) || disponible <= 0) continue
-      const monto = restante == null ? disponible : Math.min(restante, disponible)
-      if (monto <= 0) break
-      lineas.push({
-        parent_id: t.id,
-        amount: monto.toFixed(2),
-        kind: 'refund',
-        gateway: t.gateway,
-      })
-      if (restante != null) {
-        restante -= monto
-        if (restante <= 0) break
-      }
-    }
-    if (lineas.length === 0) {
-      return { ok: false, error: 'sin_cobro_registrado' }
-    }
-    // Se pidió más de lo que hay cobrado: mejor decirlo que devolver de menos
-    // y dar el caso por cerrado.
-    if (restante != null && restante > 0.009) {
-      return { ok: false, error: 'monto_mayor_al_cobrado' }
-    }
-
-    await c.rest(`/orders/${orderId}/refunds.json`, {
-      method: 'POST',
-      body: {
-        refund: {
-          note: opts?.reason ?? 'Reembolso solicitado por el cliente',
-          notify: false,
-          transactions: lineas,
-        },
-      },
+    const { transactions } = await c.rest<{ transactions?: RefundTransaction[] }>(`/orders/${orderId}/transactions.json`)
+    if (!Array.isArray(transactions)) return { ok: false, error: 'refund_history_unverified' }
+    const plan = planRefund(transactions, opts?.amount)
+    if (!plan.ok) return plan
+    const response = await c.rest<{ refund?: { id?: string | number; transactions?: RefundTransaction[] } }>(`/orders/${orderId}/refunds.json`, {
+      method: 'POST', body: { refund: { note: opts?.reason ?? 'Reembolso solicitado por el cliente', notify: false, transactions: plan.transactions } },
     })
-    return { ok: true }
+    const refundId = response.refund?.id != null ? String(response.refund.id) : undefined
+    if (!refundId || !verifiedRefundTransactions(response.refund?.transactions ?? [], plan.transactions)) {
+      return { ok: false, refundId, error: 'refund_result_unverified' }
+    }
+    // Never label a partial refund as a total refund in Riverz's local mirror.
+    try {
+      const { order } = await c.rest<{ order?: { financial_status?: string; currency?: string } }>(`/orders/${orderId}.json?fields=id,financial_status,currency`)
+      if (!order?.financial_status || !['refunded', 'partially_refunded'].includes(order.financial_status)) {
+        return { ok: false, refundId, error: 'refund_result_unverified' }
+      }
+      return { ok: true, refundId, refundedAmount: plan.amount, financialStatus: order.financial_status, currency: order.currency }
+    } catch {
+      return { ok: false, refundId, error: 'refund_result_unverified' }
+    }
   } catch (err) {
+    // Approval claiming prevents automatic replay; an uncertain response needs provider review.
     return { ok: false, error: traducirError(err) }
   }
 }
