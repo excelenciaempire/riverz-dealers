@@ -57,7 +57,8 @@ describe('Revitaly written transfer shipping details', () => {
     expect(revitalyTransferShippingReply({ ...input, workspaceId: 'other' })).toBeNull();
     expect(revitalyTransferShippingReply({ ...input, rules: [{ ...rule, activa: false }] })).toBeNull();
   });
-  it.each(['Quiero un reembolso de la transferencia', 'No quiero transferencia', '¿Dónde está mi pedido? No llegó', 'Ya pagué con tarjeta', '¿Me das el alias?'])
+  it.each(['Quiero un reembolso de la transferencia', 'No quiero transferencia', '¿Dónde está mi pedido? No llegó', 'Ya pagué con tarjeta', '¿Me das el alias?',
+    'Ya transferí y llegó el envase roto', 'Ya transferí, el producto me causó alergia', 'Adjunto comprobante para reclamar una estafa'])
     ('does not restart an unrelated payment or support conversation: %s', inbound => {
       expect(revitalyTransferShippingReply({ ...input, inbound })).toBeNull();
     });

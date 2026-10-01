@@ -40,6 +40,8 @@ export function revitalyTransferShippingReply(input: {
   const fullHistory = input.history ?? [];
   const inbound = normalize(input.inbound);
   if (/\b(reembolso|devolucion|cancelar|rechazad\w*|no (?:quiero|puedo)|no llego|no recibi|demora|refund|cancel|failed)\b/.test(inbound)) return null;
+  // A payment reference inside a post-sale complaint is not a new shipment.
+  if (/\b(problema|reclamo|denuncia|abogad\w*|alerg\w*|irrit\w*|ardor|me arde|rot[oa]s?|danad\w*|faltantes?|estafa|complaint|damaged|missing|allerg\w*)\b/.test(inbound)) return null;
   if (/\b(tarjeta|debito|credito|credit card|debit card)\b/.test(inbound) && !/\b(transferencia|transferi|bank transfer)\b/.test(inbound)) return null;
   const transferChoice = isTransferChoice(inbound);
   const lastChoice = fullHistory.findLastIndex(m => m.role === 'user' && isTransferChoice(normalize(m.content)));
