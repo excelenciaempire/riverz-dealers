@@ -21,7 +21,7 @@ beforeAll(async()=>{
  CREATE TABLE flow_nodes(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),flow_id uuid REFERENCES flows(id) ON DELETE CASCADE,node_key text,node_type text,config jsonb,UNIQUE(flow_id,node_key));
  CREATE TABLE flow_runs(id uuid PRIMARY KEY,workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE,flow_id uuid REFERENCES flows(id) ON DELETE CASCADE,
  contact_id uuid,conversation_id uuid,status text,current_node_key text,last_advanced_at timestamptz,vars jsonb,call_stack jsonb DEFAULT '[]',ended_at timestamptz,end_reason text);`);
- for(const file of ['330_http_action_configuration.sql','331_http_action_receipts.sql','337_http_flow_reads.sql','339_http_approval_review_snapshot.sql','341_http_flow_post_approvals.sql','343_http_flow_post_receipt_binding.sql']) await db.exec(readFileSync('supabase/migrations/'+file,'utf8'));
+ for(const file of ['330_http_action_configuration.sql','331_http_action_receipts.sql','337_http_flow_reads.sql','339_http_approval_review_snapshot.sql','341_http_flow_post_approvals.sql','343_http_flow_post_receipt_binding.sql','344_http_flow_recorded_recovery.sql']) await db.exec(readFileSync('supabase/migrations/'+file,'utf8'));
 },30000);
 afterAll(async()=>db.close());
 beforeEach(async()=>{
@@ -50,6 +50,50 @@ const acknowledged=async()=>{const p=await propose();await decide(p.approval_id)
  await scalar('SELECT finish_http_action($1,$2,$3,$4,$5,$6,$7)',[ws,c.claim.id,c.claim.lease_id,'acknowledged',200,null,{status:'received'}]);return {p,c};};
 
 describe('native POST operations require an immutable per-visit panel decision',()=>{
+ it('recovers only an exact acknowledged parked visit without creating a lease',async()=>{
+  expect(await scalar('SELECT list_http_flow_post_recoveries(20)')).toEqual([]);
+  const {p,c}=await acknowledged();const before=await scalar('SELECT lease_id FROM http_action_runs');
+  expect(await scalar('SELECT list_http_flow_post_recoveries(20)')).toEqual([expect.objectContaining({workspace_id:ws,approval_id:p.approval_id})]);
+  const observed=await scalar('SELECT observe_http_flow_post($1,$2,$3,$4,$5,$6,$7,$8,$9)',[ws,p.approval_id,run,flow,'lookup',visit,vars,config,1]);
+  expect(observed).toMatchObject({approval_id:p.approval_id,status:'aprobada',receipt:{id:c.claim.id,state:'acknowledged'}});
+  expect(await scalar('SELECT lease_id FROM http_action_runs')).toBe(before);expect(await scalar('SELECT count(*) FROM approval_requests')).toBe(1);
+  await finish(p.approval_id);expect(await scalar('SELECT list_http_flow_post_recoveries(20)')).toEqual([]);
+ });
+ it.each(['claimed','uncertain','rejected','paused','new_visit','new_vars','new_cursor','subflow','receipt_key','receipt_hash','receipt_actor','receipt_conversation'])('does not enqueue a %s response or visit',async kind=>{
+  const {p}=await acknowledged();
+  if(kind==='claimed'||kind==='uncertain')await db.query('UPDATE http_action_runs SET state=$1',[kind]);
+  if(kind==='rejected')await db.exec("UPDATE approval_requests SET status='fallida'");
+  if(kind==='paused')await db.exec("UPDATE flow_runs SET status='paused_by_agent'");
+  if(kind==='new_visit')await db.exec("UPDATE flow_runs SET last_advanced_at=last_advanced_at+interval '1 microsecond'");
+  if(kind==='new_vars')await db.exec("UPDATE flow_runs SET vars='{}'");
+  if(kind==='new_cursor')await db.exec("UPDATE flow_runs SET current_node_key='end'");
+  if(kind==='subflow')await db.query('UPDATE flow_runs SET call_stack=$1',[[{flow_id:other}]]);
+  if(kind==='receipt_key')await db.query('UPDATE http_action_runs SET invocation_key=$1',['c'.repeat(64)]);
+  if(kind==='receipt_hash')await db.query('UPDATE http_action_runs SET input_hash=$1',['c'.repeat(64)]);
+  if(kind==='receipt_actor')await db.query('UPDATE http_action_runs SET actor_id=$1',[other]);
+  if(kind==='receipt_conversation')await db.query('UPDATE http_action_runs SET conversation_id=$1',[other]);
+  expect(await scalar('SELECT list_http_flow_post_recoveries(20)')).toEqual([]);
+  await expect(scalar('SELECT observe_http_flow_post($1,$2,$3,$4,$5,$6,$7,$8,$9)',[ws,p.approval_id,run,flow,'lookup',visit,vars,config,1])).rejects.toThrow();
+ });
+ it.each(['run','flow','node','visit','vars','config','grant'])('rejects mismatched recovery %s',async kind=>{
+  const {p}=await acknowledged();const args:unknown[]=[ws,p.approval_id,run,flow,'lookup',visit,vars,config,1];
+  const indexes={run:2,flow:3,node:4,visit:5,vars:6,config:7,grant:8};
+  args[indexes[kind as keyof typeof indexes]]=kind==='visit'?'2026-10-01T00:00:00.000001Z':kind==='vars'||kind==='config'?{}:kind==='grant'?2:other;
+  await expect(scalar('SELECT observe_http_flow_post($1,$2,$3,$4,$5,$6,$7,$8,$9)',args)).rejects.toThrow('review_required');
+  expect(await scalar('SELECT current_node_key FROM flow_runs')).toBe('lookup');
+ });
+ it('does not recreate a deleted approval during recovery',async()=>{
+  const {p}=await acknowledged();await db.query('DELETE FROM approval_requests WHERE id=$1',[p.approval_id]);
+  expect(await scalar('SELECT list_http_flow_post_recoveries(20)')).toEqual([]);
+  await expect(scalar('SELECT observe_http_flow_post($1,$2,$3,$4,$5,$6,$7,$8,$9)',[ws,p.approval_id,run,flow,'lookup',visit,vars,config,1])).rejects.toThrow();
+  expect(await scalar('SELECT count(*) FROM approval_requests')).toBe(0);
+ });
+ it('requires private RPCs and a bounded scan',async()=>{
+  expect(await scalar('SELECT http_flow_recorded_recovery_ready()')).toBe(true);
+  for(const limit of [0,21,null])await expect(scalar('SELECT list_http_flow_post_recoveries($1)',[limit])).rejects.toThrow('invalid_http_flow_recovery_limit');
+  await db.exec('SET ROLE authenticated');await expect(db.exec('SELECT list_http_flow_post_recoveries(20)')).rejects.toThrow('permission denied');
+  await expect(db.exec('SELECT http_flow_recorded_recovery_ready()')).rejects.toThrow('permission denied');await db.exec('RESET ROLE');
+ });
  it('guards exact receipt binding through private deployment metadata',async()=>{
   expect(await scalar('SELECT http_flow_post_receipt_binding_ready()')).toBe(true);await db.exec('SET ROLE authenticated');
   await expect(db.exec('SELECT http_flow_post_receipt_binding_ready()')).rejects.toThrow('permission denied');await db.exec('RESET ROLE');

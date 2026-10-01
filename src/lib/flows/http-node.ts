@@ -38,7 +38,7 @@ export async function failHttpFlowNode(db: SupabaseClient, run: FlowRunRow, node
 }
 
 /** No owner impersonation, credentials in graphs, automatic retries or provider calls in simulation. */
-export async function runHttpFlowNode(db: SupabaseClient, run: FlowRunRow, node: FlowNodeRow): Promise<HttpFlowResult> {
+export async function runHttpFlowNode(db: SupabaseClient, run: FlowRunRow, node: FlowNodeRow, recordedApprovalId?: string): Promise<HttpFlowResult> {
   if (!SHOW_RIVERZ_IMPROVEMENTS) throw new Error('http_flow_hidden');
   if (!uuid.safeParse(run.id).success || !uuid.safeParse(run.workspace_id).success
     || !run.conversation_id || !run.contact_id || run.status !== 'active') throw new Error('http_flow_context_invalid');
@@ -76,8 +76,13 @@ export async function runHttpFlowNode(db: SupabaseClient, run: FlowRunRow, node:
     const visitAt = version.data.last_advanced_at;
     const input = httpFlowInputs(config, action.definition, run.vars);
     const request = actionRequest(action.definition, input, trusted);
+    if (recordedApprovalId && (action.definition.method !== 'POST' || !uuid.safeParse(recordedApprovalId).success)) throw new Error('http_flow_review_required');
     if (action.definition.method === 'POST') {
-      const proposed = await db.rpc('prepare_http_flow_post', { p_workspace_id: run.workspace_id, p_run_id: run.id,
+      const proposed = recordedApprovalId
+        ? await db.rpc('observe_http_flow_post', { p_workspace_id: run.workspace_id, p_approval_id: recordedApprovalId,
+          p_run_id: run.id, p_flow_id: node.flow_id, p_node_key: node.node_key, p_visit_at: visitAt,
+          p_vars: run.vars, p_config: config, p_grant_revision: grant.revision })
+        : await db.rpc('prepare_http_flow_post', { p_workspace_id: run.workspace_id, p_run_id: run.id,
         p_flow_id: node.flow_id, p_node_key: node.node_key, p_config: config, p_grant_revision: grant.revision,
         p_expected_node: version.data.current_node_key, p_visit_at: visitAt, p_vars: run.vars,
         p_input_hash: httpExecutionHash({ request, conversation_id: run.conversation_id }),
@@ -85,6 +90,7 @@ export async function runHttpFlowNode(db: SupabaseClient, run: FlowRunRow, node:
       if (proposed.error) throw new Error('http_flow_review_required');
       const proposal = z.object({ approval_id: uuid, status: z.enum(['pendiente', 'aprobada', 'rechazada', 'vencida', 'fallida']),
         invocation_key: z.string().regex(/^[0-9a-f]{64}$/), receipt: z.record(z.string(), z.unknown()).nullable() }).strict().parse(proposed.data);
+      if (recordedApprovalId && (proposal.approval_id !== recordedApprovalId || proposal.status !== 'aprobada' || proposal.receipt?.state !== 'acknowledged')) throw new Error('http_flow_review_required');
       if (proposal.status === 'pendiente' || (proposal.status === 'aprobada' && (!proposal.receipt || proposal.receipt.state === 'claimed'))) return { state: 'pending' };
       if (proposal.status !== 'aprobada' || !proposal.receipt) throw new Error('http_flow_review_required');
       // Validate an already recorded receipt; this branch never receives a dispatch lease.

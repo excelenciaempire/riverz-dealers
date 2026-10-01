@@ -12,7 +12,7 @@ function sameVisit(left: string, right: string) {
 }
 
 /** Snapshot preflight narrows the callback. The HTTP node still owns the atomic advance CAS. */
-export async function continueHttpApprovalFlow(db: SupabaseClient, workspaceId: string, payload: z.infer<typeof httpFlowApprovalPayload>) {
+export async function continueHttpApprovalFlow(db: SupabaseClient, workspaceId: string, payload: z.infer<typeof httpFlowApprovalPayload>, recordedApprovalId?: string) {
   if (!SHOW_RIVERZ_IMPROVEMENTS) return false;
   const flow = payload.http_flow;
   const selected = await db.from('flow_runs').select('*').eq('id', flow.run_id).eq('workspace_id', workspaceId).maybeSingle();
@@ -27,6 +27,7 @@ export async function continueHttpApprovalFlow(db: SupabaseClient, workspaceId: 
   const nodes = new Map((selectedNodes.data as FlowNodeRow[]).map(node => [node.node_key, node]));
   if (nodes.get(flow.node_key)?.node_type !== 'http_action') return false;
   const engine = await import('./engine');
-  await engine.__advanceFromNodeKeyForResume(db, run, flow.node_key, nodes);
+  await engine.__advanceFromNodeKeyForResume(db, run, flow.node_key, nodes,
+    recordedApprovalId ? { nodeKey: flow.node_key, approvalId: recordedApprovalId } : undefined);
   return true;
 }

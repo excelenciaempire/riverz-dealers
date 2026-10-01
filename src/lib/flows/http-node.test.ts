@@ -34,6 +34,24 @@ beforeEach(()=>{
 });
 const db={from:m.from,rpc:m.rpc} as unknown as Parameters<typeof runHttpFlowNode>[0];
 describe('native HTTP flow runner',()=>{
+ it('recovery only observes the exact recorded approval and never prepares or claims',async()=>{
+   const action=await m.load();action.definition.method='POST';action.definition.parameters.push({key:'conversation',type:'string',required:true,source:'conversation_id'});
+   m.load.mockResolvedValue(action);m.rpc.mockImplementation(async(name:string)=>({data:name==='finish_http_flow_post'?true:
+    {approval_id:receipt,status:'aprobada',receipt:{id:receipt,state:'acknowledged',result:{status:'received'},status_code:200,error_code:null},invocation_key:'a'.repeat(64)},error:null}));
+   expect(await runHttpFlowNode(db,run,node,receipt)).toMatchObject({state:'advanced',replayed:true});
+   expect(m.rpc.mock.calls.map(call=>call[0])).toEqual(['observe_http_flow_post','finish_http_flow_post']);
+   expect(m.rpc.mock.calls[0][1]).toMatchObject({p_run_id:runId,p_flow_id:flow,p_node_key:'lookup',p_visit_at:current.last_advanced_at,p_config:config,p_vars:run.vars,p_grant_revision:1});
+   expect(m.execute.mock.lastCall?.[4]).toMatchObject({claimed:false,state:'acknowledged'});
+ });
+ it('recovery cannot dispatch a GET if the action method changed',async()=>{
+   await expect(runHttpFlowNode(db,run,node,receipt)).rejects.toThrow('review_required');expect(m.rpc).not.toHaveBeenCalled();expect(m.execute).not.toHaveBeenCalled();
+ });
+ it.each(['pendiente','claimed','wrong_approval'])('recovery rejects %s without preparing or dispatching',async kind=>{
+   const action=await m.load();action.definition.method='POST';action.definition.parameters.push({key:'conversation',type:'string',required:true,source:'conversation_id'});
+   m.load.mockResolvedValue(action);m.rpc.mockResolvedValue({data:{approval_id:kind==='wrong_approval'?contact:receipt,status:kind==='pendiente'?'pendiente':'aprobada',
+    receipt:{state:kind==='claimed'?'claimed':'acknowledged'},invocation_key:'a'.repeat(64)},error:null});
+   await expect(runHttpFlowNode(db,run,node,receipt)).rejects.toThrow('review_required');expect(m.rpc.mock.calls.map(call=>call[0])).toEqual(['observe_http_flow_post']);expect(m.execute).not.toHaveBeenCalled();
+ });
  it('parks a POST proposal without dispatch, input mutation or advancement',async()=>{
    const action=await m.load();
    action.definition.method='POST';action.definition.parameters.push({key:'conversation',type:'string',required:true,source:'conversation_id'});

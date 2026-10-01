@@ -17,6 +17,9 @@ beforeEach(()=>{
  m.from.mockImplementation((table:string)=>{const q={select:()=>q,eq:()=>q,maybeSingle:async()=>({data:run,error:null}),then:(resolve:(v:unknown)=>unknown)=>Promise.resolve({data:table==='flow_nodes'?nodes:run,error:null}).then(resolve)};return q;});
 });
 describe('POST callback resumes only its protected HTTP node',()=>{
+ it('threads recorded approval identity into a single-node replay',async()=>{
+  expect(await continueHttpApprovalFlow(db,id,p,id)).toBe(true);expect(m.advance.mock.calls[0][4]).toEqual({nodeKey:'request',approvalId:id});
+ });
  it('re-enters the HTTP node rather than bypassing its finish CAS',async()=>{
   expect(await continueHttpApprovalFlow(db,id,p)).toBe(true);expect(m.advance.mock.calls[0][2]).toBe('request');expect(m.advance.mock.calls[0][2]).not.toBe('end');
  });

@@ -79,7 +79,7 @@ export async function executeApprovedHttpFlow(db: SupabaseClient, context: { wor
     // Only the node's transactional finish winner can advance the graph.
     try {
       const { continueHttpApprovalFlow } = await import('@/lib/flows/http-approval-resume');
-      execution.flow_continuation_attempted = await continueHttpApprovalFlow(db, ctx.workspaceId, p);
+      execution.flow_continuation_attempted = await continueHttpApprovalFlow(db, ctx.workspaceId, p, ctx.approvalId);
     } catch {
       return { ok: true, execution, message: translate(locale, 'approvals.httpFlowContinuationUnavailable') };
     }

@@ -742,6 +742,7 @@ async function advanceFromNodeKey(
   run: FlowRunRow,
   startNodeKey: string,
   nodes: Map<string, FlowNodeRow>,
+  recordedHttp?: { nodeKey: string; approvalId: string },
 ): Promise<{ outcome: "advanced" | "completed" | "handed_off" }> {
   // The meta-send helpers look up `contacts.user_id` /
   // `whatsapp_config.user_id` — the legacy auth.users.id columns, not
@@ -1199,7 +1200,9 @@ async function advanceFromNodeKey(
     }
     if (node.node_type === "http_action") {
       try {
-        const result = await runHttpFlowNode(db, run, node);
+        const recordedApprovalId = recordedHttp?.nodeKey === node.node_key ? recordedHttp.approvalId : undefined;
+        recordedHttp = undefined;
+        const result = await runHttpFlowNode(db, run, node, recordedApprovalId);
         if (result.state !== 'advanced') return { outcome: 'advanced' };
         run.vars = result.vars;
         run.current_node_key = result.next;

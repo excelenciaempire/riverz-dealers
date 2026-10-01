@@ -98,5 +98,10 @@
     body:'{}',signal:AbortSignal.timeout(15000),
   });
   if (!binding.ok || await binding.json().catch(() => null) !== true) throw new Error('Apply migration 343 before deploying exact HTTP flow receipt observation.');
+  const recovery = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/http_flow_recorded_recovery_ready`, {
+    method:'POST',headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
+    body:'{}',signal:AbortSignal.timeout(15000),
+  });
+  if (!recovery.ok || await recovery.json().catch(() => null) !== true) throw new Error('Apply migration 344 before deploying recorded HTTP flow recovery.');
   console.log('HTTP action execution, grants and individual immutable review verified without reading action data.');
 })().catch(error => { console.error(error.message); process.exitCode = 1; });

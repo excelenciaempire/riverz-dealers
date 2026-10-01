@@ -5,6 +5,8 @@ import { resumeFlowRun } from '@/lib/flows/resume'
 import { assertCronAuth } from '@/lib/auth/cron'
 import { nextRetryDelayMs } from '@/lib/flows/engine'
 import { withCronRun } from "@/lib/cron/heartbeat";
+import { recoverRecordedHttpFlows } from '@/lib/flows/http-recorded-recovery'
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview'
 
 /**
  * Drain due `flow_pending_executions` rows — the `wait` flow node
@@ -25,6 +27,11 @@ async function cronHandler(request: Request) {
   }
 
   const admin = supabaseAdmin()
+  // Recorded HTTP responses survive a process restart independently of wait-node rows.
+  // A recovery failure must not stop the existing wait queue.
+  let httpRecovery: Awaited<ReturnType<typeof recoverRecordedHttpFlows>> | undefined
+  try { if (SHOW_RIVERZ_IMPROVEMENTS) httpRecovery = await recoverRecordedHttpFlows(admin) }
+  catch { console.error('[flows] recorded HTTP recovery unavailable') }
   const { data: due, error } = await admin
     .from('flow_pending_executions')
     .select('*')
@@ -33,7 +40,7 @@ async function cronHandler(request: Request) {
     .order('run_at', { ascending: true })
     .limit(50)
   if (error) return serverError(error)
-  if (!due || due.length === 0) return NextResponse.json({ processed: 0 })
+  if (!due || due.length === 0) return NextResponse.json({ processed: 0, httpRecovery })
 
   let processed = 0
   for (const row of due) {
@@ -89,7 +96,7 @@ async function cronHandler(request: Request) {
     }
   }
 
-  return NextResponse.json({ processed })
+  return NextResponse.json({ processed, httpRecovery })
 }
 
 /** Registra la corrida en cron_runs con duración y resultado reales. */
