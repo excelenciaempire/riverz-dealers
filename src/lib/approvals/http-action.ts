@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { userAccess } from '@/lib/mcp/access';
 import { executeHttpAssistantAction } from '@/lib/integrations/http-action-executor';
+import { isProtectedHttpApproval, httpApprovalPanelMessage } from './protected-http';
+export { httpApprovalPanelMessage } from './protected-http';
 
 const uuid = z.string().uuid().transform(value => value.toLowerCase());
 const payloadSchema = z.object({ tool: z.string().max(64),
@@ -17,12 +19,8 @@ const payloadSchema = z.object({ tool: z.string().max(64),
 }).strict().refine(value => value.tool === `http_action_${value.http_action.action_id.replaceAll('-', '')}_v${value.http_action.action_revision}`
   && value.contact_id === value.http_action_context.contact_id && value.conversation_id === value.http_action_context.conversation_id);
 export function isHttpActionApproval(payload: unknown): boolean {
-  return !!payload && typeof payload === 'object' && !Array.isArray(payload)
-    && typeof (payload as Record<string, unknown>).tool === 'string' && String((payload as Record<string, unknown>).tool).startsWith('http_action_');
+  return isProtectedHttpApproval(payload);
 }
-export const httpApprovalPanelMessage = (locale: 'es' | 'en') => locale === 'en'
-  ? 'Review this system action in the dashboard with an authorized administrator account.'
-  : 'Revisa esta acción del sistema en el panel con una cuenta de administrador autorizada.';
 
 /** New HTTP decisions require an authenticated panel principal before consuming the pending request.
  * Phone suffixes from legacy WhatsApp approvals cannot establish that human identity.

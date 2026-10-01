@@ -140,6 +140,7 @@ export async function runHttpAssistantTool(db: SupabaseClient, runtime: HttpAssi
       await assertWorkspaceWritable(db, ctx.workspaceId);
       const merchantLocale = await localeDeCuenta(db, ctx.workspaceId);
       const requested = await askForApproval({ db, workspaceId: ctx.workspaceId, kind: 'herramienta',
+        locale: merchantLocale,
         title: text(merchantLocale, 'Revisar acción: ', 'Review action: ') + current.action.definition.name,
         body: text(merchantLocale, 'El superasistente propone una acción en tu sistema. Revisa en el panel los parámetros exactos antes de aprobar. ',
           'The assistant proposes an action in your system. Review the exact parameters in the dashboard before approving. ') + current.action.definition.description

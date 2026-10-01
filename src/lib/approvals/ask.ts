@@ -1,7 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { isDeepStrictEqual } from 'node:util'
 import { platformWhatsApp } from '@/lib/admin/platform-whatsapp'
 import { sendTemplateMessage, sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
+import { httpApprovalPanelMessage, isProtectedHttpApproval } from './protected-http'
 
 /**
  * El humano en el medio.
@@ -46,6 +48,7 @@ export interface AskInput {
    * mismo caso, se conserva la solicitud pendiente y se actualiza su detalle.
    */
   dedupeKey?: string
+  locale?: 'es' | 'en'
 }
 
 export interface AskResult {
@@ -88,8 +91,31 @@ function unaLinea(texto: string): string {
  */
 export async function askForApproval(input: AskInput): Promise<AskResult> {
   const { db, workspaceId } = input
+  const protectedHttp = isProtectedHttpApproval(input.payload)
+  if (protectedHttp && (input.kind !== 'herramienta' || !input.dedupeKey || input.dedupeKey.length > 100)) {
+    return { ok: false, notified: false, error: 'invalid_http_approval_proposal' }
+  }
+  const existingHttp = async (): Promise<AskResult | null> => {
+    const existing = await db.from('approval_requests').select('id,title,body,payload,status,expires_at,notified_message_id')
+      .eq('workspace_id', workspaceId).eq('kind', input.kind).contains('payload', { dedupe_key: input.dedupeKey })
+      .limit(1).maybeSingle()
+    if (existing.error) return { ok: false, notified: false, error: 'http_approval_unavailable' }
+    if (!existing.data) return null
+    const approval = existing.data
+    const unavailable = (error: string): AskResult => ({ ok: false, approvalId: approval.id, notified: false, error })
+    if (approval.title !== input.title || approval.body !== input.body
+      || !isDeepStrictEqual(approval.payload, { ...(input.payload ?? {}), dedupe_key: input.dedupeKey })) return unavailable('http_approval_snapshot_changed')
+    if (approval.status !== APROBACION_PENDIENTE) return unavailable('http_approval_already_decided')
+    const expires = Date.parse(approval.expires_at)
+    if (!Number.isFinite(expires) || expires <= Date.now()) return unavailable('http_approval_review_required')
+    return { ok: true, approvalId: approval.id, notified: Boolean(approval.notified_message_id) }
+  }
+  if (protectedHttp) {
+    const existing = await existingHttp()
+    if (existing) return existing
+  }
 
-  if (input.dedupeKey) {
+  if (input.dedupeKey && !protectedHttp) {
     const { data: existing, error } = await db
       .from('approval_requests')
       .select('id, notified_message_id')
@@ -139,7 +165,12 @@ export async function askForApproval(input: AskInput): Promise<AskResult> {
     })
     .select('id')
     .single()
-  if (error) return { ok: false, notified: false, error: error.message }
+  if (error) {
+    if (protectedHttp && error.code === '23505') {
+      return await existingHttp() ?? { ok: false, notified: false, error: 'http_approval_unavailable' }
+    }
+    return { ok: false, notified: false, error: protectedHttp ? 'http_approval_unavailable' : error.message }
+  }
   const approvalId = (data as { id: string }).id
 
   if (!destino) {
@@ -151,7 +182,7 @@ export async function askForApproval(input: AskInput): Promise<AskResult> {
     }
   }
 
-  const enviado = await avisar(destino, input.title, input.body, approvalId)
+  const enviado = await avisar(destino, input.title, input.body, approvalId, protectedHttp ? input.locale ?? 'es' : undefined)
   if (enviado.messageId) {
     await db
       .from('approval_requests')
@@ -233,6 +264,7 @@ async function avisar(
   title: string,
   body: string,
   approvalId: string,
+  panelLocale?: 'es' | 'en',
 ): Promise<{ messageId?: string; error?: string }> {
   const plataforma = await platformWhatsApp()
   if (!plataforma) {
@@ -242,9 +274,11 @@ async function avisar(
   // El código corto es lo que la persona puede responder desde el teclado sin
   // depender de que le lleguen los botones.
   const codigo = approvalId.slice(0, 6)
+  const instruction = panelLocale ? httpApprovalPanelMessage(panelLocale)
+    : `Responde SI ${codigo} para aprobarlo o NO ${codigo} para rechazarlo.`
   const texto =
     `${title}\n\n${body}\n\n` +
-    `Responde SI ${codigo} para aprobarlo o NO ${codigo} para rechazarlo.`
+    instruction
 
   try {
     if (plataforma.templateName) {
@@ -256,7 +290,7 @@ async function avisar(
         language: plataforma.templateLanguage,
         params: [
           unaLinea(title),
-          unaLinea(`${body} — responde SI ${codigo} o NO ${codigo}`),
+          unaLinea(`${body} — ${panelLocale ? instruction : `responde SI ${codigo} o NO ${codigo}`}`),
         ],
       })
       return { messageId: res.messageId ?? undefined }

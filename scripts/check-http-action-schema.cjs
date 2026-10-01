@@ -76,5 +76,12 @@
     const rows = await result.json().catch(() => null);
     if (!result.ok || !Array.isArray(rows) || rows.length !== 0) throw new Error('HTTP action configuration columns unavailable.');
   }
-  console.log('HTTP action human/assistant execution, configuration and grant RPCs verified without reading action data.');
+  const review = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/http_approval_review_ready`, {
+    method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({}), signal: AbortSignal.timeout(15000),
+  });
+  if (!review.ok || await review.json().catch(() => null) !== true) {
+    throw new Error(`Apply migrations 339 and 340 before deploying protected HTTP review (HTTP ${review.status}).`);
+  }
+  console.log('HTTP action execution, grants and immutable approval review verified without reading action data.');
 })().catch(error => { console.error(error.message); process.exitCode = 1; });

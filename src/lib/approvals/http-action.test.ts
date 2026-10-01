@@ -5,7 +5,7 @@ vi.mock('@/lib/ui/improvements-preview', () => ({ get SHOW_RIVERZ_IMPROVEMENTS()
 vi.mock('@/lib/mcp/access', () => ({ userAccess: h.access }));
 vi.mock('@/lib/integrations/http-action-executor', () => ({ executeHttpAssistantAction: h.execute }));
 vi.mock('@/lib/i18n/cuenta', () => ({ localeDeCuenta: async () => 'es' }));
-import { canDecideHttpAction, executeApprovedHttpAction } from './http-action';
+import { canDecideHttpAction, executeApprovedHttpAction, isHttpActionApproval } from './http-action';
 import { decidir, resolveByCode } from './resolve';
 const WS = '11111111-1111-4111-8111-111111111111', ACTOR = '22222222-2222-4222-8222-222222222222';
 const ACTION = '33333333-3333-4333-8333-333333333333', AGENT = '44444444-4444-4444-8444-444444444444';
@@ -21,6 +21,13 @@ beforeEach(() => {
     result: { selected_customer_data: 'PRIVATE_SELECTED' }, cached: false });
 });
 describe('protected HTTP approval consumer', () => {
+  it('reserves future Flow proposals and fails closed until their own decision consumer is connected', async () => {
+    const proposed = { ...payload(), tool: 'http_flow_action_malformed' };
+    expect(isHttpActionApproval(proposed)).toBe(true);
+    expect(await canDecideHttpAction({} as SupabaseClient, WS, ACTOR, proposed, 'panel')).toBe(false);
+    expect((await executeApprovedHttpAction({} as SupabaseClient, ctx(), proposed, 'en')).ok).toBe(false);
+    expect(h.execute).not.toHaveBeenCalled();
+  });
   it('requires comparison, exact frozen metadata, current administration and panel identity before consuming an approval', async () => {
     const db = {} as SupabaseClient;
     expect(await canDecideHttpAction(db, WS, ACTOR, payload(), 'panel')).toBe(true);
