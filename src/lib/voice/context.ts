@@ -11,6 +11,7 @@ import { secureSystemPrompt, untrustedContext } from '@/lib/ai/input-security';
  */
 import { BUSCAR_EN_INTERNET_TOOL } from '@/lib/ai/busqueda-web';
 import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
+import { loadDocumentContext } from '@/lib/ai/document-sources';
 import { resolverRegistro } from '@/lib/ai/registro-rioplatense';
 import {
   buildSystemPrompt,
@@ -776,9 +777,11 @@ export async function buildVoiceContext(
   const PROMPT_CHAR_BUDGET = Number(
     process.env.VOICE_SYSTEM_PROMPT_MAX_CHARS || 6000
   );
+  const documentContext = await loadDocumentContext(db, call.workspace_id, agent.id, Math.min(1000, Math.max(0, PROMPT_CHAR_BUDGET / 6)));
+  const baseBudget = Math.max(0, PROMPT_CHAR_BUDGET - documentContext.length);
   const baseTrimmed =
-    base.length > PROMPT_CHAR_BUDGET
-      ? base.slice(0, PROMPT_CHAR_BUDGET) +
+    base.length > baseBudget
+      ? base.slice(0, baseBudget) +
         (langOf(agent, call) === 'en'
           ? '\n\n[Product details truncated, ask the customer for specifics if needed.]'
           : '\n\n[Ficha de producto recortada, si hace falta un detalle puntual, pregúntalo al cliente.]')
@@ -984,7 +987,7 @@ export async function buildVoiceContext(
       0,
       Math.min(Number(opts.silenceTimeoutSeconds ?? 8), 60)
     ),
-    system_prompt: secureSystemPrompt(`${baseTrimmed}\n\n${voiceBlock}`),
+    system_prompt: secureSystemPrompt(`${baseTrimmed}${documentContext}\n\n${voiceBlock}`),
     mode: model.mode,
     voice: {
       billing_url: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://riverzai.com'}/api/internal/voice/speech/${call.id}`,

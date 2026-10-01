@@ -16,6 +16,7 @@ import { MODELO_POR_DEFECTO, esfuerzo, reguladoPorEsfuerzo } from './esfuerzo';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { cargarReglas, reglasATexto } from './guidance';
+import { withDocumentKnowledge } from './document-sources';
 import { resolveAnthropicKey } from './platform-key';
 import { largoDeChat } from './salida';
 import {
@@ -351,7 +352,7 @@ async function runFollowUpInner(db: SupabaseClient, args: Parameters<typeof runF
         ? 4400
         : 400,
       system: buildSystem(
-        agent,
+        await withDocumentKnowledge(db, agent),
         silenceHours,
         args.campaignHint,
         reglasATexto(await cargarReglas(db, agent.workspace_id, agent.id)),

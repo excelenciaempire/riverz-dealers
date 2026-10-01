@@ -48,6 +48,7 @@ import { localizePath } from '@/lib/i18n/routes';
 import { ToolSwitchboard, type Disponibilidad } from './tool-switchboard';
 import { ToolContextPolicies } from './tool-context-policies';
 import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
+import { DocumentSources } from './document-sources';
 import {
   REGLAS_POR_DEFECTO,
   type ReglasDeCobro,
@@ -1458,6 +1459,7 @@ export function AgentEditor({
                     placeholder={t('assistant.businessInfoPlaceholder')}
                     className="bg-background resize-y font-mono text-xs leading-relaxed"
                   />
+                  {SHOW_RIVERZ_IMPROVEMENTS && currentAgentId && <DocumentSources key={currentAgentId} agentId={currentAgentId} />}
                 </SectionCard>
 
                 {/* Las reglas del negocio. Vivían en una tarjeta suelta debajo

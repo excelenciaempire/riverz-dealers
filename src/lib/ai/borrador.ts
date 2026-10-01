@@ -21,6 +21,7 @@ import { getAnthropic } from './anthropic-client';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import { ESTILO_HUMANO, humanizarTexto } from './estilo-humano';
 import { cargarReglas, reglasATexto } from './guidance';
+import { withDocumentKnowledge } from './document-sources';
 import { claveRechazada, esCuentaByok, resolveAnthropicKey } from './platform-key';
 import { resolverRegistro } from './registro-rioplatense';
 import { largoDeChat } from './salida';
@@ -215,7 +216,7 @@ export async function componerBorrador(
     }
 
     let system = buildSystemPrompt(
-      agent,
+      await withDocumentKnowledge(db, agent),
       contact,
       primaryContact,
       shopifySnapshot,

@@ -111,6 +111,7 @@ import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { cargarReglas, reglasATexto, type Regla } from './guidance';
+import { withDocumentKnowledge } from './document-sources';
 import { withTurnEvidence,observeContext,observeOutcome,observeMessages,saveTurnEvidence } from './turn-evidence';
 import { completeTextMedido } from './medido';
 import { reglasDeSalidaPara, verificarRespuesta } from './verificacion';
@@ -3472,7 +3473,7 @@ async function generateReply(
       null,
   });
   const partes = armarSystemPrompt(
-    agent,
+    await withDocumentKnowledge(db, agent),
     contact,
     primaryContact,
     shopifySnapshot,

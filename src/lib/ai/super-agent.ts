@@ -11,6 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import { cargarReglas, reglasATexto } from './guidance';
+import { withDocumentKnowledge } from './document-sources';
 import { resolveAnthropicKey } from './platform-key';
 import { resolverRegistro } from './registro-rioplatense';
 import {
@@ -199,7 +200,7 @@ async function composeSuperAgentReplyInner(
     }
 
     let system = buildSystemPrompt(
-      agent,
+      await withDocumentKnowledge(db, agent),
       contact,
       primaryContact,
       shopifySnapshot,

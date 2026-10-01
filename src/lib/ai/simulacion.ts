@@ -9,6 +9,7 @@ import { IG_DM_MAX_CHARS, SURFACE_RULES } from '@/lib/ai/super-agent';
 import { orderConversationModel } from './order-conversation-policy';
 import { recoveryHasExistingOrder } from './recovery-policy';
 import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
+import { withDocumentKnowledge } from './document-sources';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import {
   armarSystemPrompt,
@@ -216,6 +217,7 @@ export async function simularRespuesta(
   // respuesta a un comentario y lo que producción averiguó antes. Sin los
   // bloques de pedido: esa superficie no los lleva.
   const comentario = input.superficie === 'comentario';
+  const knowledgeAgent = await withDocumentKnowledge(admin, a);
 
   // La misma lista que produccion, resuelta por la pizarra del comercio.
   // `hayContacto` va en true a propósito: lo que hay que previsualizar es lo
@@ -235,7 +237,7 @@ export async function simularRespuesta(
   if (comentario) {
     system =
       buildSystemPrompt(
-        a,
+        knowledgeAgent,
         contacto,
         contacto,
         null,
@@ -257,7 +259,7 @@ export async function simularRespuesta(
     // Las mismas capas que producción (`systemDelTurno`), con la misma caché.
     const partes = systemDelTurno(
       armarSystemPrompt(
-        a,
+        knowledgeAgent,
         contacto,
         contacto,
         null,
