@@ -14,7 +14,7 @@ export interface PublicJsonRequest {
   method: 'GET' | 'POST';
   /** Serialized JSON, only for POST. Never accept arbitrary caller headers. */
   body?: string;
-  credential?: { kind: 'bearer' | 'api-key'; value: string };
+  credential?: { kind: 'bearer' | 'api-key'; value: string; header?: 'x-api-key' | 'x-make-apikey' };
   idempotencyKey?: string;
 }
 
@@ -31,7 +31,9 @@ export async function requestPublicJson(input: PublicJsonRequest): Promise<{ sta
   }
   const credential = input.credential;
   if (credential && (!['bearer', 'api-key'].includes(credential.kind) || typeof credential.value !== 'string'
-    || !credential.value.length || credential.value.length > 4096 || !/^[\x20-\x7e]+$/.test(credential.value))) {
+    || !credential.value.length || credential.value.length > 4096 || !/^[\x20-\x7e]+$/.test(credential.value)
+    || (credential.header !== undefined && (credential.kind !== 'api-key' || !['x-api-key', 'x-make-apikey'].includes(credential.header)))
+    || (credential.header === 'x-make-apikey' && credential.value.length > 512))) {
     throw new PublicJsonError('http_input_invalid');
   }
   if (input.idempotencyKey !== undefined && !/^[A-Za-z0-9_-]{16,128}$/.test(input.idempotencyKey)) throw new PublicJsonError('http_input_invalid');
@@ -41,7 +43,7 @@ export async function requestPublicJson(input: PublicJsonRequest): Promise<{ sta
   if (input.method === 'POST') {
     headers['content-type'] = 'application/json'; headers['content-length'] = String(Buffer.byteLength(input.body ?? '', 'utf8'));
   }
-  if (credential) headers[credential.kind === 'bearer' ? 'authorization' : 'x-api-key'] =
+  if (credential) headers[credential.kind === 'bearer' ? 'authorization' : (credential.header ?? 'x-api-key')] =
     credential.kind === 'bearer' ? `Bearer ${credential.value}` : credential.value;
   if (input.idempotencyKey) headers['idempotency-key'] = input.idempotencyKey;
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 8_000);

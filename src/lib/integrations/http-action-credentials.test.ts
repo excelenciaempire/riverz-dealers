@@ -8,6 +8,21 @@ const definition = httpActionDefinition.parse({ name: 'Example', description: 'E
 beforeAll(async () => { vi.stubEnv('ENCRYPTION_KEY', 'ab'.repeat(32)); vi.resetModules(); credentials = await import('./http-action-credentials'); });
 afterAll(() => vi.unstubAllEnvs());
 describe('external action credential binding', () => {
+  it('binds the fixed Make header inside authenticated ciphertext and rejects header substitution', () => {
+    const make = { ...definition, credential_kind: 'api-key' as const, api_key_header: 'x-make-apikey' as const };
+    const sealed = credentials.sealHttpCredential(WS, ID, make, 'fixture-make-key');
+    expect(credentials.openHttpCredential(WS, ID, make, sealed)).toEqual({ kind: 'api-key', value: 'fixture-make-key', header: 'x-make-apikey' });
+    expect(() => credentials.openHttpCredential(WS, ID, { ...make, api_key_header: 'x-api-key' }, sealed)).toThrow('http_action_credential_unavailable');
+    expect(() => credentials.openHttpCredential(WS, ID, { ...definition, credential_kind: 'api-key' }, sealed)).toThrow('http_action_credential_unavailable');
+    expect(() => credentials.sealHttpCredential(WS, ID, make, 'x'.repeat(513))).toThrow();
+  });
+  it('preserves existing API-key ciphertext without a header field', () => {
+    const old = { ...definition, credential_kind: 'api-key' as const };
+    const sealed = credentials.sealHttpCredential(WS, ID, old, 'fixture-secret');
+    expect(credentials.openHttpCredential(WS, ID, old, sealed)).toEqual({ kind: 'api-key', value: 'fixture-secret' });
+    expect(credentials.openHttpCredential(WS, ID, { ...old, api_key_header: 'x-api-key' }, sealed).value).toBe('fixture-secret');
+    expect(() => credentials.openHttpCredential(WS, ID, { ...old, api_key_header: 'x-make-apikey' }, sealed)).toThrow();
+  });
   it('uses random authenticated ciphertext, with no plaintext secret in the stored value', () => {
     const one = credentials.sealHttpCredential(WS, ID, definition, 'fixture-secret'), two = credentials.sealHttpCredential(WS, ID, definition, 'fixture-secret');
     expect(one).not.toBe(two); expect(one).not.toContain('fixture-secret'); expect(one.split(':')).toHaveLength(3);

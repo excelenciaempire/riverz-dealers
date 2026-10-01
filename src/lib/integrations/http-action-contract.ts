@@ -20,14 +20,18 @@ const destination = z.string().min(1).max(2048).refine(value => {
 export const httpActionDefinition = z.object({
   name: z.string().trim().min(1).max(80), description: z.string().trim().min(1).max(500),
   method: z.enum(['GET', 'POST']), url: destination, credential_kind: z.enum(['none', 'bearer', 'api-key']),
+  api_key_header: z.enum(['x-api-key', 'x-make-apikey']).optional(),
   parameters: z.array(parameter).max(12).refine(unique), outputs: z.array(output).max(12).refine(unique),
-}).strict().refine(value => value.method !== 'GET' || value.parameters.every(field => {
-  const url = new URL(value.url); return !url.searchParams.has(field.key);
-}));
+}).strict().refine(value => value.api_key_header === undefined || value.credential_kind === 'api-key').refine(value => {
+  if (value.method !== 'GET') return true;
+  const url = isPublicHttpsUrl(value.url);
+  return !!url && value.parameters.every(field => !url.searchParams.has(field.key));
+});
 export type HttpActionDefinition = z.infer<typeof httpActionDefinition>;
 export const httpActionSecret = z.string().min(8).max(4096).regex(/^[\x20-\x7e]+$/);
 export const httpActionWrite = z.object({ definition: httpActionDefinition, secret: httpActionSecret.optional(),
-  expected_version: z.number().int().nonnegative() }).strict();
+  expected_version: z.number().int().nonnegative() }).strict()
+  .refine(value => value.definition.api_key_header !== 'x-make-apikey' || value.secret === undefined || value.secret.length <= 512);
 
 /** Bounded validated definitions and projected scalars only; includes escaped URL echoes. */
 export function httpActionContainsSecret(value: unknown, secret: string): boolean {

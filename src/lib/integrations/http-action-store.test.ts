@@ -26,6 +26,15 @@ beforeEach(() => {
   h.seal.mockReturnValue('new-sealed'); h.open.mockReturnValue({ kind: 'bearer', value: 'existing-fixture-secret' });
 });
 describe('HTTP action configuration store', () => {
+  it('requires a newly bound credential when switching the API-key header', async () => {
+    const make = { ...definition, credential_kind: 'api-key', api_key_header: 'x-make-apikey' };
+    h.open.mockImplementation(() => { throw new Error('changed_credential_binding'); });
+    await expect(manageHttpAction(db(), WS, 'owner', 'save', ID, input({ definition: make }))).rejects.toThrow('http_action_credential_required');
+    expect(h.open).toHaveBeenCalledWith(WS, ID, make, 'sealed'); expect(rpc).not.toHaveBeenCalled();
+    await manageHttpAction(db(), WS, 'owner', 'save', ID, input({ definition: make, secret: 'fixture-make-key' }));
+    expect(h.seal).toHaveBeenCalledWith(WS, ID, make, 'fixture-make-key');
+    expect(JSON.stringify(rpc.mock.calls)).not.toContain('fixture-make-key');
+  });
   it('creates a server ID, encrypts the secret and sends only ciphertext to the transactional RPC', async () => {
     const result = await manageHttpAction(db(), WS, 'owner', 'create', undefined, input({ expected_version: 0, secret: 'fixture-secret' }));
     expect(result).not.toHaveProperty('credential_ciphertext'); expect(JSON.stringify(rpc.mock.calls)).not.toContain('fixture-secret');

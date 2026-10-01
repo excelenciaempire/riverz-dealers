@@ -6,6 +6,9 @@ const definition = () => httpActionDefinition.parse({ name: 'Lookup delivery', d
   outputs: [{ key: 'status', path: ['delivery', 'status'], type: 'string', required: true }, { key: 'found', path: ['found'], type: 'boolean', required: false }],
 });
 describe('configured external HTTP action contracts', () => {
+  it.each(['', 'not-a-url', 'https://%', 'http://fixture.test'])('returns a validation issue rather than throwing for an invalid GET destination: %s', url => {
+    expect(httpActionDefinition.safeParse({ ...definition(), url }).success).toBe(false);
+  });
   it('encodes values without changing the configured origin, path or fixed query', () => {
     const result = actionRequest(definition(), { order_id: 'A?url=https://127.0.0.1&token=x', count: 2, details: false });
     const url = new URL(result.url); expect(url.origin).toBe('https://integration.test'); expect(url.pathname).toBe('/query');

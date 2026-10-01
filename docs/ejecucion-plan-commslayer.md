@@ -820,3 +820,17 @@ Validación: **siete archivos y 184 pruebas correctas**, incluidos 34 casos del 
 
 
 **Validación final correcta:** 184 pruebas, TypeScript, lint final y builds completos normal/comparación. Once archivos propios, sin dependencia nueva. No se abrió UI ni se habilitó comparación. No se crearon permisos/aprobaciones reales ni se llamó a clientes o proveedores como QA. Publicación de este incremento todavía no comprobada.
+
+
+Procedencia de identidad publicada en Render: revisión `cac6dfeefdabcc98b0f68e0cf22f58e8610e563e` LIVE a las **14:47:25 UTC** del 1 de octubre. Salud a las **14:49:31 UTC** con esa revisión, servicio, Supabase y WhatsApp `ok`; comparación comprobada sin configurar.
+
+## E2 — Plantillas opcionales para sistemas externos
+
+Cuatro borradores de configuración de Riverz: consultar una referencia con n8n, registrar una solicitud con n8n o Make, y consultar un sistema propio. Selector opcional dentro del formulario nuevo existente, predeterminado manual. Seleccionar no modifica campos; aplicar explícitamente reemplaza el borrador y borra la clave escrita, con aviso previo. No aplica sobre acciones ya guardadas, no guarda, activa, concede permiso ni ejecuta. URL y secreto deben configurarse por negocio. Esquema ligado a contacto y, para POST, conversación; modelo solo recibe referencia o solicitud libre. Respuesta exige estado JSON seleccionado, sin eco de datos privados ni afirmación de cumplimiento.
+
+Autenticación API-key conserva X-API-Key por defecto y añade únicamente x-make-apikey. No admite cabeceras arbitrarias. Nombre de cabecera ligado dentro del ciphertext autenticado; cambiarlo exige una clave nuevamente ligada. Credenciales anteriores sin ese campo conservan compatibilidad. La clave de Make se limita a 512 caracteres ASCII en contrato, cifrado y transporte. Mantiene DNS público fijado, TLS, límites, idempotencia y ausencia de reintentos. La prueba del borrador vacío encontró una excepción previa en GET con URL inválida; corregida para devolver validación sin lanzar.
+
+Se consultó documentación oficial vigente de [n8n Webhook](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/), [Respond to Webhook](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.respondtowebhook/) y [Make Webhooks](https://apps.make.com/gateway). Son plantillas de configuración local de Riverz, no workflows importados/creados ni conexiones verificadas con cuentas reales de esos proveedores. La guía explica pertenencia e idempotencia que debe aplicar el destino. Comparación/UI visual continúan sin abrir ni habilitar. Validación final y compilaciones en curso; esta entrega no completa el nodo HTTP de Flujos ni todo E2.
+
+
+**Validación final correcta:** 16 archivos y 387 pruebas de regresión, TypeScript, lint final y builds completos normal/comparación. Diecisiete archivos propios, sin migración ni dependencia nueva. Se probaron configuración SQL en borrador e historial, vínculo cifrado de cabecera, compatibilidad de claves anteriores, rechazo de cabeceras no permitidas antes de DNS, límites de clave, transporte, aprobación, identidad y ocultamiento/idiomas/HTML inicial. No se probaron interacción real del formulario, conexión a n8n/Make, importación de sus workflows ni proveedor real. No se abrió UI ni se habilitó comparación. Publicación de este incremento todavía no comprobada.

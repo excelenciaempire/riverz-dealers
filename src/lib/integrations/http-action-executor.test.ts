@@ -38,6 +38,15 @@ beforeEach(() => {
     channel_connections: { data: { id: CONN }, error: null } };
 });
 describe('HTTP executor receipt boundary', () => {
+  it('passes the decrypted fixed Make header to the same bounded transport after claiming', async () => {
+    const action = await h.load();
+    h.load.mockResolvedValue({ ...action, definition: { ...action.definition, credential_kind: 'api-key', api_key_header: 'x-make-apikey' } });
+    h.credential.mockReturnValue({ kind: 'api-key', header: 'x-make-apikey', value: 'fixture-make-key' });
+    expect(await executeHttpAction(db(), ctx(), { order_id: 'fixture' })).toMatchObject({ state: 'acknowledged' });
+    expect(h.transport.mock.calls[0][0].credential).toEqual({ kind: 'api-key', header: 'x-make-apikey', value: 'fixture-make-key' });
+    expect(rpc.mock.invocationCallOrder[0]).toBeLessThan(h.transport.mock.invocationCallOrder[0]);
+    expect(JSON.stringify(rpc.mock.calls)).not.toContain('fixture-make-key');
+  });
   it('does no work when comparison is disabled', async () => {
     h.visible = false; await expect(executeHttpAction(db(), ctx(), {})).rejects.toThrow('http_execution_not_found');
     expect(h.access).not.toHaveBeenCalled(); expect(rpc).not.toHaveBeenCalled(); expect(h.transport).not.toHaveBeenCalled();

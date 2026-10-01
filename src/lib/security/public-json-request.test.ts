@@ -57,6 +57,21 @@ describe('bounded public JSON transport', () => {
     expect(h.calls[0].options.headers).toMatchObject({ 'x-api-key': 'fixture-api-key' });
     expect(h.calls[0].body).toBeUndefined();
   });
+  it('sends a Make key through its fixed header with no additional authentication header', async () => {
+    await requestPublicJson(input({ credential: { kind: 'api-key', header: 'x-make-apikey', value: 'fixture-make-key' } }));
+    expect(h.calls[0].options.headers).toMatchObject({ 'x-make-apikey': 'fixture-make-key' });
+    expect(h.calls[0].options.headers).not.toHaveProperty('x-api-key'); expect(h.calls[0].options.headers).not.toHaveProperty('authorization');
+    expect(h.calls).toHaveLength(1);
+  });
+  it.each(['authorization', 'host', 'cookie', 'x-forwarded-for', 'x-custom', 'X-API-Key'])('rejects arbitrary credential header %s before DNS', async header => {
+    await expect(requestPublicJson(input({ credential: { kind: 'api-key', header, value: 'fixture-key' } } as Partial<PublicJsonRequest>)))
+      .rejects.toMatchObject({ code: 'http_input_invalid', dispatched: false });
+    expect(h.dns).not.toHaveBeenCalled(); expect(h.calls).toHaveLength(0);
+  });
+  it.each([{ kind: 'bearer', header: 'x-make-apikey', value: 'fixture-key' }, { kind: 'api-key', header: 'x-make-apikey', value: 'x'.repeat(513) }])('rejects invalid Make credentials before DNS', async credential => {
+    await expect(requestPublicJson(input({ credential } as Partial<PublicJsonRequest>))).rejects.toMatchObject({ code: 'http_input_invalid', dispatched: false });
+    expect(h.dns).not.toHaveBeenCalled(); expect(h.calls).toHaveLength(0);
+  });
   it.each(['http://integration.test', 'https://user:pass@integration.test', 'https://127.0.0.1', 'https://localhost',
     'https://169.254.169.254', 'https://[::1]', 'https://[::ffff:7f00:1]'])('rejects forbidden literal %s before connecting', async url => {
     await expect(requestPublicJson(input({ url }))).rejects.toMatchObject({ code: 'http_destination_forbidden', dispatched: false });

@@ -29,6 +29,13 @@ async function manage(operation = 'list', options: { ws?: string; actor?: string
   return result.rows[0].result;
 }
 describe('HTTP configuration SQL authority and version audit', () => {
+  it('stores the finite Make header configuration as a draft without exposing ciphertext or activating it', async () => {
+    const make = { ...definition, method: 'POST', credential_kind: 'api-key', api_key_header: 'x-make-apikey' };
+    const row = await manage('create', { def: make });
+    expect(row).toMatchObject({ definition: make, state: 'draft', has_secret: true });
+    expect(JSON.stringify(row)).not.toContain(sealed);
+    expect((await manage('history'))).toMatchObject({ history: [{ definition: make, state: 'draft', revision: 1 }] });
+  });
   it('creates a draft and confirms its version transactionally without returning the ciphertext', async () => {
     const row = await manage('create'); expect(row).toMatchObject({ id: ID, state: 'draft', revision: 1, has_secret: true });
     expect(JSON.stringify(row)).not.toContain(sealed); expect(row).not.toHaveProperty('workspace_id'); expect(row).not.toHaveProperty('actor_id');

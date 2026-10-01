@@ -9,6 +9,7 @@ import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { httpActionWrite, type HttpActionDefinition } from '@/lib/integrations/http-action-contract';
 import type { HttpActionMetadata } from '@/lib/integrations/http-action-store';
 import { HttpActionGrants } from './http-action-grants';
+import { HttpActionStarterPicker } from './http-action-starter-picker';
 
 const inputClass = 'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground';
 const buttonClass = 'rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50';
@@ -129,13 +130,20 @@ function ActionForm({ row, workspaceId, fetchWithCsrf, cancel, saved }: { row: H
   return <form onSubmit={submit} className="space-y-4 rounded-xl border border-border bg-background p-4">
     <p className="text-sm font-medium">{row ? t('settings.httpEdit') : t('settings.httpNew')}</p>
     <p className="text-xs text-muted-foreground">{t('settings.httpDraftHelp')}</p>
+    {!row && <fieldset disabled={busy}><HttpActionStarterPicker apply={draft => { setDefinition(draft); setSecret(''); setFailure(null); }} /></fieldset>}
     <fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2">
       {field(t('settings.httpName'), <input className={inputClass} required maxLength={80} value={definition.name} onChange={event => change('name', event.target.value)} />)}
       {field(t('settings.httpPurpose'), <input className={inputClass} required maxLength={500} value={definition.description} onChange={event => change('description', event.target.value)} />)}
       {field(t('settings.httpEndpoint'), <input type="url" className={inputClass} required maxLength={2048} placeholder="https://" value={definition.url} onChange={event => change('url', event.target.value)} />)}
       {field(t('settings.httpMode'), <select className={inputClass} value={definition.method} onChange={event => change('method', event.target.value as 'GET' | 'POST')}><option value="GET">{t('settings.httpReads')}</option><option value="POST">{t('settings.httpWrites')}</option></select>)}
-      {field(t('settings.httpAuth'), <select className={inputClass} value={definition.credential_kind} onChange={event => { change('credential_kind', event.target.value as HttpActionDefinition['credential_kind']); setSecret(''); }}><option value="none">{t('settings.httpSecretNone')}</option><option value="bearer">Bearer</option><option value="api-key">X-API-Key</option></select>)}
-      {definition.credential_kind !== 'none' && field(t('settings.httpSecret'), <input type="password" autoComplete="new-password" className={inputClass} minLength={8} maxLength={4096} value={secret} placeholder={row?.has_secret ? t('settings.httpSecretKeep') : ''} onChange={event => setSecret(event.target.value)} />)}
+      {field(t('settings.httpAuth'), <select className={inputClass} value={definition.credential_kind} onChange={event => {
+        const current = { ...definition, credential_kind: event.target.value as HttpActionDefinition['credential_kind'] };
+        delete current.api_key_header; setDefinition(current); setSecret('');
+      }}><option value="none">{t('settings.httpSecretNone')}</option><option value="bearer">Bearer</option><option value="api-key">{t('settings.httpApiKey')}</option></select>)}
+      {definition.credential_kind === 'api-key' && field(t('settings.httpApiKeyHeader'), <select className={inputClass} value={definition.api_key_header ?? 'x-api-key'} onChange={event => {
+        change('api_key_header', event.target.value as 'x-api-key' | 'x-make-apikey'); setSecret('');
+      }}><option value="x-api-key">X-API-Key</option><option value="x-make-apikey">x-make-apikey (Make)</option></select>)}
+      {definition.credential_kind !== 'none' && field(t('settings.httpSecret'), <input type="password" autoComplete="new-password" className={inputClass} minLength={8} maxLength={definition.api_key_header === 'x-make-apikey' ? 512 : 4096} value={secret} placeholder={row?.has_secret ? t('settings.httpSecretKeep') : ''} onChange={event => setSecret(event.target.value)} />)}
     </fieldset>
     {definition.method === 'POST' && <p className="text-xs text-amber-700 dark:text-amber-300">{t('settings.httpConfirmHelp')}</p>}
     <fieldset disabled={busy} className="space-y-3">
