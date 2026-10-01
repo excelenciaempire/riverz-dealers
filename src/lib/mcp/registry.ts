@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { SCHEDULED_JOBS, isStale } from '@/lib/cron/schedule'
 import { desdeCapacidad, type McpTool } from './tool'
 import { MERCHANT_TOOLS } from './merchant-tools'
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview'
 
 export type { McpTool, McpCaller, Risk } from './tool'
 
@@ -121,6 +122,11 @@ export const MCP_TOOLS: McpTool[] = [
 
   desdeCapacidad('aprobacion_decidir', 'aprobaciones.decidir'),
   desdeCapacidad('mensaje_enviar', 'mensajes.enviar'),
+  ...(SHOW_RIVERZ_IMPROVEMENTS ? [
+    desdeCapacidad('http_acciones_listar', 'integraciones.http_catalogo'),
+    desdeCapacidad('http_accion_consultar', 'integraciones.http_consultar'),
+    desdeCapacidad('http_accion_ejecutar', 'integraciones.http_ejecutar'),
+  ] : []),
 ]
 
 /**

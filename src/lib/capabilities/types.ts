@@ -58,6 +58,8 @@ export interface CapabilityContext {
    * afecta lo que lee el modelo, que siempre es español.
    */
   locale?: Locale
+  /** Protected adapter state, never tool/model arguments. Used only by staged HTTP actions. */
+  httpExecution?: { invocationKey: string; confirmed: boolean }
 }
 
 /** JSON Schema plano: lo entienden igual el MCP y las tools de Anthropic. */

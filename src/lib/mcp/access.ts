@@ -28,6 +28,7 @@ export function userCanUseTool(access: McpUserAccess, tool: McpTool): boolean {
   if (tool.name === 'comprobar_conexion') return true;
   if (tool.risk !== 'lectura' && !access.admin) return false;
   if (access.sections === null) return true;
+  if (tool.capabilityKey?.startsWith('integraciones.http_')) return access.sections.includes('/automatizaciones');
   const domain = tool.capabilityKey?.split('.')[0] ?? tool.name.split('_')[0];
   const section = SECTIONS[domain];
   return !!section && access.sections.includes(section);

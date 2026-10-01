@@ -46,7 +46,10 @@ const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(valu
 const conversationRow = z.object({ id: uuid, workspace_id: uuid, contact_id: uuid, channel: z.string(), connection_id: uuid.nullable() }).strict();
 const contactRow = z.object({ id: uuid, workspace_id: uuid, phone: z.string().nullable(), email: z.string().nullable() }).strict();
 
-async function bindings(db: SupabaseClient, ctx: z.output<typeof execution>): Promise<HttpActionBindings | null> {
+/** Internal preflight; caller must establish current actor membership and section access first. */
+export async function httpActionBindingsForConversation(db: SupabaseClient,
+  ctx: Pick<z.output<typeof execution>, 'workspaceId' | 'actorUserId' | 'conversationId'>): Promise<HttpActionBindings | null> {
+  if (!SHOW_RIVERZ_IMPROVEMENTS) return fail('not_found');
   if (!ctx.conversationId) return null;
   const result = await db.from('conversations').select('id, workspace_id, contact_id, channel, connection_id')
     .eq('workspace_id', ctx.workspaceId).eq('id', ctx.conversationId).is('deleted_at', null).maybeSingle();
@@ -90,7 +93,7 @@ async function executeActiveHttpAction(db: SupabaseClient, context: HttpExecutio
   if (action.state !== 'active') return fail('not_found');
   if (action.revision !== ctx.expectedRevision) return fail('changed');
   if (action.definition.method === 'POST' && (!access.admin || !ctx.confirmed)) return fail('confirmation_required');
-  const trusted = await bindings(db, ctx);
+  const trusted = await httpActionBindingsForConversation(db, ctx);
   let request;
   try { request = actionRequest(action.definition, parameters, trusted ?? {}); }
   catch { return fail('invalid'); }

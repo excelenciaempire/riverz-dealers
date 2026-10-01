@@ -17,6 +17,8 @@ import { FLOW_CAPABILITIES } from './flows'
 import { HEALTH_CAPABILITIES } from './health'
 import { INBOX_CAPABILITIES } from './inbox'
 import { INTEGRATION_CAPABILITIES } from './integrations'
+import { HTTP_ACTION_CAPABILITIES } from './http-actions'
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview'
 import { MESSAGING_CAPABILITIES } from './messaging'
 import { METRICS_CAPABILITIES } from './metrics'
 import { ORDER_CAPABILITIES } from './orders'
@@ -51,6 +53,7 @@ export const ALL_CAPABILITIES: Capability[] = [
   ...INTEGRATION_CAPABILITIES,
   ...WORKSPACE_CAPABILITIES,
   ...WEBCHAT_CAPABILITIES,
+  ...(SHOW_RIVERZ_IMPROVEMENTS ? HTTP_ACTION_CAPABILITIES : []),
 ]
 
 export function findCapability(key: string): AnyCapability | undefined {

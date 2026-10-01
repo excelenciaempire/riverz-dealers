@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createHmac } from 'node:crypto'
+import { createHash, createHmac, randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { limitByKey } from '@/lib/rate-limit'
 import { ALL_TOOLS, findTool, type McpTool } from '@/lib/mcp/registry'
@@ -8,6 +8,7 @@ import { resolveActor, rateKey, sameSecret, type McpActor } from '@/lib/mcp/toke
 import { issuer } from '@/lib/mcp/oauth'
 import { userCanUseTool } from '@/lib/mcp/access'
 import { verifyConnection } from '@/lib/mcp/verification'
+import { httpActionAuditArguments, httpActionAuditSummary } from '@/lib/integrations/http-action-audit'
 
 /**
  * La operación de Riverz, expuesta como herramientas.
@@ -30,8 +31,8 @@ import { verifyConnection } from '@/lib/mcp/verification'
  *     que venga en los argumentos no se obedece: o coincide o se rechaza.
  *   * Todo queda registrado, incluidas las lecturas: sobre datos ajenos,
  *     saber quién miró qué también es parte de la respuesta.
- *   * Lo irreversible no se ejecuta de una: devuelve qué haría y un token de
- *     un solo uso. Sin ese token en la segunda llamada, no pasa nada. La
+ *   * Lo irreversible no se ejecuta de una: devuelve qué haría y un token
+ *     ligado a herramienta y argumentos. Sin ese token en la segunda llamada, no pasa nada. La
  *     confirmación vive en el protocolo y no en la buena voluntad del cliente
  *     que lo llama.
  */
@@ -156,7 +157,7 @@ async function anotar(args: {
           (args.actor.kind === 'workspace' ? args.actor.workspaceId : null),
         actor: args.actor.label,
         tool: args.tool,
-        args: sinPii(args.toolArgs),
+        args: args.tool.startsWith('http_accion') ? httpActionAuditArguments(args.toolArgs) : sinPii(args.toolArgs),
         risk: args.risk,
         ok: args.ok,
         summary: args.summary.slice(0, 500),
@@ -208,6 +209,7 @@ function comoTexto(valor: unknown): string {
  * clientes, y ahí el detalle es justamente lo que uno vuelve a leer.
  */
 function resumenSeguro(tool: McpTool, salida: unknown): string {
+  if (tool.capabilityKey?.startsWith('integraciones.http_')) return httpActionAuditSummary(salida)
   if (tool.risk !== 'lectura') return comoTexto(salida).slice(0, 300)
   const n = Array.isArray(salida)
     ? salida.length
@@ -249,6 +251,7 @@ function sinCredencial() {
  * confirmación — la confirmación protege de un error, no de una llave filtrada.
  */
 function visible(tool: McpTool, actor: McpActor): boolean {
+  if (tool.capabilityKey?.startsWith('integraciones.http_') && (actor.kind !== 'workspace' || !actor.userId)) return false
   if (tool.platformOnly && actor.kind !== 'platform') return false
   if (actor.scope === 'lectura' && tool.risk !== 'lectura') return false
   if (actor.kind === 'workspace' && actor.origin === 'oauth' &&
@@ -399,7 +402,9 @@ export async function POST(request: Request) {
 
       // Lo irreversible se muestra antes de hacerse.
       if (tool.risk === 'irreversible') {
-        if (!token || !confirmacionValida(String(token), tool.name, args)) {
+        const http = tool.capabilityKey?.startsWith('integraciones.http_') === true
+        const confirmationArgs = http ? { token_id: actor.kind === 'workspace' ? actor.tokenId : null, args } : args
+        if (!token || (http && !/^[0-9]{13}\.[A-Za-z0-9_-]{24}$/.test(String(token))) || !confirmacionValida(String(token), tool.name, confirmationArgs)) {
           let detalle: string
           try {
             detalle = tool.preview
@@ -437,7 +442,7 @@ export async function POST(request: Request) {
                 text:
                   `Esto NO se ejecutó todavía.\n\n${detalle}\n\n` +
                   `Para hacerlo, volvé a llamar la herramienta con confirm_token: ` +
-                  `${firmarConfirmacion(tool.name, args)}`,
+                  `${firmarConfirmacion(tool.name, confirmationArgs)}`,
               },
             ],
           })
@@ -449,7 +454,13 @@ export async function POST(request: Request) {
         // registrado QUIÉN aprobó una decisión, y no sólo que se aprobó.
         const salida = nombre === CHECK_TOOL.name
           ? await verifyConnection(supabaseAdmin(), actor, args.codigo)
-          : await tool.run(args, { label: actor.label, userId:actor.kind === 'workspace' ? actor.userId ?? null : null })
+          : await tool.run(args, { label: actor.label, userId:actor.kind === 'workspace' ? actor.userId ?? null : null,
+            ...(tool.capabilityKey?.startsWith('integraciones.http_') && actor.kind === 'workspace' ? { httpExecution: {
+              invocationKey: createHash('sha256').update(JSON.stringify({ actor: actor.tokenId, tool: tool.name,
+                invocation: tool.risk === 'irreversible' ? String(token) : randomUUID() })).digest('hex'),
+              confirmed: tool.risk === 'irreversible',
+            } } : {}),
+          })
         await anotar({
           actor,
           tool: tool.name,

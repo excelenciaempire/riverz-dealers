@@ -11,6 +11,8 @@ import { findCapability } from '@/lib/capabilities/registry'
 import type { CapabilityContext } from '@/lib/capabilities/types'
 import { operatorCanUse } from './capabilities'
 import type { Locale } from '@/lib/i18n/config'
+import { createHash } from 'node:crypto'
+import { httpActionAuditArguments, httpActionAuditSummary } from '@/lib/integrations/http-action-audit'
 
 export interface OperatorAction {
   id: string
@@ -54,7 +56,7 @@ async function anotar(
       workspace_id: input.workspaceId,
       actor: `operator:${input.userId}`,
       tool: input.key,
-      args: sinPii(input.args),
+      args: input.key.startsWith('integraciones.http_') ? httpActionAuditArguments(input.args) : sinPii(input.args),
       risk: input.risk,
       ok: input.ok,
       summary: input.summary.slice(0, 500),
@@ -126,6 +128,9 @@ export async function decideOperatorAction(
     workspaceId: input.workspaceId,
     actor: { type: 'operator', id: input.userId },
     locale: input.locale ?? 'es',
+    ...(fila.capability_key.startsWith('integraciones.http_') ? { httpExecution: {
+      invocationKey: createHash('sha256').update(`operator-http:${input.workspaceId}:${fila.id}`).digest('hex'), confirmed: true,
+    } } : {}),
   }
 
   try {
@@ -142,7 +147,7 @@ export async function decideOperatorAction(
       args: fila.args,
       risk: fila.risk,
       ok: true,
-      summary: JSON.stringify(result ?? {}).slice(0, 300),
+      summary: fila.capability_key.startsWith('integraciones.http_') ? httpActionAuditSummary(result) : JSON.stringify(result ?? {}).slice(0, 300),
     })
     return { ok: true, status: 'ejecutado', message: 'Hecho.', result }
   } catch (e) {

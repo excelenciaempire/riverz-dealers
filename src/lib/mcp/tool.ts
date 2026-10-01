@@ -15,6 +15,7 @@ export type Risk = 'lectura' | 'reversible' | 'irreversible'
 export interface McpCaller {
   label: string
   userId?: string | null
+  httpExecution?: { invocationKey: string; confirmed: boolean }
 }
 
 export interface McpTool {
@@ -84,6 +85,7 @@ export function desdeCapacidad(name: string, key: string): McpTool {
     db: supabaseAdmin(),
     workspaceId: workspaceDe(args),
     actor: { type: 'mcp' as const, id: caller?.label ?? null, userId:caller?.userId ?? null },
+    ...(caller?.httpExecution ? { httpExecution: caller.httpExecution } : {}),
   })
 
   return {
