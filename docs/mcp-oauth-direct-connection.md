@@ -38,10 +38,11 @@ La comprobación de formularios de los proveedores y las pruebas del servidor no
 
 ## Validación en producción
 
-Cambios de aplicación publicados en Render: `dd5acd71` y `18b1642c`. Migración 324 aplicada antes del despliegue.
+Cambios de aplicación publicados en Render: `dd5acd71`, `18b1642c` y `2567f277`. Migración 324 aplicada antes del despliegue.
 
 - 79 pruebas MCP pasan; ESLint y TypeScript de los archivos afectados pasan. El build de Render se publicó correctamente. El chequeo TypeScript local del repositorio completo agotó el heap predeterminado; no se usa como evidencia de aprobación.
 - 35 comprobaciones contra `https://riverz.co`: descubrimiento, DCR, sesiones de dos usuarios temporales, PKCE, rechazo de replay, llamada real, separación de usuarios, refresh rotativo, revocación, permisos de un agente y retirada de membresía. Identidades y datos temporales eliminados al terminar.
+- Comprobación final del ajuste `2567f277` ya publicado: el botón de ChatGPT sustituye un valor previo del portapapeles por la URL real antes de abrir el cliente. Chrome aislado con permisos explícitos de lectura y escritura de texto; móvil y escritorio en inglés pasan de nuevo. Si el navegador deniega el portapapeles, la interfaz ofrece la dirección seleccionable y una instrucción de copia manual. El smoke HTTP final confirma salud 200, `initialize` 401 con `WWW-Authenticate` y ambos documentos de descubrimiento 200 en las direcciones anunciadas.
 - Claude web: conector personalizado de la URL CRM, herramientas descubiertas, aprobación de una sola llamada y `comprobar_conexion` real. Riverz confirmó `verified` a las 02:23:15 UTC del 1 de octubre (30 de septiembre en la zona del dueño).
 - ChatGPT web: conexión personalizada privada mediante `Create MCP App`, OAuth con la sesión propia, llamada real en un chat y confirmación `verified` a las 02:32:07 UTC. No se publicó una ficha ni se presentó una solicitud al directorio.
 - Codex: cliente MCP nativo del ejecutable de Codex, con configuración temporal mediante overrides, DCR, callback loopback y OAuth propios. Se invocó `mcpServer/tool/call` sin ejecutar un turno de IA. `comprobar_conexion` devolvió éxito y Riverz confirmó `verified` a las 02:37:15 UTC. Configuración existente conservada; credencial temporal cerrada y grants de QA revocados. Esto valida el cliente nativo, no la interacción visual de la ventana de Codex Desktop.
