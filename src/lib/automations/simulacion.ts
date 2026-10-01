@@ -12,6 +12,7 @@ import { TEMPLATE_VAR_SAMPLES } from './data-points';
 import { retentionProductVars } from './retention-product';
 import { RIVERZ_FLOWS, riverzOrderSkipReason } from './riverzoficial-context-gate';
 import { RIVERZOFICIAL_WORKSPACE } from './riverzoficial-template-context';
+import { readSimulationRows } from './simulation-read';
 
 /**
  * ¿Qué le llegaría al cliente si pasara X? Sin mandar nada.
@@ -286,10 +287,12 @@ export async function simularDisparo(
   // La tienda real del comercio. Con dos conectadas (Pilar: Shopify y
   // Tiendanube) se simula la de Shopify, que es la que más automatizaciones
   // filtran por plataforma.
-  const [{ data: tiendas }, { data: wa }] = await Promise.all([
-    db.from('shopify_connections').select('platform').eq('workspace_id', workspaceId).eq('status', 'active'),
+  const [tiendas, waResult] = await Promise.all([
+    readSimulationRows((from, to) => db.from('shopify_connections').select('platform').eq('workspace_id', workspaceId).eq('status', 'active').order('id').range(from, to), 1000),
     db.from('channel_connections').select('id').eq('workspace_id', workspaceId).eq('channel', 'whatsapp').eq('status', 'connected').limit(1),
   ]);
+  if (waResult.error || !Array.isArray(waResult.data)) throw new Error('automation_simulation_unavailable');
+  const wa = waResult.data;
   const plataformas = ((tiendas ?? []) as Array<{ platform: string | null }>).map((t) => String(t.platform ?? 'shopify'));
   const plataforma = plataformas.includes('shopify') ? 'shopify' : (plataformas[0] ?? null);
   vars.platform = plataforma ?? '';
@@ -304,13 +307,13 @@ export async function simularDisparo(
     trigger === 'shopify_order_created' && (pedido.pago === 'mercadopago' || pedido.pago === 'tarjeta')
       ? [trigger, 'shopify_order_confirmed']
       : [trigger];
-  const { data: rows } = await db
+  const rows = await readSimulationRows((from, to) => db
     .from('automations')
     .select('id, name, trigger_type, trigger_config, is_active, activation_state, activation_blockers, deleted_at')
     .eq('workspace_id', workspaceId)
     .in('trigger_type', disparos)
     .is('deleted_at', null)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true }).order('id').range(from, to), 1000);
   const todas = (rows ?? []) as Array<{
     id: string;
     name: string;
@@ -329,23 +332,29 @@ export async function simularDisparo(
     return { vars, automatizaciones: [], plataforma, whatsapp_conectado: whatsappConectado };
   }
 
-  const [{ data: stepRows }, { data: tplRows }, { data: agentRows }] = await Promise.all([
-    db
+  const stepRows = await readSimulationRows((from, to) => db
       .from('automation_steps')
       .select('*')
       .in(
         'automation_id',
         automations.map((a) => a.id)
       )
-      .order('position', { ascending: true }),
-    db
+      .order('position', { ascending: true }).order('id').range(from, to));
+  const steps = stepRows as AutomationStep[];
+  const templateNames = [...new Set(steps.filter(step => step.step_type === 'send_template')
+    .map(step => (step.step_config as SendTemplateStepConfig).template_name).filter(name => typeof name === 'string' && name.length > 0))];
+  // Query only referenced template names, in bounded URL batches.
+  const tplRows: Array<{ name: string; language: string | null; body_text: string | null; buttons: Array<{ text?: string; type?: string }> | null; status: string | null }> = [];
+  for (let start = 0; start < templateNames.length; start += 100) {
+    const templates = await readSimulationRows((from, to) => db
       .from('message_templates')
       .select('name, language, body_text, buttons, status')
-      .eq('workspace_id', workspaceId),
-    db.from('ai_agents').select('id, name').eq('workspace_id', workspaceId).is('deleted_at', null),
-  ]);
-  const steps = (stepRows ?? []) as AutomationStep[];
-  const templates = (tplRows ?? []) as Array<{
+      .eq('workspace_id', workspaceId).in('name', templateNames.slice(start, start + 100))
+      .order('id').range(from, to), 10000 - tplRows.length);
+    tplRows.push(...templates);
+  }
+  const agentRows = await readSimulationRows((from, to) => db.from('ai_agents').select('id, name').eq('workspace_id', workspaceId).is('deleted_at', null).order('id').range(from, to), 1000);
+  const templates = tplRows as Array<{
     name: string;
     language: string | null;
     body_text: string | null;

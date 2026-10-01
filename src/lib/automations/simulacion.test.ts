@@ -2,10 +2,11 @@
 import { describe, expect, it } from 'vitest'
 import { simularDisparo, varsDePedido } from './simulacion'
 
-function dbConTablas(tablas: Record<string, any[]>) {
+function dbConTablas(tablas: Record<string, any[]>, failure?: string) {
   return {
     from: (tabla: string) => {
       const filtros: Array<(r: any) => boolean> = []
+      let start = 0, end = Infinity
       const q: any = {
         select: () => q,
         eq: (k: string, v: any) => { filtros.push((r) => r[k] === v); return q },
@@ -19,8 +20,9 @@ function dbConTablas(tablas: Record<string, any[]>) {
         },
         order: () => q,
         limit: () => q,
+        range: (from: number, to: number) => { start = from; end = to; return q },
         then: (res: any, rej: any) =>
-          Promise.resolve({ data: (tablas[tabla] ?? []).filter((r) => filtros.every((f) => f(r))), error: null }).then(res, rej),
+          Promise.resolve({ data: (tablas[tabla] ?? []).filter((r) => filtros.every((f) => f(r))).slice(start, end + 1), error: tabla === failure ? { message: 'private_database_details' } : null }).then(res, rej),
       }
       return q
     },
@@ -169,6 +171,14 @@ describe('simularDisparo', () => {
   it('una activa no lleva nada pendiente', async () => {
     const { automatizaciones } = await simularDisparo(db, 'w', 'shopify_order_fulfilled', pedidoCod)
     expect(automatizaciones[0].armada).toBeNull()
+  })
+  it.each(['shopify_connections', 'channel_connections', 'automations', 'automation_steps', 'message_templates', 'ai_agents'])('does not return a reassuring partial preview when %s fails', async failure => {
+    const tables = {
+      automations: [{ id: 'flow', workspace_id: 'w', name: 'Flow', trigger_type: 'shopify_order_fulfilled', is_active: true, deleted_at: null, trigger_config: {} }],
+      automation_steps: [{ id: 'step', automation_id: 'flow', parent_step_id: null, position: 0, step_type: 'send_template', step_config: { template_name: 'shipping', language: 'es' } }],
+      message_templates: [], ai_agents: [],
+    }
+    await expect(simularDisparo(dbConTablas(tables, failure), 'w', 'shopify_order_fulfilled', pedidoCod)).rejects.toThrow('automation_simulation_unavailable')
   })
 
   it('en DeUNA un pedido pagado con Mercado Pago no recibe la confirmación de contra entrega', async () => {

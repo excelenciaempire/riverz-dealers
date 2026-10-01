@@ -13,6 +13,7 @@ export const automations = {
   historyMore: { es: 'Cargar anteriores', en: 'Load older runs' },
   historyInvalid: { es: 'Los filtros de registros no son válidos.', en: 'The run filters are invalid.' },
   historyNotFound: { es: 'No se encontró la automatización.', en: 'Automation not found.' },
+  simulationUnavailable: { es: 'No se pudo cargar la simulación completa. Reintenta.', en: 'The complete simulation could not be loaded. Retry.' },
   issueSchedule: { es: 'Usa HH:mm o una expresión cron válida de 5 campos.', en: 'Use HH:mm or a valid five-field cron expression.' },
   issueTimezone: { es: 'Usa una zona horaria válida, por ejemplo America/Bogota.', en: 'Use a valid time zone, such as America/New_York.' },
   scheduleTimezone: { es: 'Zona horaria', en: 'Time zone' },

@@ -174,31 +174,35 @@ async function probar(request: Request) {
     if (escenario === 'mensaje') {
       return NextResponse.json({ vars: {}, automatizaciones: [], agente_asignado: null });
     }
-    const [producto, currency] = await Promise.all([
-      cargarProducto(admin, workspaceId, body?.product_id, body?.unidades),
-      resolveWorkspaceCurrency(admin, workspaceId),
-    ]);
-    const { vars, automatizaciones, plataforma, whatsapp_conectado } = await simularDisparo(admin, workspaceId, escenario, {
-      producto,
-      currency,
-      pago:
-        body?.pago === 'mercadopago' ||
-        body?.pago === 'tarjeta' ||
-        body?.pago === 'pendiente' ||
-        body?.pago === 'transferencia'
-          ? body.pago
-          : 'cod',
-      cliente: { nombre: CLIENTE_DE_PRUEBA, telefono: simulatedPhone || lugarDePrueba(currency).telefono },
-      guia: typeof body?.guia === 'string' ? body.guia.trim() : '',
-    });
-    const conEntrega = automatizaciones.find((a) => a.agente);
-    return NextResponse.json({
-      vars,
-      automatizaciones,
-      plataforma,
-      whatsapp_conectado,
-      agente_asignado: conEntrega?.agente ?? null,
-    });
+    try {
+      const [producto, currency] = await Promise.all([
+        cargarProducto(admin, workspaceId, body?.product_id, body?.unidades),
+        resolveWorkspaceCurrency(admin, workspaceId),
+      ]);
+      const { vars, automatizaciones, plataforma, whatsapp_conectado } = await simularDisparo(admin, workspaceId, escenario, {
+        producto,
+        currency,
+        pago:
+          body?.pago === 'mercadopago' ||
+          body?.pago === 'tarjeta' ||
+          body?.pago === 'pendiente' ||
+          body?.pago === 'transferencia'
+            ? body.pago
+            : 'cod',
+        cliente: { nombre: CLIENTE_DE_PRUEBA, telefono: simulatedPhone || lugarDePrueba(currency).telefono },
+        guia: typeof body?.guia === 'string' ? body.guia.trim() : '',
+      });
+      const conEntrega = automatizaciones.find((a) => a.agente);
+      return NextResponse.json({
+        vars,
+        automatizaciones,
+        plataforma,
+        whatsapp_conectado,
+        agente_asignado: conEntrega?.agente ?? null,
+      });
+    } catch (error) {
+      return serverError(error, translate(locale, 'automations.simulationUnavailable'));
+    }
   }
 
   // ── Paso 2: el cliente escribe ──

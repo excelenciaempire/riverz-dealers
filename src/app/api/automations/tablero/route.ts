@@ -227,7 +227,7 @@ export async function GET() {
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (err) {
-    return serverError(err);
+    return serverError(err, translate(await getLocale(), 'automations.simulationUnavailable'));
   }
 }
 
