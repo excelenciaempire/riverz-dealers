@@ -168,11 +168,15 @@ export async function loadPrimaryContact(
   db: SupabaseClient,
   contact: Contact,
 ): Promise<Contact> {
-  if (!contact.unified_contact_id) return contact;
-  const { data } = await db
-    .from('contacts')
-    .select('*')
-    .eq('id', contact.unified_contact_id)
-    .maybeSingle();
-  return ((data as Contact | null) ?? contact);
+  if (!contact.unified_contact_id || !contact.workspace_id || contact.unified_contact_id === contact.id) return contact;
+  try {
+    const { data,error } = await db
+      .from('contacts')
+      .select('*')
+      .eq('workspace_id',contact.workspace_id)
+      .eq('id',contact.unified_contact_id)
+      .maybeSingle();
+    if (error || !data || data.workspace_id !== contact.workspace_id || data.id !== contact.unified_contact_id) return contact;
+    return data as Contact;
+  } catch { return contact; }
 }
