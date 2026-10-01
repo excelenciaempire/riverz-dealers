@@ -2,6 +2,17 @@ import type { Namespace } from "./types";
 
 /** Automations: list/gallery, builder canvas, trigger/step config, detail + run logs. */
 export const automations = {
+  historyStatus: { es: 'Resultado', en: 'Result' },
+  historyAll: { es: 'Todos', en: 'All' },
+  historyFromUtc: { es: 'Desde (UTC)', en: 'From (UTC)' },
+  historyToUtc: { es: 'Hasta (UTC)', en: 'To (UTC)' },
+  historyClear: { es: 'Limpiar filtros', en: 'Clear filters' },
+  historyClearContact: { es: 'Quitar filtro de contacto', en: 'Clear contact filter' },
+  historyRetry: { es: 'Reintentar', en: 'Retry' },
+  historyThisContact: { es: 'Ver registros de este contacto', en: 'View this contact’s runs' },
+  historyMore: { es: 'Cargar anteriores', en: 'Load older runs' },
+  historyInvalid: { es: 'Los filtros de registros no son válidos.', en: 'The run filters are invalid.' },
+  historyNotFound: { es: 'No se encontró la automatización.', en: 'Automation not found.' },
   issueSchedule: { es: 'Usa HH:mm o una expresión cron válida de 5 campos.', en: 'Use HH:mm or a valid five-field cron expression.' },
   issueTimezone: { es: 'Usa una zona horaria válida, por ejemplo America/Bogota.', en: 'Use a valid time zone, such as America/New_York.' },
   scheduleTimezone: { es: 'Zona horaria', en: 'Time zone' },

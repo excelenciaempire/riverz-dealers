@@ -97,6 +97,23 @@ describe('real engine continuation', () => {
     expect(state.tables.automation_logs[0].steps_executed.map((s: any) => s.step_type)).toEqual(['condition', 'wait'])
     expect(state.tables.automation_pending_executions.map(p => p.status)).toEqual(['done', 'pending'])
   })
+  it('resumes a preserved wait from its cursor once after reactivation', async () => {
+    Object.assign(state.tables.automations[0], { is_active: false })
+    Object.assign(pending, { next_step_position: 1 })
+    try {
+      await resumePendingExecution(pending)
+      expect(state.tables.automation_pending_executions[0].status).toBe('pending')
+      Object.assign(state.tables.automations[0], { is_active: true })
+      Object.assign(state.tables.automation_pending_executions[0], { status: 'running' })
+      state.tables.automation_steps = [
+        { id: 'already', automation_id: 'a', parent_step_id: null, position: 0, step_type: 'wait', step_config: { amount: 1, unit: 'hours' } },
+        { id: 'next', automation_id: 'a', parent_step_id: null, position: 1, step_type: 'wait', step_config: { amount: 2, unit: 'hours' } },
+      ]
+      await resumePendingExecution(pending)
+      expect(state.tables.automation_logs[0].steps_executed.map((step: any) => step.step_id)).toEqual(['next'])
+      expect(state.tables.automation_pending_executions.map(row => row.status)).toEqual(['done', 'pending'])
+    } finally { pending.next_step_position = 0 }
+  })
   it('does not turn a deleted-path failure into success when the claim settles', async () => {
     await resumePendingExecution({ ...pending, branch: 'yes' })
     expect(state.tables.automation_logs[0].status).toBe('failed')

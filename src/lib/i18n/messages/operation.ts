@@ -987,7 +987,9 @@ export const operation = {
   vColUltima: { es: "Última", en: "Last" },
   vColSale: { es: "Sale", en: "Goes out" },
   vColNecesita: { es: "Necesita", en: "Requires" },
-  vPausadaPeroSale: { es: "Pausada, pero sale", en: "Paused, still going out" },
+  vPausadaEnEspera: { es: "En espera por pausa", en: "Waiting while paused" },
+  vArmadaEnEspera: { es: "Pendiente de activación", en: "Awaiting activation" },
+  vNoDisponibleEnEspera: { es: "Automatización no disponible", en: "Automation unavailable" },
   vSinAutomatizaciones: { es: "No hay automatizaciones.", en: "No automations." },
   vSinCola: { es: "No hay nada esperando para salir.", en: "Nothing queued to go out." },
   vQuePrender: {
@@ -995,12 +997,27 @@ export const operation = {
     en: "From now on it writes to customers who trigger it.",
   },
   vQuePausar: {
-    es: "Deja de dispararse con clientes nuevos.",
-    en: "Stops triggering for new customers.",
+    es: "Pausa los nuevos disparos y las esperas pendientes.",
+    en: "Pauses new triggers and pending waits.",
   },
-  vPausarNoFrenaCola: {
-    es: "Lo que ya está en cola sale igual: se cancela uno por uno.",
-    en: "What's already queued still goes out: cancel it one by one.",
+  vPausarConservaCola: {
+    es: "Las esperas conservan su lugar y continúan al reactivar. Un envío ya iniciado puede terminar.",
+    en: "Waits keep their position and continue when reactivated. A send already in progress may finish.",
+  },
+  pauseNamedPreview: {
+    es: "Pausaría «{name}»: nuevos disparos y esperas pendientes. Las esperas se conservan para reactivar; un envío ya iniciado puede terminar.",
+    en: "Would pause «{name}»: new triggers and pending waits. Waits are preserved for reactivation; a send already in progress may finish.",
+  },
+  waitChanged: {
+    es: "La espera ya no está pendiente. Actualiza la cola antes de cancelar.",
+    en: "The wait is no longer pending. Refresh the queue before cancelling.",
+  },
+  waitNotFound: { es: "Esa espera no existe en esta cuenta.", en: "That wait does not exist in this account." },
+  waitCustomer: { es: "ese cliente", en: "that customer" },
+  waitAutomation: { es: "una automatización", en: "an automation" },
+  cancelWaitPreview: {
+    es: "Cancelaría la espera de «{name}» para {customer}. Queda cancelada permanentemente y no se retoma al reactivar.",
+    en: "Would cancel the wait in «{name}» for {customer}. It is permanently cancelled and does not resume on reactivation.",
   },
   vQueCancelarEspera: {
     es: "Ese cliente no recibe el mensaje que le iba a llegar.",

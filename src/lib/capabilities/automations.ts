@@ -622,16 +622,16 @@ async function nombreDe(ctx: CapabilityContext, automationId: string): Promise<s
  *
  * Una automatización con una espera deja la ejecución congelada hasta que llega
  * la hora: "a las 4 horas mandale el recordatorio". Esas filas son mensajes que
- * todavía no salieron y que van a salir. Nadie las veía, así que "¿qué le va a
- * llegar a mi lista esta noche?" no tenía respuesta, y apagar la automatización
- * NO frena lo que ya está en cola.
+ * todavía no salieron. Pausar conserva su cursor y fecha: el cron no las
+ * reclama y el motor vuelve a comprobar la pausa antes de continuar.
  */
 async function enCola(ctx: CapabilityContext, args: Record<string, unknown>) {
-  const limite = Math.min(Number(args.limite) || 30, 100)
+  const requestedLimit = Number(args.limite)
+  const limite = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(Math.trunc(requestedLimit), 100)) : 30
   const { data, error } = await ctx.db
     .from('automation_pending_executions')
     .select(
-      'id, automation_id, status, run_at, branch, next_step_position, created_at, contacts(name, phone), automations(name, is_active)',
+      'id, automation_id, status, run_at, branch, next_step_position, created_at, contacts(name, phone), automations(name, is_active, activation_state, deleted_at)',
     )
     .eq('workspace_id', ctx.workspaceId)
     .eq('status', 'pending')
@@ -647,7 +647,7 @@ async function enCola(ctx: CapabilityContext, args: Record<string, unknown>) {
     branch: string | null
     next_step_position: number | null
     contacts: { name: string | null; phone: string | null } | null
-    automations: { name: string | null; is_active: boolean | null } | null
+    automations: { name: string | null; is_active: boolean | null; activation_state?: string | null; deleted_at?: string | null } | null
   }>
 
   return {
@@ -655,9 +655,10 @@ async function enCola(ctx: CapabilityContext, args: Record<string, unknown>) {
     en_cola: filas.map((f) => ({
       espera_id: f.id,
       automatizacion: f.automations?.name ?? f.automation_id,
-      // Una automatización pausada con cosas en cola sigue mandándolas: pausar
-      // frena las NUEVAS, no las que ya arrancaron.
-      automatizacion_activa: f.automations?.is_active === true,
+      automatizacion_estado: !f.automations ? 'unavailable' : f.automations.deleted_at ? 'deleted' : f.automations.activation_state === 'armed' ? 'armed' : f.automations.is_active && (!f.automations.activation_state || f.automations.activation_state === 'active') ? 'active' : 'paused',
+      // La fecha es la programación conservada, no una promesa de envío:
+      // la pausa y las puertas operativas se comprueban antes de continuar.
+      automatizacion_activa: f.automations?.is_active === true && !f.automations.deleted_at && (!f.automations.activation_state || f.automations.activation_state === 'active'),
       cliente: f.contacts?.name ?? f.contacts?.phone ?? 'sin nombre',
       sale: f.run_at,
       rama: f.branch,
@@ -673,7 +674,7 @@ async function esperaPorId(ctx: CapabilityContext, id: string) {
     .eq('workspace_id', ctx.workspaceId)
     .eq('id', id)
     .maybeSingle()
-  if (!data) throw new Error('Esa espera no existe en esta cuenta.')
+  if (!data) throw new Error(translate(ctx.locale ?? 'es', 'operation.waitNotFound'))
   return data as unknown as {
     id: string
     run_at: string | null
@@ -685,13 +686,16 @@ async function esperaPorId(ctx: CapabilityContext, id: string) {
 
 async function cancelarEspera(ctx: CapabilityContext, args: Record<string, unknown>) {
   const espera = await esperaPorId(ctx, String(args.espera_id ?? '').trim())
-  const { error } = await ctx.db
+  const { data: cancelled, error } = await ctx.db
     .from('automation_pending_executions')
     .update({ status: 'cancelled' })
     .eq('workspace_id', ctx.workspaceId)
     .eq('id', espera.id)
     .eq('status', 'pending')
+    .select('id')
+    .maybeSingle()
   if (error) throw new Error(error.message)
+  if (!cancelled) throw new Error(translate(ctx.locale ?? 'es', 'operation.waitChanged'))
 
   return {
     espera_id: espera.id,
@@ -760,13 +764,13 @@ function vistaListarAutomatizaciones(ctx: CapabilityContext, r: unknown): Artefa
  * Lo que está por salir esta noche.
  *
  * La columna que no está en ninguna otra pantalla es si la automatización está
- * PAUSADA: pausarla no frena lo que ya arrancó, y esa cola sigue saliendo. Ver
- * «pausada» al lado de un mensaje que va a salir es toda la información.
+ * PAUSADA: esas esperas conservan su lugar hasta que se reactive.
  */
 function vistaEnCola(ctx: CapabilityContext, r: unknown): Artefacto {
   const filas = lista<{
     automatizacion: string
     automatizacion_activa: boolean
+    automatizacion_estado?: string
     cliente: string
     sale: string | null
   }>(r, 'en_cola')
@@ -783,8 +787,8 @@ function vistaEnCola(ctx: CapabilityContext, r: unknown): Artefacto {
       automatizacion: corto(e.automatizacion, 26),
       estado: e.automatizacion_activa
         ? tt(ctx, 'operation.vEncendida')
-        : tt(ctx, 'operation.vPausadaPeroSale'),
-      sale: e.sale ? fecha(ctx, e.sale) : '—',
+        : tt(ctx, e.automatizacion_estado === 'armed' ? 'operation.vArmadaEnEspera' : e.automatizacion_estado === 'deleted' || e.automatizacion_estado === 'unavailable' ? 'operation.vNoDisponibleEnEspera' : 'operation.vPausadaEnEspera'),
+      sale: e.automatizacion_activa && e.sale ? fecha(ctx, e.sale) : '—',
     })),
     vacio: tt(ctx, 'operation.vSinCola'),
   })
@@ -819,9 +823,7 @@ function vistaActivar(ctx: CapabilityContext, args: Record<string, unknown>): Ar
   return cambio({
     titulo: tt(ctx, prende ? 'operation.vTitPrender' : 'operation.vTitPausar'),
     que: tt(ctx, prende ? 'operation.vQuePrender' : 'operation.vQuePausar'),
-    // Pausar no frena la cola: es el error más caro de esta pantalla, porque
-    // quien pausa cree que ya no sale nada.
-    aviso: prende ? undefined : tt(ctx, 'operation.vPausarNoFrenaCola'),
+    aviso: prende ? undefined : tt(ctx, 'operation.vPausarConservaCola'),
   })
 }
 
@@ -837,13 +839,13 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
   {
     key: 'automatizaciones.en_cola',
     description:
-      'Lo que está esperando para salir: las automatizaciones que quedaron congeladas en una espera y el mensaje que le va a llegar a cada cliente, con la hora. Dato clave: pausar una automatización NO frena lo que ya está en cola — eso se cancela una por una. Contesta "¿qué le va a llegar a mi gente esta noche?".',
+      'Las ejecuciones pendientes en una espera, su cliente y la fecha programada. Pausar conserva las esperas sin continuarlas; reactivar permite retomarlas desde su cursor. La fecha no garantiza un envío: se verifican las puertas operativas al continuar. Un envío ya iniciado puede terminar.',
     descriptionEn:
-      'What is queued to go out: the automations frozen on a wait step and the message each customer is going to get, with the time. Key detail: pausing an automation does NOT stop what is already queued — that is cancelled one by one. It answers "what is going to reach my people tonight?".',
+      'Executions parked at a wait step, their customer and scheduled date. Pausing preserves waits without continuing them; reactivation lets them resume from their cursor. The date does not guarantee a send: operational gates are checked before continuation. A send already in progress may finish.',
     risk: 'lectura',
     schema: {
       type: 'object',
-      properties: { limite: { type: 'number', description: 'Por defecto 30, máximo 100.' } },
+      properties: { limite: { type: 'integer', minimum: 1, maximum: 100, description: 'Por defecto 30, máximo 100.' } },
     },
     run: enCola,
     vista: (ctx, _args, r) => vistaEnCola(ctx, r),
@@ -852,9 +854,9 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
   {
     key: 'automatizaciones.cancelar_espera',
     description:
-      'Cancela UNA espera en cola: ese cliente no recibe el mensaje que le iba a llegar. Es lo que hay que usar cuando se pausó una automatización y lo que ya estaba en camino sigue saliendo. No se puede volver a poner en cola.',
+      'Cancela UNA espera pendiente de forma permanente. A diferencia de pausar, esta espera no se retoma al reactivar la automatización. No cancela envíos que ya comenzaron.',
     descriptionEn:
-      'Cancels ONE queued wait: that customer does not get the message that was on its way. Use it when an automation was paused and what was already in flight keeps going out. It cannot be re-queued.',
+      'Permanently cancels ONE pending wait. Unlike pausing, this wait does not resume when the automation is reactivated. It does not cancel sends already in progress.',
     risk: 'irreversible',
     schema: {
       type: 'object',
@@ -865,9 +867,10 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
     },
     async preview(ctx, args) {
       const e = await esperaPorId(ctx, String(args.espera_id ?? '').trim())
-      const quien = e.contacts?.name ?? e.contacts?.phone ?? 'ese cliente'
-      const cuando = e.run_at ? ` (salía ${e.run_at})` : ''
-      return `Cancelaría el mensaje de «${e.automations?.name ?? 'una automatización'}» a ${quien}${cuando}. Queda cancelado para siempre: la cola no lo vuelve a tomar.`
+      if (e.status !== 'pending') throw new Error(translate(ctx.locale ?? 'es', 'operation.waitChanged'))
+      const quien = e.contacts?.name ?? e.contacts?.phone ?? tt(ctx, 'operation.waitCustomer')
+      const nombre = e.automations?.name ?? tt(ctx, 'operation.waitAutomation')
+      return translate(ctx.locale ?? 'es', 'operation.cancelWaitPreview', { name: nombre, customer: quien })
     },
     run: cancelarEspera,
     artifact: (ctx) => vistaCancelarEspera(ctx),
@@ -937,7 +940,7 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
     inerte: (args) => args.activa === false,
     async preview(ctx, args) {
       const nombre = await nombreDe(ctx, String(args.automation_id))
-      if (!args.activa) return `Pausaría «${nombre}». Deja de dispararse hasta que la prendas.`
+      if (!args.activa) return translate(ctx.locale ?? 'es', 'operation.pauseNamedPreview', { name: nombre })
       // Se valida acá y no sólo al ejecutar: si le falta la plantilla, decirlo
       // antes evita que alguien apruebe algo que va a fallar.
       const issues = await activationIssuesById(
