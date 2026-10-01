@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({ visible: true, locale: 'en', user: 'owner', workspace: 'workspace',
   access: { admin: true, sections: null as string[] | null } as { admin: boolean; sections: string[] | null } | null,
-  manage: vi.fn(), createClient: vi.fn(), csrf: vi.fn(), rate: vi.fn(), grants: vi.fn(), load: vi.fn(), choices: vi.fn(),
+  manage: vi.fn(), createClient: vi.fn(), csrf: vi.fn(), rate: vi.fn(), grants: vi.fn(), load: vi.fn(), choices: vi.fn(), runs: vi.fn(),
   StoreError: class extends Error { constructor(readonly code: string) { super(`http_action_${code}`); } } }));
 vi.mock('@/lib/ui/improvements-preview', () => ({ get SHOW_RIVERZ_IMPROVEMENTS() { return h.visible; } }));
 vi.mock('@/lib/i18n/server', () => ({ getLocale: async () => h.locale }));
@@ -12,12 +12,14 @@ vi.mock('@/lib/mcp/access', () => ({ userAccess: async () => h.access }));
 vi.mock('@/lib/workspaces/resolve', () => ({ resolveWorkspaceIdForUser: async () => h.workspace }));
 vi.mock('@/lib/rate-limit', () => ({ limitByKey: h.rate }));
 vi.mock('./http-action-store', () => ({ HttpActionStoreError: h.StoreError, manageHttpAction: h.manage, loadHttpAction: h.load }));
+vi.mock('./http-action-run-history', async original => ({...await original<typeof import('./http-action-run-history')>(),loadHttpRunHistory:h.runs}));
 vi.mock('./http-action-assistant-grants', async original => ({ ...await original<typeof import('./http-action-assistant-grants')>(), manageHttpAssistantGrant: h.grants }));
 vi.mock('./http-action-grant-catalog', () => ({ httpAssistantGrantChoices: h.choices,
   HTTP_ASSISTANT_CHANNELS: ['whatsapp', 'instagram', 'messenger', 'gmail', 'outlook', 'zoho', 'webchat'] }));
 import { GET as list, POST as create } from '@/app/api/integrations/http-actions/route';
 import { PATCH as update } from '@/app/api/integrations/http-actions/[id]/route';
 import { GET as history } from '@/app/api/integrations/http-actions/[id]/history/route';
+import { GET as runs } from '@/app/api/integrations/http-actions/[id]/runs/route';
 import { GET as grants, PATCH as grantUpdate } from '@/app/api/integrations/http-actions/[id]/assistant-grants/route';
 const ID = '22222222-2222-4222-8222-222222222222';
 const params = () => ({ params: Promise.resolve({ id: ID }) });
@@ -29,6 +31,32 @@ beforeEach(() => {
   h.csrf.mockResolvedValue(null); h.rate.mockResolvedValue({ success: true }); h.manage.mockResolvedValue({ actions: [] });
   h.grants.mockResolvedValue({ grants: [] }); h.load.mockResolvedValue({ revision: 2, credential_ciphertext: 'PRIVATE_KEY', definition: { url: 'https://PRIVATE.test' } });
   h.choices.mockResolvedValue([{ id: ID, name: 'Existing assistant', is_active: true, channels: ['whatsapp'] }]);
+  h.runs.mockResolvedValue({runs:[],next_cursor:null,observed_at:'2026-10-01T00:00:00Z'});
+});
+
+describe('private HTTP receipt history API',()=>{
+ it('stays disabled before authentication and never executes an action',async()=>{
+  h.visible=false;expect((await runs(request(),params())).status).toBe(404);
+  expect(h.createClient).not.toHaveBeenCalled();expect(h.runs).not.toHaveBeenCalled();expect(h.manage).not.toHaveBeenCalled();
+ });
+ it('requires current Settings and Automations administration',async()=>{
+  for(const sections of [['/ajustes'],['/automatizaciones'],[]]){h.access={admin:true,sections};expect((await runs(request(),params())).status).toBe(403);}
+  expect(h.runs).not.toHaveBeenCalled();
+  h.access={admin:true,sections:['/ajustes','/automatizaciones']};expect((await runs(request(),params())).status).toBe(200);
+  expect(h.runs).toHaveBeenCalledExactlyOnceWith({service:true},'workspace','owner',ID,null);
+ });
+ it('rejects a switched workspace, query-supplied scope and malformed cursor before reads',async()=>{
+  expect((await runs(request('GET',undefined,{'x-riverz-workspace':ID}),params())).status).toBe(409);
+  for(const query of ['actor_id=owner','workspace_id=other','cursor=bad','cursor={}&cursor={}'])expect((await runs(new Request('https://riverz.test/api?'+query),params())).status).toBe(400);
+  expect(h.runs).not.toHaveBeenCalled();
+ });
+ it('uses server identity, private caching and rate limits without CSRF mutations',async()=>{
+  const cursor={created_at:'2026-10-01T12:30:00.123456+00:00',id:ID};
+  const response=await runs(new Request('https://riverz.test/api?cursor='+encodeURIComponent(JSON.stringify(cursor))),params());
+  expect(response.status).toBe(200);expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+  expect(h.runs).toHaveBeenCalledWith({service:true},'workspace','owner',ID,cursor);expect(h.csrf).not.toHaveBeenCalled();expect(h.manage).not.toHaveBeenCalled();
+  h.rate.mockResolvedValue({success:false});expect((await runs(request(),params())).status).toBe(429);expect(h.runs).toHaveBeenCalledOnce();
+ });
 });
 
 describe('comparison-only assistant grant endpoints', () => {

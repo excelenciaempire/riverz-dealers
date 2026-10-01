@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import {httpRunQuery,loadHttpRunHistory} from './http-action-run-history';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
@@ -33,7 +34,7 @@ async function body(request: Request) {
 }
 
 /** Configuration only. Nothing here tests or invokes an external endpoint. */
-export async function httpActionApi(request: Request, mode: 'list' | 'create' | 'update' | 'history' | 'grants' | 'grant-update', id?: string) {
+export async function httpActionApi(request: Request, mode: 'list' | 'create' | 'update' | 'history' | 'grants' | 'grant-update' | 'runs', id?: string) {
   const locale = await getLocale(), headers = { 'Cache-Control': 'private, no-store' };
   const fail = (code: HttpActionStoreError['code'] | 'identity_required' | 'unauthorized' | 'limited', status: number) => NextResponse.json(
     { error: `http_action_${code}`, message: translate(locale, `settings.httpAction_${code}`) }, { status, headers });
@@ -52,11 +53,13 @@ export async function httpActionApi(request: Request, mode: 'list' | 'create' | 
     const db = supabaseAdmin(), access = await userAccess(db, userId, workspaceId);
     if (!access?.admin || (access.sections !== null && !access.sections.includes('/ajustes'))) return fail('forbidden', 403);
     if (grants && access.sections !== null && !['/automatizaciones', '/bandeja'].every(section => access.sections!.includes(section))) return fail('forbidden', 403);
+    if (mode === 'runs' && access.sections !== null && !access.sections.includes('/automatizaciones')) return fail('forbidden',403);
     const budget = await limitByKey(`http-config:${workspaceId}:${userId}`, { limit: 40, windowMs: 60_000 });
     if (!budget.success) return fail('limited', 429);
     if (id && !z.string().uuid().safeParse(id).success) return fail('not_found', 404);
     if (id) id = id.toLowerCase();
-    if ((mode === 'update' || mode === 'history' || grants) && !id) return fail('not_found', 404);
+    if ((mode === 'update' || mode === 'history' || mode === 'runs' || grants) && !id) return fail('not_found', 404);
+    if (mode === 'runs') return NextResponse.json(await loadHttpRunHistory(db,workspaceId,userId,id!,httpRunQuery(new URL(request.url).searchParams)),{headers});
     if ([...new URL(request.url).searchParams].length) return fail('invalid', 400);
     if (grants) {
       if (mode === 'grants') {
