@@ -116,6 +116,45 @@ comment_topics = Counter('compra_uso' if m['id'] in purchase_comment_ids else
                          'entrega' if m['id'] in delivery_comment_ids else 'publicidad'
                          for m in comment_messages)
 assert comment_topics == Counter({'publicidad': 26, 'compra_uso': 10, 'entrega': 2})
+# A finer, mutually exclusive breakdown of the same 38 comments.
+ad_ai_ids = {
+    'e314b524-46fc-4d39-9dc4-00dc06a1ec35', 'ec90aaef-4c42-4a44-a97f-373161d9a9fe',
+    '97806e39-dfa0-4e25-84b1-e4dd5441e311', '40ba22f9-5ea7-4e0d-86c5-07a8439d9102',
+    'dbc2ea4c-25a6-4c88-a366-a5eed858ca6b', '50db1aca-366e-43ee-a2cb-6b04e317ad4a',
+}
+ad_people_ids = {
+    '1fcd661f-e315-4506-81e0-6a1a748e1faa', 'de16a9ea-a32b-48ba-b3a6-3c628d62977b',
+    'a3f5ad76-2ddc-427c-9571-bce23c83d3a8', 'b7f368b2-0ae3-4fe7-90b4-c911b434e6cc',
+    'acaff299-461d-449e-a2da-6a86a15733ed',
+}
+price_comment_ids = {'32abbfcc-a656-4c1c-bc83-29aefa1b1616', '460c770f-e801-4063-ac40-07cbb6e7b561'}
+buying_options_ids = {'e3df36a6-f297-4b7d-a500-ab45006e80fb', 'ffdf5ab3-1f06-4e72-8ca3-880c0564d5b9'}
+usage_comment_ids = {'718c271a-b736-4cbf-99df-e3329c4dcae8', 'adc8d481-6318-4805-9fc3-49b2e46b1c99'}
+all_comment_ids = {m['id'] for m in comment_messages}
+results_comment_ids = all_comment_ids - purchase_comment_ids - delivery_comment_ids - ad_ai_ids - ad_people_ids
+information_comment_ids = purchase_comment_ids - price_comment_ids - buying_options_ids - usage_comment_ids
+comment_subtopics = [
+    ('Resultados y credibilidad', results_comment_ids,
+     'Dudas sobre crecimiento del pelo, acusaciones de engaño y de cambiar el envase.'),
+    ('IA en la publicidad', ad_ai_ids,
+     'Preguntaron si la chica era IA y criticaron el video como «fake».'),
+    ('Personas del anuncio', ad_people_ids,
+     'Opinaron sobre apariencia, hicieron bromas y uno incluyó un insulto.'),
+    ('Interés e información', information_comment_ids,
+     'Pidieron información y mostraron interés; una consulta también dudó de los resultados.'),
+    ('Consultas de precio', price_comment_ids,
+     'Dos comentarios preguntaron el precio del producto.'),
+    ('Dónde comprar y pagar', buying_options_ids,
+     'Consultaron venta en farmacias y pago contra entrega.'),
+    ('Mujeres, grasa y foliculitis', usage_comment_ids,
+     'Preguntaron por uso en mujeres, cuero cabelludo graso y foliculitis.'),
+    ('Demoras de entrega', delivery_comment_ids,
+     'Reportaron esperas de 20 y 7 días; uno esperaba recibirlo en 24 horas.'),
+]
+assert [len(ids) for _, ids, _ in comment_subtopics] == [15, 6, 5, 4, 2, 2, 2, 2]
+assert set.union(*(ids for _, ids, _ in comment_subtopics)) == all_comment_ids
+assert all(a.isdisjoint(b) for i, (_, a, _) in enumerate(comment_subtopics)
+           for _, b, _ in comment_subtopics[i+1:])
 period_comment_logs = [r for r in source['replies']
                        if r['conversation_id'] in comment_unanswered_ids
                        and START <= datetime.fromisoformat(r['created_at']) <= END]
@@ -255,14 +294,15 @@ class PDF:
         self.c.drawImage(str(path), x, H-y-height, width=width, height=height,
                          preserveAspectRatio=True, anchor='c', mask='auto')
 
-    def header(self, title, subtitle):
+    def header(self, title, subtitle=''):
         self.page += 1
         self.c.setFillColor(BG)
         self.c.rect(0, 0, W, H, fill=1, stroke=0)
         self.text(42, 47, 'riverz', 'Logo', 24)
         self.line(65)
         end = self.wrap(42, 118, title, size=34, leading=39, font='Serif')
-        self.wrap(42, end-8, subtitle, size=13, leading=18)
+        if subtitle:
+            self.wrap(42, end-8, subtitle, size=13, leading=18)
         key = f'page-{self.page}'
         self.c.bookmarkPage(key)
         self.c.addOutlineEntry(title, key, level=0)
@@ -284,10 +324,10 @@ p = PDF()
 
 # 1. All attention rates use customer consultations as their denominator.
 p.header('Revitaly: atención en cifras', '26 al 30 de septiembre de 2026')
-for i, (value, percentage, label, detail) in enumerate([
-    (len(customer_ids), '100%', 'Conversaciones con consultas', 'Base de los porcentajes'),
-    (len(automated_ids), rate(automation_rate), 'Automatizadas: respondidas solo por IA', 'Sin respuesta humana registrada en el período'),
-    (len(cases), rate(human_rate), 'Escalamientos justificados', 'Casos que necesitaron intervención humana'),
+for i, (value, percentage, label) in enumerate([
+    (len(customer_ids), '100%', 'Conversaciones con consultas'),
+    (len(automated_ids), rate(automation_rate), 'Automatizadas: respondidas solo por IA'),
+    (len(cases), rate(human_rate), 'Escalamientos justificados'),
 ]):
     y = 205+i*176
     p.box(42, y, 511, 157, PALE if i == 1 else CARD)
@@ -295,25 +335,23 @@ for i, (value, percentage, label, detail) in enumerate([
     end = p.wrap(225, y+43, label, 304, size=18, leading=22, font='Semi')
     assert end <= y+89
     p.text(225, y+101, percentage, 'Semi', 30, width=230)
-    p.text(225, y+133, detail, 'Sans', 12.5, width=304)
 end = p.wrap(42, 754, 'Hubo 425 hilos con actividad, incluidos avisos y mensajes salientes. Las 199 conversaciones con consultas son la base de estos porcentajes.', size=13, leading=17)
 assert end-18+4 <= 791
 p.end()
 
 # 2. The complete escalation analysis, grouped instead of listing customers.
-p.header('Por qué se escala a humano', 'Lo ocurrido en 43 casos del 26 al 30 de septiembre.')
+p.header('Por qué se escala a humano')
 for i, (category, title, count, why) in enumerate(REASONS):
-    y = 174+i*84
+    y = 150+i*88
     p.box(42, y, 511, 76, CARD, 11)
     p.text(60, y+22, title, 'Semi', 15, width=443)
     p.text(520, y+24, str(count), 'Serif', 25)
     end = p.wrap(60, y+44, why, 475, leading=17)
     assert end-17+4 <= y+76-5, (title, end, y+76)
-p.wrap(42, 791, 'Casos del período; no todos siguen pendientes y puede haber reclamos repetidos.', size=12.5)
 p.end()
 
 # 3. Six concrete customer-facing capabilities, covering all eight reasons.
-p.header('Propuesta de plan de acción', 'Acciones propuestas para ampliar la atención automática.')
+p.header('Propuesta de plan de acción')
 plan = [
     ('Editar direcciones de pedidos',
      'Sí, antes del despacho. Habilitar a la IA para actualizar Shopify tras confirmar la dirección con el cliente. Una vez despachado, no se modifica la dirección.'),
@@ -329,35 +367,30 @@ plan = [
      'Sí, habilitando la consulta de precios, stock y cupones en Shopify. Riverz explica por qué un código no aplica y deriva excepciones comerciales con un resumen. Los reclamos legales los decide una persona.'),
 ]
 for i, (title, body) in enumerate(plan):
-    p.proposal(184+i*98, i+1, title, body)
+    p.proposal(160+i*102, i+1, title, body)
 p.end()
 
 # 4. All comment content belongs on this last page. No recovery/incident block.
-p.header('Análisis de comentarios', '26 al 30 de septiembre, hasta las 12:04 de Argentina.')
+p.header('Análisis de comentarios')
 p.image(ASSETS / 'riverz-control-humano.png', 42, 174, 135, 80)
 p.text(197, 192, '38 comentarios con texto, en 34 hilos.', 'Semi', 14, width=356)
 p.text(197, 216, '33 en Facebook y 5 en Instagram.', width=356)
 p.text(197, 240, '22 hilos con respuesta de IA y 1 humana.', width=356)
-p.text(42, 279, 'Sentimiento', 'Serif', 25)
-p.box(42, 294, 511, 154)
-p.image(sentiment_image(), 57, 303, 135, 135)
-p.text(108, 379, '38', 'Serif', 32, width=58)
+p.text(42, 271, 'Sentimiento', 'Serif', 23)
+p.box(42, 286, 511, 110)
+p.image(sentiment_image(), 60, 288, 105, 105)
+p.text(97, 351, '38', 'Serif', 28, width=58)
 for i, (label, ids, color) in enumerate(sentiment_groups):
-    y = 323+i*34
+    y = 306+i*24
     p.box(232, y-10, 10, 10, HexColor(color), 3)
     p.text(252, y, label, 'Sans', 13, width=202)
     p.text(473, y, f'{len(ids)} · {round(100*len(ids)/38)}%', 'Semi', 13, width=66)
-comment_analysis = [
-    ('26 · Publicidad', 'Cuestionaron anuncios hechos con IA y promesas de crecimiento. Hubo ironías y acusaciones de engaño.'),
-    ('10 · Compra y uso', 'Consultaron precio, farmacias, pago contra entrega y uso en mujeres. También preguntaron por grasa y foliculitis.'),
-    ('2 · Entregas', 'Dos compradores esperaban 7 y 20 días. Uno mencionó una promesa de entrega en 24 horas.'),
-]
-for i, (title, body) in enumerate(comment_analysis):
-    y = 470+i*106
-    p.box(42, y, 511, 98)
-    p.text(60, y+27, title, 'Semi', 15, width=475)
-    end = p.wrap(60, y+53, body, 475, size=14, leading=20)
-    assert end-20+4 <= y+98-6, (title, end)
+for i, (title, ids, body) in enumerate(comment_subtopics):
+    x, y = 42+(i%2)*262, 410+(i//2)*96
+    p.box(x, y, 249, 90)
+    p.text(x+14, y+24, f'{len(ids)} · {title}', 'Semi', 13.5, width=221)
+    end = p.wrap(x+14, y+44, body, 221, size=13, leading=17)
+    assert end-17+4 <= y+90-6, (title, end)
 p.end()
 p.c.save()
 
@@ -369,7 +402,7 @@ text = '\n'.join(page.get_text() for page in doc)
 normalized_text = re.sub(r'\s+', ' ', text)
 assert all(token in normalized_text for token in ['425', '199', '43', '133', '21,6%', '66,8%', '26 al 30 de septiembre', 'Por qué se escala a humano', 'Propuesta de plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.', 'Análisis de comentarios', '38 comentarios con texto', '34 hilos'])
 assert all(removed not in normalized_text for removed in ['Sin motivo de escalamiento', 'Sin escalamiento identificado', '78,4%', '10,1%', 'Qué ocurrió'])
-assert all(token in normalized_text for token in ['Sentimiento', '26 · Publicidad', '10 · Compra y uso', '2 · Entregas'])
+assert all(token in normalized_text for token in ['Sentimiento', *[f'{len(ids)} · {title}' for title, ids, _ in comment_subtopics]])
 assert all(token not in normalized_text for token in ['Cómo respondió la IA', 'Plan rápido propuesto', 'algunas respuestas fueron genéricas', 'revisar a diario consultas sin respuesta'])
 assert all(token not in normalized_text for token in ['Probar cada acción con casos reales antes de activarla.', 'Las críticas se concentran en la publicidad', 'no mide satisfacción', 'las bromas ambiguas se clasifican aparte'])
 assert all(token not in normalized_text for token in ['5 respuestas recuperadas', 'Corregido el envío', 'Recuperación automática', 'Al corte: 11', 'sin respuesta al corte', 'recuperados después'])
@@ -382,6 +415,12 @@ assert 'Análisis de comentarios' in doc[-1].get_text()
 assert all(token in normalized_text for token in ['Parcialmente', 'Puede automatizarse al conectar el banco', 'Una persona aprueba la cancelación o el reembolso', 'la IA no devuelve dinero por su cuenta'])
 assert all(token in normalized_text for token in ['consultas sobre descuentos', 'envase rajado con pérdida', 'IA no podía modificarlo', 'foliculitis'])
 assert 'CARRITO25' not in normalized_text
+assert all(token not in normalized_text for token in [
+    'Lo ocurrido en 43 casos', 'Acciones propuestas para ampliar la atención automática.',
+    'Casos del período; no todos siguen pendientes', 'Base de los porcentajes',
+    'Sin respuesta humana registrada en el período', 'Casos que necesitaron intervención humana',
+    'hasta las 12:04 de Argentina',
+])
 assert 'Por qué se necesita al equipo' not in text and 'pedir el cambio al transportista' not in text
 assert all(removed not in normalized_text for removed in ['mejoras', 'Mejoras', 'Validado en producción', 'RESULTADOS', 'ESCALAMIENTOS REALES', 'PLAN PROPUESTO', 'GUÍA DE CAPACIDADES', 'riverz.co |', '135 casos', '2.098', '24,2%'])
 assert '66,2%' not in text and '21,1%' not in text
@@ -420,6 +459,8 @@ proof = {'file': str(OUT), 'pages': len(doc), 'periodEscalations': len(cases),
          'AIAnsweredCommentThreads': len(comment_ai_ids), 'humanAnsweredCommentThreads': len(comment_human_ids),
          'unansweredCommentThreadsAtCutoff': len(comment_unanswered_ids), 'commentChannelCounts': dict(comment_channels),
          'commentTopics': dict(comment_topics), 'unansweredCommentCauses': {k: len(v) for k, v in comment_block_groups.items()},
+         'commentDetailBoxes': len(comment_subtopics),
+         'commentSubtopics': {title: {'count': len(ids), 'messageIds': sorted(ids)} for title, ids, _ in comment_subtopics},
          'commentTone': {label: {'count': len(ids), 'percent': round(100*len(ids)/38, 1), 'messageIds': sorted(ids)} for label, ids, _ in sentiment_groups},
          'recoveredCommentsAfterCutoff': len(recovered_comments), 'recoveryVerifiedAt': recovery['capturedAt'],
          'remainingUnansweredThreadsVerifiedHidden': len(remaining_visibility),
