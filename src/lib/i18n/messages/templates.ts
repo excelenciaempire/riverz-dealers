@@ -2,6 +2,18 @@ import type { Namespace } from "./types";
 
 /** WhatsApp templates: list, detail, and the builder form. */
 export const templates = {
+  aiInvalidBrief: { es: 'Revisa el objetivo, idioma y categoría del borrador.', en: 'Check the brief, language and draft category.' },
+  aiPriceMismatch: { es: 'El borrador propuso un importe sin respaldo en el producto. Genera otro borrador o revisa sus ofertas.', en: 'The draft proposed an amount not supported by the product. Generate another draft or review its offers.' },
+  aiContextChanged: { es: 'El contexto cambió durante la redacción. Genera un borrador con la versión actual.', en: 'The context changed while drafting. Generate a draft with the current version.' },
+  aiContextTooLarge: { es: 'El contexto seleccionado supera el límite. Usa menos fuentes o redacta solo desde el objetivo; no recortamos condiciones de ofertas.', en: 'The selected context exceeds the limit. Use fewer sources or draft from the brief only; offer conditions are never truncated.' },
+  aiContextUnavailable: { es: 'El producto o perfil seleccionado ya no está disponible en este negocio.', en: 'The selected product or profile is no longer available in this business.' },
+  aiProduct: { es: 'Producto (opcional)', en: 'Product (optional)' },
+  aiNoProduct: { es: 'Solo el objetivo del mensaje', en: 'Message brief only' },
+  aiProfile: { es: 'Conocimiento y tono del asistente', en: 'Assistant knowledge and tone' },
+  aiNoProfile: { es: 'Sin un perfil específico', en: 'No specific profile' },
+  aiSearchProduct: { es: 'Buscar producto por nombre', en: 'Search products by name' },
+  aiMoreProducts: { es: 'Hay más productos. Busca por nombre para encontrarlos.', en: 'There are more products. Search by name to find them.' },
+  aiSources: { es: 'Contexto utilizado: {sources}. Revisa las ofertas y condiciones antes de aplicar.', en: 'Context used: {sources}. Review offers and conditions before applying.' },
   viewStats: { es: "Ver estadísticas", en: "View stats" },
   // ── Categories ──
   categoryMarketing: { es: "Marketing", en: "Marketing" },
@@ -70,7 +82,7 @@ export const templates = {
   // ── Builder ──
   newTemplate: { es: "Nueva plantilla", en: "New template" },
   aiWrite: { es: "Escribir con IA", en: "Write with AI" },
-  aiDraftHelp: { es: "Revisa el borrador antes de enviarlo a Meta.", en: "Review the draft before submitting it to Meta." },
+  aiDraftHelp: { es: "La redacción usa la IA de tu negocio y puede consumir saldo. Revisa el borrador antes de enviarlo a Meta.", en: "Drafting uses your business AI and may consume credits. Review the draft before submitting it to Meta." },
   aiBrief: { es: "Qué quieres comunicar", en: "What you want to communicate" },
   aiBriefPlaceholder: { es: "Recordar el pago de un pedido, sin promociones", en: "Remind a customer about an order payment, without promotions" },
   aiDraft: { es: "Borrador", en: "Draft" },
