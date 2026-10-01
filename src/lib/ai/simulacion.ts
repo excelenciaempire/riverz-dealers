@@ -243,6 +243,7 @@ export async function simularRespuesta(
   const tools = construirHerramientas({
     agent: a,
     hayContacto: true,
+    caseReasonAvailable: true,
     shopify,
     otherStore: otraTienda,
     // Nunca se llama por teléfono a nadie desde una prueba.

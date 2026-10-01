@@ -197,6 +197,7 @@ export const AGENT_TOOLBOX: readonly ToolSpec[] = [
   { key: 'gestionar_recompra', group: 'conversacion', modes: ['off', 'auto'], fallback: 'auto', requires: null },
   { key: 'etiquetar_contacto', group: 'conversacion', modes: ['off', 'auto'], fallback: 'auto', requires: null },
   { key: 'cerrar_conversacion', group: 'conversacion', modes: ['off', 'auto'], fallback: 'auto', requires: null },
+  { key: 'clasificar_motivo', group: 'conversacion', modes: ['off', 'auto'], fallback: 'off', requires: null },
 ] as const
 
 export type AgentToolKey = (typeof AGENT_TOOLBOX)[number]['key']

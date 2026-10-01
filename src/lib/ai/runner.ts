@@ -1,5 +1,7 @@
 import { withLatitudeTrace } from '@/lib/observability/latitude';
 import { loadHttpAssistantTools } from './http-actions';
+import { CASE_REASON_TOOL } from './case-reason-tool';
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { replyWasSuperseded } from './reply-freshness';
 import { inboxCaseIsSpam } from '@/lib/inbox/disposition-server';
 import { emailDispositionForPolicy, emailRedirectText, isEmailChannel, loadEmailPolicy } from './email-policy';
@@ -2955,6 +2957,7 @@ export type ModoDeHerramientas = 'conversacion' | 'borrador' | 'comentario';
 
 /** Las que ESCRIBEN algo fuera de la conversacion. El borrador no las lleva. */
 const ESCRIBEN = new Set([
+  'clasificar_motivo',
   'gestionar_recompra',
   'crear_checkout',
   'crear_link_de_pago',
@@ -2974,6 +2977,7 @@ const ESCRIBEN = new Set([
 
 /** Las que administran un hilo de la bandeja. Un comentario no tiene hilo. */
 const DE_LA_BANDEJA = new Set([
+  'clasificar_motivo',
   'gestionar_recompra',
   'etiquetar_contacto',
   'cerrar_conversacion',
@@ -2991,6 +2995,8 @@ export function construirHerramientas(args: {
   descuentoFijo?: number | null;
   /** Recuperación sólo puede abrir checkout tras una respuesta autorizada. */
   checkoutPermitido?: boolean;
+  /** Only real inbound-bound turns or the explicit no-write simulator. */
+  caseReasonAvailable?: boolean;
   /** Por defecto, el agente contestando. Ver `ModoDeHerramientas`. */
   modo?: ModoDeHerramientas;
 }): Anthropic.ToolUnion[] {
@@ -3119,6 +3125,7 @@ export function construirHerramientas(args: {
     // esta salida, el modelo improvisa una respuesta plausible sobre envíos o
     // garantías, que es el error que más caro sale y el más difícil de ver.
     ...(hayContacto && puede('no_se_la_respuesta') ? [NO_SE_TOOL] : []),
+    ...(SHOW_RIVERZ_IMPROVEMENTS && args.caseReasonAvailable && hayContacto && puede('clasificar_motivo') ? [CASE_REASON_TOOL] : []),
     ...(hayContacto && puede('ver_contacto') ? [VER_CONTACTO_TOOL] : []),
     ...(hayContacto && puede('gestionar_recompra') ? [GESTIONAR_RECOMPRA_TOOL] : []),
     ...(hayContacto && puede('etiquetar_contacto')
@@ -3641,6 +3648,7 @@ async function generateReply(
   const tools = construirHerramientas({
     agent,
     hayContacto: Boolean(primaryContact.id),
+    caseReasonAvailable: Boolean(origen.inboundId && contact.id),
     shopify,
     otherStore,
     voiceCtx,
@@ -3672,6 +3680,8 @@ async function generateReply(
     localOrders: primaryContact.id
       ? {
           httpActions: origen.inboundId && httpTools.length ? { scope: httpScope, inboundId: origen.inboundId, tools: httpTools } : null,
+          caseReason: origen.inboundId && contact.id ? { db,workspaceId:agent.workspace_id,agentId:agent.id,
+            conversationId:origen.conversationId,contactId:contact.id,messageId:origen.inboundId } : null,
           db,
           workspaceId: agent.workspace_id,
           contactId: primaryContact.id,

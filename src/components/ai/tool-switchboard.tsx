@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useT } from '@/hooks/use-locale';
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { Switch } from '@/components/ui/switch';
 import {
   AGENT_TOOLBOX,
@@ -67,6 +68,7 @@ export const SUFIJO: Record<string, string> = {
   gestionar_recompra: 'GestionarRecompra',
   etiquetar_contacto: 'EtiquetarContacto',
   cerrar_conversacion: 'CerrarConversacion',
+  clasificar_motivo: 'ClasificarMotivo',
 };
 
 const GRUPO: Record<ToolGroup, string> = {
@@ -130,7 +132,7 @@ export function ToolSwitchboard({
   return (
     <div className="space-y-5">
       {TOOL_GROUPS.map((g) => {
-        const del = AGENT_TOOLBOX.filter((x) => x.group === g);
+        const del = AGENT_TOOLBOX.filter((x) => x.group === g && (x.key !== 'clasificar_motivo' || SHOW_RIVERZ_IMPROVEMENTS));
         if (del.length === 0) return null;
         return (
           <div key={g} className="space-y-2">
@@ -193,8 +195,6 @@ function Fila({
   const conReglas =
     spec.key === 'registrar_pago' && typeof onReglas === 'function' && modo === 'auto';
   const r = reglas ?? REGLAS_POR_DEFECTO;
-  const [tolTexto, setTolTexto] = useState(String(r.toleranciaPct));
-  useEffect(() => setTolTexto(String(r.toleranciaPct)), [r.toleranciaPct]);
   // El descuento es la única que necesita un número además del modo, y ese
   // número no vivía en ninguna pantalla: se leía en tres lugares y no se podía
   // escribir en ninguno, así que la herramienta no se podía encender nunca.
@@ -274,18 +274,9 @@ function Fila({
                   por `Number`, el punto recién tipeado no sobrevive y queda 5
                   —diez veces la tolerancia que se quiso poner—. Se guarda el
                   texto tal cual y se convierte al salir del campo. */}
-              <input
-                type="text"
-                inputMode="decimal"
-                value={tolTexto}
-                onChange={(e) => setTolTexto(e.target.value)}
-                onBlur={() => {
-                  const n = toleranciaDesdeTexto(tolTexto);
-                  setTolTexto(String(n));
-                  if (n !== r.toleranciaPct) onReglas!({ ...r, toleranciaPct: n });
-                }}
-                className="w-16 rounded-md border border-border bg-background px-2 py-1 text-right text-[11px] text-foreground"
-              />
+              <ToleranceInput key={r.toleranciaPct} value={r.toleranciaPct} onCommit={n => {
+                if (n !== r.toleranciaPct) onReglas!({ ...r, toleranciaPct: n });
+              }} />
               %
             </span>
           </label>
@@ -309,4 +300,12 @@ function Fila({
       )}
     </div>
   );
+}
+
+/** A changed saved value remounts the editor; decimal text survives each keystroke. */
+function ToleranceInput({ value,onCommit }: { value:number;onCommit:(value:number)=>void }) {
+  const [text,setText]=useState(String(value));
+  return <input type="text" inputMode="decimal" value={text} onChange={e => setText(e.target.value)}
+    onBlur={() => { const n=toleranciaDesdeTexto(text);setText(String(n));onCommit(n); }}
+    className="w-16 rounded-md border border-border bg-background px-2 py-1 text-right text-[11px] text-foreground" />;
 }

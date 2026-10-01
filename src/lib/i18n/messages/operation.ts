@@ -384,6 +384,8 @@ export const operation = {
     en: "An internal note so your team can find them later.",
   },
   toolCerrarConversacion: { es: "Cerrar el caso", en: "Close the case" },
+  toolClasificarMotivo: { es: "Clasificar consultas", en: "Classify inquiries" },
+  toolClasificarMotivoHint: { es: "Identifica el motivo sin cambiar tu selección.", en: "Identifies the reason while preserving your selection." },
   toolCerrarConversacionHint: {
     es: "Cuando la consulta quedó resuelta y no hay nada pendiente.",
     en: "When the question is resolved and nothing is left open.",

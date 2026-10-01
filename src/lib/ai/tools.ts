@@ -4,6 +4,7 @@ import { toolPermissionKey } from './toolbox'
 import { redactModelSecrets } from '@/lib/security/model-secrets'
 import { observeTool,publicToolStatus } from './turn-evidence'
 import { isHttpAssistantTool, runHttpAssistantTool, type HttpAssistantToolRuntime } from './http-actions'
+import { classifyCaseReason,type CaseReasonRuntime } from './case-reason-tool'
 
 /**
  * Tool definitions + agentic loop para el asistente IA.
@@ -851,6 +852,7 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
  * empezar de cero.
  */
 const DEJA_HUELLA = new Set([
+  'clasificar_motivo',
   'gestionar_recompra',
   'create_order',
   'update_order',
@@ -926,6 +928,8 @@ function instruccionNoEncontrado(usado: { numero?: string; phone?: string; email
 }
 
 export interface LocalOrdersContext {
+  /** Actual conversation contact and latest inbound are fixed by the server. */
+  caseReason?: CaseReasonRuntime | null
   /** Explicit HTTP grant catalog and actual inbound ID derived by the server, never model arguments. */
   httpActions?: HttpAssistantToolRuntime | null
   httpSimulationLocale?: 'es' | 'en'
@@ -1151,7 +1155,7 @@ export async function runTool(
   otherStore: OtherStoreContext | null = null
 ): Promise<string> {
   // Custom inputs/results can contain selected customer data. Keep them out of tool telemetry.
-  if (isHttpAssistantTool(toolName)) return runToolInner(toolName, toolInput, shopify, voice, localOrders, otherStore);
+  if (isHttpAssistantTool(toolName) || toolName === 'clasificar_motivo') return runToolInner(toolName, toolInput, shopify, voice, localOrders, otherStore);
   return traceTool(toolName, () => runToolInner(toolName, toolInput, shopify, voice, localOrders, otherStore), toolInput);
 }
 
@@ -1163,6 +1167,7 @@ async function runToolInner(
   localOrders: LocalOrdersContext | null = null,
   otherStore: OtherStoreContext | null = null
 ): Promise<string> {
+  if (toolName === 'clasificar_motivo') return classifyCaseReason(localOrders?.caseReason,toolInput,localOrders?.simulacion === true);
   // Reserved dynamic namespace: block every external request and approval in simulations, including GET.
   if (isHttpAssistantTool(toolName)) {
     if (!localOrders) return JSON.stringify({ ok: false, error: 'http_action_unavailable' });
