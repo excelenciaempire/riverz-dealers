@@ -2043,4 +2043,10 @@ export const settings = {
     es: 'No se pudo guardar la firma',
     en: "Couldn't save the signature",
   },
+  readApi_not_found: { es: 'Recurso no disponible', en: 'Resource unavailable' },
+  readApi_unauthorized: { es: 'Clave de integración inválida', en: 'Invalid integration key' },
+  readApi_forbidden: { es: 'No tienes permiso para consultar este recurso', en: 'You do not have permission to read this resource' },
+  readApi_invalid: { es: 'Parámetros de consulta inválidos', en: 'Invalid query parameters' },
+  readApi_limited: { es: 'Límite de consultas alcanzado', en: 'Request limit reached' },
+  readApi_unavailable: { es: 'No se pudo confirmar la consulta', en: 'The query could not be confirmed' },
 } satisfies Namespace;

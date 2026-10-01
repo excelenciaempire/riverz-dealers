@@ -110,12 +110,14 @@ async function contactosQueMatchean(
     ? `phone.like.%${phoneTail(t)},name.ilike."%${t}%"`
     : `name.ilike."%${t}%",email.ilike."%${t}%"`
 
-  const { data } = await ctx.db
+  const { data, error } = await ctx.db
     .from('contacts')
     .select('id')
     .eq('workspace_id', ctx.workspaceId)
     .or(filtro)
     .limit(200)
+
+  if (error) throw new Error(tt(ctx, 'inbox.teamFailed'))
 
   return ((data ?? []) as { id: string }[]).map((c) => c.id)
 }
@@ -288,7 +290,7 @@ async function detalle(ctx: CapabilityContext, args: Record<string, unknown>) {
   const id = String(args.conversacion_id ?? '').trim()
   if (!id) throw new Error('Falta el id de la conversación.')
 
-  const { data } = await ctx.db
+  const { data, error } = await ctx.db
     .from('conversations')
     .select(
       'id, channel, connection_id, status, created_at, closed_at, last_message_at, last_message_text, last_message_status, last_sender_type, unread_count, ai_enabled, assigned_agent_id, needs_human_reason, needs_human_at, needs_human_summary, ai_summary, ai_summary_updated_at, csat, csat_comment, csat_at, is_ad, ad_referral, engagement_kind, marketing, page_url, page_title, pending_checkout_at, pending_checkout_url, followup_count, followup_last_at, thread_external_id, contacts(id, name, phone, email, opted_out)',
@@ -297,6 +299,7 @@ async function detalle(ctx: CapabilityContext, args: Record<string, unknown>) {
     .eq('id', id)
     .is('deleted_at', null)
     .maybeSingle()
+  if (error) throw new Error(tt(ctx, 'inbox.teamFailed'))
   if (!data) throw new Error('Esa conversación no existe en esta cuenta.')
   await requireMailboxAccess(ctx, data as unknown as { channel: string; connection_id?: string | null })
 
@@ -364,6 +367,7 @@ async function detalle(ctx: CapabilityContext, args: Record<string, unknown>) {
       .maybeSingle(),
     ctx.db.rpc('list_visible_answer_gaps',{ p_workspace_id:ctx.workspaceId,p_actor_id:gapCapabilityActor(ctx),p_resolved:true,p_conversation_id:c.id }),
   ])
+  if (ultimaIa.error || borrador.error || huecos.error) throw new Error(tt(ctx, 'inbox.teamFailed'))
   const ia = ((ultimaIa.data ?? []) as Array<{
     created_at: string
     status: string | null
@@ -451,7 +455,7 @@ async function mensajes(ctx: CapabilityContext, args: Record<string, unknown>) {
   const conv = await exigirConversacion(ctx, args)
   const limite = Math.min(Number(args.limite) || 30, TOPE_MENSAJES)
 
-  const { data } = await ctx.db
+  const { data, error } = await ctx.db
     .from('messages')
     .select(
       'id, created_at, sender_type, content_type, content_text, media_url, media_type, media_transcription, subject, status, error_code, error_reason, template_name, origin, origin_name, is_hidden, hidden_by, hidden_reason, is_liked, edited_at, message_id',
@@ -459,6 +463,8 @@ async function mensajes(ctx: CapabilityContext, args: Record<string, unknown>) {
     .eq('conversation_id', conv.id)
     .order('created_at', { ascending: false })
     .limit(limite)
+
+  if (error) throw new Error(tt(ctx, 'inbox.teamFailed'))
 
   const filas = ((data ?? []) as unknown as Array<{
     id: string
@@ -488,10 +494,11 @@ async function mensajes(ctx: CapabilityContext, args: Record<string, unknown>) {
   const ids = filas.map((m) => m.id)
   const reaccionesPorMensaje = new Map<string, string[]>()
   if (ids.length > 0) {
-    const { data: rx } = await ctx.db
+    const { data: rx, error: reactionError } = await ctx.db
       .from('message_reactions')
       .select('message_id, emoji')
       .in('message_id', ids)
+    if (reactionError) throw new Error(tt(ctx, 'inbox.teamFailed'))
     for (const r of (rx ?? []) as { message_id: string; emoji: string }[]) {
       const lista = reaccionesPorMensaje.get(r.message_id) ?? []
       lista.push(r.emoji)

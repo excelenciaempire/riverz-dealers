@@ -56,7 +56,7 @@ export async function cargarConversacion(
   workspaceId: string,
   conversationId: string,
 ): Promise<ConversacionBandeja | null> {
-  const { data } = await db
+  const { data, error } = await db
     .from('conversations')
     .select(
       'id, workspace_id, channel, connection_id, status, ai_enabled, assigned_agent_id, contact_id, contacts(name, phone)',
@@ -65,6 +65,8 @@ export async function cargarConversacion(
     .eq('workspace_id', workspaceId)
     .is('deleted_at', null)
     .maybeSingle()
+
+  if (error) throw new Error('conversation_read_unavailable')
 
   const fila = data as unknown as
     | (Omit<ConversacionBandeja, 'contacto'> & {
@@ -212,21 +214,25 @@ export async function miembrosDelEquipo(
   db: SupabaseClient,
   workspaceId: string,
 ): Promise<MiembroDelEquipo[]> {
-  const { data: filas } = await db
+  const { data: filas, error: memberError } = await db
     .from('workspace_members')
     .select('user_id, role')
     .eq('workspace_id', workspaceId)
 
+  if (memberError) throw new Error('team_read_unavailable')
+
   const miembros = (filas ?? []) as { user_id: string; role: string }[]
   if (miembros.length === 0) return []
 
-  const { data: perfiles } = await db
+  const { data: perfiles, error: profileError } = await db
     .from('profiles')
     .select('user_id, full_name, email')
     .in(
       'user_id',
       miembros.map((m) => m.user_id),
     )
+
+  if (profileError) throw new Error('team_read_unavailable')
 
   const porUsuario = new Map(
     ((perfiles ?? []) as { user_id: string; full_name: string | null; email: string | null }[]).map(

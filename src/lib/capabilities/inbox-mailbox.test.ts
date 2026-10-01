@@ -25,7 +25,7 @@ function database(): SupabaseClient {
       maybeSingle: async () => { const r = result(); return { ...r, data: r.data[0] ?? null }; },
       then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) => Promise.resolve(result()).then(resolve, reject),
     }; return q;
-  }, rpc: async () => ({ data: [], error: null }) } as unknown as SupabaseClient;
+  }, rpc: async (name: string) => ({ data: [], error: errors.has(name) ? { message: 'private SQL details' } : null }) } as unknown as SupabaseClient;
 }
 function context(mcp = false): CapabilityContext {
   return { db: database(), workspaceId: WS, locale: 'en', actor: mcp ? { type: 'mcp', id: 'key-label', userId: 'owner' } : { type: 'operator', id: 'owner' } };
@@ -113,5 +113,24 @@ describe('inbox capabilities respect the personal mailbox owner', () => {
     errors.add('channel_connections');
     const result = await capability('conversaciones.buscar').run(context(true), { canal: 'whatsapp' });
     expect(JSON.stringify(result)).toContain('Shared customer'); expect(executed).not.toContain('channel_connections');
+  });
+  it.each(['contacts', 'conversations'])('does not report an empty search after a %s read failure', async table => {
+    rows.contacts = [{ id: 'contact', workspace_id: WS }];
+    errors.add(table);
+    await expect(capability('conversaciones.buscar').run(context(), { texto: 'customer' })).rejects.toThrow();
+  });
+  it.each(['conversations', 'ai_replies', 'ai_pending_replies', 'list_visible_answer_gaps'])('does not report a complete detail after a %s failure', async table => {
+    errors.add(table);
+    await expect(capability('conversaciones.detalle').run(context(), { conversacion_id: 'own-mail' })).rejects.not.toThrow('private SQL details');
+  });
+  it.each(['conversations', 'messages', 'message_reactions'])('does not report an empty transcript or missing reactions after a %s failure', async table => {
+    errors.add(table);
+    await expect(capability('conversaciones.mensajes').run(context(), { conversacion_id: 'own-mail' })).rejects.not.toThrow('private SQL details');
+  });
+  it.each(['workspace_members', 'profiles'])('does not describe an assigned team after a %s read failure', async table => {
+    rows.workspace_members = [{ workspace_id: WS, user_id: 'owner', role: 'admin' }];
+    rows.conversations[0].assigned_agent_id = 'owner'; errors.add(table);
+    await expect(capability('conversaciones.buscar').run(context(), { canal: 'whatsapp' })).rejects.not.toThrow('private SQL details');
+    await expect(capability('conversaciones.detalle').run(context(), { conversacion_id: 'shared' })).rejects.not.toThrow('private SQL details');
   });
 });
