@@ -36,6 +36,21 @@ export interface AbrirDevolucionInput {
   customer_note?: string
 }
 
+const lecturaFallida = { error: 'return_unavailable', message: 'No pude comprobar los datos de la devolución. No afirmes que está registrada ni que faltan pedidos o fotos. Intenta de nuevo.' }
+
+async function validarContexto(ctx: DevolucionCtx): Promise<{ error: string; message: string } | null> {
+  const results = await Promise.all([
+    ctx.db.from('contacts').select('id').eq('workspace_id', ctx.workspaceId).eq('id', ctx.contactId).maybeSingle(),
+    ctx.conversationId ? ctx.db.from('conversations').select('id').eq('workspace_id', ctx.workspaceId).eq('contact_id', ctx.contactId).eq('id', ctx.conversationId).is('deleted_at', null).maybeSingle() : Promise.resolve({ data: { id: null }, error: null }),
+    ctx.agentId ? ctx.db.from('ai_agents').select('id').eq('workspace_id', ctx.workspaceId).eq('id', ctx.agentId).maybeSingle() : Promise.resolve({ data: { id: null }, error: null }),
+  ])
+  if (results.some(result => result.error)) return lecturaFallida
+  if (results[0].data?.id !== ctx.contactId || (ctx.conversationId && results[1].data?.id !== ctx.conversationId) || (ctx.agentId && results[2].data?.id !== ctx.agentId)) {
+    return { error: 'invalid_return_context', message: 'No pude verificar el contacto o la conversación de esta devolución. No la registres con datos de otro contacto o negocio.' }
+  }
+  return null
+}
+
 /**
  * Las fotos que la persona ya mandó en esta conversación.
  *
@@ -45,17 +60,21 @@ export interface AbrirDevolucionInput {
  */
 async function fotosDelHilo(ctx: DevolucionCtx): Promise<string[]> {
   if (!ctx.conversationId) return []
-  const { data } = await ctx.db
+  const { data, error } = await ctx.db
     .from('messages')
-    .select('media_url, media_mime, sender_type, created_at')
+    .select('media_url, media_mime, sender_type, created_at,conversation:conversations!inner(workspace_id,contact_id)')
     .eq('conversation_id', ctx.conversationId)
+    .eq('conversation.workspace_id', ctx.workspaceId)
+    .eq('conversation.contact_id', ctx.contactId)
     .eq('sender_type', 'customer')
     .not('media_url', 'is', null)
+    .like('media_mime', 'image/%')
     .order('created_at', { ascending: false })
     .limit(6)
+  if (error || !Array.isArray(data)) throw new Error('return_photos_unavailable')
   const filas = (data ?? []) as Array<{ media_url: string | null; media_mime: string | null }>
   return filas
-    .filter((f) => f.media_url && (f.media_mime ?? '').startsWith('image/'))
+    .filter((f) => typeof f.media_url === 'string' && typeof f.media_mime === 'string' && f.media_mime.startsWith('image/'))
     .map((f) => f.media_url as string)
 }
 
@@ -74,9 +93,11 @@ async function resolverPedido(
     .order('created_at', { ascending: false })
     .limit(5)
   const filtro = filtroDeNumero(num)
+  if (num && !filtro) return { pedido: null }
   if (filtro) q = q.or(filtro)
 
-  const { data } = await q
+  const { data, error } = await q
+  if (error || !Array.isArray(data)) return lecturaFallida
   const filas = (data ?? []) as PedidoFila[]
 
   if (filas.length === 0) {
@@ -85,11 +106,11 @@ async function resolverPedido(
     // es peor que anotar una con el número escrito a mano.
     return { pedido: null }
   }
-  if (!num && filas.length > 1) {
+  if (filas.length > 1) {
     const lista = filas.map((f) => conAlmohadilla(f.order_number) || '#?').join(', ')
     return {
       error: 'varios_pedidos',
-      message: `Tiene más de un pedido (${lista}). Pregúntale por cuál es antes de abrirla.`,
+      message: `Coinciden varios pedidos (${lista}). Confirma cuál es antes de abrirla; si comparten número, pregunta por la tienda o la fecha. No elijas uno por su posición en la lista.`,
     }
   }
   return { pedido: filas[0] }
@@ -99,6 +120,8 @@ export async function abrirDevolucion(
   ctx: DevolucionCtx,
   input: AbrirDevolucionInput,
 ): Promise<string> {
+  const invalid = await validarContexto(ctx)
+  if (invalid) return JSON.stringify({ ok: false, ...invalid })
   const r = await resolverPedido(ctx, input.order_number)
   if ('error' in r) return JSON.stringify({ ok: false, ...r })
 
@@ -112,7 +135,9 @@ export async function abrirDevolucion(
   }
 
   const kind = input.kind === 'cambio' ? 'cambio' : 'devolucion'
-  const fotos = await fotosDelHilo(ctx)
+  let fotos: string[]
+  try { fotos = await fotosDelHilo(ctx) }
+  catch { return JSON.stringify({ ok: false, ...lecturaFallida }) }
 
   const { data, error } = await ctx.db
     .from('returns')
