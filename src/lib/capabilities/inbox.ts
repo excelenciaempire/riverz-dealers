@@ -16,6 +16,7 @@
  * de dejar el panel contando mal.
  */
 import { gapCapabilityActor } from '@/lib/ai/gap-knowledge-actions'
+import { canAccessConversation, PERSONAL_EMAIL_CHANNELS } from '@/lib/inbox/access'
 import { CHANNELS } from '@/types'
 import {
   asignarConversacion,
@@ -48,6 +49,30 @@ const TOPE_BUSQUEDA = 50
 
 const ESTADOS = ['open', 'pending', 'closed'] as const
 
+function inboxActor(ctx: CapabilityContext): string | null {
+  try { return gapCapabilityActor(ctx) } catch { return null }
+}
+
+async function requireMailboxAccess(ctx: CapabilityContext, conversation: { channel: string; connection_id?: string | null }) {
+  if (!(PERSONAL_EMAIL_CHANNELS as readonly string[]).includes(conversation.channel)) return
+  const userId = inboxActor(ctx)
+  if (!userId) throw new Error(tt(ctx, 'inbox.teamNotFound'))
+  let allowed = false
+  try { allowed = await canAccessConversation(ctx.db, userId, conversation, ctx.workspaceId) }
+  catch { throw new Error(tt(ctx, 'inbox.teamFailed')) }
+  if (!allowed) throw new Error(tt(ctx, 'inbox.teamNotFound'))
+}
+
+async function ownMailboxes(ctx: CapabilityContext): Promise<string[]> {
+  const userId = inboxActor(ctx)
+  if (!userId) return []
+  const { data, error } = await ctx.db.from('channel_connections').select('id')
+    .eq('workspace_id', ctx.workspaceId).eq('created_by', userId).in('channel', [...PERSONAL_EMAIL_CHANNELS])
+  if (error) throw new Error(tt(ctx, 'inbox.teamFailed'))
+  // Database UUIDs only; never interpolate a caller-controlled filter fragment.
+  return (data ?? []).map(row => row.id).filter((id): id is string => typeof id === 'string' && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id))
+}
+
 // ---------------------------------------------------------------------------
 
 /** La conversación o un error legible: lo que sigue no tiene sentido sin ella. */
@@ -56,6 +81,7 @@ async function exigirConversacion(ctx: CapabilityContext, args: Record<string, u
   if (!id) throw new Error('Falta el id de la conversación.')
   const conv = await cargarConversacion(ctx.db, ctx.workspaceId, id)
   if (!conv) throw new Error('Esa conversación no existe en esta cuenta.')
+  await requireMailboxAccess(ctx, conv)
   return conv
 }
 
@@ -116,6 +142,11 @@ async function buscar(ctx: CapabilityContext, args: Record<string, unknown>) {
 
   if (typeof args.estado === 'string') q = q.eq('status', args.estado)
   if (typeof args.canal === 'string') q = q.eq('channel', args.canal)
+  if (typeof args.canal !== 'string' || (PERSONAL_EMAIL_CHANNELS as readonly string[]).includes(args.canal)) {
+    const mailboxes = await ownMailboxes(ctx)
+    if (mailboxes.length) q = q.or(`channel.not.in.(gmail,outlook,zoho),connection_id.in.(${mailboxes.join(',')})`)
+    else q = q.not('channel', 'in', '(gmail,outlook,zoho)')
+  }
   if (contactIds) q = q.in('contact_id', contactIds)
 
   const { data, error } = await q
@@ -260,13 +291,14 @@ async function detalle(ctx: CapabilityContext, args: Record<string, unknown>) {
   const { data } = await ctx.db
     .from('conversations')
     .select(
-      'id, channel, status, created_at, closed_at, last_message_at, last_message_text, last_message_status, last_sender_type, unread_count, ai_enabled, assigned_agent_id, needs_human_reason, needs_human_at, needs_human_summary, ai_summary, ai_summary_updated_at, csat, csat_comment, csat_at, is_ad, ad_referral, engagement_kind, marketing, page_url, page_title, pending_checkout_at, pending_checkout_url, followup_count, followup_last_at, thread_external_id, contacts(id, name, phone, email, opted_out)',
+      'id, channel, connection_id, status, created_at, closed_at, last_message_at, last_message_text, last_message_status, last_sender_type, unread_count, ai_enabled, assigned_agent_id, needs_human_reason, needs_human_at, needs_human_summary, ai_summary, ai_summary_updated_at, csat, csat_comment, csat_at, is_ad, ad_referral, engagement_kind, marketing, page_url, page_title, pending_checkout_at, pending_checkout_url, followup_count, followup_last_at, thread_external_id, contacts(id, name, phone, email, opted_out)',
     )
     .eq('workspace_id', ctx.workspaceId)
     .eq('id', id)
     .is('deleted_at', null)
     .maybeSingle()
   if (!data) throw new Error('Esa conversación no existe en esta cuenta.')
+  await requireMailboxAccess(ctx, data as unknown as { channel: string; connection_id?: string | null })
 
   const c = data as unknown as {
     id: string

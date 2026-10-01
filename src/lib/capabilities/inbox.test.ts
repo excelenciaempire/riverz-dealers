@@ -45,6 +45,10 @@ function fakeDb(datos: Record<string, unknown[]>): SupabaseClient {
         order: self,
         limit: self,
         is: self,
+        not(columna: string, operador: string, valor: unknown) {
+          registro.filtros.not = [columna, operador, valor]
+          return chain
+        },
         or(filtro: string) {
           registro.filtros.or = filtro
           return chain

@@ -23,6 +23,7 @@ export interface ConversacionBandeja {
   id: string
   workspace_id: string
   channel: string
+  connection_id?: string | null
   status: EstadoConversacion
   ai_enabled: boolean | null
   assigned_agent_id: string | null
@@ -58,7 +59,7 @@ export async function cargarConversacion(
   const { data } = await db
     .from('conversations')
     .select(
-      'id, workspace_id, channel, status, ai_enabled, assigned_agent_id, contact_id, contacts(name, phone)',
+      'id, workspace_id, channel, connection_id, status, ai_enabled, assigned_agent_id, contact_id, contacts(name, phone)',
     )
     .eq('id', conversationId)
     .eq('workspace_id', workspaceId)

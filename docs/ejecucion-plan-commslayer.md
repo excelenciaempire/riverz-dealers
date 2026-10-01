@@ -652,3 +652,17 @@ Las dos dependencias transitivas `brace-expansion` usadas por `@ts-morph/common`
 El inventario local ya no incluye brace-expansion ni Next: **cero avisos críticos, cero altos y diecinueve moderados** pendientes en otras dependencias. No se declara una ruta explotable de Riverz solo por el aviso de una herramienta de desarrollo. Los dos paquetes conservaron la expansión normal; un patrón local acotado de 32.006 caracteres se procesó en **28/29 ms**, dentro de un proceso Node con 96 MiB de heap. La comprobación no envió entradas a ningún servidor.
 
 Validación: **diez archivos y 137 pruebas correctas**, incluidas extracción documental y transporte protegido; lint de los cambios de webhooks correcto con el parser actualizado y **build completo correcto**. La suite completa inmediatamente anterior ya había comprobado 772 archivos y 6.293 pruebas; esta actualización de dos paquetes transitivos se valida con los consumidores afectados, sin atribuirle otra corrida completa. Dos archivos propios. Publicación de esta actualización todavía no comprobada.
+
+Actualización publicada en Render: revisión `3b8291ee1a16c3335c58177328e31eb0bb848b04` LIVE a las **09:10:56 UTC** del 1 de octubre. Salud a las **09:12:08 UTC** con esa revisión, servicio, Supabase y WhatsApp `ok`. La comparación seguía sin configurar a las **09:21 UTC**. No se abrieron controles nuevos ni se hicieron acciones externas de negocio.
+
+## E4 — Buzones personales en las capacidades de bandeja
+
+Antes de ampliar la API se comprobó el alcance efectivo de las capacidades existentes. Las búsquedas, detalle y mensajes estaban recortados por negocio, pero faltaba el filtro de dueño del buzón personal en estas superficies de MCP/Operador. Esta entrega mantiene los canales compartidos y añade el mismo criterio de privacidad usado por las herramientas del equipo para **Gmail, Outlook y Zoho**.
+
+La búsqueda obtiene las conexiones del actor autenticado dentro del negocio y excluye el correo ajeno en la consulta, antes de aplicar su límite. El detalle y el historial de mensajes comprueban la conexión, el negocio, el canal y el dueño antes de consultar mensajes, borradores o historial de la IA. La comprobación central también protege las acciones y vistas previas de cerrar, asignar y cambiar IA de esos hilos. Los fallos no conceden acceso; un actor sin identidad de usuario no puede hacerse pasar por el dueño mediante la etiqueta de su clave o argumentos de herramienta. No se conserva un permiso de buzón entre solicitudes.
+
+El cargador común incorpora `connection_id`. El helper de acceso admite una comprobación explícita de negocio y canal que utilizan estas capacidades; sus consumidores actuales conservan su contrato. No se modifica la navegación, la configuración de canales, la unión de contactos ni se envían mensajes para probar.
+
+Validación de regresión: **107 archivos y 1.079 pruebas correctas**, incluidos capacidades, MCP, Operador, colaboración y rutas de bandeja. Casos específicos de los tres proveedores, actor ausente, conexiones de otro negocio/canal, cambio de dueño, fallos de lectura, denegación antes de mensajes/escrituras y filtro previo al límite. Compilación y publicación en curso.
+
+Lint de los cambios y **build completo correctos**, incluidos TypeScript y generación de rutas. Seis archivos propios. No se consultaron buzones ni mensajes de clientes en producción, utilizaron modelos o hicieron cambios de estado reales para probar. Publicación de esta entrega todavía no comprobada.
