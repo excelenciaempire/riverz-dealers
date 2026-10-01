@@ -19,6 +19,7 @@ beforeAll(async () => {
   await db.exec(
     readFileSync('supabase/migrations/338_email_whatsapp_referrals.sql', 'utf8')
   );
+  await db.exec(readFileSync('supabase/migrations/342_channel_whatsapp_referrals.sql', 'utf8'));
 });
 afterAll(async () => {
   await db.close();
@@ -54,6 +55,16 @@ async function capture(overrides: unknown[] = []) {
   ).rows[0].result;
 }
 describe('persisted email source validation', () => {
+  it('preserves the social source when a real WhatsApp inquiry arrives, without changing email behavior', async () => {
+    await db.exec("update channel_connections set channel='instagram' where channel='gmail'; update email_whatsapp_links set source_kind='channel_inquiry',source_channel='instagram'");
+    expect(await capture()).toMatchObject({ kind: 'channel_inquiry', sourceChannel: 'instagram', sourceConversationId: null });
+    await capture();
+    expect((await db.query('select * from email_whatsapp_inquiries')).rows).toHaveLength(1);
+  });
+  it('rejects Mercado Libre as a redirect source at the database boundary', async () => {
+    await expect(db.exec("update email_whatsapp_links set source_kind='channel_inquiry',source_channel='mercadolibre'"))
+      .rejects.toThrow('email_whatsapp_links_channel_source_check');
+  });
   it('counts clicks separately; they never create a conversation or inquiry', async () => {
     await Promise.all([
       db.query('select count_email_whatsapp_click($1)', [token]),

@@ -15,6 +15,7 @@ import type {
 } from "@/types";
 import type { InboundEvent } from "./types";
 import { runAiAgent } from "@/lib/ai/runner";
+import { loadRevitalyWhatsAppPolicy } from '@/lib/ai/revitaly-whatsapp-policy';
 import { inboxCaseIsSpam } from '@/lib/inbox/disposition-server';
 import { dispatchAutomationsAndFlows } from "./inbound-dispatch";
 import { linkUnifiedContact } from "@/lib/contacts/dedupe";
@@ -633,7 +634,8 @@ export async function ingestInboundEvent(
     // Si un flujo consume el mensaje, el cliente está contestando un guion
     // interactivo y la IA no debe hablar encima; una automatización que
     // responde NO la silencia (la IA conversa con ese contexto).
-    const flowConsumed = await dispatchAutomationsAndFlows(db, {
+    const centralizeWhatsApp = await loadRevitalyWhatsAppPolicy(db, workspaceId, channel);
+    const flowConsumed = centralizeWhatsApp ? false : await dispatchAutomationsAndFlows(db, {
       workspaceId,
       channel,
       conversation,

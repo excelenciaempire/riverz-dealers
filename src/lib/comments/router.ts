@@ -9,6 +9,7 @@ import { puedeAtenderContacto } from '@/lib/billing/contact-cap';
 import { aplicarDesenlace } from '@/lib/ai/desenlace';
 import { motorApagado } from '@/lib/workspaces/motor';
 import { puertaDelPiloto } from '@/lib/piloto';
+import { loadRevitalyWhatsAppPolicy } from '@/lib/ai/revitaly-whatsapp-policy';
 
 /**
  * UN solo portero para cada comentario que entra.
@@ -107,8 +108,9 @@ export async function routeComment(
 
   // 1. Reglas del comercio.
   let handledByRule = false;
+  const centralizeWhatsApp = await loadRevitalyWhatsAppPolicy(db, ev.workspaceId, ev.channel);
   try {
-    handledByRule = await processCommentForDmRules(db, {
+    handledByRule = centralizeWhatsApp ? false : await processCommentForDmRules(db, {
       workspaceId: ev.workspaceId,
       channel: ev.channel,
       connection: ev.connection,

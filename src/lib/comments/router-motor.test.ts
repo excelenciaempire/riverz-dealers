@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({
   motorApagado: true,
+  whatsappPolicy: false,
   reglas: vi.fn(async () => false),
   agente: vi.fn(async () => undefined),
   inserts: [] as Array<Record<string, unknown>>,
@@ -18,6 +19,7 @@ vi.mock('@/lib/channels/publicacion-media', () => ({ anotarPublicacion: async ()
 vi.mock('@/lib/comments/hilo', () => ({ loadCommentConversation: async () => ({ id: 'hilo-1' }) }))
 vi.mock('@/lib/billing/contact-cap', () => ({ puedeAtenderContacto: async () => true }))
 vi.mock('@/lib/ai/desenlace', () => ({ aplicarDesenlace: async () => undefined }))
+vi.mock('@/lib/ai/revitaly-whatsapp-policy', () => ({ loadRevitalyWhatsAppPolicy: async () => m.whatsappPolicy ? { phone: '5492255629123' } : null }))
 
 import { routeComment } from './router'
 
@@ -44,6 +46,7 @@ const evento = {
 describe('routeComment con el motor apagado', () => {
   beforeEach(() => {
     m.inserts.length = 0
+    m.whatsappPolicy = false
     m.reglas.mockClear()
     m.agente.mockClear()
   })
@@ -71,5 +74,12 @@ describe('routeComment con el motor apagado', () => {
     expect(m.reglas).not.toHaveBeenCalled()
     expect(m.agente).not.toHaveBeenCalled()
     expect(m.inserts).toEqual([])
+  })
+  it('uses the centralized reply instead of an old comment-to-DM sales rule', async () => {
+    m.motorApagado = false
+    m.whatsappPolicy = true
+    await routeComment(db, evento)
+    expect(m.reglas).not.toHaveBeenCalled()
+    expect(m.agente).toHaveBeenCalledOnce()
   })
 })

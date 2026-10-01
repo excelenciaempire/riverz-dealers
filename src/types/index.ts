@@ -422,7 +422,8 @@ export interface Conversation {
     mediaType?: string;
   } | null;
   email_referral?: {
-    kind: 'purchase_guide' | 'email_inquiry';
+    kind: 'purchase_guide' | 'email_inquiry' | 'channel_inquiry';
+    sourceChannel?: string;
     orderName: string | null;
     sourceConversationId: string | null;
     receivedAt: string;

@@ -2,6 +2,8 @@ import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { loadHttpAssistantTools } from './http-actions';
 import { revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-channel-policy';
 import { revitalyTransferReply } from './revitaly-transfer';
+import { revitalyTransferShippingReply } from './revitaly-transfer-shipping';
+import { loadRevitalyWhatsAppPolicy, revitalyWhatsAppRedirectText } from './revitaly-whatsapp-policy';
 import {emailDispositionForPolicy,emailRedirectText,isEmailChannel,loadEmailPolicy} from './email-policy';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from '@/lib/ai/esfuerzo';
 import { untrustedContext } from '@/lib/ai/input-security';
@@ -113,6 +115,11 @@ export async function simularRespuesta(
   }
 ): Promise<RespuestaSimulada> {
   a=await loadAgentToolContext(admin,a,input.simulatedChannel);
+  const whatsappPolicy = await loadRevitalyWhatsAppPolicy(admin, a.workspace_id, input.simulatedChannel);
+  if (whatsappPolicy) {
+    const reply = revitalyWhatsAppRedirectText(whatsappPolicy, a.language);
+    return { reply, chunks: [reply], herramientas: [], usage: { input_tokens: 0, output_tokens: 0, iterations: 0 } };
+  }
   if (isEmailChannel(input.simulatedChannel)) {
     const policy=await loadEmailPolicy(admin,a.workspace_id);
     const disposition=emailDispositionForPolicy(policy,{
@@ -133,9 +140,13 @@ export async function simularRespuesta(
     workspaceId: a.workspace_id, agentId: a.id, channel: input.simulatedChannel,
     language: a.language, inbound: input.message, rules: reglasCrudas,
   }) : null;
-  if (transferReply) {
+  const shippingReply = input.superficie !== 'comentario' ? revitalyTransferShippingReply({ workspaceId: a.workspace_id,
+    agentId: a.id, channel: input.simulatedChannel, language: a.language, inbound: input.message,
+    rules: reglasCrudas, history: input.historial }) : null;
+  const transferAndShipping = [transferReply, shippingReply].filter(Boolean).join('\n\n');
+  if (transferAndShipping) {
     const reply = ensureRevitalyIntroduction({ workspaceId: a.workspace_id, channel: input.simulatedChannel,
-      language: a.language, text: transferReply, hasPriorReply: input.historial.some(m => m.role === 'assistant') });
+      language: a.language, text: transferAndShipping, hasPriorReply: input.historial.some(m => m.role === 'assistant') });
     return { reply, chunks: splitReplyForMode(reply, a.response_mode),
       herramientas: [], usage: { input_tokens: 0, output_tokens: 0, iterations: 0 } };
   }

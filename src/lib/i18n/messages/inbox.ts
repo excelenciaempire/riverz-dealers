@@ -6,6 +6,10 @@ import type { Namespace } from "./types";
  */
 export const inbox = {
   emailReferral: { es: 'Desde correo', en: 'From email' },
+  channelReferralInstagram: { es: 'Desde Instagram', en: 'From Instagram' },
+  channelReferralFacebook: { es: 'Desde Facebook', en: 'From Facebook' },
+  channelReferralTikTok: { es: 'Desde TikTok', en: 'From TikTok' },
+  channelReferralWebchat: { es: 'Desde chat web', en: 'From web chat' },
   emailReferralGuide: { es: 'Guía de compra', en: 'Purchase guide' },
   emailReferralInquiry: { es: 'Consulta derivada a WhatsApp', en: 'Inquiry redirected to WhatsApp' },
   emailReferralOrder: { es: 'Pedido {order}', en: 'Order {order}' },

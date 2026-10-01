@@ -1887,7 +1887,10 @@ export function MessageThread({
 
       {conversation.email_referral && (
         <div className="flex items-center gap-3 border-b border-border bg-muted/70 px-4 py-2 text-xs">
-          <span className="rounded-full bg-primary/15 px-2 py-1 font-semibold text-accent-ink">{t('inbox.emailReferral')}</span>
+          <span className="rounded-full bg-primary/15 px-2 py-1 font-semibold text-accent-ink">{t(conversation.email_referral.kind !== 'channel_inquiry' ? 'inbox.emailReferral'
+            : ['instagram', 'ig_comment'].includes(conversation.email_referral.sourceChannel ?? '') ? 'inbox.channelReferralInstagram'
+            : ['messenger', 'fb_comment'].includes(conversation.email_referral.sourceChannel ?? '') ? 'inbox.channelReferralFacebook'
+            : conversation.email_referral.sourceChannel === 'tiktok_comment' ? 'inbox.channelReferralTikTok' : 'inbox.channelReferralWebchat')}</span>
           <span>{t(conversation.email_referral.kind === 'purchase_guide' ? 'inbox.emailReferralGuide' : 'inbox.emailReferralInquiry')}
             {conversation.email_referral.orderName && <> · {t('inbox.emailReferralOrder', { order: conversation.email_referral.orderName })}</>}
           </span>

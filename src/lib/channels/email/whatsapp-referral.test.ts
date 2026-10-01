@@ -17,6 +17,7 @@ function database(
     noMail?: boolean;
     foreignConversation?: boolean;
     insertError?: boolean;
+    channel?: string;
   } = {}
 ) {
   const links: Record<string, unknown>[] = [];
@@ -63,7 +64,7 @@ function database(
             rows = mail
               ? options.noMail
                 ? []
-                : [{ id: 'email', channel: 'gmail' }]
+                : [{ id: 'email', channel: options.channel ?? 'gmail' }]
               : [
                   {
                     id: 'wa',
@@ -97,6 +98,23 @@ const creation = {
 };
 
 describe('email → WhatsApp referrals', () => {
+  it('tracks social sources with their actual channel and an opaque reference', async () => {
+    for (const channel of ['instagram', 'messenger', 'fb_comment', 'ig_comment', 'webchat', 'tiktok_comment']) {
+      const { db, links } = database({ channel });
+      const url = await createEmailWhatsAppLink(db, { ...creation, kind: 'channel_inquiry', sourceChannel: channel });
+      expect(links[0]).toMatchObject({ source_kind: 'channel_inquiry', source_channel: channel });
+      expect(links[0].prefill).toContain('[RZ-');
+      expect(links[0].prefill).not.toContain('correo');
+      expect(url).toMatch(/\/api\/email\/whatsapp\/[a-f0-9]{24}$/);
+    }
+  });
+  it('never turns a Mercado Libre connection or a mismatched social source into a referral', async () => {
+    for (const channel of ['mercadolibre', 'gmail', 'whatsapp'])
+      await expect(createEmailWhatsAppLink(database({ channel }).db, { ...creation, kind: 'channel_inquiry', sourceChannel: channel }))
+        .rejects.toThrow('email_referral_mailbox_unavailable');
+    await expect(createEmailWhatsAppLink(database({ channel: 'instagram' }).db, { ...creation, kind: 'channel_inquiry', sourceChannel: 'fb_comment' }))
+      .rejects.toThrow('email_referral_mailbox_unavailable');
+  });
   it('uses the public production domain when no site URL is configured', async () => {
     vi.stubEnv('NEXT_PUBLIC_SITE_URL', '');
     try {

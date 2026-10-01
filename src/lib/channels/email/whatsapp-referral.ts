@@ -5,10 +5,12 @@ import type { InboundEvent } from '../types';
 
 export const REVITALY_EMAIL_WORKSPACE = '234604a9-909b-4e50-952b-acde4a85593a';
 const EMAIL_CHANNELS = new Set(['gmail', 'outlook', 'zoho']);
+const REFERRAL_CHANNELS = new Set(['instagram', 'messenger', 'webchat', 'fb_comment', 'ig_comment', 'tiktok_comment']);
 const URLS = /https?:\/\/[^\s<>"']+/g;
 const TOKEN = /\[RZ-([a-f0-9]{24})\]/i;
 export type EmailReferral = {
-  kind: 'purchase_guide' | 'email_inquiry';
+  kind: 'purchase_guide' | 'email_inquiry' | 'channel_inquiry';
+  sourceChannel?: string;
   orderName: string | null;
   sourceConversationId: string | null;
   receivedAt: string;
@@ -46,6 +48,7 @@ export async function createEmailWhatsAppLink(
   args: {
     workspaceId: string;
     emailConnectionId: string;
+    sourceChannel?: string;
     sourceKey: string;
     kind: EmailReferral['kind'];
     conversationId?: string;
@@ -65,7 +68,11 @@ export async function createEmailWhatsAppLink(
       .eq('status', 'connected')
       .maybeSingle()
   ).data;
-  if (!mail || !EMAIL_CHANNELS.has(mail.channel))
+  const channelInquiry = args.kind === 'channel_inquiry';
+  if (!mail || (channelInquiry
+    ? args.workspaceId !== REVITALY_EMAIL_WORKSPACE || !args.sourceChannel || !REFERRAL_CHANNELS.has(args.sourceChannel)
+      || mail.channel !== args.sourceChannel
+    : !EMAIL_CHANNELS.has(mail.channel)))
     throw new Error('email_referral_mailbox_unavailable');
   const connections =
     checked(
@@ -89,22 +96,21 @@ export async function createEmailWhatsAppLink(
     .update(`${args.emailConnectionId}:${args.sourceKey}:${connection.id}`)
     .digest('hex');
   if (args.conversationId) {
+    let scope = db.from('conversations').select('id').eq('id', args.conversationId).eq('workspace_id', args.workspaceId);
+    scope = channelInquiry && args.sourceChannel?.endsWith('_comment')
+      ? scope.eq('channel', args.sourceChannel) : scope.eq('connection_id', args.emailConnectionId);
     const conversation = checked(
-      await db
-        .from('conversations')
-        .select('id')
-        .eq('id', args.conversationId)
-        .eq('workspace_id', args.workspaceId)
-        .eq('connection_id', args.emailConnectionId)
-        .maybeSingle()
+      await scope.maybeSingle()
     ).data;
     if (!conversation)
       throw new Error('email_referral_conversation_scope_mismatch');
   }
   const token = randomBytes(12).toString('hex');
   const en = args.language?.toLowerCase().startsWith('en');
-  const message =
-    args.kind === 'purchase_guide'
+  const sourceName = channelInquiry ? referralChannelName(args.sourceChannel!, en ? 'en' : 'es') : null;
+  const message = channelInquiry
+    ? en ? `Hi, I am coming from ${sourceName} to continue my inquiry.` : `Hola, vengo de ${sourceName} para continuar mi consulta.`
+    : args.kind === 'purchase_guide'
       ? en
         ? 'Hi, I received my Revitaly guide by email and have a question.'
         : 'Hola, recibí la guía de Revitaly por correo y tengo una duda.'
@@ -120,6 +126,7 @@ export async function createEmailWhatsAppLink(
         whatsapp_connection_id: connection.id,
         source_key: key,
         source_kind: args.kind,
+        ...(channelInquiry ? { source_channel: args.sourceChannel } : {}),
         source_conversation_id: args.conversationId ?? null,
         order_id: args.orderId ?? null,
         order_name: args.orderName ?? null,
@@ -216,10 +223,15 @@ export function emailReferralContext(
 ): string | null {
   if (!referral) return null;
   return (
-    'Origen registrado: consulta desde un enlace de correo. ' +
+    `Origen registrado: consulta desde ${referral.kind === 'channel_inquiry' ? referralChannelName(referral.sourceChannel ?? '', 'es') : 'un enlace de correo'}. ` +
     (referral.kind === 'purchase_guide'
       ? `Correo de la guía de compra; pedido de referencia: ${JSON.stringify(referral.orderName)}.`
-      : 'Derivación de una consulta por correo.') +
+      : referral.kind === 'channel_inquiry' ? 'Derivación desde otro canal de atención.' : 'Derivación de una consulta por correo.') +
     ' El enlace puede reenviarse: no acredita identidad ni propiedad del pedido. Verifica los datos antes de consultar información privada o modificar un pedido.'
   );
+}
+
+export function referralChannelName(channel: string, language: string): string {
+  const names: Record<string, string> = { instagram: 'Instagram', ig_comment: 'Instagram', messenger: 'Facebook', fb_comment: 'Facebook', tiktok_comment: 'TikTok' };
+  return names[channel] ?? (language.startsWith('en') ? 'web chat' : 'chat web');
 }

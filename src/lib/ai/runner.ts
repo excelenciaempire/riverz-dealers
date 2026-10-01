@@ -5,6 +5,8 @@ import { inboxCaseIsSpam } from '@/lib/inbox/disposition-server';
 import { emailDispositionForPolicy, emailRedirectText, isEmailChannel, loadEmailPolicy } from './email-policy';
 import { revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-channel-policy';
 import { revitalyTransferReply } from './revitaly-transfer';
+import { revitalyTransferShippingReply } from './revitaly-transfer-shipping';
+import { loadRevitalyWhatsAppPolicy, trackedRevitalyWhatsAppReply } from './revitaly-whatsapp-policy';
 import type { OtherStoreContext } from '@/lib/ai/tools';
 import { UNTRUSTED_CONTENT_POLICY, untrustedContext } from './input-security';
 import { loadCaseGapContext } from './case-gap-context';
@@ -437,6 +439,7 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
 
     const { data: enrichedInbound } = await db.from('messages').select('id, content_text, media_url, media_type, media_mime, media_transcription, attachments').eq('id', args.inboundMessage.id).eq('conversation_id', args.conversation.id).maybeSingle();
     const textoEntrante = [args.inboundMessage.content_text ?? '', enrichedInbound ? evidenceText(enrichedInbound) : ''].filter(Boolean).join('\n');
+    const whatsappRedirectPolicy = await loadRevitalyWhatsAppPolicy(db, args.workspaceId, args.channel);
 
     // AL CONTESTADOR DEL CLIENTE NO SE LE CONTESTA.
     //
@@ -486,7 +489,7 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
       return;
     }
     if (
-      emailDisposition !== 'customer' && args.channel !== 'webchat' &&
+      !whatsappRedirectPolicy && emailDisposition !== 'customer' && args.channel !== 'webchat' &&
       containsEscalationKeyword(agent, textoEntrante)
     ) {
       await flagNeedsHuman(db, args.conversation, 'escalation_keyword', {
@@ -508,7 +511,7 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
     // Un envío que va a la ciudad equivocada no trae ninguna palabra clave y
     // no puede esperar a que alguien mire la bandeja.
     const escalada =
-      args.channel === 'webchat' || emailDisposition === 'customer'
+      whatsappRedirectPolicy || args.channel === 'webchat' || emailDisposition === 'customer'
         ? null
         : await detectarEscalada({
             mensaje: textoEntrante,
@@ -833,6 +836,34 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
         ? recoveryButtonReply(currentRecoveryButton, agent.language)
         : null;
 
+    if (whatsappRedirectPolicy) {
+      const quota = await puertaDelPiloto(db, { workspaceId: args.workspaceId, tipo: 'mensaje', canal: args.channel, telefono: telefonoDelCliente });
+      if (!quota.permitido) { await anotarSalida(db, args, quota.motivo); return; }
+      const text = await trackedRevitalyWhatsAppReply(db, {
+        policy: whatsappRedirectPolicy, workspaceId: args.workspaceId, channel: args.channel,
+        connectionId: args.connection.id, conversationId: args.conversation.id,
+        sourceKey: args.inboundMessage.id, language: agent.language,
+      });
+      if (await replyWasSuperseded(db, args.conversation.id, args.inboundMessage)) {
+        await logReply(db, agent, args, { status: 'skipped', skip_reason: 'stale_by_newer_inbound' }); return;
+      }
+      const current = await db.from('conversations').select('ai_enabled,assigned_agent_id,status')
+        .eq('workspace_id', args.workspaceId).eq('id', args.conversation.id).maybeSingle();
+      if (current.error) throw current.error;
+      if (!current.data) return;
+      const skip = shouldSkip(agent, { ...args, conversation: { ...args.conversation, ...current.data } as Conversation });
+      if (skip) { await logReply(db, agent, args, { status: 'skipped', skip_reason: skip }); return; }
+      if (agent.requires_approval && args.channel !== 'webchat') {
+        const draft = await db.from('ai_pending_replies').upsert({ workspace_id: args.workspaceId,
+          conversation_id: args.conversation.id, agent_id: agent.id, agent_name: agent.name ?? null,
+          content_text: text, created_at: new Date().toISOString() }, { onConflict: 'conversation_id' });
+        if (draft.error) throw draft.error;
+        await logReply(db, agent, args, { status: 'skipped', skip_reason: 'awaiting_approval', prompt_tokens: 0, completion_tokens: 0 }); return;
+      }
+      const messageId = await sendDeterministicAgentReply(db, agent, args, text);
+      await logReply(db, agent, args, { status: 'sent', message_id: messageId, prompt_tokens: 0, completion_tokens: 0 }); return;
+    }
+
     if (args.channel !== 'webchat' && recoveryIntent === 'manual_payment') {
       const porQue = existingOrderRecovery
         ? 'Quiere cambiar la forma de pago de un pedido existente'
@@ -1060,6 +1091,7 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
           conversationId: args.conversation.id,
           channel: args.channel,
           inboundText: args.inboundMessage.content_text ?? '',
+          inboundEvidence: enrichedInbound ? evidenceText(enrichedInbound) : '',
           inboundId: args.inboundMessage.id,
           traspaso: turnoDeTraspaso,
         },
@@ -3410,6 +3442,7 @@ async function generateReply(
     channel: Channel;
     inboundText: string;
     inboundId?: string;
+    inboundEvidence?: string;
     /** El triaje vio un problema: este turno verifica, contesta y pasa a una persona. */
     traspaso?: string | null;
   },
@@ -3425,11 +3458,15 @@ async function generateReply(
     workspaceId: agent.workspace_id, agentId: agent.id, channel: origen.channel,
     language: agent.language, inbound: origen.inboundText, rules: reglasCrudas,
   }) : null;
-  if (transferReply) {
+  const shippingReply = revitalyTransferShippingReply({ workspaceId: agent.workspace_id, agentId: agent.id,
+    channel: origen.channel, language: agent.language, inbound: [origen.inboundText, origen.inboundEvidence].filter(Boolean).join('\n'), rules: reglasCrudas,
+    history: context.messages.map(m => ({ role: m.role, content: m.content })) });
+  const transferAndShipping = [transferReply, shippingReply].filter(Boolean).join('\n\n');
+  if (transferAndShipping) {
     observeContext(agent.id, reglasCrudas, origen.inboundId ? [{ kind: 'message', id: origen.inboundId }] : []);
     return {
       text: ensureRevitalyIntroduction({ workspaceId: agent.workspace_id, channel: origen.channel,
-        language: agent.language, text: transferReply,
+        language: agent.language, text: transferAndShipping,
         hasPriorReply: Boolean(context.rollingSummary) || context.messages.some(m => m.role === 'assistant') }),
       promptTokens: 0, completionTokens: 0, herramientas: [],
     };

@@ -39,6 +39,7 @@ import type {
   NeedsHumanReason,
 } from '@/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { loadRevitalyWhatsAppPolicy, trackedRevitalyWhatsAppReply } from '@/lib/ai/revitaly-whatsapp-policy';
 import {
   commentAgentCanReply,
   igAgentCanAutoReply,
@@ -1023,6 +1024,7 @@ async function decidirComentario(
   // A quién contesta, y cuánto insiste en un hilo: lo decide el comercio en
   // Comentarios (migración 132). Los defaults son la conducta de siempre.
   const commentCfg = await loadCommentSettings(db, opts.workspaceId);
+  const whatsappPolicy = await loadRevitalyWhatsAppPolicy(db, opts.workspaceId, commentChannel);
 
   const priceQuestion = asksForPrice(engagement) && !orderStatus;
   // “Precio?” no nombra el producto: el producto está en la publicación. Sin
@@ -1148,7 +1150,7 @@ async function decidirComentario(
   // catálogo, solo que sin herramientas.
   const agent = await resolveIgAgent(db, opts.workspaceId, null);
   // Lo único que se respeta del agente aquí: que la persona pida un humano.
-  if (!commentAgentCanReply(agent, engagement)) return 'comment_pide_humano';
+  if (!whatsappPolicy && !commentAgentCanReply(agent, engagement)) return 'comment_pide_humano';
 
   const trust = await proactiveGate(db, opts.workspaceId);
   if (!trust.ok) return 'comment_puerta_proactiva';
@@ -1165,7 +1167,7 @@ async function decidirComentario(
     : await dmConnectionFor(db, opts.workspaceId, opts.connection, dmChannel);
   // Sin conexión de DM sólo se cae el camino privado: el modo "Solo en el
   // comentario" publica igual, que es justo lo que el comercio pidió.
-  if (!connection && !isTikTok && commentCfg.replyMode !== 'public') {
+  if (!connection && !isTikTok && !whatsappPolicy && commentCfg.replyMode !== 'public') {
     return 'comment_sin_conexion';
   }
 
@@ -1240,7 +1242,11 @@ async function decidirComentario(
   // Va aquí, DESPUÉS de todas las guardas —limitador de ráfaga, spam/intención,
   // igAgentCanAutoReply, proactiveGate, candado por comentario, anti-bucle de
   // 3— y solo COMPONE: el envío de abajo no cambia.
-  let text: string | null = precioSinVerificar
+  let text: string | null = whatsappPolicy && opts.connection ? await trackedRevitalyWhatsAppReply(db, {
+    policy: whatsappPolicy, workspaceId: opts.workspaceId, channel: commentChannel,
+    connectionId: opts.connection.id, conversationId: hilo?.id,
+    sourceKey: opts.commentId!, language: brand?.language || 'es',
+  }) : precioSinVerificar
     ? replyForUnidentifiedPrice(
         brand?.language,
         links.products.map((p) => p.url)
@@ -1398,7 +1404,7 @@ async function decidirComentario(
   // eligió el comercio (migración 177). En 'public_smart' pregunta al
   // clasificador: la respuesta privada es UNA sola por comentario y gastarla en
   // un "qué linda foto" es perderla para el que sí quería comprar.
-  const decision = opts.publicOnly
+  const decision = whatsappPolicy ? { dm: false, reason: 'ninguna' as const } : opts.publicOnly
     ? {
         dm: false,
         reason: orderStatus ? ('pedido' as const) : ('ninguna' as const),
@@ -1426,13 +1432,13 @@ async function decidirComentario(
     decision.dm = false;
     decision.reason = 'ninguna';
   }
-  const decisionForPublic = esPagoManual
+  const decisionForPublic = esPagoManual && !whatsappPolicy
     ? { ...decision, reason: 'privado' as const }
     : decision;
   if (
     decision.reason === 'pedido' ||
     decision.reason === 'reclamo' ||
-    esPagoManual
+    (esPagoManual && !whatsappPolicy)
   ) {
     await marcarParaUnaPersona(
       db,
@@ -1474,7 +1480,7 @@ async function decidirComentario(
   // mensajes casi iguales en el mismo hilo.
   // En TikTok siempre se publica: es lo único que TikTok deja hacer, así que
   // el modo elegido para Instagram y Facebook no la puede dejar muda.
-  const willPublish = opts.publicOnly || isTikTok || commentCfg.publicReply;
+  const willPublish = Boolean(whatsappPolicy) || opts.publicOnly || isTikTok || commentCfg.publicReply;
 
   let dmSent = false;
   /** No salió nada: ni el privado ni la respuesta pública. */
@@ -1538,7 +1544,7 @@ async function decidirComentario(
     if (willPublish) {
       // Sin DM, lo público NO puede decir "te escribí por privado": es la
       // respuesta entera, ahí mismo.
-      const publicText = publicReplyFrom(text, dmSent, decisionForPublic);
+      const publicText = whatsappPolicy ? text : publicReplyFrom(text, dmSent, decisionForPublic);
       const publicConnection = opts.connection ?? connection;
       try {
         if (!publicConnection) throw new Error('sin conexión de comentarios');
