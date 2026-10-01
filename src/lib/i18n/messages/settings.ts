@@ -8,6 +8,7 @@ export const settings = {
   'httpStarter_n8n-request': { es: 'n8n — registrar una solicitud', en: 'n8n — register a request' },
   'httpStarter_make-request': { es: 'Make — registrar una solicitud', en: 'Make — register a request' },
   'httpStarter_custom-lookup': { es: 'Sistema propio — consultar una referencia', en: 'Own system — look up a reference' },
+  'httpStarter_custom-request': { es: 'Sistema propio — registrar una solicitud', en: 'Own system — register a request' },
   httpStarterHelp: { es: 'Añade tu URL de producción y configura su clave. El sistema debe comprobar que la referencia pertenece al contacto y responder con JSON.', en: 'Add your production URL and configure its key. The system must verify that the reference belongs to the contact and respond with JSON.' },
   httpStarterMakeHelp: { es: 'Añade la URL del webhook de Make y su clave de API. Configura una respuesta JSON; la respuesta de texto predeterminada no confirma el resultado.', en: 'Add the Make webhook URL and its API key. Configure a JSON response; the default text response does not confirm the result.' },
   httpStarterReplace: { es: 'Aplicar reemplaza los campos y borra la clave escrita en este borrador. No guarda, activa ni ejecuta la acción.', en: 'Applying replaces the fields and clears the entered key in this draft. It does not save, activate or execute the action.' },

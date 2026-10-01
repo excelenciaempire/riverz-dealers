@@ -15,6 +15,8 @@ describe('comparison-only optional starter picker', () => {
   it.each(['es', 'en'] as const)('starts with manual setup and never applies a template automatically in %s', locale => {
     h.locale = locale; const apply = vi.fn(), html = renderToStaticMarkup(<HttpActionStarterPicker apply={apply} />);
     expect(html).toContain(translate(locale, 'settings.httpStarterTitle')); expect(html).toContain('value="" selected=""');
-    expect(html).toContain('Make'); expect(html).toContain('n8n'); expect(html).not.toContain('target="_blank"'); expect(apply).not.toHaveBeenCalled();
+    expect(html).toContain(translate(locale, 'settings.httpStarter_custom-lookup'));
+    expect(html).toContain(translate(locale, 'settings.httpStarter_custom-request'));
+    expect(html).not.toContain('Make'); expect(html).not.toContain('n8n'); expect(html).not.toContain('target="_blank"'); expect(apply).not.toHaveBeenCalled();
   });
 });

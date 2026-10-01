@@ -5,6 +5,13 @@ vi.mock('@/lib/ui/improvements-preview', () => ({ get SHOW_RIVERZ_IMPROVEMENTS()
 import { HTTP_ACTION_STARTERS, httpActionStarterDocs, httpActionStarterDraft, httpActionStarters } from './http-action-starters';
 beforeEach(() => { h.visible = true; });
 describe('editable external-system starter templates', () => {
+  it('offers only the two native custom-system drafts in the proposed UI', () => {
+    expect(httpActionStarters()).toEqual(['custom-lookup','custom-request']);
+    const request = httpActionStarterDraft('custom-request','es')!;
+    expect(request).toMatchObject({method:'POST',credential_kind:'api-key'});
+    expect(request.parameters).toContainEqual({key:'conversation_id',source:'conversation_id',type:'string',required:true});
+    expect(httpActionStarterDocs('custom-request')).toBeNull();
+  });
   it('offers no templates or draft application outside comparison', () => {
     h.visible = false; expect(httpActionStarters()).toEqual([]); expect(httpActionStarterDraft('n8n-request', 'es')).toBeNull();
   });

@@ -2,6 +2,10 @@
 
 ## Español
 
+**Estado vigente:** ejecutor privado, MCP/Operador, herramientas y permisos del superasistente, y lecturas GET de Flujos implementados bajo la puerta de comparación. El selector ofrece dos borradores para sistemas propios: consulta y registro de solicitud con revisión humana. No requiere n8n/Make. Los borradores históricos y su autenticación siguen siendo compatibles. POST en Flujos, reconciliación, retención y prueba controlada de proveedor siguen en desarrollo.
+
+Los apartados siguientes conservan el historial por entregas; sus límites describen lo que cubría cada incremento en ese momento.
+
 Este incremento añade un ejecutor interno, reservado a compilaciones de comparación. No añade rutas de ejecución, herramientas del asistente, capacidades MCP, nodos de Flujos ni controles visibles. Los adaptadores se conectarán por separado y deberán obtener actor, confirmación e identificador de invocación de estado protegido del servidor. Los argumentos del cliente o modelo nunca pueden definir ese contexto.
 
 **Ampliación posterior: MCP y Operador.** El catálogo compartido incorpora tres capacidades exclusivamente en comparación: listar acciones activas, consultar GET y ejecutar POST. En MCP se llaman `http_acciones_listar`, `http_accion_consultar` y `http_accion_ejecutar`. El catálogo devuelve ID, versión, descripción, riesgo y entradas libres, sin destino, credencial ni campos ligados a identidad. La llamada exige `action_id`, `expected_revision`, `parameters` y, cuando corresponda, `conversation_id`; no acepta campos de autoridad, URL o credencial. GET y POST son herramientas distintas para mantener su clasificación de riesgo.
@@ -38,6 +42,10 @@ La clave enviada al proveedor queda ligada a negocio, acción e invocación. No 
 La migración 331 incorpora RPCs de reclamar/finalizar y el guard de despliegue verifica firmas/columnas mediante contexto nulo y consultas `limit=0`. Las pruebas usan base, DNS y transporte simulados; no hacen llamadas externas reales ni ejecutan operaciones de clientes.
 
 ## English
+
+**Current scope:** private executor, MCP/Operator, assistant tools and allowances, and Flow GET reads are implemented behind the comparison gate. The picker offers two drafts for custom systems: lookups and requests requiring human review. Neither n8n nor Make is required. Historical drafts and their authentication remain compatible. Flow POST operations, reconciliation, retention and controlled provider acceptance remain in development.
+
+The following sections retain the delivery history; their limitations describe each increment at that time.
 
 This increment adds an internal executor restricted to comparison builds. It exposes no execution routes, assistant tools, MCP capabilities, Flow nodes or visible controls. Later adapters must derive actor identity, confirmation and invocation identifiers from protected server state; client/model arguments cannot supply this authority.
 
