@@ -1,7 +1,14 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getAnthropicStreaming } from '@/lib/ai/anthropic-client'
 import { anthropicRunner } from './fleet/runner'
+import { exigirMensualidad } from '@/lib/wallet/puerta'
+import { NextResponse } from 'next/server'
+
+// These tests isolate streaming wallet accounting. Subscription authorization
+// has its own database tests and is represented explicitly here.
+vi.mock('@/lib/wallet/puerta', () => ({ exigirMensualidad: vi.fn() }))
+beforeEach(() => vi.mocked(exigirMensualidad).mockResolvedValue(null))
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -31,6 +38,13 @@ const call = {
   messages: [{ role: 'user' as const, content: 'Test' }], tools: [], maxTokens: 100, effort: 'low' as const,
 }
 describe('Operator SDK streaming billing', () => {
+  it('stops before token counting, wallet reservation or generation when monthly access is blocked', async () => {
+    vi.mocked(exigirMensualidad).mockResolvedValue(NextResponse.json({ error: 'suscripcion_vencida' }, { status: 402 }))
+    const { runner, transport, rpc } = setup()
+    await expect(runner(call, () => {})).rejects.toThrow()
+    expect(transport).not.toHaveBeenCalled()
+    expect(rpc).not.toHaveBeenCalled()
+  })
   it('reserves and settles each orchestrator and specialist call once', async () => {
     const { rpc, runner } = setup()
     await runner(call, () => {})

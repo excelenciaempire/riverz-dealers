@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { idColumn } from '@/lib/short-id';
 import { Broadcast, BroadcastRecipient, RecipientStatus } from '@/types';
 import { broadcastDeliveryError } from '@/lib/broadcasts/delivery-errors';
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -441,6 +442,7 @@ export default function BroadcastDetailPage() {
           </div>
         </div>
 
+        {SHOW_RIVERZ_IMPROVEMENTS && broadcast.status === 'draft' && <Button variant="outline" size="sm" onClick={() => router.push(`/campanas/${broadcast.id}/editar`)}>{t('broadcasts.editDraft')}</Button>}
         {/* Eliminar — confirm inline */}
         {confirmDelete ? (
           <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/5 px-3 py-1.5 text-sm">

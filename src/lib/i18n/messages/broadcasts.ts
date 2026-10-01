@@ -2,6 +2,18 @@ import type { Namespace } from "./types";
 
 /** Broadcasts / campaigns: list, detail, and the 4-step send wizard. */
 export const broadcasts = {
+  editDraft: { es: "Editar borrador", en: "Edit draft" },
+  draftInvalid: { es: "Este borrador no se puede editar desde este constructor.", en: "This draft cannot be edited in this builder." },
+  draftChanged: { es: "El borrador cambió. Vuelve a abrirlo antes de continuar.", en: "The draft changed. Reopen it before continuing." },
+  draftTemplate: { es: "Revisa la plantilla: cambió o no está disponible para enviar.", en: "Review the template: it changed or is unavailable to send." },
+  draftPaused: { es: "El envío está pausado. Revisa la conexión y el estado del negocio.", en: "Sending is paused. Review the connection and business status." },
+  draftTooLarge: { es: "Reduce la audiencia o el contenido. La edición admite hasta 10.000 destinatarios y 20 MB de parámetros.", en: "Reduce the audience or content. Editing supports up to 10,000 recipients and 20 MB of parameters." },
+  draftUnavailable: { es: "No se pudo cargar o guardar el borrador.", en: "The draft could not be loaded or saved." },
+  draftConfirm: { es: "Confirmar campaña", en: "Confirm campaign" },
+  draftConfirmCount: { es: "{count} destinatarios revisados. Confirmar pondrá esta campaña en cola.", en: "{count} reviewed recipients. Confirming will queue this campaign." },
+  draftQueue: { es: "Confirmar envío", en: "Confirm send" },
+  draftQueued: { es: "Campaña en cola", en: "Campaign queued" },
+  draftExcludeTags: { es: "Excluir etiquetas", en: "Exclude tags" },
   deliveryInvalid: { es: "No se encontró un destinatario autorizado de esta campaña.", en: "An authorized recipient for this campaign could not be found." },
   deliveryUnavailable: { es: "No se pudo comprobar el envío. Se conserva pendiente sin repetirlo.", en: "The send could not be verified. It remains pending without being repeated." },
   deliveryUncertain: { es: "Resultado incierto. Revisa el proveedor antes de enviar nuevamente.", en: "Uncertain outcome. Review the provider before sending again." },

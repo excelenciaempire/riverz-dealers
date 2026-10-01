@@ -14,4 +14,5 @@ module.exports = (async () => {
   if (r.ok || error?.code!=='P0001' || error?.message!=='invalid_broadcast_receipt') throw new Error(`Campaign delivery RPC unavailable (HTTP ${r.status}).`);
  }
  console.log('Durable campaign delivery schema and RPCs verified.');
+ await (await import('./check-broadcast-draft-schema.cjs')).default;
 })().catch(error => {console.error(error.message);process.exitCode=1;});
