@@ -313,7 +313,7 @@ p.wrap(42, 791, 'Casos del período; no todos siguen pendientes y puede haber re
 p.end()
 
 # 3. Six concrete customer-facing capabilities, covering all eight reasons.
-p.header('Plan de acción', 'Qué puede resolver Riverz y cómo habilitarlo.')
+p.header('Propuesta de plan de acción', 'Acciones propuestas para ampliar la atención automática.')
 plan = [
     ('Editar direcciones de pedidos',
      'Sí, antes del despacho. Habilitar a la IA para actualizar Shopify tras confirmar la dirección con el cliente. Una vez despachado, no se modifica la dirección.'),
@@ -330,7 +330,6 @@ plan = [
 ]
 for i, (title, body) in enumerate(plan):
     p.proposal(184+i*98, i+1, title, body)
-p.text(42, 786, 'Probar cada acción con casos reales antes de activarla.', size=12.5)
 p.end()
 
 # 4. All comment content belongs on this last page. No recovery/incident block.
@@ -348,22 +347,28 @@ for i, (label, ids, color) in enumerate(sentiment_groups):
     p.box(232, y-10, 10, 10, HexColor(color), 3)
     p.text(252, y, label, 'Sans', 13, width=202)
     p.text(473, y, f'{len(ids)} · {round(100*len(ids)/38)}%', 'Semi', 13, width=66)
-end = p.wrap(42, 472, 'Las críticas se concentran en la publicidad y su credibilidad. El tono no mide satisfacción tras usar el producto; las bromas ambiguas se clasifican aparte.', leading=17)
-assert end <= 529
 comment_analysis = [
     ('26 · Publicidad', 'Cuestionaron anuncios hechos con IA y promesas de crecimiento. Hubo ironías y acusaciones de engaño.'),
     ('10 · Compra y uso', 'Consultaron precio, farmacias, pago contra entrega y uso en mujeres. También preguntaron por grasa y foliculitis.'),
     ('2 · Entregas', 'Dos compradores esperaban 7 y 20 días. Uno mencionó una promesa de entrega en 24 horas.'),
 ]
 for i, (title, body) in enumerate(comment_analysis):
-    x, y = 42+i*173, 535
+    x, y = 42+i*173, 470
     p.box(x, y, 165, 159)
     p.text(x+12, y+25, title, 'Semi', 14, width=141)
     end = p.wrap(x+12, y+49, body, 141, leading=17)
     assert end-17+4 <= y+159-6, (title, end)
-p.text(42, 727, 'Cómo respondió la IA', 'Serif', 25)
-end = p.wrap(42, 749, 'Respondió precios y canales de compra, pero algunas respuestas fueron genéricas o solo anunciaron un privado. Conviene resolver dudas en público y llevar pedidos y datos personales a privado.', leading=17)
-assert end-17+4 <= 791
+p.text(42, 656, 'Cómo respondió la IA', 'Serif', 25)
+end = p.wrap(42, 681, 'Respondió precios y canales de compra; algunas respuestas fueron genéricas o solo anunciaron un privado.', leading=17)
+assert end <= 719
+p.text(42, 732, 'Plan rápido propuesto', 'Serif', 25)
+comment_plan = [
+    'Responder precio y uso en público con información vigente.',
+    'Aclarar beneficios del producto y evitar promesas de crecimiento.',
+    'Pasar reclamos a privado y revisar a diario consultas sin respuesta.',
+]
+for i, action in enumerate(comment_plan):
+    p.text(42, 752+i*18, f'{i+1}. {action}', size=13)
 p.end()
 p.c.save()
 
@@ -373,9 +378,10 @@ assert len(doc) == p.page == 4
 assert len(doc.get_toc()) == 4
 text = '\n'.join(page.get_text() for page in doc)
 normalized_text = re.sub(r'\s+', ' ', text)
-assert all(token in normalized_text for token in ['425', '199', '43', '133', '21,6%', '66,8%', '26 al 30 de septiembre', 'Por qué se escala a humano', 'Plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.', 'Análisis de comentarios', '38 comentarios con texto', '34 hilos'])
+assert all(token in normalized_text for token in ['425', '199', '43', '133', '21,6%', '66,8%', '26 al 30 de septiembre', 'Por qué se escala a humano', 'Propuesta de plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.', 'Análisis de comentarios', '38 comentarios con texto', '34 hilos'])
 assert all(removed not in normalized_text for removed in ['Sin motivo de escalamiento', 'Sin escalamiento identificado', '78,4%', '10,1%', 'Qué ocurrió'])
-assert all(token in normalized_text for token in ['Sentimiento', '26 · Publicidad', '10 · Compra y uso', '2 · Entregas', 'Cómo respondió la IA', 'no mide satisfacción'])
+assert all(token in normalized_text for token in ['Sentimiento', '26 · Publicidad', '10 · Compra y uso', '2 · Entregas', 'Cómo respondió la IA', 'Plan rápido propuesto', *comment_plan])
+assert all(token not in normalized_text for token in ['Probar cada acción con casos reales antes de activarla.', 'Las críticas se concentran en la publicidad', 'no mide satisfacción', 'las bromas ambiguas se clasifican aparte'])
 assert all(token not in normalized_text for token in ['5 respuestas recuperadas', 'Corregido el envío', 'Recuperación automática', 'Al corte: 11', 'sin respuesta al corte', 'recuperados después'])
 assert 'comentari' not in doc[0].get_text().lower()
 assert 'Revitaly: atención en cifras' in doc[0].get_text()
@@ -419,6 +425,7 @@ proof = {'file': str(OUT), 'pages': len(doc), 'periodEscalations': len(cases),
          'responseIssueConversations': response_issues, 'avoidableBlockConversations': avoidable_blocks,
          'genuineInterventionInboxPercent': round(inbox_rate, 1),
          'genuineInterventionPercent': round(human_rate, 1), 'proposedCapabilities': len(plan),
+         'proposedCommentActions': len(comment_plan),
          'readableIncomingComments': len(comment_messages), 'incomingCommentThreads': len(comment_ids),
          'AIAnsweredCommentThreads': len(comment_ai_ids), 'humanAnsweredCommentThreads': len(comment_human_ids),
          'unansweredCommentThreadsAtCutoff': len(comment_unanswered_ids), 'commentChannelCounts': dict(comment_channels),
