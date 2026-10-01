@@ -985,3 +985,19 @@ La simulación devuelve la propuesta sin escribir ni consultar identidades reale
 El validador SQL de restricciones de canal admite el apagado de la herramienta nueva y conserva la prohibición de ampliar permisos. Instalación de la migración 347 y publicación en curso. Dieciséis archivos propios y ninguna dependencia nueva. Sin modelos, comunicaciones, clientes ni proveedores reales como QA. El plan global continúa.
 
 Migración **347 aplicada atómicamente**. Guard privado de catálogos comprobó `ready=true`, permisos privados y contexto fijo; el guard de build real y una llamada REST con identidades nulas rechazaron el contexto sin crear eventos ni leer mensajes reales. Comparación permanece desactivada; publicación del código en curso.
+
+## A2 / E1 — Versiones documentales en la evidencia de respuestas
+
+Clasificación publicada: revisión `3a25a4b622368f0bcf8bf7bcae3991623239e683` LIVE en Render a las **23:10:56 UTC** del 1 de octubre. Salud HTTP 200 a las **23:12:06 UTC**, revisión exacta, servicio, Supabase y WhatsApp `ok`. La función nace apagada; comparación continúa sin configurar.
+
+La evidencia del turno incorpora los documentos realmente preparados para el contexto, con identificador, nombre y versión exacta. Un contexto parcial solo registra los fragmentos que entraron; una fuente omitida, fallida o retirada no se presenta como disponible. Las referencias sobreviven a la preparación posterior del catálogo y mensajes, conservando revisiones distintas de una misma fuente. No se copia el cuerpo del documento en la evidencia ni se modifica el texto recibido por el modelo.
+
+SQL exige una revisión histórica activa del mismo negocio y asistente. Permite registrar una revisión que estaba activa al preparar el contexto aunque una revisión posterior la haya retirado; esto conserva el hecho pasado y no autoriza su uso en turnos nuevos. Mantiene las comprobaciones de mensajes, catálogo, respuestas internas, reglas, salidas, idempotencia y privacidad de buzones de la migración 320. El esquema de búsqueda del escritor pasa a ser fijo y privado; un guard de catálogos verifica permisos antes de desplegar.
+
+El panel de evidencia existente muestra nombre y versión en español e inglés, dentro de la comparación oculta. Distingue fuentes disponibles de la procedencia demostrada de cada afirmación. Este registro no prueba aplicación de una regla, exactitud de la respuesta ni resolución comercial. Tampoco abre enlaces de mensajes falsos para documentos ni genera nuevas llamadas de IA.
+
+**Validación inicial:** siete archivos y **61 pruebas correctas**, incluidas dieciocho pruebas SQL nuevas y la regresión anterior de evidencia ejecutada bajo el nuevo escritor. Lint de las superficies documentales correcto; se prepara la compilación final y la instalación de la migración 348. Sin documentos comerciales, modelos, proveedores o mensajes reales como QA. El plan global continúa.
+
+**Verificación de 2FA existente:** el repositorio de `riverz.co` utiliza Supabase Auth. Una lectura de configuración, sin consultar usuarios o factores personales, confirmó TOTP de enrolamiento y verificación habilitados; teléfono y WebAuthn deshabilitados. No se cambió el proveedor, no se enroló al dueño ni se forzó una política global. Esta comprobación acredita disponibilidad del proveedor, no un flujo completo de 2FA en la interfaz. [Referencia oficial de TOTP](https://supabase.com/docs/guides/auth/auth-mfa/totp).
+
+**Validación final documental:** 61 pruebas correctas, lint, UTF-8/diff y builds completos normal/comparación con TypeScript. Migración **348 aplicada atómicamente**; guard privado, esquema fijo y `ready=true` verificados. El checker real y una llamada REST de contexto nulo rechazaron la escritura sin crear comprobantes ni consultar documentos reales. Quince archivos propios, sin dependencia nueva ni UI visible. Publicación del código en curso; el plan global continúa.

@@ -27,7 +27,7 @@ export type DocumentFailure = typeof DOCUMENT_FAILURES[number];
 export function isDocumentSource(value: unknown): value is DocumentSource {
   if (!value || typeof value !== 'object') return false;
   const row = value as DocumentSource;
-  return typeof row.id === 'string' && /^[0-9a-f-]{36}$/i.test(row.id)
+  return typeof row.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id)
     && typeof row.name === 'string' && row.name.length > 0 && row.name.length <= 160
     && DOCUMENT_FORMATS.includes(row.format) && Number.isInteger(row.bytes) && row.bytes > 0 && row.bytes <= DOCUMENT_MAX_BYTES
     && typeof row.sha256 === 'string' && /^[0-9a-f]{64}$/.test(row.sha256)

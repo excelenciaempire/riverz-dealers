@@ -11,9 +11,15 @@ beforeAll(async() => {
  CREATE TABLE ai_agents(id uuid PRIMARY KEY,workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE);CREATE TABLE agent_guidance(id uuid PRIMARY KEY,workspace_id uuid);CREATE TABLE guidance_live_versions(rule_id uuid,workspace_id uuid);
  CREATE TABLE channel_connections(id uuid PRIMARY KEY,workspace_id uuid,created_by uuid);CREATE TABLE conversations(id uuid PRIMARY KEY,workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE,channel text,connection_id uuid,deleted_at timestamptz);
  CREATE TABLE messages(id uuid PRIMARY KEY,conversation_id uuid REFERENCES conversations(id) ON DELETE CASCADE,sender_type text,deleted_at timestamptz);CREATE TABLE shopify_products(id uuid PRIMARY KEY,workspace_id uuid);
+ CREATE TABLE case_gap_answers(id uuid PRIMARY KEY,workspace_id uuid,conversation_id uuid,question_snapshot text);
+ CREATE TABLE ai_document_source_versions(source_id uuid,revision integer,workspace_id uuid,agent_id uuid,status text);
+ ALTER TABLE ai_document_source_versions ENABLE ROW LEVEL SECURITY;
+ REVOKE ALL ON ai_document_source_versions FROM PUBLIC,anon,authenticated,service_role;
+ GRANT SELECT ON ai_document_source_versions TO authenticated,service_role;
  GRANT USAGE ON SCHEMA public,auth TO authenticated;GRANT SELECT ON conversations,channel_connections,workspace_members TO authenticated;`)
  const sql=readFileSync('supabase/migrations/316_ai_turn_evidence.sql','utf8');await db.exec(sql);await db.exec(sql)
-},20000)
+ await db.exec(readFileSync('supabase/migrations/348_ai_document_turn_evidence.sql','utf8'))
+},30000)
 afterAll(async() => { await db.close() })
 beforeEach(async() => {
  await db.exec("RESET ROLE;TRUNCATE workspaces,auth.users,channel_connections,agent_guidance,guidance_live_versions,shopify_products CASCADE;SELECT set_config('request.jwt.claim.sub','',false)")
