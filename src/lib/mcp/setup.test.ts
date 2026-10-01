@@ -65,7 +65,7 @@ describe('MCP desktop handoff', () => {
     expect(url.origin).toBe('https://chatgpt.com');
     expect(url.pathname).toBe('/plugins');
     expect(url.hash).toBe('');
-    expect(url.searchParams.get('create-connector')).toBe('true');
+    expect(url.search).toBe('');
   });
 
   it('prefills the actual Claude connector form without credentials', () => {

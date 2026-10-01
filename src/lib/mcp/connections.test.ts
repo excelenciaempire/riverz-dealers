@@ -8,6 +8,7 @@ const token: OAuthConnectionToken = {
   client_id: 'mcpc_test',
   expires_at: '2026-09-30T13:00:00Z',
   last_used_at: '2026-09-30T11:59:00Z',
+  verified_at: '2026-09-30T11:59:00Z',
 };
 
 describe('verified MCP connections', () => {
@@ -24,6 +25,7 @@ describe('verified MCP connections', () => {
     { origin: 'manual' },
     { client_id: null },
     { last_used_at: null },
+    { verified_at: null },
     { expires_at: null },
     { expires_at: '2026-09-30T11:00:00Z' },
     { expires_at: 'invalid' },

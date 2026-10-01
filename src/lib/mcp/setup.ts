@@ -1,7 +1,7 @@
 export const MCP_URL = 'https://riverz.co/api/mcp';
 export const CHATGPT_SETTINGS_URL = 'https://chatgpt.com/#settings/Connectors';
-export const CHATGPT_INSTALL_URL =
-  'https://chatgpt.com/plugins?create-connector=true';
+// Official custom-connection entry point. No documented name/URL prefill.
+export const CHATGPT_INSTALL_URL = 'https://chatgpt.com/plugins';
 export const CLAUDE_CONNECTORS_URL = 'https://claude.ai/customize/connectors';
 export const CLAUDE_INSTALL_URL = `${CLAUDE_CONNECTORS_URL}?${new URLSearchParams(
   {

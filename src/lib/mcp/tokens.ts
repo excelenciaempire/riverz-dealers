@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { userAccess, type McpUserAccess } from './access'
 
 /**
  * Las llaves del MCP.
@@ -29,6 +30,8 @@ export type McpActor =
       label: string
       scope: McpScope
       userId?: string | null
+      origin?: string
+      access?: McpUserAccess
     }
 
 const PREFIX = 'rvz_'
@@ -81,7 +84,7 @@ export async function resolveActor(
 
   const { data } = await db
     .from('mcp_tokens')
-    .select('id, workspace_id, name, scope, created_by')
+    .select('id, workspace_id, name, scope, created_by, origin')
     .eq('token_hash', hashToken(presented))
     .is('revoked_at', null)
     // Los emitidos por OAuth vencen; los pegados a mano no tienen vencimiento.
@@ -94,8 +97,12 @@ export async function resolveActor(
     name: string
     scope: McpScope | null
     created_by?:string | null
+    origin?: string
   } | null
   if (!row) return null
+  const access = row.origin === 'oauth' && row.created_by
+    ? await userAccess(db, row.created_by, row.workspace_id) : null
+  if (row.origin === 'oauth' && !access) return null
 
   // "Cuándo se usó por última vez" es lo que permite revocar sin miedo: se ve
   // cuál está viva. No se espera —si falla, la llamada sigue— porque es
@@ -112,9 +119,11 @@ export async function resolveActor(
     tokenId: row.id,
     label: row.name,
     ...(row.created_by ? { userId:row.created_by } : {}),
+    ...(row.origin ? { origin: row.origin } : {}),
+    ...(access ? { access } : {}),
     // Una llave sin alcance declarado es de antes de la 159: puede todo, que es
     // lo que podía cuando se creó.
-    scope: row.scope ?? 'total',
+    scope: row.origin === 'oauth' ? (row.scope === 'total' && access?.admin ? 'total' : 'lectura') : row.scope ?? 'total',
   }
 }
 

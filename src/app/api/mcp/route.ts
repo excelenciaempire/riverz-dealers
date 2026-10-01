@@ -6,6 +6,8 @@ import { ALL_TOOLS, findTool, type McpTool } from '@/lib/mcp/registry'
 import { assertWorkspaceWritable } from '@/lib/billing/read-only'
 import { resolveActor, rateKey, sameSecret, type McpActor } from '@/lib/mcp/tokens'
 import { issuer } from '@/lib/mcp/oauth'
+import { userCanUseTool } from '@/lib/mcp/access'
+import { verifyConnection } from '@/lib/mcp/verification'
 
 /**
  * La operación de Riverz, expuesta como herramientas.
@@ -232,7 +234,8 @@ function sinCredencial() {
     status: 401,
     headers: {
       'Content-Type': 'application/json',
-      'WWW-Authenticate': `Bearer resource_metadata="${issuer()}/.well-known/oauth-protected-resource"`,
+      'WWW-Authenticate': `Bearer resource_metadata="${issuer()}/.well-known/oauth-protected-resource", scope="mcp:read"`,
+      'Cache-Control': 'no-store',
     },
   })
 }
@@ -248,6 +251,8 @@ function sinCredencial() {
 function visible(tool: McpTool, actor: McpActor): boolean {
   if (tool.platformOnly && actor.kind !== 'platform') return false
   if (actor.scope === 'lectura' && tool.risk !== 'lectura') return false
+  if (actor.kind === 'workspace' && actor.origin === 'oauth' &&
+    (!actor.access || !userCanUseTool(actor.access, tool))) return false
   return true
 }
 
@@ -264,7 +269,7 @@ function visible(tool: McpTool, actor: McpActor): boolean {
  * nuestra cuando no: es lo que dice el spec y es lo que hace que esto siga
  * funcionando con clientes más nuevos sin tocar el código otra vez.
  */
-const VERSIONES = ['2025-06-18', '2025-03-26', '2024-11-05']
+const VERSIONES = ['2025-11-25', '2025-06-18', '2025-03-26']
 const VERSION_PREFERIDA = VERSIONES[0]
 
 function versionNegociada(pedida: unknown): string {
@@ -280,9 +285,26 @@ function versionNegociada(pedida: unknown): string {
  * de plataforma filtrada permite mandar mensajes a clientes reales en bucle.
  */
 const MCP_RATE = { limit: 60, windowMs: 60_000 }
+const CHECK_TOOL: McpTool = {
+  name: 'comprobar_conexion', risk: 'lectura',
+  description: 'Comprueba la conexión autenticada de TU usuario y cuenta. Usa el código temporal mostrado en Ajustes de Riverz. No consulta clientes ni cambia tu negocio.',
+  schema: { type: 'object', properties: { codigo: { type: 'string', format: 'uuid' } }, required: ['codigo'] },
+  run: async () => { throw new Error('authentication_required') },
+}
+const tools = [...ALL_TOOLS, CHECK_TOOL]
+
+export async function GET(request: Request) {
+  try {
+    if (!await autorizado(request)) return sinCredencial()
+    return new NextResponse(null, { status: 405, headers: { Allow: 'POST', 'Cache-Control': 'no-store' } })
+  } catch { return NextResponse.json({ error: 'temporarily_unavailable' }, { status: 503 }) }
+}
 
 export async function POST(request: Request) {
-  const actor = await autorizado(request)
+  let actor: McpActor | null
+  try { actor = await autorizado(request) } catch {
+    return NextResponse.json({ error: 'temporarily_unavailable' }, { status: 503 })
+  }
   if (!actor) {
     return sinCredencial()
   }
@@ -311,13 +333,16 @@ export async function POST(request: Request) {
       })
 
     case 'notifications/initialized':
+      return new NextResponse(null, { status: 202 })
     case 'ping':
       return rpcOk(body.id, {})
 
     case 'tools/list':
       return rpcOk(body.id, {
-        tools: ALL_TOOLS.filter((t) => visible(t, actor)).map((t) => ({
+        tools: tools.filter((t) => visible(t, actor)).map((t) => ({
           name: t.name,
+          annotations: { readOnlyHint: t.risk === 'lectura', destructiveHint: t.risk === 'irreversible', openWorldHint: true },
+          securitySchemes: [{ type: 'oauth2', scopes: t.risk === 'lectura' ? ['mcp:read'] : ['mcp:write'] }],
           // El riesgo va en la descripción para que el agente sepa, antes de
           // llamar, cuáles van a pedirle confirmación.
           description:
@@ -344,7 +369,7 @@ export async function POST(request: Request) {
 
     case 'tools/call': {
       const nombre = String(body.params?.name ?? '')
-      const tool: McpTool | undefined = findTool(nombre)
+      const tool: McpTool | undefined = nombre === CHECK_TOOL.name ? CHECK_TOOL : findTool(nombre)
       if (!tool) return rpcError(body.id, -32602, `no existe la herramienta ${nombre}`)
       const argsCrudos = (body.params?.arguments ?? {}) as Record<string, unknown>
       const { confirm_token: token, ...crudos } = argsCrudos
@@ -422,7 +447,9 @@ export async function POST(request: Request) {
       try {
         // La llave que ejecuta viaja hasta la capacidad: es lo que deja
         // registrado QUIÉN aprobó una decisión, y no sólo que se aprobó.
-        const salida = await tool.run(args, { label: actor.label, userId:actor.kind === 'workspace' ? actor.userId ?? null : null })
+        const salida = nombre === CHECK_TOOL.name
+          ? await verifyConnection(supabaseAdmin(), actor, args.codigo)
+          : await tool.run(args, { label: actor.label, userId:actor.kind === 'workspace' ? actor.userId ?? null : null })
         await anotar({
           actor,
           tool: tool.name,

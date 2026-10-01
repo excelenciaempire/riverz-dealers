@@ -50,6 +50,7 @@ export async function GET() {
       .from('mcp_tokens')
       .select('id, name, prefix, scope, created_at, last_used_at, origin, client_id, expires_at')
       .eq('workspace_id', ctx.workspaceId)
+      .or(`origin.eq.manual,created_by.eq.${ctx.userId}`)
       .is('revoked_at', null)
       .order('created_at', { ascending: false })
     if (error) return serverError(error)
@@ -121,7 +122,7 @@ export async function DELETE(request: Request) {
   const block = await csrfGuard(request)
   if (block) return block
 
-  const ctx = await contexto(true)
+  const ctx = await contexto()
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const id = new URL(request.url).searchParams.get('id')
@@ -129,6 +130,17 @@ export async function DELETE(request: Request) {
 
   try {
     const admin = supabaseAdmin()
+    const isAdmin = await isWorkspaceAdmin(admin, ctx.userId, ctx.workspaceId)
+    const { data: target, error: targetError } = await admin.from('mcp_tokens').select('origin, created_by, client_id')
+      .eq('id', id).eq('workspace_id', ctx.workspaceId).maybeSingle()
+    if (targetError) return serverError(targetError)
+    if (!target || (target.origin === 'oauth' ? target.created_by !== ctx.userId : !isAdmin)) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404 })
+    }
+    if (target.origin === 'oauth' && target.client_id) {
+      await revocarRefreshDeCliente(admin, { clientId: target.client_id, workspaceId: ctx.workspaceId, userId: ctx.userId })
+      return NextResponse.json({ ok: true })
+    }
     const { data, error } = await admin
       .from('mcp_tokens')
       .update({ revoked_at: new Date().toISOString() })
@@ -136,7 +148,7 @@ export async function DELETE(request: Request) {
       // La barrera de cuenta: sin esto, un id suelto revocaría la llave de otro.
       .eq('workspace_id', ctx.workspaceId)
       .is('revoked_at', null)
-      .select('id, client_id')
+      .select('id, client_id, created_by')
       .maybeSingle()
     if (error) return serverError(error)
     if (!data) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -146,7 +158,7 @@ export async function DELETE(request: Request) {
     // revoca desde la pantalla cree haber cerrado la puerta.
     const clientId = (data as { client_id?: string | null }).client_id
     if (clientId) {
-      await revocarRefreshDeCliente(admin, { clientId, workspaceId: ctx.workspaceId })
+      await revocarRefreshDeCliente(admin, { clientId, workspaceId: ctx.workspaceId, userId: data.created_by })
     }
     return NextResponse.json({ ok: true })
   } catch (err) {

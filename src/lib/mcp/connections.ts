@@ -6,9 +6,11 @@ export interface OAuthConnectionToken {
   client_id: string | null;
   expires_at: string | null;
   last_used_at: string | null;
+  /** Set only from successful user-scoped connection-check evidence. */
+  verified_at?: string | null;
 }
 
-/** Only a live OAuth credential actually used by an MCP client proves connection. */
+/** Token activity alone (initialize/tools/list) never proves a working tool call. */
 export function connectedClients(
   tokens: OAuthConnectionToken[],
   now = Date.now()
@@ -19,6 +21,7 @@ export function connectedClients(
       token.origin !== 'oauth' ||
       !token.client_id ||
       !token.last_used_at ||
+      !token.verified_at ||
       !token.expires_at ||
       !(Date.parse(token.expires_at) > now)
     )

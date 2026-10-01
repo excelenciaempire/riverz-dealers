@@ -91,6 +91,6 @@ describe('alcances', () => {
   });
 
   it('sólo se anuncian los alcances que existen', () => {
-    expect([...SCOPES]).toEqual(['mcp:read', 'mcp:write']);
+    expect([...SCOPES]).toEqual(['mcp:read', 'mcp:write', 'offline_access']);
   });
 });

@@ -28,7 +28,8 @@ export const ACCESS_TTL_MS = 60 * 60 * 1000
 const CODE_TTL_MS = 60 * 1000
 
 /** Los alcances que entendemos, en el vocabulario de OAuth. */
-export const SCOPES = ['mcp:read', 'mcp:write'] as const
+export const SCOPES = ['mcp:read', 'mcp:write', 'offline_access'] as const
+export function validScope(scope: string) { return scope.split(/\s+/).filter(Boolean).every(s => (SCOPES as readonly string[]).includes(s)) }
 
 /**
  * De los scopes de OAuth al alcance interno.
@@ -143,6 +144,7 @@ export async function emitirCodigo(
 }
 
 export interface CodigoCanjeado {
+  clientId: string
   workspaceId: string
   userId: string
   scope: string
@@ -161,17 +163,20 @@ export interface CodigoCanjeado {
 export async function canjearCodigo(
   db: SupabaseClient,
   code: string,
+  clientId: string,
 ): Promise<CodigoCanjeado | null> {
   const { data } = await db
     .from('oauth_codes')
     .update({ used_at: new Date().toISOString() })
     .eq('code_hash', sha256(code))
+    .eq('client_id', clientId)
     .is('used_at', null)
     .gt('expires_at', new Date().toISOString())
-    .select('workspace_id, user_id, scope, redirect_uri, code_challenge')
+    .select('client_id, workspace_id, user_id, scope, redirect_uri, code_challenge')
     .maybeSingle()
 
   const row = data as {
+    client_id: string
     workspace_id: string
     user_id: string
     scope: string
@@ -180,6 +185,7 @@ export async function canjearCodigo(
   } | null
   if (!row) return null
   return {
+    clientId: row.client_id,
     workspaceId: row.workspace_id,
     userId: row.user_id,
     scope: row.scope,
@@ -239,15 +245,18 @@ export async function emitirTokens(
     client_id: input.clientId,
     workspace_id: input.workspaceId,
     user_id: input.userId,
-    scope: scopeConcedido(interno),
+    scope: scopeConcedido(interno) + (input.scope.split(/\s+/).includes('offline_access') ? ' offline_access' : ''),
   })
-  if (e2) throw new Error(e2.message)
+  if (e2) {
+    await db.from('mcp_tokens').update({ revoked_at: new Date().toISOString() }).eq('token_hash', hashToken(access))
+    throw new Error('oauth_token_issue_failed')
+  }
 
   return {
     access_token: access,
     refresh_token: refresh,
     expires_in: Math.floor(ACCESS_TTL_MS / 1000),
-    scope: scopeConcedido(interno),
+    scope: scopeConcedido(interno) + (input.scope.split(/\s+/).includes('offline_access') ? ' offline_access' : ''),
   }
 }
 
@@ -261,14 +270,20 @@ export async function emitirTokens(
  */
 export async function revocarRefreshDeCliente(
   db: SupabaseClient,
-  input: { clientId: string; workspaceId: string },
+  input: { clientId: string; workspaceId: string; userId: string },
 ): Promise<void> {
-  await db
+  const { error } = await db
     .from('oauth_refresh_tokens')
     .update({ revoked_at: new Date().toISOString() })
     .eq('client_id', input.clientId)
     .eq('workspace_id', input.workspaceId)
+    .eq('user_id', input.userId)
     .is('revoked_at', null)
+  if (error) throw new Error('oauth_revoke_failed')
+  const { error: accessError } = await db.from('mcp_tokens').update({ revoked_at: new Date().toISOString() })
+    .eq('client_id', input.clientId).eq('workspace_id', input.workspaceId).eq('created_by', input.userId)
+    .eq('origin', 'oauth').is('revoked_at', null)
+  if (accessError) throw new Error('oauth_revoke_failed')
 }
 
 export interface RefreshValido {
@@ -285,9 +300,12 @@ export async function usarRefresh(
 ): Promise<RefreshValido | null> {
   const { data } = await db
     .from('oauth_refresh_tokens')
-    .select('client_id, workspace_id, user_id, scope')
+    .update({ revoked_at: new Date().toISOString(), last_used_at: new Date().toISOString() })
     .eq('token_hash', hashToken(refresh))
+    .eq('client_id', clientId)
     .is('revoked_at', null)
+    .gt('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+    .select('client_id, workspace_id, user_id, scope')
     .maybeSingle()
 
   const row = data as {
@@ -297,13 +315,13 @@ export async function usarRefresh(
     scope: string
   } | null
   // El refresh de un cliente no sirve en otro, aunque el valor sea correcto.
-  if (!row || row.client_id !== clientId) return null
-
-  void db
-    .from('oauth_refresh_tokens')
-    .update({ last_used_at: new Date().toISOString() })
-    .eq('token_hash', hashToken(refresh))
-    .then(() => undefined)
+  if (!row || row.client_id !== clientId) {
+    const { data: reused, error } = await db.from('oauth_refresh_tokens')
+      .select('workspace_id, user_id, revoked_at').eq('token_hash', hashToken(refresh)).eq('client_id', clientId).maybeSingle()
+    if (error) throw new Error('oauth_refresh_failed')
+    if (reused?.revoked_at) await revocarRefreshDeCliente(db, { clientId, workspaceId: reused.workspace_id, userId: reused.user_id })
+    return null
+  }
 
   return {
     workspaceId: row.workspace_id,

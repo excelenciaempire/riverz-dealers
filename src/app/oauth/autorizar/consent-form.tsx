@@ -20,11 +20,15 @@ import { Button } from '@/components/ui/button';
 export function ConsentForm({
   clientName,
   workspaceName,
+  userEmail,
+  restricted,
   escribe,
   params,
 }: {
   clientName: string;
   workspaceName: string;
+  userEmail: string;
+  restricted: boolean;
   escribe: boolean;
   params: Record<string, string>;
 }) {
@@ -83,12 +87,13 @@ export function ConsentForm({
           <p className="text-sm text-muted-foreground">
             {t('oauth.onAccount', { workspace: workspaceName })}
           </p>
+          <p className="text-sm text-muted-foreground">{userEmail}</p>
         </div>
 
         <ul className="space-y-2 rounded-lg border border-border bg-muted/40 p-3 text-sm">
           <li className="flex items-start gap-2">
             <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-foreground">{t('oauth.canRead')}</span>
+            <span className="text-foreground">{t(restricted ? 'oauth.restrictedRead' : 'oauth.canRead')}</span>
           </li>
           <li className="flex items-start gap-2">
             {escribe ? (
@@ -103,6 +108,7 @@ export function ConsentForm({
         </ul>
 
         <p className="text-xs text-muted-foreground">{t('oauth.revokeHint')}</p>
+        <p className="text-xs text-muted-foreground">{t('oauth.teamPermissions')}</p>
 
         {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
 

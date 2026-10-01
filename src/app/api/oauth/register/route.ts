@@ -27,6 +27,7 @@ const RATE = { limit: 10, windowMs: 60 * 60 * 1000 }
 function redirectValida(u: string): boolean {
   try {
     const url = new URL(u)
+    if (url.username || url.password || url.hash) return false
     if (url.protocol === 'https:') return true
     const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
     return url.protocol === 'http:' && local
@@ -47,7 +48,9 @@ export async function POST(request: Request) {
   const uris = Array.isArray(body?.redirect_uris)
     ? body.redirect_uris.filter((u): u is string => typeof u === 'string')
     : []
-  if (uris.length === 0 || !uris.every(redirectValida)) {
+  if (!Array.isArray(body?.redirect_uris) || uris.length !== body.redirect_uris.length ||
+    uris.length === 0 || uris.length > 5 || !uris.every(redirectValida) ||
+    (body?.client_name != null && typeof body.client_name !== 'string')) {
     return NextResponse.json(
       {
         error: 'invalid_redirect_uri',

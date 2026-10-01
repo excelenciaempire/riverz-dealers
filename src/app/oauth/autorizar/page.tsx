@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
-import { buscarCliente, scopeInterno } from '@/lib/mcp/oauth';
+import { buscarCliente, scopeInterno, validScope, resourceUrl } from '@/lib/mcp/oauth';
+import { userAccess } from '@/lib/mcp/access';
 import { getT } from '@/lib/i18n/server';
 import { ConsentForm } from './consent-form';
 
@@ -32,7 +33,7 @@ export default async function AutorizarPage({
   const scope = one('scope');
   const state = one('state');
   const codeChallenge = one('code_challenge');
-  const method = one('code_challenge_method') || 'S256';
+  const method = one('code_challenge_method');
 
   const t = await getT();
   const supabase = await createClient();
@@ -51,7 +52,8 @@ export default async function AutorizarPage({
     redirect(`/ingresar?next=${encodeURIComponent(`/oauth/autorizar?${volver}`)}`);
   }
 
-  if (!clientId || !redirectUri || !codeChallenge || method !== 'S256') {
+  if (!clientId || !redirectUri || !/^[A-Za-z0-9_-]{43}$/.test(codeChallenge) || method !== 'S256' ||
+    one('response_type') !== 'code' || !validScope(scope) || (one('resource') && one('resource') !== resourceUrl())) {
     return <Aviso texto={t('oauth.badRequest')} />;
   }
 
@@ -63,6 +65,8 @@ export default async function AutorizarPage({
 
   const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id);
   if (!workspaceId) return <Aviso texto={t('oauth.noWorkspace')} />;
+  const access = await userAccess(db, user.id, workspaceId);
+  if (!access) return <Aviso texto={t('oauth.noWorkspace')} />;
 
   const { data: ws } = await db
     .from('workspaces')
@@ -74,7 +78,9 @@ export default async function AutorizarPage({
     <ConsentForm
       clientName={cliente.name}
       workspaceName={(ws as { name?: string } | null)?.name ?? '—'}
-      escribe={scopeInterno(scope) === 'total'}
+      userEmail={user.email ?? ''}
+      restricted={access.sections !== null}
+      escribe={access.admin && scopeInterno(scope) === 'total'}
       params={{
         client_id: clientId,
         redirect_uri: redirectUri,
@@ -82,6 +88,7 @@ export default async function AutorizarPage({
         state,
         code_challenge: codeChallenge,
         code_challenge_method: method,
+        resource: one('resource'),
       }}
     />
   );

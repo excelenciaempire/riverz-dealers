@@ -9,7 +9,10 @@ import {
   redirectPermitido,
   scopeConcedido,
   scopeInterno,
+  validScope,
+  resourceUrl,
 } from '@/lib/mcp/oauth'
+import { userAccess } from '@/lib/mcp/access'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,17 +47,22 @@ export async function POST(request: Request) {
     state?: string
     code_challenge?: string
     code_challenge_method?: string
+    resource?: string
   } | null
 
   if (!body?.client_id || !body.redirect_uri || !body.code_challenge) {
     return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
   }
   // Sólo S256. `plain` deja el verifier a la vista de quien intercepte la ida.
-  if ((body.code_challenge_method ?? 'S256') !== 'S256') {
+  if (body.code_challenge_method !== 'S256' || !/^[A-Za-z0-9_-]{43}$/.test(body.code_challenge)) {
     return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
   }
 
   const db = supabaseAdmin()
+  if (body.resource && body.resource !== resourceUrl()) return NextResponse.json({ error: 'invalid_target' }, { status: 400 })
+  if (!validScope(body.scope ?? '')) return NextResponse.json({ error: 'invalid_scope' }, { status: 400 })
+  const access = await userAccess(db, user.id, workspaceId)
+  if (!access) return NextResponse.json({ error: 'access_denied' }, { status: 403 })
   const cliente = await buscarCliente(db, body.client_id)
   if (!cliente) return NextResponse.json({ error: 'invalid_client' }, { status: 400 })
   if (!redirectPermitido(cliente.redirect_uris, body.redirect_uri)) {
@@ -63,7 +71,8 @@ export async function POST(request: Request) {
 
   // Se concede como mucho lo que se pidió, traducido a nuestro vocabulario. Si
   // pidió escritura y la persona eligió sólo lectura, gana la persona.
-  const concedido = scopeConcedido(scopeInterno(body.scope))
+  const concedido = scopeConcedido(access.admin ? scopeInterno(body.scope) : 'lectura') +
+    ((body.scope ?? '').split(/\s+/).includes('offline_access') ? ' offline_access' : '')
 
   try {
     const code = await emitirCodigo(db, {
