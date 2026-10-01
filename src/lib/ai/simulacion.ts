@@ -4,6 +4,7 @@ import { revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-ch
 import { revitalyTransferReply } from './revitaly-transfer';
 import { revitalyTransferShippingReply } from './revitaly-transfer-shipping';
 import { loadRevitalyWhatsAppPolicy, revitalyWhatsAppRedirectText } from './revitaly-whatsapp-policy';
+import { loadRevitalyPackagingNotice } from './revitaly-packaging';
 import {emailDispositionForPolicy,emailRedirectText,isEmailChannel,loadEmailPolicy} from './email-policy';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from '@/lib/ai/esfuerzo';
 import { untrustedContext } from '@/lib/ai/input-security';
@@ -115,6 +116,11 @@ export async function simularRespuesta(
   }
 ): Promise<RespuestaSimulada> {
   a=await loadAgentToolContext(admin,a,input.simulatedChannel);
+  const packagingNotice = await loadRevitalyPackagingNotice(admin, a.workspace_id, input.message, a.language);
+  if (packagingNotice) {
+    return { reply: packagingNotice, chunks: [packagingNotice], herramientas: [],
+      usage: { input_tokens: 0, output_tokens: 0, iterations: 0 } };
+  }
   const whatsappPolicy = await loadRevitalyWhatsAppPolicy(admin, a.workspace_id, input.simulatedChannel);
   if (whatsappPolicy) {
     const reply = revitalyWhatsAppRedirectText(whatsappPolicy, a.language);

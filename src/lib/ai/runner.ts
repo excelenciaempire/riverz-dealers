@@ -7,6 +7,7 @@ import { revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-ch
 import { revitalyTransferReply } from './revitaly-transfer';
 import { revitalyTransferShippingReply } from './revitaly-transfer-shipping';
 import { loadRevitalyWhatsAppPolicy, trackedRevitalyWhatsAppReply } from './revitaly-whatsapp-policy';
+import { loadRevitalyPackagingNotice, revitalyPackagingBurst, revitalyPackagingChunks, revitalyPackagingFormEmail, revitalyPackagingInquiry, revitalyPackagingNeedsContext } from './revitaly-packaging';
 import type { OtherStoreContext } from '@/lib/ai/tools';
 import { UNTRUSTED_CONTENT_POLICY, untrustedContext } from './input-security';
 import { loadCaseGapContext } from './case-gap-context';
@@ -232,6 +233,7 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
     if (await inboxCaseIsSpam(db,args.workspaceId,args.conversation.id)) {
       await anotarSalida(db,args,'inbox_case_spam');return;
     }
+    const inboundPackagingNotice = await loadRevitalyPackagingNotice(db, args.workspaceId, args.inboundMessage.content_text ?? '');
     const emailPolicy = isEmailChannel(args.channel) ? await loadEmailPolicy(db, args.workspaceId) : null;
     const emailInput = {
       workspaceId: args.workspaceId, channel: args.channel,
@@ -240,7 +242,14 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
       preventRepeatedRedirects: emailPolicy?.mode === 'redirect' && emailPolicy.prevent_repeated_redirects,
     };
     let emailDisposition = emailPolicy ? emailDispositionForPolicy(emailPolicy,emailInput) : null;
-    if (emailDisposition === 'customer' && emailPolicy?.mode === 'redirect' && emailPolicy.prevent_repeated_redirects) {
+    if (inboundPackagingNotice && emailPolicy?.mode !== 'manual') {
+      const formEmail = revitalyPackagingFormEmail(args.workspaceId, emailInput.from ?? '', args.inboundMessage.content_text ?? '');
+      if (formEmail) {
+        args = { ...args, contact: { ...args.contact, email: formEmail } };
+        emailDisposition = 'customer';
+      } else if (emailDisposition === 'review') emailDisposition = 'customer';
+    }
+    if (!inboundPackagingNotice && emailDisposition === 'customer' && emailPolicy?.mode === 'redirect' && emailPolicy.prevent_repeated_redirects) {
       const previous = await db.from('messages').select('id')
         .eq('conversation_id', args.conversation.id).eq('sender_type', 'bot')
         .in('status', ['sent', 'delivered', 'read']).is('deleted_at', null)
@@ -439,7 +448,19 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
 
     const { data: enrichedInbound } = await db.from('messages').select('id, content_text, media_url, media_type, media_mime, media_transcription, attachments').eq('id', args.inboundMessage.id).eq('conversation_id', args.conversation.id).maybeSingle();
     const textoEntrante = [args.inboundMessage.content_text ?? '', enrichedInbound ? evidenceText(enrichedInbound) : ''].filter(Boolean).join('\n');
-    const whatsappRedirectPolicy = await loadRevitalyWhatsAppPolicy(db, args.workspaceId, args.channel);
+    let packagingText = textoEntrante;
+    if (revitalyPackagingNeedsContext(args.workspaceId, textoEntrante, Boolean(args.inboundMessage.media_url))) {
+      const recent = await db.from('messages').select('sender_type,content_text').eq('conversation_id', args.conversation.id)
+        .is('deleted_at', null).neq('id', args.inboundMessage.id)
+        .gte('created_at', new Date(Date.parse(args.inboundMessage.created_at) - 10 * 60_000).toISOString())
+        .lte('created_at', args.inboundMessage.created_at).order('created_at', { ascending: false }).limit(20);
+      if (!recent.error) packagingText = revitalyPackagingBurst(textoEntrante, recent.data ?? []);
+    }
+    const packagingNotice = inboundPackagingNotice
+      ? await loadRevitalyPackagingNotice(db, args.workspaceId, args.inboundMessage.content_text ?? '', agent.language)
+      : await loadRevitalyPackagingNotice(db, args.workspaceId, packagingText, agent.language);
+    const packagingInquiry = packagingNotice ? revitalyPackagingInquiry(args.workspaceId, packagingText) : null;
+    const whatsappRedirectPolicy = packagingNotice ? null : await loadRevitalyWhatsAppPolicy(db, args.workspaceId, args.channel);
 
     // AL CONTESTADOR DEL CLIENTE NO SE LE CONTESTA.
     //
@@ -474,7 +495,7 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
     // problem. Run this before escalation so "No, that's all, thank you" cannot
     // create a fresh human alert. The classifier reads the full customer burst
     // and defaults to attending whenever an action or question remains.
-    if (emailDisposition !== 'customer' && !purchaseButtonReply && recoveryIntent === 'none' &&
+    if (!packagingNotice && emailDisposition !== 'customer' && !purchaseButtonReply && recoveryIntent === 'none' &&
       args.inboundMessage.content_type === 'text' && !args.inboundMessage.media_url &&
       await sinRespuestaNecesaria(db, {
         workspaceId: args.workspaceId,
@@ -489,7 +510,7 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
       return;
     }
     if (
-      !whatsappRedirectPolicy && emailDisposition !== 'customer' && args.channel !== 'webchat' &&
+      !packagingNotice && !whatsappRedirectPolicy && emailDisposition !== 'customer' && args.channel !== 'webchat' &&
       containsEscalationKeyword(agent, textoEntrante)
     ) {
       await flagNeedsHuman(db, args.conversation, 'escalation_keyword', {
@@ -511,7 +532,7 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
     // Un envío que va a la ciudad equivocada no trae ninguna palabra clave y
     // no puede esperar a que alguien mire la bandeja.
     const escalada =
-      whatsappRedirectPolicy || args.channel === 'webchat' || emailDisposition === 'customer'
+      packagingNotice || whatsappRedirectPolicy || args.channel === 'webchat' || emailDisposition === 'customer'
         ? null
         : await detectarEscalada({
             mensaje: textoEntrante,
@@ -836,11 +857,11 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
         ? recoveryButtonReply(currentRecoveryButton, agent.language)
         : null;
 
-    if (whatsappRedirectPolicy) {
+    if (packagingNotice || whatsappRedirectPolicy) {
       const quota = await puertaDelPiloto(db, { workspaceId: args.workspaceId, tipo: 'mensaje', canal: args.channel, telefono: telefonoDelCliente });
       if (!quota.permitido) { await anotarSalida(db, args, quota.motivo); return; }
-      const text = await trackedRevitalyWhatsAppReply(db, {
-        policy: whatsappRedirectPolicy, workspaceId: args.workspaceId, channel: args.channel,
+      const text = packagingNotice ?? await trackedRevitalyWhatsAppReply(db, {
+        policy: whatsappRedirectPolicy!, workspaceId: args.workspaceId, channel: args.channel,
         connectionId: args.connection.id, conversationId: args.conversation.id,
         sourceKey: args.inboundMessage.id, language: agent.language,
       });
@@ -853,6 +874,13 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
       if (!current.data) return;
       const skip = shouldSkip(agent, { ...args, conversation: { ...args.conversation, ...current.data } as Conversation });
       if (skip) { await logReply(db, agent, args, { status: 'skipped', skip_reason: skip }); return; }
+      if (packagingInquiry?.additionalIssue) {
+        // The notice explains presentation only; other problems and human requests stay open.
+        await flagNeedsHuman(db, args.conversation, 'problema_detectado', { pidio: textoEntrante,
+          porQue: 'Además del cambio de presentación, informa otro problema o solicita atención humana.' });
+        await avisarDelCaso(db, args, { clase: 'otro', urgencia: 'hoy',
+          porQue: 'El aviso de envase no resuelve la solicitud adicional del cliente.' });
+      }
       if (agent.requires_approval && args.channel !== 'webchat') {
         const draft = await db.from('ai_pending_replies').upsert({ workspace_id: args.workspaceId,
           conversation_id: args.conversation.id, agent_id: agent.id, agent_name: agent.name ?? null,
@@ -860,7 +888,11 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
         if (draft.error) throw draft.error;
         await logReply(db, agent, args, { status: 'skipped', skip_reason: 'awaiting_approval', prompt_tokens: 0, completion_tokens: 0 }); return;
       }
-      const messageId = await sendDeterministicAgentReply(db, agent, args, text);
+      const chunks = packagingNotice ? revitalyPackagingChunks(text, args.channel, args.conversation.thread_external_id) : [text];
+      let messageId: string | null = null;
+      for (const [index, chunk] of chunks.entries()) {
+        messageId = await sendDeterministicAgentReply(db, agent, args, chunk, chunks.length > 1 ? -100 - index : 'deterministic');
+      }
       await logReply(db, agent, args, { status: 'sent', message_id: messageId, prompt_tokens: 0, completion_tokens: 0 }); return;
     }
 
@@ -4937,7 +4969,8 @@ async function sendDeterministicAgentReply(
     connection: ChannelConnection;
     inboundMessage: Message;
   },
-  text: string
+  text: string,
+  turnPart: number | 'deterministic' = 'deterministic'
 ): Promise<string | null> {
   const outboundTarget = await resolveAiOutboundTarget(db, args);
   const adapter = getAdapter(args.channel);
@@ -4945,7 +4978,7 @@ async function sendDeterministicAgentReply(
   const id = aiTextMessageId(
     args.conversation.id,
     args.inboundMessage.id,
-    'deterministic',
+    turnPart,
   );
   const reserved = await db
     .from('messages')

@@ -67,6 +67,10 @@ export async function handleTemplateStatusUpdate(
   const workspaces = new Set((data ?? []).map(row => row.workspace_id).filter(Boolean))
   for (const workspaceId of workspaces) {
     if ((value.event ?? '').toUpperCase() === 'APPROVED') {
+      if (name === 'revitaly_envase_presentacion_20261001') {
+        const { deliverQueuedRevitalyPackaging } = await import('@/lib/ai/revitaly-packaging-delivery')
+        await deliverQueuedRevitalyPackaging(db, workspaceId)
+      }
       const { promoteApprovedRiverzoficialTemplate } = await import(
         '@/lib/automations/riverzoficial-template-promotion'
       )

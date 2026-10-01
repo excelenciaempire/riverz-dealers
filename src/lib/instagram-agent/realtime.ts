@@ -40,6 +40,7 @@ import type {
 } from '@/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { loadRevitalyWhatsAppPolicy, trackedRevitalyWhatsAppReply } from '@/lib/ai/revitaly-whatsapp-policy';
+import { loadRevitalyPackagingNotice, revitalyPackagingInquiry } from '@/lib/ai/revitaly-packaging';
 import {
   commentAgentCanReply,
   igAgentCanAutoReply,
@@ -1024,7 +1025,8 @@ async function decidirComentario(
   // A quién contesta, y cuánto insiste en un hilo: lo decide el comercio en
   // Comentarios (migración 132). Los defaults son la conducta de siempre.
   const commentCfg = await loadCommentSettings(db, opts.workspaceId);
-  const whatsappPolicy = await loadRevitalyWhatsAppPolicy(db, opts.workspaceId, commentChannel);
+  const packagingNotice = await loadRevitalyPackagingNotice(db, opts.workspaceId, engagement);
+  const whatsappPolicy = packagingNotice ? null : await loadRevitalyWhatsAppPolicy(db, opts.workspaceId, commentChannel);
 
   const priceQuestion = asksForPrice(engagement) && !orderStatus;
   // “Precio?” no nombra el producto: el producto está en la publicación. Sin
@@ -1083,7 +1085,7 @@ async function decidirComentario(
     // distingue el veredicto de la pregunta: quien pregunta por la aprobación
     // de ANMAT está evaluando comprar y recibe respuesta.
     const esCritica = esCriticaPublica(engagement);
-    if (shouldHideComment(opts.workspaceId, s.spam, esCritica)) {
+    if (shouldHideComment(opts.workspaceId, s.spam, esCritica && !packagingNotice)) {
       // Ocultarlo es una llamada de Meta: en TikTok se deja pasar sin
       // contestar, que es lo que importa.
       if (!isTikTok) {
@@ -1132,7 +1134,7 @@ async function decidirComentario(
       s.score === 'low' &&
       !orderStatus &&
       !priceQuestion &&
-      !motivo
+      !motivo && !packagingNotice
     ) {
       return 'comment_sin_intencion';
     }
@@ -1140,7 +1142,7 @@ async function decidirComentario(
   } catch {
     // Sin clasificar no arriesgamos un DM no pedido… salvo que el comercio haya
     // pedido explícitamente contestar a todos.
-    if (!orderStatus && commentCfg.audience === 'intent')
+    if (!packagingNotice && !orderStatus && commentCfg.audience === 'intent')
       return 'comment_clasificador_fallo';
   }
 
@@ -1150,7 +1152,7 @@ async function decidirComentario(
   // catálogo, solo que sin herramientas.
   const agent = await resolveIgAgent(db, opts.workspaceId, null);
   // Lo único que se respeta del agente aquí: que la persona pida un humano.
-  if (!whatsappPolicy && !commentAgentCanReply(agent, engagement)) return 'comment_pide_humano';
+  if (!packagingNotice && !whatsappPolicy && !commentAgentCanReply(agent, engagement)) return 'comment_pide_humano';
 
   const trust = await proactiveGate(db, opts.workspaceId);
   if (!trust.ok) return 'comment_puerta_proactiva';
@@ -1242,7 +1244,7 @@ async function decidirComentario(
   // Va aquí, DESPUÉS de todas las guardas —limitador de ráfaga, spam/intención,
   // igAgentCanAutoReply, proactiveGate, candado por comentario, anti-bucle de
   // 3— y solo COMPONE: el envío de abajo no cambia.
-  let text: string | null = whatsappPolicy && opts.connection ? await trackedRevitalyWhatsAppReply(db, {
+  let text: string | null = packagingNotice ?? (whatsappPolicy && opts.connection ? await trackedRevitalyWhatsAppReply(db, {
     policy: whatsappPolicy, workspaceId: opts.workspaceId, channel: commentChannel,
     connectionId: opts.connection.id, conversationId: hilo?.id,
     sourceKey: opts.commentId!, language: brand?.language || 'es',
@@ -1273,7 +1275,7 @@ async function decidirComentario(
             .filter(Boolean)
             .join('\n\n') || null,
       }).catch(() => null)
-    : null;
+    : null);
   // El agente completo escribe en Markdown —`**$39.990**`— y ni Instagram ni
   // TikTok lo renderizan: al cliente le llegan los asteriscos. El resto de las
   // superficies ya pasaban por acá; ésta no, y era justo la que contesta en
@@ -1404,7 +1406,7 @@ async function decidirComentario(
   // eligió el comercio (migración 177). En 'public_smart' pregunta al
   // clasificador: la respuesta privada es UNA sola por comentario y gastarla en
   // un "qué linda foto" es perderla para el que sí quería comprar.
-  const decision = whatsappPolicy ? { dm: false, reason: 'ninguna' as const } : opts.publicOnly
+  const decision = packagingNotice || whatsappPolicy ? { dm: false, reason: 'ninguna' as const } : opts.publicOnly
     ? {
         dm: false,
         reason: orderStatus ? ('pedido' as const) : ('ninguna' as const),
@@ -1436,6 +1438,7 @@ async function decidirComentario(
     ? { ...decision, reason: 'privado' as const }
     : decision;
   if (
+    (packagingNotice && revitalyPackagingInquiry(opts.workspaceId, engagement)?.additionalIssue) ||
     decision.reason === 'pedido' ||
     decision.reason === 'reclamo' ||
     (esPagoManual && !whatsappPolicy)
@@ -1480,7 +1483,7 @@ async function decidirComentario(
   // mensajes casi iguales en el mismo hilo.
   // En TikTok siempre se publica: es lo único que TikTok deja hacer, así que
   // el modo elegido para Instagram y Facebook no la puede dejar muda.
-  const willPublish = Boolean(whatsappPolicy) || opts.publicOnly || isTikTok || commentCfg.publicReply;
+  const willPublish = Boolean(packagingNotice || whatsappPolicy) || opts.publicOnly || isTikTok || commentCfg.publicReply;
 
   let dmSent = false;
   /** No salió nada: ni el privado ni la respuesta pública. */
@@ -1544,7 +1547,7 @@ async function decidirComentario(
     if (willPublish) {
       // Sin DM, lo público NO puede decir "te escribí por privado": es la
       // respuesta entera, ahí mismo.
-      const publicText = whatsappPolicy ? text : publicReplyFrom(text, dmSent, decisionForPublic);
+      const publicText = packagingNotice || whatsappPolicy ? text : publicReplyFrom(text, dmSent, decisionForPublic);
       const publicConnection = opts.connection ?? connection;
       try {
         if (!publicConnection) throw new Error('sin conexión de comentarios');

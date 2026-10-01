@@ -38,5 +38,8 @@ export async function reconcileTemplateStatus(
   }
   if (url) throw new Error('template_sync_incomplete');
   await reconcileWorkspaceAutomationReadiness(db, args.workspaceId);
+  // Also recover approval events whose webhook did not arrive.
+  const { deliverQueuedRevitalyPackaging } = await import('@/lib/ai/revitaly-packaging-delivery');
+  await deliverQueuedRevitalyPackaging(db, args.workspaceId);
   return updated;
 }

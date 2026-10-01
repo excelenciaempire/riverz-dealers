@@ -10,6 +10,7 @@ import { aplicarDesenlace } from '@/lib/ai/desenlace';
 import { motorApagado } from '@/lib/workspaces/motor';
 import { puertaDelPiloto } from '@/lib/piloto';
 import { loadRevitalyWhatsAppPolicy } from '@/lib/ai/revitaly-whatsapp-policy';
+import { loadRevitalyPackagingNotice } from '@/lib/ai/revitaly-packaging';
 
 /**
  * UN solo portero para cada comentario que entra.
@@ -109,8 +110,9 @@ export async function routeComment(
   // 1. Reglas del comercio.
   let handledByRule = false;
   const centralizeWhatsApp = await loadRevitalyWhatsAppPolicy(db, ev.workspaceId, ev.channel);
+  const packagingNotice = await loadRevitalyPackagingNotice(db, ev.workspaceId, ev.text);
   try {
-    handledByRule = centralizeWhatsApp ? false : await processCommentForDmRules(db, {
+    handledByRule = packagingNotice || centralizeWhatsApp ? false : await processCommentForDmRules(db, {
       workspaceId: ev.workspaceId,
       channel: ev.channel,
       connection: ev.connection,
