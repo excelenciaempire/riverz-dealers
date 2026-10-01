@@ -4,6 +4,8 @@ Referencia: [plan final](plan-final-mejoras-riverz-commslayer.md). Inicio: 29 de
 
 Esta lista registra el estado real del trabajo. Una implementación local, una validación automatizada y una comprobación en producción son estados separados.
 
+**Arquitectura vigente, confirmada el 1 de octubre de 2026:** Riverz utiliza motores y servicios personalizados, sin n8n ni Make en su infraestructura. E2 debe completar el nodo HTTP del constructor propio y validar conexiones directas con sistemas personalizados. Las referencias a esos proveedores en las entregas anteriores describen borradores opcionales ya construidos; no acreditan uso de esos servicios ni constituyen dependencias o pendientes de aceptación del producto. Esta corrección actualiza el alcance y conserva la evidencia histórica; no modifica controles ni habilita la UI de comparación.
+
 | Bloque | Implementación | Validación | Producción |
 | --- | --- | --- | --- |
 | P0A Contrato y ejecución de aprobaciones | Implementada | Pruebas y build correctos | Publicada; revisión de salud correcta |

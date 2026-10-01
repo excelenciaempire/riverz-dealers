@@ -13,6 +13,7 @@ El resultado buscado es que Riverz resuelva más trabajo de atención, ventas y 
 3. Presentar ventas, soporte, cobros y logística como capacidades del mismo superasistente. Los componentes internos especializados pueden continuar; no se exige una reescritura de la arquitectura ni unificar registros existentes para cambiar el mensaje comercial.
 4. Conservar los editores manuales. El Operador permite pedir y preparar cambios por conversación, utilizando los mismos mecanismos de validación, permisos y ejecución que esos editores.
 5. Mantener las políticas y aprobaciones actuales. Cancelaciones y reembolsos siguen requiriendo aprobación; este plan no activa autonomía financiera ni cambia precios, prueba, facturación o condiciones comerciales.
+6. Arquitectura personalizada, confirmado por el dueño el 1 de octubre de 2026: los motores de automatización, Flujos y ejecución pertenecen a Riverz. n8n y Make no forman parte de la infraestructura ni son requisitos de implementación o aceptación. Las conexiones con sistemas del negocio se realizan directamente mediante las APIs y webhooks necesarios.
 
 Los controles de cerrar y asignar retirados de la cabecera de Bandeja, y la encuesta y el reparto retirados de Ajustes, no se restaurarán automáticamente. Su retiro fue una decisión del dueño. Las nuevas capacidades de equipo se diseñarán respetando esa decisión; cualquier reintroducción de esos controles queda fuera del alcance acordado.
 
@@ -248,7 +249,7 @@ Todos los accesos llaman a los mismos servicios de pedidos y conservan verificac
 
 **Base:** MCP, tokens y webhooks. Revisar primero la cobertura efectiva de endpoints existentes.
 
-**Ampliaciones:** acción HTTP configurable para el asistente y nodo HTTP para Flujos; credenciales protegidas; parámetros y respuestas definidos; plantillas para n8n, Make y sistemas propios. Completar la API REST donde sea necesario para conversaciones, contactos y reportes, con permisos, límites, documentación y revocación.
+**Ampliaciones:** acción HTTP configurable para el asistente y nodo HTTP para Flujos sobre el ejecutor propio de Riverz; credenciales protegidas; parámetros y respuestas definidos; configuraciones para conexiones directas con sistemas personalizados del negocio. Completar la API REST donde sea necesario para conversaciones, contactos y reportes, con permisos, límites, documentación y revocación. No introducir un motor externo de automatización ni exigir cuentas o pruebas en n8n/Make para completar este bloque.
 
 **Aceptación:** una integración autorizada consulta o ejecuta una acción sin acceso a otras cuentas ni exposición de secretos. Se bloquean destinos internos no autorizados y los reintentos de operaciones sensibles usan un identificador que evita duplicación.
 
