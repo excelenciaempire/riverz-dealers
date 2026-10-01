@@ -9,6 +9,8 @@ import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { Button } from '@/components/ui/button';
+import { ReturnCaseHistory } from '@/components/returns/case-history';
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 
 /**
  * /devoluciones — lo que pidieron devolver o cambiar.
@@ -142,6 +144,7 @@ function DevolucionesContent() {
       ) : (
         items.map((d) => (
           <article key={d.id} className="rounded-xl border border-border p-4">
+            {SHOW_RIVERZ_IMPROVEMENTS && <ReturnCaseHistory key={`${d.id}:${d.updated_at}`} caseId={d.id} />}
             <div className="flex flex-wrap items-center gap-2">
               <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${COLOR[d.status]}`}>
                 {t(`returns.status.${d.status}`)}

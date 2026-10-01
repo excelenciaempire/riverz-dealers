@@ -8,6 +8,20 @@ import type { Namespace } from "./types";
  * anota, alguien resuelve.
  */
 export const returns = {
+  history: { es: 'Historial', en: 'History' },
+  invalidHistory: { es: 'La consulta del historial no es válida.', en: 'The history query is invalid.' },
+  historyFailed: { es: 'No se pudo consultar el historial.', en: 'Could not load the history.' },
+  historyEmpty: { es: 'No hay cambios registrados.', en: 'No recorded changes.' },
+  historyOlder: { es: 'Ver anteriores', en: 'View older' },
+  historyBaseline: { es: 'Estado observado al iniciar el registro; no reconstruye decisiones anteriores.', en: 'State observed when recording began; does not reconstruct earlier decisions.' },
+  history_baseline: { es: 'Estado inicial observado', en: 'Initial observed state' },
+  history_opened: { es: 'Solicitud registrada', en: 'Request recorded' },
+  history_state_changed: { es: 'Cambio de estado', en: 'Status changed' },
+  history_evidence_changed: { es: 'Evidencia actualizada', en: 'Evidence updated' },
+  history_updated: { es: 'Expediente actualizado', en: 'Case updated' },
+  historyPreviousNote: { es: 'Nota anterior: {note}', en: 'Previous note: {note}' },
+  historyNoteRemoved: { es: 'Nota retirada', en: 'Note removed' },
+  historyPhotos: { es: '{count} fotos registradas', en: '{count} recorded photos' },
   invalidDecision: { es: 'La decisión de devolución no es válida.', en: 'The return decision is invalid.' },
   notFound: { es: 'La devolución no existe en este negocio.', en: 'This return does not exist in this business.' },
   platformManaged: { es: 'Esta devolución se gestiona en su plataforma de origen.', en: 'This return is managed in its source platform.' },
