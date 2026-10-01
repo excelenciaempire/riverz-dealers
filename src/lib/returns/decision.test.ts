@@ -9,7 +9,21 @@ const ws = '11111111-1111-4111-8111-111111111111', user = '22222222-2222-4222-82
 const oldDate = '2026-10-01T12:00:00.123456Z';
 let rows: any[], members: any[], contacts: any[], writes: any[], errorTable: string | undefined, loseRace: boolean;
 function context(locale: 'es' | 'en' = 'es'): CapabilityContext {
-  const db = { from(table: string) {
+  const db = { async rpc(name:string,args:any){
+    if(errorTable)return {data:null,error:{message:'PRIVATE_DATABASE_FAILURE'}};
+    const actor=members.some(member=>member.workspace_id===args.p_workspace_id&&member.user_id===args.p_actor_id);
+    if(!actor)return {data:null,error:{message:'return_access_forbidden'}};
+    if(name==='visible_return_case_ids')return {data:rows.filter(row=>row.workspace_id===args.p_workspace_id&&args.p_ids.includes(row.id)).map(row=>row.id),error:null};
+    const row=rows.find(row=>row.id===args.p_case_id&&row.workspace_id===args.p_workspace_id);
+    if(!row)return {data:null,error:{message:'return_not_found'}};
+    const dto=()=>Object.fromEntries(['id','order_number','kind','reason','status','resolution','updated_at','platform'].map(key=>[key,row[key]]));
+    if(name==='read_return_case_decision')return {data:dto(),error:null};
+    if(row.platform!==null)return {data:null,error:{message:'return_platform_managed'}};
+    const note=args.p_replace_resolution?args.p_resolution||null:row.resolution,unchanged=row.status===args.p_status&&row.resolution===note;
+    if(!unchanged&&(loseRace||(args.p_expected_updated_at&&args.p_expected_updated_at!==row.updated_at)))return {data:null,error:{message:'return_decision_changed'}};
+    if(!unchanged){const write={status:args.p_status,resolution:note,decided_by:args.p_actor_id};writes.push(write);Object.assign(row,write,{updated_at:'2026-10-01T12:02:00.123456Z'});}
+    return {data:{...dto(),unchanged},error:null};
+  },from(table: string) {
     const conditions: Array<(row: any) => boolean> = [];
     let update: any;
     const q: any = {
@@ -81,6 +95,7 @@ describe('shared return case decisions', () => {
     expect(writes).toEqual([]);
   });
   it.each(['abierta', 'aprobada', 'rechazada', 'recibida', 'resuelta'] as const)('preserves the existing %s state contract', async status => {
+    rows[0].status=status;
     expect((await decideReturn(context().db, ws, user, { id, status })).status).toBe(status);
   });
 });

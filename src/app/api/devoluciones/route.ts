@@ -4,6 +4,7 @@ import { decideReturn, returnDecisionInput, ReturnDecisionError } from '@/lib/re
 import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import {visibleReturnIds,ReturnAccessError} from '@/lib/returns/access';
 
 /**
  * Las devoluciones y los cambios que abrió el agente.
@@ -30,6 +31,8 @@ export async function GET(request: Request) {
   const ctx = await contexto();
   if (ctx.response) { ctx.response.headers.set('Cache-Control', 'private, no-store'); return ctx.response; }
 
+  try{await visibleReturnIds(ctx.admin,ctx.workspaceId,ctx.userId,[]);}catch(error){return NextResponse.json({error:translate(locale,'returns.loadFailed')},{status:error instanceof ReturnAccessError&&error.code==='forbidden'?403:503,headers:{'Cache-Control':'private, no-store'}});}
+
   const estado = new URL(request.url).searchParams.get('estado');
   const contactId = new URL(request.url).searchParams.get('contact_id');
   if (contactId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contactId)) {
@@ -37,19 +40,25 @@ export async function GET(request: Request) {
   }
   let q = ctx.admin
     .from('returns')
-    .select(
-      'id, order_number, kind, reason, customer_note, photos, status, resolution, created_at, updated_at, decided_at, contact_id, conversation_id, platform, external_url, contacts(id, name, email, phone)',
-    )
+    .select('id')
     .eq('workspace_id', ctx.workspaceId)
     .order('created_at', { ascending: false })
     .limit(200);
   if (estado && (ESTADOS as readonly string[]).includes(estado)) q = q.eq('status', estado);
   if (contactId) q = q.eq('contact_id', contactId);
 
-  const { data, error } = await q;
+  const candidates = await q;
+  if(candidates.error)return NextResponse.json({error:translate(locale,'returns.loadFailed')},{status:503,headers:{'Cache-Control':'private, no-store'}});
+  let ids:Set<string>;
+  try{ids=await visibleReturnIds(ctx.admin,ctx.workspaceId,ctx.userId,(candidates.data??[]).map(row=>String(row.id)));}catch{return NextResponse.json({error:translate(locale,'returns.loadFailed')},{status:503,headers:{'Cache-Control':'private, no-store'}});}
+  if(!ids.size)return NextResponse.json({returns:[]},{headers:{'Cache-Control':'private, no-store'}});
+  const {data,error}=await ctx.admin.from('returns').select('id,order_number,kind,reason,customer_note,photos,status,resolution,created_at,updated_at,decided_at,contact_id,conversation_id,platform,external_url,contacts(id,name,email,phone)')
+    .eq('workspace_id',ctx.workspaceId).in('id',[...ids]).order('created_at',{ascending:false}).limit(200);
   if (error) return NextResponse.json({ error: translate(locale, 'returns.loadFailed') }, { status: 502, headers: { 'Cache-Control': 'private, no-store' } });
 
-  const filas = (data ?? []) as Array<Record<string, unknown>>;
+  let current:Set<string>;
+  try{current=await visibleReturnIds(ctx.admin,ctx.workspaceId,ctx.userId,(data??[]).map(row=>String(row.id)));}catch{return NextResponse.json({error:translate(locale,'returns.loadFailed')},{status:503,headers:{'Cache-Control':'private, no-store'}});}
+  const filas = ((data ?? []) as Array<Record<string, unknown>>).filter(row=>current.has(String(row.id)));
   const contactIds = [...new Set(filas.flatMap(row => row.contacts && typeof row.contacts === 'object' && 'id' in row.contacts ? [String(row.contacts.id)] : []))];
   let allowed = new Set<string>();
   if (contactIds.length) {
@@ -80,6 +89,6 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true, status: result.status, updated_at: result.updated_at, unchanged: result.unchanged }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     const code = error instanceof ReturnDecisionError ? error.code : 'saveFailed';
-    return fail(code, code === 'unauthorized' ? 403 : code === 'notFound' ? 404 : code === 'invalidDecision' ? 400 : ['platformManaged', 'decisionChanged'].includes(code) ? 409 : 503);
+    return fail(code, code === 'unauthorized' ? 403 : code === 'readOnly' ? 402 : code === 'notFound' ? 404 : code === 'invalidDecision' ? 400 : ['platformManaged', 'decisionChanged'].includes(code) ? 409 : 503);
   }
 }

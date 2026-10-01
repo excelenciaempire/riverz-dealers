@@ -14,6 +14,7 @@
  */
 import { gapCapabilityActor } from '@/lib/ai/gap-knowledge-actions'
 import { decideReturn, loadReturnDecision, returnStatus, ReturnDecisionError } from '@/lib/returns/decision'
+import {visibleReturnIds} from '@/lib/returns/access'
 import { translate } from '@/lib/i18n/translate'
 import { hoursWaiting } from './predicates'
 import type { Artefacto } from '@/lib/operator/artifacts'
@@ -73,25 +74,32 @@ async function reclamos(ctx: CapabilityContext, args: Record<string, unknown>) {
 }
 
 async function devoluciones(ctx: CapabilityContext, args: Record<string, unknown>) {
-  const limite = Math.min(Number(args.limite) || 20, TOPE)
+  const actor=gapCapabilityActor(ctx)
+  await visibleReturnIds(ctx.db,ctx.workspaceId,actor,[])
+  const limite = Math.max(1,Math.min(Math.floor(Number(args.limite)) || 20, TOPE))
   let q = ctx.db
     .from('returns')
-    .select(
-      'id, order_number, kind, reason, customer_note, status, resolution, created_at, updated_at, decided_at, conversation_id, platform, contacts(id,name)',
-    )
+    .select('id')
     .eq('workspace_id', ctx.workspaceId)
     .order('created_at', { ascending: false })
     .limit(limite)
   if (typeof args.estado === 'string') q = q.eq('status', args.estado)
 
-  const { data, error } = await q
+  const initial = await q
+  if(initial.error)throw new Error(translate(ctx.locale??'es','returns.loadFailed'))
+  const ids=await visibleReturnIds(ctx.db,ctx.workspaceId,actor,(initial.data??[]).map(row=>String(row.id)))
+  if(!ids.size)return {devoluciones:[]}
+  const {data,error}=await ctx.db.from('returns').select('id,order_number,kind,reason,customer_note,status,resolution,created_at,updated_at,decided_at,conversation_id,platform,contacts(id,name)')
+    .eq('workspace_id',ctx.workspaceId).in('id',[...ids]).order('created_at',{ascending:false}).limit(limite)
   if (error) throw new Error(translate(ctx.locale ?? 'es', 'returns.loadFailed'))
 
-  const rows = (data ?? []) as unknown as Array<{
+  const candidates = (data ?? []) as unknown as Array<{
     id: string; order_number: string | null; kind: string | null; reason: string | null; customer_note: string | null;
     status: string | null; resolution: string | null; created_at: string; updated_at: string; decided_at: string | null;
     conversation_id: string | null; platform: string | null; contacts: { id: string; name: string | null } | null;
   }>
+  const visible=await visibleReturnIds(ctx.db,ctx.workspaceId,actor,candidates.map(row=>row.id))
+  const rows=candidates.filter(row=>visible.has(row.id))
   const contactIds = [...new Set(rows.flatMap(row => row.contacts?.id ? [row.contacts.id] : []))]
   let allowed = new Set<string>()
   if (contactIds.length) {
@@ -288,7 +296,7 @@ function returnDecisionFailure(ctx: CapabilityContext, error: unknown): Error {
 }
 
 async function devolucionPorId(ctx: CapabilityContext, id: string) {
-  try { return await loadReturnDecision(ctx.db, ctx.workspaceId, id) }
+  try { return await loadReturnDecision(ctx.db, ctx.workspaceId, id,gapCapabilityActor(ctx)) }
   catch (error) { throw returnDecisionFailure(ctx, error) }
 }
 

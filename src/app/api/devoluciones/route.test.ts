@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextResponse } from 'next/server';
-const f = vi.hoisted(() => ({ locale: 'es', session: vi.fn(), csrf: vi.fn(), decide: vi.fn() }));
+const f = vi.hoisted(() => ({ locale: 'es', session: vi.fn(), csrf: vi.fn(), decide: vi.fn(),visible:vi.fn() }));
+vi.mock('@/lib/returns/access',async original=>({...await original<typeof import('@/lib/returns/access')>(),visibleReturnIds:f.visible}));
 vi.mock('@/lib/i18n/server', () => ({ getLocale: async () => f.locale }));
 vi.mock('@/lib/inbox/server-context', () => ({ inboxSession: f.session }));
 vi.mock('@/lib/csrf', () => ({ csrfGuard: f.csrf }));
@@ -12,6 +13,7 @@ const request = (body: unknown) => new Request('https://riverz.co/api/devolucion
 beforeEach(() => {
   f.locale = 'es'; f.csrf.mockResolvedValue(null); f.session.mockResolvedValue({ db: 'database', workspaceId: 'trusted-workspace', userId: actor });
   f.decide.mockResolvedValue({ status: 'aprobada', updated_at: '2026-10-01T12:00:00.123456Z', unchanged: false });
+  f.visible.mockImplementation(async(_db:unknown,_ws:string,_actor:string,ids:string[])=>new Set(ids));
 });
 
 describe('return decision API', () => {
@@ -50,6 +52,11 @@ describe('return decision API', () => {
 });
 
 describe('return list contact isolation', () => {
+  it('reads no return body when the exact candidate cases are private',async()=>{
+    const select=vi.fn(),q={select:(_fields:string)=>{select(_fields);return q;},eq:()=>q,order:()=>q,limit:async()=>({data:[{id}],error:null})};
+    f.session.mockResolvedValue({db:{from:()=>q},workspaceId:'trusted-workspace',userId:actor});f.visible.mockResolvedValue(new Set());
+    const response=await GET(new Request('https://riverz.co/api/devoluciones'));expect(response.status).toBe(200);expect(await response.json()).toEqual({returns:[]});expect(select).toHaveBeenCalledExactlyOnceWith('id');
+  });
   it.each([false, true])('scrubs inconsistent contact joins, malformedOnly=%s', async malformedOnly => {
     const records = malformedOnly ? [{ id, status: 'abierta', contacts: [{ id: 'foreign', name: 'private foreign name' }] }] : [
       { id, status: 'abierta', contacts: { id: 'own', name: 'Own' } },

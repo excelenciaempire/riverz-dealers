@@ -16,7 +16,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   try {
     const { id } = await context.params;
     const query = parseReturnHistoryQuery(new URL(request.url).searchParams);
-    return NextResponse.json(await loadReturnHistory(ctx.db, ctx.workspaceId, id, query.cursor), { headers });
+    return NextResponse.json(await loadReturnHistory(ctx.db, ctx.workspaceId, id,ctx.userId, query.cursor), { headers });
   } catch (error) {
     const code = error instanceof ReturnHistoryError ? error.code : 'unavailable';
     return fail(code === 'invalid' ? 'invalidHistory' : code === 'notFound' ? 'notFound' : 'historyFailed', code === 'invalid' ? 400 : code === 'notFound' ? 404 : 503);

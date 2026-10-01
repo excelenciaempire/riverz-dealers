@@ -9,7 +9,7 @@ import { ReturnHistoryError } from '@/lib/returns/history';
 import { GET } from './route';
 const request = (query = '') => new Request(`https://riverz.co/api/devoluciones/owned-case/historial${query}`);
 const context = { params: Promise.resolve({ id: 'owned-case' }) };
-beforeEach(() => { f.enabled = true; f.locale = 'es'; f.session.mockResolvedValue({ db: 'database', workspaceId: 'session-workspace' }); f.load.mockResolvedValue({ events: [], next_cursor: null }); });
+beforeEach(() => { f.enabled = true; f.locale = 'es'; f.session.mockResolvedValue({ db: 'database', workspaceId: 'session-workspace',userId:'session-actor' }); f.load.mockResolvedValue({ events: [], next_cursor: null }); });
 describe('reserved return history API', () => {
   it('returns reserved 404 before authenticating or reading outside comparison', async () => {
     f.enabled = false; const response = await GET(request(), context);
@@ -23,7 +23,7 @@ describe('reserved return history API', () => {
   });
   it('passes only the trusted session workspace and path case', async () => {
     expect((await GET(request(), context)).status).toBe(200);
-    expect(f.load).toHaveBeenCalledWith('database', 'session-workspace', 'owned-case', undefined);
+    expect(f.load).toHaveBeenCalledWith('database', 'session-workspace', 'owned-case','session-actor', undefined);
   });
   it.each(['?workspace_id=foreign', '?cursor=', '?cursor=invalid'])('rejects malformed scope or cursor %s before reading', async query => {
     expect((await GET(request(query), context)).status).toBe(400); expect(f.load).not.toHaveBeenCalled();
