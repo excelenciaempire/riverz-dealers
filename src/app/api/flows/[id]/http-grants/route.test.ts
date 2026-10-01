@@ -31,7 +31,7 @@ describe('native flow HTTP grant API',()=>{
  it('requires both the automation and inbox sections',async()=>{m.access.mockResolvedValue({admin:true,sections:['/automatizaciones']});expect((await GET(request(),params)).status).toBe(403);});
  it('returns bounded action metadata without endpoint or credentials',async()=>{
   const response=await GET(request(),params),body=await response.json();expect(response.status).toBe(200);expect(response.headers.get('Cache-Control')).toContain('no-store');
-  expect(body.actions).toEqual([{id:action,revision:2,name:'Lookup',inputs:[],outputs:['status']}]);expect(JSON.stringify(body)).not.toContain('example.com');
+  expect(body.actions).toEqual([{id:action,revision:2,name:'Lookup',method:'GET',inputs:[],outputs:['status']}]);expect(JSON.stringify(body)).not.toContain('example.com');
  });
  it('checks CSRF before changing a grant',async()=>{m.csrf.mockResolvedValue(new Response(null,{status:403}));expect((await POST(request({}),params)).status).toBe(403);expect(m.rpc).not.toHaveBeenCalled();});
  it('requires the exact reviewed node configuration for save',async()=>{

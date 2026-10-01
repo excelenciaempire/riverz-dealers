@@ -13,7 +13,7 @@ const render=()=>renderToStaticMarkup(createElement(FlowHttpEditorContext.Provid
  createElement(HttpFlowNodeForm,props)));
 describe('comparison-only native HTTP node form',()=>{
  it('renders no new controls in the current UI',()=>{m.shown=false;expect(render()).toBe('');m.shown=true;});
- it('renders localized controls in both languages',()=>{m.locale='es';expect(render()).toContain('Cargar consultas');m.locale='en';expect(render()).toContain('Load lookups');m.locale='es';});
+ it('renders localized controls in both languages',()=>{m.locale='es';expect(render()).toContain('Cargar acciones');m.locale='en';expect(render()).toContain('Load actions');m.locale='es';});
  it('does not start network effects when rendered',()=>expect(render()).not.toContain('script'));
  it('keeps the node palette gated and sends the exact reviewed configuration',()=>{
   const builder=readFileSync('src/components/flows/flow-builder.tsx','utf8'),form=readFileSync('src/components/flows/http-node-form.tsx','utf8');

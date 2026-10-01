@@ -170,6 +170,12 @@ export const unify = {
 } satisfies Namespace;
 
 export const approvals = {
+  httpDecisionUnavailable: { es:'No se pudo registrar la decisión. Revisa la solicitud en el panel.', en:'Could not record the decision. Review the request in the panel.' },
+  httpDecisionResolved: { es:'Esta solicitud ya fue resuelta o venció.', en:'This request was already resolved or expired.' },
+  httpFlowRejected: { es:'Operación rechazada. No se envió ninguna solicitud.', en:'Operation rejected. No request was sent.' },
+  httpFlowResultUnverified: { es:'No se pudo verificar el resultado de la operación. Revisa su comprobante antes de volver a intentarlo.', en:'The operation result could not be verified. Review its receipt before trying again.' },
+  httpFlowContinuationUnavailable: { es:'Respuesta del proveedor registrada. El flujo no pudo continuar; revisa su historial.', en:'Provider response recorded. The flow could not continue; review its history.' },
+  httpFlowResponseRecorded: { es:'Respuesta del proveedor registrada. Verifica el resultado comercial en tu sistema.', en:'Provider response recorded. Verify the business outcome in your system.' },
   decisionUnavailable: { es:'No se pudo consultar la decisión. Reintenta.', en:'Could not load the decision. Try again.' },
   orderExecutionUnavailable: { es:'No se pudo autorizar esta operación para este pedido. No se ejecutó.', en:'Could not authorize this operation for this order. It was not executed.' },
   orderResultUnverified: { es:'Verifica el resultado de la operación en Shopify antes de solicitar otra.', en:'Verify the operation’s result in Shopify before requesting another.' },

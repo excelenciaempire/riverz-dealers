@@ -14,13 +14,15 @@ beforeAll(async()=>{
  CREATE TABLE contacts(id uuid PRIMARY KEY,workspace_id uuid,phone text,email text);
  CREATE TABLE conversations(id uuid PRIMARY KEY,workspace_id uuid,contact_id uuid,channel text,connection_id uuid,deleted_at timestamptz);
  CREATE TABLE channel_connections(id uuid PRIMARY KEY,workspace_id uuid,channel text,created_by uuid);
+ CREATE TABLE approval_requests(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),workspace_id uuid,kind text,title text,body text,payload jsonb,
+ contact_id uuid,status text DEFAULT 'pendiente',expires_at timestamptz,created_at timestamptz DEFAULT clock_timestamp(),decided_at timestamptz,decided_by uuid,decided_via text,result text);
  CREATE TABLE billing(allowed boolean);INSERT INTO billing VALUES(true);
  CREATE FUNCTION workspace_billing_write_allowed(ws uuid) RETURNS boolean LANGUAGE sql AS $$SELECT allowed FROM public.billing$$;
  CREATE TABLE flows(id uuid PRIMARY KEY,workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE,status text,deleted_at timestamptz);
  CREATE TABLE flow_nodes(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),flow_id uuid REFERENCES flows(id) ON DELETE CASCADE,node_key text,node_type text,config jsonb,UNIQUE(flow_id,node_key));
  CREATE TABLE flow_runs(id uuid PRIMARY KEY,workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE,flow_id uuid REFERENCES flows(id) ON DELETE CASCADE,
  contact_id uuid,conversation_id uuid,status text,current_node_key text,last_advanced_at timestamptz,vars jsonb,call_stack jsonb DEFAULT '[]',ended_at timestamptz,end_reason text);`);
- for(const file of ['330_http_action_configuration.sql','331_http_action_receipts.sql','337_http_flow_reads.sql']) await db.exec(readFileSync('supabase/migrations/'+file,'utf8'));
+ for(const file of ['330_http_action_configuration.sql','331_http_action_receipts.sql','337_http_flow_reads.sql','339_http_approval_review_snapshot.sql','341_http_flow_post_approvals.sql','343_http_flow_post_receipt_binding.sql']) await db.exec(readFileSync('supabase/migrations/'+file,'utf8'));
 },30000);
 afterAll(async()=>db.close());
 beforeEach(async()=>{

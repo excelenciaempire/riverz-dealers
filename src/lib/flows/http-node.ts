@@ -9,6 +9,7 @@ import { loadHttpAction } from '@/lib/integrations/http-action-store';
 import { executeClaimedHttpAction, httpActionBindingsForConversation, httpExecutionHash } from '@/lib/integrations/http-action-executor';
 import { httpFlowConfig, httpFlowInputs, httpFlowOutput } from './http-contract';
 import type { FlowNodeRow, FlowRunRow } from './types';
+import { localeDeCuenta } from '@/lib/i18n/cuenta';
 
 const uuid = z.string().uuid();
 const grantSchema = z.object({ workspace_id: uuid, flow_id: uuid, node_key: z.string(),
@@ -75,6 +76,26 @@ export async function runHttpFlowNode(db: SupabaseClient, run: FlowRunRow, node:
     const visitAt = version.data.last_advanced_at;
     const input = httpFlowInputs(config, action.definition, run.vars);
     const request = actionRequest(action.definition, input, trusted);
+    if (action.definition.method === 'POST') {
+      const proposed = await db.rpc('prepare_http_flow_post', { p_workspace_id: run.workspace_id, p_run_id: run.id,
+        p_flow_id: node.flow_id, p_node_key: node.node_key, p_config: config, p_grant_revision: grant.revision,
+        p_expected_node: version.data.current_node_key, p_visit_at: visitAt, p_vars: run.vars,
+        p_input_hash: httpExecutionHash({ request, conversation_id: run.conversation_id }),
+        p_locale: await localeDeCuenta(db, run.workspace_id) });
+      if (proposed.error) throw new Error('http_flow_review_required');
+      const proposal = z.object({ approval_id: uuid, status: z.enum(['pendiente', 'aprobada', 'rechazada', 'vencida', 'fallida']),
+        invocation_key: z.string().regex(/^[0-9a-f]{64}$/), receipt: z.record(z.string(), z.unknown()).nullable() }).strict().parse(proposed.data);
+      if (proposal.status === 'pendiente' || (proposal.status === 'aprobada' && (!proposal.receipt || proposal.receipt.state === 'claimed'))) return { state: 'pending' };
+      if (proposal.status !== 'aprobada' || !proposal.receipt) throw new Error('http_flow_review_required');
+      // Validate an already recorded receipt; this branch never receives a dispatch lease.
+      const receipt = await executeClaimedHttpAction(db, { workspaceId: run.workspace_id, actionId: config.action_id,
+        invocationKey: proposal.invocation_key }, action, request, { claimed: false, ...proposal.receipt });
+      if (receipt.state !== 'acknowledged' || !receipt.result) throw new Error('http_flow_review_required');
+      const vars = httpFlowOutput(config, action.definition, run.vars, receipt.result);
+      const finished = await db.rpc('finish_http_flow_post', { p_workspace_id: run.workspace_id, p_approval_id: proposal.approval_id, p_vars: vars });
+      if (finished.error) throw new Error('http_flow_finish_failed');
+      return finished.data === true ? { state: 'advanced', next: config.next_node_key, vars, receiptId: receipt.id, visitAt, replayed: true } : { state: 'superseded' };
+    }
     const invocationKey = createHash('sha256').update(JSON.stringify(['flow', run.id, node.flow_id,
       node.node_key, visitAt])).digest('hex');
     const claim = await db.rpc('claim_http_action_flow', { p_workspace_id: run.workspace_id, p_run_id: run.id,

@@ -58,7 +58,7 @@ async function handle(request: Request, rawId: string, mutation: boolean) {
     const choices = actions.data.flatMap(row => {
       const definition=httpActionDefinition.safeParse(row.definition);
       if (!definition.success || !httpFlowActionAllowed(definition.data)) return [];
-      return [{ id: row.id, revision:row.revision, name:definition.data.name,
+      return [{ id: row.id, revision:row.revision, name:definition.data.name, method:definition.data.method,
         inputs:definition.data.parameters.filter(p=>!p.source || p.source==='input').map(p=>({key:p.key,required:p.required,type:p.type})),
         outputs:definition.data.outputs.map(p=>p.key) }];
     });

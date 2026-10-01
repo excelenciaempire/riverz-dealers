@@ -2,7 +2,7 @@
 
 ## Español
 
-**Estado vigente:** ejecutor privado, MCP/Operador, herramientas y permisos del superasistente, y lecturas GET de Flujos implementados bajo la puerta de comparación. El selector ofrece dos borradores para sistemas propios: consulta y registro de solicitud con revisión humana. No requiere n8n/Make. Los borradores históricos y su autenticación siguen siendo compatibles. POST en Flujos, reconciliación, retención y prueba controlada de proveedor siguen en desarrollo.
+**Estado vigente:** ejecutor privado, MCP/Operador, herramientas y permisos del superasistente, y GET/POST de Flujos implementados bajo la puerta de comparación. Cada operación POST exige revisión humana del panel. El selector ofrece dos borradores para sistemas propios: consulta y registro de solicitud. No requiere n8n/Make. Los borradores históricos y su autenticación siguen siendo compatibles. Reconciliación, retención y prueba controlada de proveedor siguen en desarrollo.
 
 Los apartados siguientes conservan el historial por entregas; sus límites describen lo que cubría cada incremento en ese momento.
 
@@ -43,9 +43,29 @@ La migración 331 incorpora RPCs de reclamar/finalizar y el guard de despliegue 
 
 ## English
 
-**Current scope:** private executor, MCP/Operator, assistant tools and allowances, and Flow GET reads are implemented behind the comparison gate. The picker offers two drafts for custom systems: lookups and requests requiring human review. Neither n8n nor Make is required. Historical drafts and their authentication remain compatible. Flow POST operations, reconciliation, retention and controlled provider acceptance remain in development.
+**Current scope:** private executor, MCP/Operator, assistant tools and allowances, and Flow GET/POST are implemented behind the comparison gate. Each POST operation requires human dashboard review. The picker offers two drafts for custom systems: lookups and requests. Neither n8n nor Make is required. Historical drafts and their authentication remain compatible. Reconciliation, retention and controlled provider acceptance remain in development.
 
 The following sections retain the delivery history; their limitations describe each increment at that time.
+
+## POST nativo de Flujos / Native Flow POST
+
+La autorización del nodo permite preparar una propuesta; no aprueba operaciones futuras. POST exige `contact_id` y `conversation_id` obligatorios ligados por servidor, sin teléfono/correo como parámetros. Cada visita guarda una única propuesta privada: configuración y permiso exactos, variables observadas, hash de petición, clave de invocación y aprobación inmutable. El cuerpo muestra método, versión, flujo/nodo, identidad ligada y entradas libres; no destino ni secreto. Los reintentos reutilizan esa propuesta incluso después de decidir, sin extender el plazo de 24 horas. El primer despacho exige una decisión aprobada de los cinco minutos previos. No se crean avisos externos desde este adaptador; la revisión ocurre en Aprobaciones.
+
+Antes de consumir la decisión, y nuevamente antes del despacho, se verifican administrador vigente con Aprobaciones, Automatizaciones y Bandeja, concedente vigente, negocio writable, flujo raíz/subflujo activos, cursor/fecha/variables, configuración/permiso/acción y snapshot completo de contacto/conversación. Ambos principales deben ser dueños del buzón personal cuando corresponde. Un cambio exige revisión; la propuesta anterior no se edita. El recibo usa la identidad del aprobador humano y mantiene los campos de asistente nulos. La tabla privada enlaza aprobación, visita, permiso y recibo sin inventar un perfil de IA.
+
+Rechazar no llama al destino. Resultado bloqueado o incierto detiene únicamente la visita observada, conserva evidencia y no vuelve a despachar. Solo una respuesta registrada y validada incorpora las salidas seleccionadas; SQL verifica la proyección exacta y repite contexto y autorización. El callback vuelve al nodo HTTP, sin saltar al sucesor: solo el ganador del avance transaccional continúa. Los mensajes entrantes mientras espera observan la misma propuesta/recibo y no crean otro envío. Simular no llama al sistema ni crea aprobaciones.
+
+La migración 343 liga también la observación y el avance al hash, clave de invocación, acción/versión, conversación y decisor exactos del recibo de esa propuesta. Eliminar y recrear una aprobación no permite usar la respuesta anterior de la misma visita. El guard de despliegue verifica este vínculo mediante catálogos, sin recuperar operaciones reales.
+
+El callback inmediato utiliza el motor existente y no constituye una cola durable de continuación ni entrega exactamente una vez de todos los nodos posteriores. Si el proceso termina entre registrar la respuesta y llamar al callback, una entrada posterior puede observar el recibo y avanzar sin transporte nuevo. Si termina después de avanzar el cursor y antes del siguiente nodo, conserva los límites de recuperación del motor actual. Esa coordinación durable pertenece al bloque C; no se afirma cumplimiento comercial ni recuperación completa de todos los fallos. No se probó proveedor real o interacción visual.
+
+A node grant permits preparing a proposal, never preapproving future writes. POST requires server-bound contact and conversation IDs, excludes phone/email parameters, and stores one private immutable proposal per observed visit, including exact configuration/grant, variables, request hash and invocation key. The dashboard review shows method/version, flow/node, bound IDs and free inputs without endpoint or credential. Retries reuse the same proposal across decisions and do not extend its 24-hour expiry; a first dispatch requires an approved decision within five minutes. This adapter creates no external notification.
+
+Current authenticated administrators with Approvals, Automations and Inbox access are checked before consumption and again before dispatch, together with grantor authority, billing, active root/subflow, cursor/visit/variables, action/configuration/grant and complete identity snapshot. Both principals must own a personal mailbox when relevant. Receipts retain the actual human decider; private links separately record approval/visit/grant without impersonating an assistant. Rejection sends no request. Blocked/uncertain outcomes conditionally stop only the observed visit, retain evidence and never retry transport. Only a validated recorded response can project exact selected outputs and advance once. The callback re-enters the HTTP node, so its transactional finish winner alone continues. Simulations create neither provider calls nor approvals.
+
+Migration 343 binds receipt observation and advancement to the proposal's exact hash, invocation key, action/version, conversation and decider. Deleting and recreating an approval cannot reuse the previous visit response. A private catalog-only deployment guard checks that binding without retrieving real operations.
+
+Immediate continuation uses the existing engine, not a durable continuation queue or exactly-once delivery for successor nodes. A crash before the callback can be recovered by a later inbound observation without redispatching; a crash after advancing the cursor inherits existing engine recovery limits. Durable coordination remains part of block C. Provider acknowledgement is not business completion. No live provider or browser acceptance is claimed.
 
 This increment adds an internal executor restricted to comparison builds. It exposes no execution routes, assistant tools, MCP capabilities, Flow nodes or visible controls. Later adapters must derive actor identity, confirmation and invocation identifiers from protected server state; client/model arguments cannot supply this authority.
 

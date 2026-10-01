@@ -52,6 +52,10 @@
       p_invocation_key: null, p_input_hash: null, p_context: null }],
     ['finish_http_action_flow', { ...flowBase, p_config: null, p_grant_revision: null, p_receipt_id: null, p_vars: null }],
     ['fail_http_action_flow', { ...flowBase, p_expected_node: null }],
+    ['prepare_http_flow_post', { p_workspace_id:null,p_run_id:null,p_flow_id:null,p_node_key:null,p_config:null,
+      p_grant_revision:null,p_expected_node:null,p_visit_at:null,p_vars:null,p_input_hash:null,p_locale:null }],
+    ['claim_http_flow_post', { p_workspace_id:null,p_approval_id:null,p_actor_id:null,p_input_hash:null }],
+    ['finish_http_flow_post', { p_workspace_id:null,p_approval_id:null,p_vars:null }],
   ]) {
     const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/${name}`, {
       method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -59,7 +63,7 @@
     });
     const result = await response.json().catch(() => null);
     if (response.ok || result?.code !== 'P0001' || result?.message !== 'invalid_http_flow_context') {
-      throw new Error(`Apply migration 337 before deploying native HTTP flow reads (HTTP ${response.status}).`);
+      throw new Error(`Apply migrations 337 and 341 before deploying native HTTP flows (HTTP ${response.status}).`);
     }
   }
   for (const table of ['http_actions?select=id,workspace_id,definition,credential_ciphertext,state,revision',
@@ -69,7 +73,8 @@
     'http_action_assistant_grant_versions?select=workspace_id,action_id,agent_id,channel,revision,action_revision,context_scope,state,granted_by,observed_at',
     'http_action_flow_grants?select=workspace_id,flow_id,node_key,action_id,action_revision,node_config,revision,state,granted_by,updated_at',
     'http_action_flow_grant_versions?select=workspace_id,flow_id,node_key,action_id,action_revision,node_config,revision,state,granted_by,observed_at',
-    'http_action_flow_receipts?select=workspace_id,flow_run_id,flow_id,node_key,receipt_id,visit_at']) {
+    'http_action_flow_receipts?select=workspace_id,flow_run_id,flow_id,node_key,receipt_id,visit_at',
+    'http_action_flow_approvals?select=workspace_id,flow_run_id,flow_id,node_key,visit_at,approval_id,node_config,grant_revision,observed_vars,input_hash,invocation_key']) {
     const result = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/${table}&limit=0`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(15000),
     });
@@ -83,5 +88,15 @@
   if (!review.ok || await review.json().catch(() => null) !== true) {
     throw new Error(`Apply migrations 339 and 340 before deploying protected HTTP review (HTTP ${review.status}).`);
   }
-  console.log('HTTP action execution, grants and immutable approval review verified without reading action data.');
+  const postReview = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/http_flow_post_ready`, {
+    method:'POST',headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
+    body:'{}',signal:AbortSignal.timeout(15000),
+  });
+  if (!postReview.ok || await postReview.json().catch(() => null) !== true) throw new Error('Apply migration 341 before deploying per-operation HTTP flow review.');
+  const binding = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/http_flow_post_receipt_binding_ready`, {
+    method:'POST',headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
+    body:'{}',signal:AbortSignal.timeout(15000),
+  });
+  if (!binding.ok || await binding.json().catch(() => null) !== true) throw new Error('Apply migration 343 before deploying exact HTTP flow receipt observation.');
+  console.log('HTTP action execution, grants and individual immutable review verified without reading action data.');
 })().catch(error => { console.error(error.message); process.exitCode = 1; });

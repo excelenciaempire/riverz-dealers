@@ -7,7 +7,7 @@ import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { httpFlowConfig, httpFlowConfigMatches } from '@/lib/flows/http-contract';
 
 export const FlowHttpEditorContext = createContext<{ flowId:string; workspaceId:string; dirty:boolean; preview:boolean } | null>(null);
-const choice = z.object({ id:z.string().uuid(),revision:z.number().int().positive(),name:z.string(),
+const choice = z.object({ id:z.string().uuid(),revision:z.number().int().positive(),name:z.string(),method:z.enum(['GET','POST']),
   inputs:z.array(z.object({key:z.string(),required:z.boolean(),type:z.enum(['string','number','boolean'])})).max(12),outputs:z.array(z.string()).max(12) });
 const grant = z.object({ node_key:z.string(),revision:z.number().int().positive(),state:z.enum(['active','withdrawn']),node_config:httpFlowConfig });
 const catalog = z.object({actions:z.array(choice).max(20),grants:z.array(grant).max(200)});
@@ -51,6 +51,7 @@ function Controls({nodeKey,config,onUpdateConfig}:{nodeKey:string;config:Record<
       <label className="block text-xs">{t('flows.httpAction')}<select className={inputClass} value={String(config.action_id??'')} onChange={event=>{
         const found=data.actions.find(row=>row.id===event.target.value);onUpdateConfig({action_id:found?.id??'',action_revision:found?.revision??0,input_vars:{}});
       }}><option value="">{t('flows.httpChoose')}</option>{data.actions.map(row=><option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
+      {selected?.method==='POST' && <p className="text-xs text-muted-foreground">{t('flows.httpPostReview')}</p>}
       {selected?.inputs.map(field=><label key={field.key} className="block text-xs">{field.key}{field.required?' *':''}
         <input className={inputClass} maxLength={48} value={String((config.input_vars as Record<string,unknown>|undefined)?.[field.key]??'')}
           placeholder={t('flows.httpVariable')} onChange={event=>{

@@ -17,9 +17,10 @@ export function httpFlowConfigMatches(left: HttpFlowConfig, right: HttpFlowConfi
   return JSON.stringify(ordered(left)) === JSON.stringify(ordered(right));
 }
 
-/** First runtime delivery: contact-scoped reads only. No implicit authorization for writes. */
+/** POST grants only permit preparing an individually reviewed, conversation-scoped operation. */
 export function httpFlowActionAllowed(definition: HttpActionDefinition) {
-  return definition.method === 'GET'
+  return (definition.method === 'GET' || (definition.method === 'POST'
+    && definition.parameters.some(field => field.required && field.type === 'string' && field.source === 'conversation_id')))
     && definition.parameters.some(field => field.required && field.type === 'string' && field.source === 'contact_id')
     && !definition.parameters.some(field => field.source === 'phone' || field.source === 'email');
 }

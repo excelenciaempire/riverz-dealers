@@ -7,6 +7,7 @@ import { APROBACION_PENDIENTE,quienDecide } from './ask'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { translate } from '@/lib/i18n/translate'
 import { canDecideHttpAction, executeApprovedHttpAction, httpApprovalPanelMessage, isHttpActionApproval } from './http-action'
+import { canDecideHttpFlow, executeApprovedHttpFlow, isHttpFlowApproval, rejectHttpFlow } from './http-flow'
 
 const REFUND_ERRORS: Record<string, string> = {
   invalid_refund_amount: 'refundAmountInvalid', refund_pending: 'refundPending',
@@ -143,7 +144,10 @@ export async function decidir(
   const pending = await pendingQuery.maybeSingle()
   if (pending.error) return { ok:false,message:translate(args.workspaceId ? await localeDeCuenta(db,args.workspaceId) : 'es','approvals.decisionUnavailable') }
   const httpDecision = pending.data?.kind === 'herramienta' && isHttpActionApproval(pending.data.payload);
-  if (httpDecision && pending.data && (!args.workspaceId || !await canDecideHttpAction(db, pending.data.workspace_id, args.decidedBy, pending.data.payload, args.via))) {
+  const flowDecision = httpDecision && isHttpFlowApproval(pending.data?.payload);
+  if (httpDecision && pending.data && (!args.workspaceId || !(flowDecision
+    ? await canDecideHttpFlow(db, pending.data.workspace_id, args.decidedBy, args.approvalId, pending.data.payload, args.via)
+    : await canDecideHttpAction(db, pending.data.workspace_id, args.decidedBy, pending.data.payload, args.via)))) {
     return { ok: false, message: httpApprovalPanelMessage(await localeDeCuenta(db, pending.data.workspace_id)) };
   }
   if (pending.data && ['cancelar_pedido','reembolsar_pedido'].includes(pending.data.kind) && args.via === 'panel') {
@@ -167,9 +171,13 @@ export async function decidir(
   const { data, error } = await q
     .select('id, workspace_id, kind, payload, title')
     .maybeSingle()
-  if (error) return { ok: false, message: `No se pudo registrar: ${error.message}` }
+  if (error) return { ok: false, message: httpDecision
+    ? translate(await localeDeCuenta(db, pending.data!.workspace_id), 'approvals.httpDecisionUnavailable')
+    : `No se pudo registrar: ${error.message}` }
   if (!data) {
-    return { ok: false, message: 'Esa decisión ya estaba resuelta.' }
+    return { ok: false, message: httpDecision
+      ? translate(await localeDeCuenta(db, pending.data!.workspace_id), 'approvals.httpDecisionResolved')
+      : 'Esa decisión ya estaba resuelta.' }
   }
   const fila = data as {
     id: string
@@ -180,6 +188,7 @@ export async function decidir(
   }
 
   if (args.decision === 'rechazada') {
+    if (flowDecision) return { ...await rejectHttpFlow(db, fila.workspace_id, fila.id, args.decidedBy!, await localeDeCuenta(db, fila.workspace_id)), approvalId: fila.id };
     await db
       .from('approval_requests')
       .update({ result: 'rechazada por una persona' })
@@ -200,7 +209,9 @@ export async function decidir(
       const finished = await db.rpc('finish_approved_order_execution',{ p_workspace_id:fila.workspace_id,p_approval_id:fila.id,p_uncertain:ejecucion.uncertain === true })
       if (finished.error) ejecucion = { ok:false,uncertain:true,message:translate(locale,'approvals.refundResultUnverified') }
     }
-  } else if (httpDecision) ejecucion = await executeApprovedHttpAction(db,
+  } else if (flowDecision) ejecucion = await executeApprovedHttpFlow(db,
+    { workspaceId: fila.workspace_id, approvalId: fila.id, actorId: args.decidedBy! }, fila.payload, await localeDeCuenta(db, fila.workspace_id))
+  else if (httpDecision) ejecucion = await executeApprovedHttpAction(db,
     { workspaceId: fila.workspace_id, approvalId: fila.id, actorId: args.decidedBy! }, fila.payload, await localeDeCuenta(db, fila.workspace_id))
   else ejecucion = await ejecutar(db, fila)
   const resultQuery = db

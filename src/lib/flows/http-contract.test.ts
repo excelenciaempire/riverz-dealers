@@ -17,8 +17,9 @@ describe('native HTTP flow contract',()=>{
  it('binds only free fields to exact scalar variables',()=>expect(httpFlowInputs(config,definition,{order:'123',contact:'forged'})).toEqual({reference:'123'}));
  it('rejects mappings into server identity fields',()=>expect(()=>httpFlowInputs({...config,input_vars:{contact:'order'}},definition,{order:'123'})).toThrow());
  it('rejects required missing variables rather than converting them to empty strings',()=>expect(()=>httpFlowInputs(config,definition,{})).toThrow());
- it('does not authorize writes, unscoped reads or asserted phone/email bindings',()=>{
+ it('requires conversation-scoped individual review for writes and rejects unscoped identity',()=>{
    expect(httpFlowActionAllowed({...definition,method:'POST'})).toBe(false);
+   expect(httpFlowActionAllowed({...definition,method:'POST',parameters:[...definition.parameters,{key:'conversation',type:'string',source:'conversation_id',required:true}]})).toBe(true);
    expect(httpFlowActionAllowed({...definition,parameters:definition.parameters.slice(1)})).toBe(false);
    expect(httpFlowActionAllowed({...definition,parameters:[...definition.parameters,{key:'email',type:'string',source:'email',required:false}]})).toBe(false);
  });
@@ -39,7 +40,7 @@ describe('native HTTP flow contract',()=>{
  it('provides localized validation of incomplete nodes',()=>{
    const flow={name:'Lookup',trigger_type:'manual' as const,trigger_config:{},entry_node_id:'lookup'};
    const nodes=[{node_key:'lookup',node_type:'http_action',config:{}}];
-   expect(validateFlowForActivation(flow,nodes,'en').some(i=>i.message.includes('Configure the lookup'))).toBe(true);
-   expect(validateFlowForActivation(flow,nodes,'es').some(i=>i.message.includes('Configura la consulta'))).toBe(true);
+   expect(validateFlowForActivation(flow,nodes,'en').some(i=>i.message.includes('Configure the action'))).toBe(true);
+   expect(validateFlowForActivation(flow,nodes,'es').some(i=>i.message.includes('Configura la acción'))).toBe(true);
  });
 });

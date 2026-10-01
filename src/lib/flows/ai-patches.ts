@@ -268,7 +268,7 @@ export const NODOS_Y_CONFIG = `- \`send_message\`: { text: string, next_node_key
 - \`shopify_lookup\`: { kind: "order_by_number"|"order_by_email"|"last_order"|"product_by_handle", output_prefix: string, found_next_key?: string, not_found_next_key?: string }
 - \`end\`: {}
 - \`start\`: { next_node_key: string }. Úsalo solo si el usuario lo pide explícitamente. Lo normal es marcar el primer paso con \`set_entry\`.` + (SHOW_RIVERZ_IMPROVEMENTS ? `
-- \`http_action\`: { action_id: UUID, action_revision: integer, input_vars: Record<parameter_key, flow_variable_key>, output_prefix: string, next_node_key: string }. Solo lecturas GET con contact_id del servidor. No inventes IDs ni revisiones: el administrador debe elegir una acción existente, guardar el flujo y autorizar la configuración exacta. No incluyas URL, credenciales ni autorizaciones en patches.` : '')
+- \`http_action\`: { action_id: UUID, action_revision: integer, input_vars: Record<parameter_key, flow_variable_key>, output_prefix: string, next_node_key: string }. GET con contact_id del servidor; POST requiere también conversation_id del servidor y aprobación humana por operación en el panel. No inventes IDs ni revisiones: el administrador debe elegir una acción existente, guardar el flujo y autorizar la configuración exacta. Autorizar el nodo no aprueba sus operaciones POST. No incluyas URL, credenciales, confirmaciones ni autorizaciones en patches.` : '')
 
 /** Los puertos de salida de cada tipo de paso, para el patch `wire`. */
 export const PUERTOS_Y_CABLEADO = `- \`kind_of_port: "text"\` — para todos los nodos lineales (send_message, send_image, etc.). Setea \`next_node_key\`.
