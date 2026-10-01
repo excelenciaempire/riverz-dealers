@@ -5,14 +5,23 @@ import { z } from 'zod';
 import { userAccess } from '@/lib/mcp/access';
 import { PublicJsonError, requestPublicJson } from '@/lib/security/public-json-request';
 import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
-import { actionOutput, actionRequest, httpActionContainsSecret, type HttpActionBindings } from './http-action-contract';
+import { actionArguments, actionOutput, actionRequest, httpActionContainsSecret, type HttpActionBindings } from './http-action-contract';
 import { openHttpCredential } from './http-action-credentials';
-import { HttpActionStoreError, loadHttpAction } from './http-action-store';
+import { HttpActionStoreError, loadHttpAction, type HttpActionRecord } from './http-action-store';
 
 const uuid = z.string().uuid().transform(value => value.toLowerCase());
 const execution = z.object({ workspaceId: uuid, actorUserId: uuid, actionId: uuid, expectedRevision: z.number().int().positive(),
   invocationKey: z.string().regex(/^[0-9a-f]{64}$/), confirmed: z.boolean(), conversationId: uuid.optional() }).strict();
 export type HttpExecutionContext = z.input<typeof execution>;
+const assistantExecution = execution.omit({ actorUserId: true, confirmed: true, conversationId: true }).extend({
+  agentId: uuid, conversationId: uuid, grantRevision: z.number().int().positive(),
+  channel: z.enum(['whatsapp', 'instagram', 'messenger', 'gmail', 'outlook', 'zoho', 'webchat', 'voice', 'ig_comment', 'fb_comment']),
+  approvalId: uuid.optional(), approvalActorId: uuid.optional(),
+}).strict();
+export type HttpAssistantExecutionContext = z.input<typeof assistantExecution>;
+const assistantGrant = z.object({ workspace_id: uuid, action_id: uuid, agent_id: uuid, channel: assistantExecution.shape.channel,
+  context_scope: z.enum(['contact', 'business']), action_revision: z.number().int().positive(), revision: z.number().int().positive(),
+  state: z.enum(['active', 'withdrawn']), granted_by: uuid }).strict();
 const failure = z.enum(['http_destination_forbidden', 'http_input_invalid', 'http_timeout', 'http_transport_failed',
   'http_response_invalid', 'http_response_too_large', 'http_status_failed', 'http_output_invalid',
   'http_action_credential_unavailable', 'http_execution_unavailable']);
@@ -81,6 +90,64 @@ export async function executeHttpAction(db: SupabaseClient, context: HttpExecuti
   catch (error) { if (error instanceof HttpExecutionError) throw error; return fail('unavailable'); }
 }
 
+/** Private server gateway. Grant/version/channel/invocation and approval identities come from protected
+ * runtime state, never model arguments. SQL distinguishes assistant attribution from human authority.
+ */
+export async function executeHttpAssistantAction(db: SupabaseClient, context: HttpAssistantExecutionContext,
+  parameters: unknown): Promise<HttpExecutionReceipt> {
+  if (!SHOW_RIVERZ_IMPROVEMENTS) return fail('not_found');
+  try {
+    const parsed = assistantExecution.safeParse(context);
+    if (!parsed.success) return fail('invalid');
+    const ctx = parsed.data;
+    const result = await db.from('http_action_assistant_grants')
+      .select('workspace_id, action_id, agent_id, channel, context_scope, action_revision, revision, state, granted_by')
+      .eq('workspace_id', ctx.workspaceId).eq('action_id', ctx.actionId).eq('agent_id', ctx.agentId).eq('channel', ctx.channel).maybeSingle();
+    if (result.error) return fail('unavailable');
+    const grant = assistantGrant.safeParse(result.data);
+    if (!grant.success || grant.data.workspace_id !== ctx.workspaceId || grant.data.action_id !== ctx.actionId
+      || grant.data.agent_id !== ctx.agentId || grant.data.channel !== ctx.channel || grant.data.state !== 'active') return fail('forbidden');
+    if (grant.data.revision !== ctx.grantRevision || grant.data.action_revision !== ctx.expectedRevision) return fail('changed');
+    const grantor = await userAccess(db, grant.data.granted_by, ctx.workspaceId);
+    if (!grantor?.admin || (grantor.sections !== null && !['/ajustes', '/automatizaciones', '/bandeja'].every(section => grantor.sections!.includes(section)))) return fail('forbidden');
+    let action;
+    try { action = await loadHttpAction(db, ctx.workspaceId, ctx.actionId); }
+    catch (error) { return fail(error instanceof HttpActionStoreError && error.code === 'not_found' ? 'not_found' : 'unavailable'); }
+    if (action.state !== 'active') return fail('not_found');
+    if (action.revision !== ctx.expectedRevision) return fail('changed');
+    const post = action.definition.method === 'POST';
+    if (post && (!ctx.approvalId || !ctx.approvalActorId)) return fail('confirmation_required');
+    if (!post && (ctx.approvalId || ctx.approvalActorId)) return fail('invalid');
+    if (grant.data.context_scope === 'business' && (post || action.definition.parameters.some(field => !field.source || field.source === 'input'))) return fail('forbidden');
+    if (grant.data.context_scope === 'contact' && !action.definition.parameters.some(field => field.required
+      && ['contact_id', 'phone', 'email'].includes(field.source ?? '') && field.type === 'string')) return fail('forbidden');
+    const actorUserId = post ? ctx.approvalActorId! : grant.data.granted_by;
+    if (actorUserId !== grant.data.granted_by) {
+      const approver = await userAccess(db, actorUserId, ctx.workspaceId);
+      if (!approver?.admin || (approver.sections !== null && !['/automatizaciones', '/bandeja'].every(section => approver.sections!.includes(section)))) return fail('forbidden');
+    }
+    const conversation = await db.from('conversations').select('channel').eq('workspace_id', ctx.workspaceId)
+      .eq('id', ctx.conversationId).is('deleted_at', null).maybeSingle();
+    if (conversation.error) return fail('unavailable');
+    if (conversation.data?.channel !== ctx.channel) return fail('not_found');
+    const trusted = await httpActionBindingsForConversation(db, { workspaceId: ctx.workspaceId, actorUserId, conversationId: ctx.conversationId });
+    let request, normalized;
+    try {
+      request = actionRequest(action.definition, parameters, trusted ?? {});
+      const values = actionArguments(action.definition, parameters, trusted ?? {});
+      normalized = Object.fromEntries(action.definition.parameters.filter(field => (!field.source || field.source === 'input')
+        && Object.hasOwn(values, field.key)).map(field => [field.key, values[field.key]]));
+    } catch { return fail('invalid'); }
+    const claimed = await db.rpc('claim_http_action_assistant', { p_workspace_id: ctx.workspaceId, p_agent_id: ctx.agentId,
+      p_action_id: ctx.actionId, p_revision: ctx.expectedRevision, p_channel: ctx.channel, p_grant_revision: ctx.grantRevision,
+      p_invocation_key: ctx.invocationKey, p_input_hash: hash({ request, conversation_id: ctx.conversationId }),
+      p_conversation_id: ctx.conversationId, p_context: trusted, p_parameters: normalized,
+      p_approval_id: ctx.approvalId ?? null, p_approval_actor_id: ctx.approvalActorId ?? null });
+    if (claimed.error) return rpcError(claimed.error.message);
+    return await executeClaimedHttpAction(db, ctx, action, request, claimed.data);
+  } catch (error) { if (error instanceof HttpExecutionError) throw error; return fail('unavailable'); }
+}
+
 async function executeActiveHttpAction(db: SupabaseClient, context: HttpExecutionContext, parameters: unknown): Promise<HttpExecutionReceipt> {
   const parsed = execution.safeParse(context);
   if (!parsed.success) return fail('invalid');
@@ -103,7 +170,14 @@ async function executeActiveHttpAction(db: SupabaseClient, context: HttpExecutio
     p_input_hash: hash({ request, conversation_id: ctx.conversationId ?? null }), p_confirmed: ctx.confirmed,
     p_conversation_id: ctx.conversationId ?? null, p_context: trusted });
   if (claimed.error) return rpcError(claimed.error.message);
-  const run = claimResult.safeParse(claimed.data);
+  return executeClaimedHttpAction(db, ctx, action, request, claimed.data);
+}
+
+/** No caller can dispatch without a validated private lease returned by its authorization RPC. */
+async function executeClaimedHttpAction(db: SupabaseClient,
+  ctx: Pick<HttpExecutionContext, 'workspaceId' | 'actionId' | 'invocationKey'>,
+  action: HttpActionRecord, request: ReturnType<typeof actionRequest>, claimedData: unknown): Promise<HttpExecutionReceipt> {
+  const run = claimResult.safeParse(claimedData);
   if (!run.success) return fail('unavailable');
   if (!run.data.claimed) {
     const saved = { id: run.data.id, state: run.data.state, status_code: run.data.status_code,

@@ -7,7 +7,7 @@ vi.mock('./http-action-store', async original => ({ ...await original<typeof imp
 vi.mock('./http-action-credentials', () => ({ openHttpCredential: h.credential }));
 vi.mock('@/lib/security/public-json-request', async original => ({ ...await original<typeof import('@/lib/security/public-json-request')>(), requestPublicJson: h.transport }));
 import { PublicJsonError } from '@/lib/security/public-json-request';
-import { executeHttpAction } from './http-action-executor';
+import { executeHttpAction, executeHttpAssistantAction } from './http-action-executor';
 const WS = '11111111-1111-4111-8111-111111111111', ACTOR = '22222222-2222-4222-8222-222222222222';
 const ID = '33333333-3333-4333-8333-333333333333', RUN = '44444444-4444-4444-8444-444444444444';
 const LEASE = '55555555-5555-4555-8555-555555555555', CONV = '66666666-6666-4666-8666-666666666666';
@@ -149,5 +149,99 @@ describe('HTTP executor receipt boundary', () => {
     await executeHttpAction(db(), ctx(), { order_id: 'one' }); const first = h.transport.mock.calls[0][0].idempotencyKey;
     await executeHttpAction(db(), ctx(), { order_id: 'one' }); expect(h.transport.mock.calls[1][0].idempotencyKey).toBe(first);
     expect(first).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+const AGENT = '99999999-9999-4999-8999-999999999999';
+const assistant = () => ({ workspaceId: WS, actionId: ID, expectedRevision: 2, invocationKey: 'a'.repeat(64),
+  agentId: AGENT, conversationId: CONV, grantRevision: 1, channel: 'whatsapp' as const });
+describe('assistant HTTP gateway', () => {
+  beforeEach(() => {
+    reads.http_action_assistant_grants = { data: { workspace_id: WS, action_id: ID, agent_id: AGENT, channel: 'whatsapp',
+      context_scope: 'contact', action_revision: 2, revision: 1, state: 'active', granted_by: ACTOR }, error: null };
+    h.load.mockResolvedValue({ id: ID, workspace_id: WS, definition: { ...definition(), parameters: [
+      { key: 'customer', type: 'string', source: 'contact_id', required: true }, { key: 'order_id', type: 'string', required: true }] },
+    state: 'active', revision: 2, credential_ciphertext: 'sealed' });
+    rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => ({ error: null, data: name === 'claim_http_action_assistant'
+      ? { claimed: true, id: RUN, state: 'claimed', lease_id: LEASE }
+      : { id: RUN, state: args.p_state, status_code: args.p_status_code, error_code: args.p_error_code, result: args.p_result } }));
+  });
+  it('stays inactive before configuration, authority or context reads in normal production mode', async () => {
+    h.visible = false; await expect(executeHttpAssistantAction(db(), assistant(), {})).rejects.toThrow('http_execution_not_found');
+    expect(filters).toEqual([]); expect(h.access).not.toHaveBeenCalled(); expect(rpc).not.toHaveBeenCalled();
+  });
+  it('claims as the assistant using its own RPC, protected grant version and server-bound customer identity', async () => {
+    expect(await executeHttpAssistantAction(db(), assistant(), { order_id: 'one' })).toEqual({ ...ack(), cached: false });
+    expect(rpc.mock.calls[0]).toEqual(['claim_http_action_assistant', expect.objectContaining({ p_agent_id: AGENT,
+      p_workspace_id: WS, p_action_id: ID, p_revision: 2, p_channel: 'whatsapp', p_grant_revision: 1,
+      p_parameters: { order_id: 'one' }, p_context: { contact_id: CONTACT, conversation_id: CONV, phone: '+10000000000', email: null },
+      p_approval_id: null, p_approval_actor_id: null })]);
+    expect(rpc.mock.calls[0][1]).not.toHaveProperty('p_actor_id');
+    expect(filters).toContainEqual(['http_action_assistant_grants', 'workspace_id', WS]);
+    expect(filters).toContainEqual(['http_action_assistant_grants', 'agent_id', AGENT]);
+    expect(rpc.mock.invocationCallOrder[0]).toBeLessThan(h.transport.mock.invocationCallOrder[0]);
+    expect(JSON.stringify(rpc.mock.calls)).not.toMatch(/fixture-secret|PRIVATE_PROVIDER/);
+  });
+  it.each(['foreign', 'withdrawn', 'revision', 'action-version', 'missing'])('denies %s grants before dispatch', async mode => {
+    const grant = reads.http_action_assistant_grants.data as Record<string, unknown>;
+    if (mode === 'foreign') grant.workspace_id = ID;
+    if (mode === 'withdrawn') grant.state = 'withdrawn';
+    if (mode === 'revision') grant.revision = 2;
+    if (mode === 'action-version') grant.action_revision = 1;
+    if (mode === 'missing') reads.http_action_assistant_grants.data = null;
+    await expect(executeHttpAssistantAction(db(), assistant(), { order_id: 'one' })).rejects.toThrow(/^http_execution_(forbidden|changed)$/);
+    expect(h.load).not.toHaveBeenCalled(); expect(h.transport).not.toHaveBeenCalled();
+  });
+  it.each([null, { admin: false, sections: null }, { admin: true, sections: ['/automatizaciones', '/bandeja'] }])('requires current grantor administration and configuration access', async access => {
+    h.access.mockResolvedValue(access);
+    await expect(executeHttpAssistantAction(db(), assistant(), { order_id: 'one' })).rejects.toThrow('http_execution_forbidden');
+    expect(h.load).not.toHaveBeenCalled(); expect(rpc).not.toHaveBeenCalled();
+  });
+  it('requires an exact current channel and rejects model-supplied bound identity or authority fields', async () => {
+    reads.conversations.data = { ...(reads.conversations.data as object), channel: 'gmail' };
+    await expect(executeHttpAssistantAction(db(), assistant(), { order_id: 'one' })).rejects.toThrow('http_execution_not_found');
+    reads.conversations.data = { ...(reads.conversations.data as object), channel: 'whatsapp' };
+    await expect(executeHttpAssistantAction(db(), assistant(), { order_id: 'one', customer: ACTOR })).rejects.toThrow('http_execution_invalid');
+    await expect(executeHttpAssistantAction(db(), { ...assistant(), confirmed: true } as ReturnType<typeof assistant>, { order_id: 'one' })).rejects.toThrow('http_execution_invalid');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it('enforces business-only GET without model parameters and contact-bound customer lookups', async () => {
+    const grant = reads.http_action_assistant_grants.data as Record<string, unknown>;
+    grant.context_scope = 'business';
+    await expect(executeHttpAssistantAction(db(), assistant(), { order_id: 'one' })).rejects.toThrow('http_execution_forbidden');
+    h.load.mockResolvedValue({ definition: { ...definition(), parameters: [] }, state: 'active', revision: 2, credential_ciphertext: 'sealed' });
+    expect(await executeHttpAssistantAction(db(), assistant(), {})).toMatchObject({ state: 'acknowledged' });
+    grant.context_scope = 'contact';
+    await expect(executeHttpAssistantAction(db(), assistant(), {})).rejects.toThrow('http_execution_forbidden');
+    expect(h.transport).toHaveBeenCalledTimes(1);
+  });
+  it('requires protected POST approval identities and lets SQL validate the exact saved human decision', async () => {
+    const action = await h.load(); h.load.mockResolvedValue({ ...action, definition: { ...action.definition, method: 'POST' } });
+    await expect(executeHttpAssistantAction(db(), assistant(), { order_id: 'one' })).rejects.toThrow('http_execution_confirmation_required');
+    rpc.mockResolvedValue({ data: null, error: { message: 'http_execution_confirmation_required' } });
+    await expect(executeHttpAssistantAction(db(), { ...assistant(), approvalId: LEASE, approvalActorId: ACTOR }, { order_id: 'one' }))
+      .rejects.toThrow('http_execution_confirmation_required');
+    expect(rpc.mock.calls[0][1]).toMatchObject({ p_approval_id: LEASE, p_approval_actor_id: ACTOR }); expect(h.transport).not.toHaveBeenCalled();
+  });
+  it('checks a different current approver separately from the grantor', async () => {
+    const action = await h.load(); h.load.mockResolvedValue({ ...action, definition: { ...action.definition, method: 'POST' } });
+    h.access.mockImplementation(async (_db, actor) => actor === ACTOR ? { admin: true, sections: null } : { admin: false, sections: null });
+    await expect(executeHttpAssistantAction(db(), { ...assistant(), approvalId: LEASE, approvalActorId: CONTACT }, { order_id: 'one' }))
+      .rejects.toThrow('http_execution_forbidden');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it.each(['claimed', 'acknowledged', 'blocked', 'uncertain'])('never redispatches an assistant receipt in state %s', async state => {
+    const saved = state === 'acknowledged' ? ack() : { id: RUN, state, status_code: null, error_code: state === 'claimed' ? null : 'http_timeout', result: null };
+    rpc.mockResolvedValue({ data: { claimed: false, ...saved }, error: null });
+    expect(await executeHttpAssistantAction(db(), assistant(), { order_id: 'one' })).toEqual({ ...saved, cached: true });
+    expect(h.credential).not.toHaveBeenCalled(); expect(h.transport).not.toHaveBeenCalled();
+  });
+  it('sanitizes persistence rejection after dispatch without returning provider data or retrying', async () => {
+    rpc.mockImplementation(async (name: string) => {
+      if (name === 'claim_http_action_assistant') return { data: { claimed: true, id: RUN, state: 'claimed', lease_id: LEASE }, error: null };
+      throw new Error('PRIVATE_STORAGE');
+    });
+    await expect(executeHttpAssistantAction(db(), assistant(), { order_id: 'one' })).rejects.toThrow('http_execution_unavailable');
+    expect(h.transport).toHaveBeenCalledTimes(1);
   });
 });
