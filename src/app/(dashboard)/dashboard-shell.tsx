@@ -16,6 +16,7 @@ import { useT } from "@/hooks/use-locale";
 import { SaldoProvider } from "@/hooks/use-saldo";
 import type { Vistazo } from "@/lib/wallet/puerta";
 import { COMMERCE_CHANGE_KEY, selectedCommerceInBrowser } from "@/lib/auth/commerce-cookies";
+import { AppInstallationCapture } from '@/components/settings/app-installation';
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -162,6 +163,7 @@ export function DashboardShell({
       <CsrfProvider>
         <FeatureFlagsProvider value={{ flags, isPlatformAdmin }}>
           <SaldoProvider inicial={saldo}>
+            <AppInstallationCapture />
             <DashboardShellInner aviso={aviso}>{children}</DashboardShellInner>
           </SaldoProvider>
         </FeatureFlagsProvider>

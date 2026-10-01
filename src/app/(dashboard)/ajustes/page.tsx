@@ -14,6 +14,8 @@ import { McpPanel } from '@/components/settings/mcp-panel';
 import { BillingPanel } from '@/components/settings/billing-panel';
 import { WalletPanel } from '@/components/settings/wallet-panel';
 import { useSaldo } from '@/hooks/use-saldo';
+import { AppInstallation } from '@/components/settings/app-installation';
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 
 /**
  * Ajustes — sólo cosas que NO son integraciones. Canales y apps externas
@@ -103,6 +105,7 @@ export default function SettingsPage() {
         <TabsContent value="profile" className="space-y-6">
           <ProfileForm />
           <PasswordForm />
+          {SHOW_RIVERZ_IMPROVEMENTS && <AppInstallation />}
         </TabsContent>
 
         <TabsContent value="workspace" className="space-y-6">

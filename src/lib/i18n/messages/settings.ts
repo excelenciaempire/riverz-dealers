@@ -2,6 +2,20 @@ import type { Namespace } from './types';
 
 /** Settings page: tabs, appearance and the language picker. */
 export const settings = {
+  installTitle: { es: 'Riverz en tu dispositivo', en: 'Riverz on your device' },
+  installBody: { es: 'Abre tu bandeja desde un acceso propio y conserva las herramientas de tu negocio.', en: 'Open your inbox from a dedicated shortcut and keep your business tools available.' },
+  installButton: { es: 'Instalar Riverz', en: 'Install Riverz' },
+  installReady: { es: 'Este navegador ofrece la instalación. Tú decides cuándo abrirla.', en: 'This browser offers installation. You choose when to open it.' },
+  installPrompting: { es: 'Responde al aviso de instalación del navegador.', en: 'Respond to the browser installation prompt.' },
+  installAccepted: { es: 'Aceptaste la instalación. Espera a que el dispositivo la termine.', en: 'You accepted installation. Wait for your device to finish it.' },
+  installDismissed: { es: 'Cerraste el aviso. Puedes usar el menú del navegador para instalar más adelante.', en: 'You dismissed the prompt. You can use the browser menu to install later.' },
+  installFailed: { es: 'No se pudo abrir la instalación. Inténtalo desde el menú del navegador.', en: 'Could not open installation. Try from the browser menu.' },
+  installInstalled: { es: 'Riverz está instalado o abierto como aplicación en este dispositivo.', en: 'Riverz is installed or open as an app on this device.' },
+  installIos: { es: 'En iPhone o iPad, abre Compartir y elige Añadir a pantalla de inicio. Si no aparece, abre Riverz en Safari.', en: 'On iPhone or iPad, open Share and choose Add to Home Screen. If unavailable, open Riverz in Safari.' },
+  installBrowser: { es: 'Busca Instalar aplicación o Añadir a pantalla de inicio en el menú del navegador. Si no aparece, continúa usando Riverz aquí; la compatibilidad depende del dispositivo y del navegador.', en: 'Look for Install app or Add to Home Screen in the browser menu. If unavailable, continue using Riverz here; support depends on your device and browser.' },
+  installConnection: { es: 'Necesitas conexión a Internet e iniciar sesión. Instalar Riverz no activa notificaciones.', en: 'An Internet connection and sign-in are required. Installing Riverz does not enable notifications.' },
+  installAppName: { es: 'Riverz — Tu superasistente de negocio', en: 'Riverz — Your business superassistant' },
+  installAppDescription: { es: 'Atiende conversaciones y revisa tu negocio con tu superasistente de IA.', en: 'Handle conversations and review your business with your AI superassistant.' },
   walletChargedOperations: {
     es: '{count} cargos de consumo',
     en: '{count} usage charges',
