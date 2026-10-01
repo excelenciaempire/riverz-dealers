@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({ visible: true, locale: 'en', user: 'owner', workspace: 'workspace',
   access: { admin: true, sections: null as string[] | null } as { admin: boolean; sections: string[] | null } | null,
-  manage: vi.fn(), createClient: vi.fn(), csrf: vi.fn(), rate: vi.fn(),
+  manage: vi.fn(), createClient: vi.fn(), csrf: vi.fn(), rate: vi.fn(), grants: vi.fn(), load: vi.fn(), choices: vi.fn(),
   StoreError: class extends Error { constructor(readonly code: string) { super(`http_action_${code}`); } } }));
 vi.mock('@/lib/ui/improvements-preview', () => ({ get SHOW_RIVERZ_IMPROVEMENTS() { return h.visible; } }));
 vi.mock('@/lib/i18n/server', () => ({ getLocale: async () => h.locale }));
@@ -11,10 +11,14 @@ vi.mock('@/lib/automations/admin-client', () => ({ supabaseAdmin: () => ({ servi
 vi.mock('@/lib/mcp/access', () => ({ userAccess: async () => h.access }));
 vi.mock('@/lib/workspaces/resolve', () => ({ resolveWorkspaceIdForUser: async () => h.workspace }));
 vi.mock('@/lib/rate-limit', () => ({ limitByKey: h.rate }));
-vi.mock('./http-action-store', () => ({ HttpActionStoreError: h.StoreError, manageHttpAction: h.manage }));
+vi.mock('./http-action-store', () => ({ HttpActionStoreError: h.StoreError, manageHttpAction: h.manage, loadHttpAction: h.load }));
+vi.mock('./http-action-assistant-grants', async original => ({ ...await original<typeof import('./http-action-assistant-grants')>(), manageHttpAssistantGrant: h.grants }));
+vi.mock('./http-action-grant-catalog', () => ({ httpAssistantGrantChoices: h.choices,
+  HTTP_ASSISTANT_CHANNELS: ['whatsapp', 'instagram', 'messenger', 'gmail', 'outlook', 'zoho', 'webchat'] }));
 import { GET as list, POST as create } from '@/app/api/integrations/http-actions/route';
 import { PATCH as update } from '@/app/api/integrations/http-actions/[id]/route';
 import { GET as history } from '@/app/api/integrations/http-actions/[id]/history/route';
+import { GET as grants, PATCH as grantUpdate } from '@/app/api/integrations/http-actions/[id]/assistant-grants/route';
 const ID = '22222222-2222-4222-8222-222222222222';
 const params = () => ({ params: Promise.resolve({ id: ID }) });
 const request = (method = 'GET', body?: string, headers: Record<string, string> = {}) => new Request('https://riverz.test/api/integrations/http-actions',
@@ -23,6 +27,53 @@ beforeEach(() => {
   vi.clearAllMocks(); h.visible = true; h.locale = 'en'; h.user = 'owner'; h.workspace = 'workspace'; h.access = { admin: true, sections: null };
   h.createClient.mockImplementation(async () => ({ auth: { getUser: async () => ({ data: { user: h.user ? { id: h.user } : null }, error: null }) } }));
   h.csrf.mockResolvedValue(null); h.rate.mockResolvedValue({ success: true }); h.manage.mockResolvedValue({ actions: [] });
+  h.grants.mockResolvedValue({ grants: [] }); h.load.mockResolvedValue({ revision: 2, credential_ciphertext: 'PRIVATE_KEY', definition: { url: 'https://PRIVATE.test' } });
+  h.choices.mockResolvedValue([{ id: ID, name: 'Existing assistant', is_active: true, channels: ['whatsapp'] }]);
+});
+
+describe('comparison-only assistant grant endpoints', () => {
+  it('denies both routes before authentication, CSRF or configuration without the flag', async () => {
+    h.visible = false;
+    for (const response of [await grants(request(), params()), await grantUpdate(request('PATCH', '{}'), params())]) {
+      expect(response.status).toBe(404); expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+    }
+    expect(h.createClient).not.toHaveBeenCalled(); expect(h.csrf).not.toHaveBeenCalled(); expect(h.grants).not.toHaveBeenCalled();
+  });
+  it('requires current Settings, Automations and Inbox administration before profile or grant reads', async () => {
+    for (const sections of [['/ajustes'], ['/ajustes', '/automatizaciones'], ['/bandeja', '/automatizaciones']]) {
+      h.access = { admin: true, sections }; expect((await grants(request(), params())).status).toBe(403);
+    }
+    expect(h.choices).not.toHaveBeenCalled(); expect(h.grants).not.toHaveBeenCalled();
+  });
+  it('returns bounded grant/profile metadata and action version without destinations or credentials', async () => {
+    const response = await grants(request(), params()); expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ grants: [], assistants: [{ id: ID, name: 'Existing assistant', is_active: true, channels: ['whatsapp'] }], action_revision: 2 });
+    expect(h.grants).toHaveBeenCalledWith({ service: true }, 'workspace', 'owner', ID, 'list');
+  });
+  it('blocks selected-workspace changes and query-supplied scope before grants or profiles', async () => {
+    h.workspace = '11111111-1111-4111-8111-111111111111';
+    expect((await grants(request('GET', undefined, { 'x-riverz-workspace': ID }), params())).status).toBe(409);
+    expect((await grants(new Request('https://riverz.test/api/integrations/http-actions?workspace_id=other'), params())).status).toBe(400);
+    expect(h.grants).not.toHaveBeenCalled(); expect(h.choices).not.toHaveBeenCalled();
+  });
+  it('passes strict grant input with the authenticated actor and workspace, without invoking external actions', async () => {
+    const input = { agent_id: ID, channel: 'whatsapp', context_scope: 'contact', action_revision: 2, expected_version: 0 };
+    await grantUpdate(request('PATCH', JSON.stringify({ operation: 'save', ...input })), params());
+    expect(h.grants).toHaveBeenCalledWith({ service: true }, 'workspace', 'owner', ID, 'save', input);
+    expect(h.manage).not.toHaveBeenCalled(); expect(h.load).not.toHaveBeenCalled();
+  });
+  it('allows withdrawal of a stored unsupported channel without allowing its new activation', async () => {
+    const input = { agent_id: ID, channel: 'voice', expected_version: 1 };
+    expect((await grantUpdate(request('PATCH', JSON.stringify({ operation: 'save', ...input })), params())).status).toBe(400);
+    expect(h.grants).not.toHaveBeenCalled();
+    expect((await grantUpdate(request('PATCH', JSON.stringify({ operation: 'withdraw', ...input })), params())).status).toBe(200);
+    expect(h.grants).toHaveBeenLastCalledWith({ service: true }, 'workspace', 'owner', ID, 'withdraw', input);
+  });
+  it('applies CSRF and streaming body limits before grant mutation', async () => {
+    h.csrf.mockResolvedValue(new Response('{}', { status: 403 })); expect((await grantUpdate(request('PATCH', '{}'), params())).status).toBe(403);
+    h.csrf.mockResolvedValue(null); expect((await grantUpdate(request('PATCH', 'x'.repeat(16385)), params())).status).toBe(400);
+    expect(h.grants).not.toHaveBeenCalled();
+  });
 });
 describe('reserved HTTP action configuration endpoints', () => {
   it('rejects a form or list from another selected workspace before a service mutation or read', async () => {

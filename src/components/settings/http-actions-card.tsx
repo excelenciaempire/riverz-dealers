@@ -8,6 +8,7 @@ import { useFetchWithCsrf, type FetchWithCsrf } from '@/lib/api/fetch-with-csrf'
 import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { httpActionWrite, type HttpActionDefinition } from '@/lib/integrations/http-action-contract';
 import type { HttpActionMetadata } from '@/lib/integrations/http-action-store';
+import { HttpActionGrants } from './http-action-grants';
 
 const inputClass = 'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground';
 const buttonClass = 'rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50';
@@ -21,9 +22,10 @@ function Access() {
   if (loading || !workspace || !isAdmin) return null;
   const owner = typeof workspace.owner_id === 'string' && membership?.user_id === workspace.owner_id;
   if (!owner && membership?.allowed_sections && !membership.allowed_sections.includes('/ajustes')) return null;
-  return <Actions key={workspace.id} workspaceId={workspace.id} />;
+  const canGrant = owner || !membership?.allowed_sections || ['/automatizaciones', '/bandeja'].every(section => membership.allowed_sections!.includes(section));
+  return <Actions key={workspace.id} workspaceId={workspace.id} canGrant={canGrant} />;
 }
-function Actions({ workspaceId }: { workspaceId: string }) {
+function Actions({ workspaceId, canGrant }: { workspaceId: string; canGrant: boolean }) {
   const t = useT(), fetchWithCsrf = useFetchWithCsrf();
   const [open, setOpen] = useState(false), [loaded, setLoaded] = useState(false), [busy, setBusy] = useState(false);
   const [items, setItems] = useState<HttpActionMetadata[]>([]), [failure, setFailure] = useState<string | null>(null);
@@ -89,6 +91,7 @@ function Actions({ workspaceId }: { workspaceId: string }) {
             <button type="button" className={buttonClass} disabled={busy || editing !== null} onClick={() => void versions(row)}>{t('settings.httpHistory')}</button>
           </div>
           {history?.id === row.id && <div className="space-y-1 text-xs"><p>{t('settings.httpHistoryLimit')}</p>{history.rows.map(version => <p key={version.revision}>{t('settings.httpVersion', { n: version.revision })} · {t(`settings.httpState_${version.state}`)} · {version.observed_at} · {version.credential_present ? t('settings.httpSecretPresent') : t('settings.httpSecretNone')}</p>)}</div>}
+          <HttpActionGrants workspaceId={workspaceId} row={row} allowed={canGrant && !editing} />
         </article>)}
         {!editing && <button type="button" disabled={busy || items.length >= 20} className={`${buttonClass} flex items-center gap-2`} onClick={() => { setEditing('new'); setHistory(null); }}><Plus aria-hidden className="size-4" />{t('settings.httpNew')}</button>}
         {editing && <ActionForm key={editing === 'new' ? 'new' : `${editing.id}:${editing.revision}`} row={editing === 'new' ? null : editing}

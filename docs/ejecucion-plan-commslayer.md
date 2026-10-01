@@ -792,3 +792,17 @@ Validación: **20 archivos y 207 pruebas de regresión correctas**, seguidas de 
 
 
 **Builds normal y comparación completos correctos**, junto con TypeScript, lint, 207 pruebas de regresión y 64 casos finales. Quince archivos propios, sin dependencia nueva. No se abrió interfaz, no se habilitó comparación y no se usaron acciones reales como QA. Publicación de este incremento todavía no comprobada.
+
+
+Herramientas del superasistente publicadas en Render: revisión `1a0d23f067728a7102024a3e4f503e8952405a17` LIVE a las **13:50:54 UTC** del 1 de octubre. Salud a las **13:55:16 UTC** con esa revisión, servicio, Supabase y WhatsApp `ok`; comparación comprobada sin configurar. Sin ejecución real ni nueva interfaz mostrada como QA.
+
+## E2 — Controles nativos de autorización del asistente
+
+La configuración de acciones añade una sección de permisos por acción, cerrada inicialmente y con perfiles existentes, canal compatible y contexto autorizado. Sin navegación nueva ni consultas al montar. Administrador vigente con Ajustes, Automatizaciones y Bandeja; alcance derivado de sesión, header de negocio esperado, CSRF y cuerpo acotado. Perfil/acción pausados no se activan al conceder permiso. POST exige siempre revisión del panel. Versiones nuevas necesitan autorización nueva explícita; retirar sigue disponible tras cambiar la definición. Estado del formulario aislado por negocio, acción y versión.
+
+Catálogo de perfiles seguro con nombre, ID, pausa y canales privados compatibles; sin prompts, secretos, destinos ni datos de clientes. Máximo 100 completo sin truncar silenciosamente y asignaciones filtradas por IDs propios. No se conceden permisos nuevos a voz en tiempo real o comentarios públicos; los anteriores de esos canales pueden retirarse. Se conservan todos los controles y requisitos de configuración previos.
+
+Validación inicial: **seis archivos y 80 pruebas correctas** en API, metadatos, ocultamiento/idiomas, helper y SQL de permisos. TypeScript detectó únicamente el tipo del valor del selector de canal; corregido mediante comparación con sus opciones validadas. La compilación inicial se detuvo por ese error y no se publicó. Lint correcto. Compilación final y comprobaciones restantes en curso. Sin prueba de interacción DOM o visual; no se abrieron interfaz/navegador ni se crearon permisos reales como QA. El plan global sigue en ejecución.
+
+
+**Validación final correcta:** siete archivos y 82 pruebas, lint de los cambios y builds completos normal/comparación con TypeScript. Once archivos propios, sin migración ni dependencia nueva. La aclaración final del permiso general indica que su información se comparte con clientes. La compilación normal pasó antes de esa aclaración textual y la de comparación compiló el código final. Sin interacción real de formulario ni QA visual; no se abrió UI ni se habilitó la comparación. Publicación de este incremento todavía no comprobada.
