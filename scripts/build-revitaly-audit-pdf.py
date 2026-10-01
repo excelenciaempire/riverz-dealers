@@ -353,22 +353,11 @@ comment_analysis = [
     ('2 · Entregas', 'Dos compradores esperaban 7 y 20 días. Uno mencionó una promesa de entrega en 24 horas.'),
 ]
 for i, (title, body) in enumerate(comment_analysis):
-    x, y = 42+i*173, 470
-    p.box(x, y, 165, 159)
-    p.text(x+12, y+25, title, 'Semi', 14, width=141)
-    end = p.wrap(x+12, y+49, body, 141, leading=17)
-    assert end-17+4 <= y+159-6, (title, end)
-p.text(42, 656, 'Cómo respondió la IA', 'Serif', 25)
-end = p.wrap(42, 681, 'Respondió precios y canales de compra; algunas respuestas fueron genéricas o solo anunciaron un privado.', leading=17)
-assert end <= 719
-p.text(42, 732, 'Plan rápido propuesto', 'Serif', 25)
-comment_plan = [
-    'Responder precio y uso en público con información vigente.',
-    'Aclarar beneficios del producto y evitar promesas de crecimiento.',
-    'Pasar reclamos a privado y revisar a diario consultas sin respuesta.',
-]
-for i, action in enumerate(comment_plan):
-    p.text(42, 752+i*18, f'{i+1}. {action}', size=13)
+    y = 470+i*106
+    p.box(42, y, 511, 98)
+    p.text(60, y+27, title, 'Semi', 15, width=475)
+    end = p.wrap(60, y+53, body, 475, size=14, leading=20)
+    assert end-20+4 <= y+98-6, (title, end)
 p.end()
 p.c.save()
 
@@ -380,7 +369,8 @@ text = '\n'.join(page.get_text() for page in doc)
 normalized_text = re.sub(r'\s+', ' ', text)
 assert all(token in normalized_text for token in ['425', '199', '43', '133', '21,6%', '66,8%', '26 al 30 de septiembre', 'Por qué se escala a humano', 'Propuesta de plan de acción', 'Editar direcciones', 'preparar un reemplazo en Shopify', 'Una vez despachado, no se modifica la dirección.', 'Análisis de comentarios', '38 comentarios con texto', '34 hilos'])
 assert all(removed not in normalized_text for removed in ['Sin motivo de escalamiento', 'Sin escalamiento identificado', '78,4%', '10,1%', 'Qué ocurrió'])
-assert all(token in normalized_text for token in ['Sentimiento', '26 · Publicidad', '10 · Compra y uso', '2 · Entregas', 'Cómo respondió la IA', 'Plan rápido propuesto', *comment_plan])
+assert all(token in normalized_text for token in ['Sentimiento', '26 · Publicidad', '10 · Compra y uso', '2 · Entregas'])
+assert all(token not in normalized_text for token in ['Cómo respondió la IA', 'Plan rápido propuesto', 'algunas respuestas fueron genéricas', 'revisar a diario consultas sin respuesta'])
 assert all(token not in normalized_text for token in ['Probar cada acción con casos reales antes de activarla.', 'Las críticas se concentran en la publicidad', 'no mide satisfacción', 'las bromas ambiguas se clasifican aparte'])
 assert all(token not in normalized_text for token in ['5 respuestas recuperadas', 'Corregido el envío', 'Recuperación automática', 'Al corte: 11', 'sin respuesta al corte', 'recuperados después'])
 assert 'comentari' not in doc[0].get_text().lower()
@@ -425,7 +415,7 @@ proof = {'file': str(OUT), 'pages': len(doc), 'periodEscalations': len(cases),
          'responseIssueConversations': response_issues, 'avoidableBlockConversations': avoidable_blocks,
          'genuineInterventionInboxPercent': round(inbox_rate, 1),
          'genuineInterventionPercent': round(human_rate, 1), 'proposedCapabilities': len(plan),
-         'proposedCommentActions': len(comment_plan),
+         'proposedCommentActions': 0,
          'readableIncomingComments': len(comment_messages), 'incomingCommentThreads': len(comment_ids),
          'AIAnsweredCommentThreads': len(comment_ai_ids), 'humanAnsweredCommentThreads': len(comment_human_ids),
          'unansweredCommentThreadsAtCutoff': len(comment_unanswered_ids), 'commentChannelCounts': dict(comment_channels),
