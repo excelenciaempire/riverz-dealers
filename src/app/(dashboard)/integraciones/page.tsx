@@ -2,6 +2,8 @@
 
 import { Suspense } from 'react';
 import { ChannelsPanel } from '@/components/settings/channels-panel';
+import { HttpActionsCard } from '@/components/settings/http-actions-card';
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { ConnectionResult } from '@/components/settings/connection-result';
 import { useT } from '@/hooks/use-locale';
 
@@ -29,6 +31,7 @@ export default function IntegracionesPage() {
       </div>
 
       <ChannelsPanel />
+      {SHOW_RIVERZ_IMPROVEMENTS && <ul className="grid gap-4"><HttpActionsCard /></ul>}
     </div>
   );
 }

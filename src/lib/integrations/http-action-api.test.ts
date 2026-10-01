@@ -25,6 +25,13 @@ beforeEach(() => {
   h.csrf.mockResolvedValue(null); h.rate.mockResolvedValue({ success: true }); h.manage.mockResolvedValue({ actions: [] });
 });
 describe('reserved HTTP action configuration endpoints', () => {
+  it('rejects a form or list from another selected workspace before a service mutation or read', async () => {
+    h.workspace = '11111111-1111-4111-8111-111111111111';
+    const headers = { 'x-riverz-workspace': ID };
+    expect((await list(request('GET', undefined, headers))).status).toBe(409);
+    expect((await create(request('POST', '{}', headers))).status).toBe(409);
+    expect(h.manage).not.toHaveBeenCalled();
+  });
   it('keeps every route disabled before auth or CSRF without the comparison flag', async () => {
     h.visible = false;
     const responses = [await list(request()), await create(request('POST', '{}')), await update(request('PATCH', '{}'), params()), await history(request(), params())];

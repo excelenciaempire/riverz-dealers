@@ -4,6 +4,12 @@
 
 Preparación de E2, reservada para comparación. Guardar o activar una configuración no invoca el destino ni registra aún herramientas del asistente o nodos de Flujos. La ejecución con recibos duraderos se implementa por separado. En producción normal estas rutas responden `404` y no aparece una UI nueva.
 
+**Configuración visual posterior, solo en comparación:** Integraciones conserva todas sus conexiones y añade una sección opcional cerrada, “Conecta tu propio sistema”, para administradores con acceso a Ajustes. No hace solicitudes de configuración hasta abrirla. Nombre, propósito, HTTPS, autenticación, entradas escalares y campos de respuesta se editan con controles guiados, sin editor JSON. La credencial es un campo de contraseña sin valor prellenado; omitirla conserva el vínculo válido y cambiar autenticación borra la entrada local. Se limpia al guardar, cancelar o cambiar de negocio; no se guarda en almacenamiento del navegador.
+
+Guardar deja la versión en borrador, incluso si antes estaba activa. Activar o retirar usa una operación separada con la versión observada. El historial muestra hasta 50 versiones y únicamente presencia de credencial. Un conflicto conserva el formulario y ofrece recargar el estado actual; no sobrescribe otro editor. La cabecera opcional `X-Riverz-Workspace` comprueba que el negocio resuelto en servidor siga siendo el que abrió la sección. No puede seleccionar un negocio ni conceder autoridad; una discrepancia responde `409` antes de leer o cambiar configuraciones.
+
+La sección describe la disponibilidad actual para MCP y Operador, implementada en el [incremento de ejecución](acciones-http-ejecucion.md). No atribuye todavía las acciones al asistente de clientes o a Flujos. No incluye una llamada de prueba al proveedor. Esta entrega aún no cuenta con revisión visual o interacción de navegador; las comprobaciones automatizadas verifican ocultamiento, acceso, idioma, aislamiento, contratos y compilación.
+
 Requiere sesión actual de Riverz y administración del negocio con acceso a Ajustes. Las mutaciones usan la protección CSRF existente. La identidad y el negocio se resuelven en servidor; las claves Bearer de la API de consulta no configuran acciones. Permisos y suscripción se vuelven a comprobar en la transacción.
 
 | Ruta | Uso |
@@ -52,6 +58,12 @@ Errores con código limitado y mensaje localizado: configuración inválida `400
 ## English
 
 This E2 preparation is restricted to comparison builds. Saving or activating configuration does not invoke its destination or register assistant tools or Flow nodes yet. Execution with durable receipts is a separate increment. Normal production returns `404` for these endpoints and exposes no new UI.
+
+**Later visual configuration, comparison only:** Integrations retains its existing connections and appends one collapsed optional section for current administrators with Settings access. Configuration is loaded only after opening it. Guided controls cover name/purpose, HTTPS, authentication, scalar inputs and selected response paths, without a JSON editor. Credentials are never prefilled or stored in browser storage; changing authentication clears the local entry, and saving/cancelling/workspace changes clear the form.
+
+Saving returns the action to draft; activation/withdrawal are separate version-checked operations. History returns up to 50 versions with credential presence only. Conflicts preserve edits and allow current-state reload without overwriting another editor. Optional `X-Riverz-Workspace` verifies that the server-resolved workspace matches the one opening the section; it cannot select scope or grant authority. A mismatch returns `409` before configuration reads/mutations.
+
+The section describes currently implemented MCP/Operator support, not customer-facing assistant tools or Flow nodes. It performs no provider test call. This increment has no browser interaction or visual-layout verification yet; automated checks cover hidden UI, current access, localization, scope, contracts and compilation.
 
 The routes above require a current Riverz session, current workspace administration and Settings permission. Writes use existing CSRF protection; membership and subscription are checked again inside the transaction. Read API Bearer keys cannot configure actions. Workspace and actor identity are server-derived.
 

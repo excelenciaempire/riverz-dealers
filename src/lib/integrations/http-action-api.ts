@@ -43,6 +43,9 @@ export async function httpActionApi(request: Request, mode: 'list' | 'create' | 
     if (auth.error || !auth.data.user) return fail('unauthorized', 401);
     const userId = auth.data.user.id, workspaceId = await resolveWorkspaceIdForUser(client, userId);
     if (!workspaceId) return fail('not_found', 404);
+    const expectedWorkspace = request.headers.get('x-riverz-workspace');
+    if (expectedWorkspace !== null && (!z.string().uuid().safeParse(expectedWorkspace).success
+      || expectedWorkspace.toLowerCase() !== workspaceId.toLowerCase())) return fail('changed', 409);
     const db = supabaseAdmin(), access = await userAccess(db, userId, workspaceId);
     if (!access?.admin || (access.sections !== null && !access.sections.includes('/ajustes'))) return fail('forbidden', 403);
     const budget = await limitByKey(`http-config:${workspaceId}:${userId}`, { limit: 40, windowMs: 60_000 });
