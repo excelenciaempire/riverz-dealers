@@ -2,6 +2,27 @@ import type { Namespace } from "./types";
 
 /** Dashboard (/panel): metrics, charts, activity feed, date filter, setup checklist. */
 export const dashboard = {
+  caseReasons_title: { es:'Motivos y satisfacción',en:'Reasons and satisfaction' },
+  caseReasons_scope: { es:'Casos iniciados en el período, sin eliminados ni spam. Motivo y valoración actuales; satisfacción no equivale a resolución. Hasta 180 días por período.',en:'Cases started in the period, excluding deleted cases and spam. Current reason and rating; satisfaction is not resolution. Up to 180 days per period.' },
+  caseReasons_reasonColumn: { es:'Motivo',en:'Reason' },
+  caseReasons_currentCases: { es:'Casos',en:'Cases' },
+  caseReasons_previousCases: { es:'Período anterior',en:'Previous period' },
+  caseReasons_ratedCases: { es:'Con valoración',en:'Rated' },
+  caseReasons_positiveCases: { es:'Valoraciones positivas',en:'Positive ratings' },
+  caseReasons_satisfaction: { es:'Positivas / valoraciones',en:'Positive / rated' },
+  caseReasons_periodStart: { es:'Inicio del período',en:'Period start' },
+  caseReasons_periodEnd: { es:'Fin exclusivo del período',en:'Exclusive period end' },
+  caseReasons_previousStart: { es:'Inicio anterior',en:'Previous start' },
+  caseReasons_previousEnd: { es:'Fin exclusivo anterior',en:'Previous exclusive end' },
+  caseReasons_observedAt: { es:'Consultado en',en:'Observed at' },
+  caseReasons_observed: { es:'Consultado: {date}',en:'Observed: {date}' },
+  caseReasons_export: { es:'Exportar CSV',en:'Export CSV' },
+  caseReasons_refresh: { es:'Actualizar',en:'Refresh' },
+  caseReasons_openCase: { es:'Abrir caso · {date}',en:'Open case · {date}' },
+  caseReasons_older: { es:'Ver anteriores',en:'View older' },
+  caseReasons_unavailable: { es:'Este reporte no está disponible.',en:'This report is unavailable.' },
+  caseReasons_invalid: { es:'El período o filtro no es válido.',en:'Invalid period or filter.' },
+  caseReasons_failed: { es:'No se pudo consultar el reporte.',en:'Could not load the report.' },
   outcomeMixedCurrencies: {
     es: 'Hay varias monedas; no se suman entre sí',
     en: 'Multiple currencies; amounts are not added together',

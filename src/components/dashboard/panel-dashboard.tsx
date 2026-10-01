@@ -45,6 +45,8 @@ import { SkeletonCard } from '@/components/dashboard/skeleton';
 import { ConversationsChart } from '@/components/dashboard/conversations-chart';
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart';
 import { ActivityFeed } from '@/components/dashboard/activity-feed';
+import { CaseReasonsCard } from '@/components/dashboard/case-reasons-card';
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 
 /** One results dashboard for all accounts and billing models. */
 export function PanelDashboard() {
@@ -61,6 +63,8 @@ export function PanelDashboard() {
   const [rangeIso, setRangeIso] = useState<{
     start: string;
     end: string;
+    previous_start: string;
+    previous_end: string;
   } | null>(null);
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(true);
@@ -111,6 +115,8 @@ export function PanelDashboard() {
       setRangeIso({
         start: range.start.toISOString(),
         end: range.end.toISOString(),
+        previous_start: prev.start.toISOString(),
+        previous_end: prev.end.toISOString(),
       });
       setRevision(epoch);
     }
@@ -362,6 +368,7 @@ export function PanelDashboard() {
 
       {/* Activity feed */}
       <ActivityFeed items={activity} loading={activityLoading} />
+      {SHOW_RIVERZ_IMPROVEMENTS && rangeIso && <CaseReasonsCard key={`${preset}:${custom?.start}:${custom?.end}:${tz}:${rangeIso.start}`} range={rangeIso} />}
     </div>
   );
 }
