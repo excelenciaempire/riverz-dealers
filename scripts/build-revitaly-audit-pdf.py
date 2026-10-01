@@ -186,7 +186,7 @@ REASONS = [
     ('Demora o disputa de entrega', 'Entregas demoradas o disputadas', 15,
      'Reclamaron pedidos que no llegaron, falta de guía y demoras de despacho. Un pedido figuraba enviado, pero Andreani no lo registraba.'),
     ('Dato o decisión no verificada', 'Información o decisión comercial', 10,
-     'Reportaron un cupón CARRITO25 rechazado y falta de stock. Hubo dudas sobre el producto, puntos de retiro y propuestas de canje.'),
+     'Hubo consultas sobre descuentos, stock, uso del producto, puntos de retiro y propuestas de canje que la IA no pudo confirmar.'),
     ('Cancelación o reembolso', 'Cancelaciones y reembolsos', 5,
      'Pidieron cancelar o recuperar dinero por pedidos sin envío y direcciones incorrectas. Algunos insistieron tras ser enviados a WhatsApp.'),
     ('Acreditación o cobro', 'Pagos y cobros por verificar', 5,
@@ -382,7 +382,8 @@ assert 'comentari' not in doc[0].get_text().lower()
 assert all('Análisis de comentarios' not in page.get_text() for page in list(doc)[:-1])
 assert 'Análisis de comentarios' in doc[-1].get_text()
 assert all(token in normalized_text for token in ['Parcialmente', 'Puede automatizarse al conectar el banco', 'Una persona aprueba la cancelación o el reembolso', 'la IA no devuelve dinero por su cuenta'])
-assert all(token in normalized_text for token in ['cupón CARRITO25 rechazado', 'envase rajado con pérdida', 'IA no podía modificarlo', 'foliculitis'])
+assert all(token in normalized_text for token in ['consultas sobre descuentos', 'envase rajado con pérdida', 'IA no podía modificarlo', 'foliculitis'])
+assert 'CARRITO25' not in normalized_text
 assert 'Por qué se necesita al equipo' not in text and 'pedir el cambio al transportista' not in text
 assert all(removed not in normalized_text for removed in ['mejoras', 'Mejoras', 'Validado en producción', 'RESULTADOS', 'ESCALAMIENTOS REALES', 'PLAN PROPUESTO', 'GUÍA DE CAPACIDADES', 'riverz.co |', '135 casos', '2.098', '24,2%'])
 assert '66,2%' not in text and '21,1%' not in text
