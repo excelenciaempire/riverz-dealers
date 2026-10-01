@@ -628,10 +628,11 @@ async function nombreDe(ctx: CapabilityContext, automationId: string): Promise<s
 async function enCola(ctx: CapabilityContext, args: Record<string, unknown>) {
   const requestedLimit = Number(args.limite)
   const limite = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(Math.trunc(requestedLimit), 100)) : 30
-  const { data, error } = await ctx.db
+  const { data, error, count } = await ctx.db
     .from('automation_pending_executions')
     .select(
       'id, automation_id, status, run_at, branch, next_step_position, created_at, contacts(name, phone), automations(name, is_active, activation_state, deleted_at)',
+      { count: 'exact' },
     )
     .eq('workspace_id', ctx.workspaceId)
     .eq('status', 'pending')
@@ -651,7 +652,9 @@ async function enCola(ctx: CapabilityContext, args: Record<string, unknown>) {
   }>
 
   return {
-    esperando: filas.length,
+    esperando: count ?? null,
+    mostradas: filas.length,
+    hay_mas: count == null ? null : count > filas.length,
     en_cola: filas.map((f) => ({
       espera_id: f.id,
       automatizacion: f.automations?.name ?? f.automation_id,

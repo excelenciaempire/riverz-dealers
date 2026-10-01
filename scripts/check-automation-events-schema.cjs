@@ -8,4 +8,5 @@
     if (!response.ok) throw new Error(`Apply migration 303 before deploying automation events (HTTP ${response.status}).`);
   }
   console.log('Automation events schema verified.');
+  await (await import('./check-automation-waiting-schema.cjs')).default;
 })().catch(error => { console.error(error.message); process.exitCode = 1; });
