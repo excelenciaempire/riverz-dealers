@@ -1,6 +1,7 @@
 import type { AutomationTriggerType } from '@/types'
 import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
+import { formatDate } from '@/lib/i18n/format'
 
 export interface TriggerMeta {
   label: string
@@ -112,14 +113,15 @@ export function triggerMeta(t: AutomationTriggerType | string, locale: Locale = 
   )
 }
 
-export function formatRelative(iso: string | null | undefined): string {
-  if (!iso) return 'nunca'
+export function formatRelative(iso: string | null | undefined, locale: Locale = 'es'): string {
+  const t = (key: string, n?: number) => translate(locale, `automations.${key}`, n === undefined ? undefined : { n })
+  if (!iso) return t('relativeNever')
   const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return 'nunca'
+  if (Number.isNaN(then)) return t('relativeNever')
   const diffSec = Math.round((Date.now() - then) / 1000)
-  if (diffSec < 60) return 'hace un momento'
-  if (diffSec < 3600) return `hace ${Math.floor(diffSec / 60)} min`
-  if (diffSec < 86400) return `hace ${Math.floor(diffSec / 3600)} h`
-  if (diffSec < 2_592_000) return `hace ${Math.floor(diffSec / 86400)} d`
-  return new Date(iso).toLocaleDateString('es-ES')
+  if (diffSec < 60) return t('relativeNow')
+  if (diffSec < 3600) return t('relativeMinutes', Math.floor(diffSec / 60))
+  if (diffSec < 86400) return t('relativeHours', Math.floor(diffSec / 3600))
+  if (diffSec < 2_592_000) return t('relativeDays', Math.floor(diffSec / 86400))
+  return formatDate(iso, locale, { day: 'numeric', month: 'numeric', year: 'numeric' })
 }

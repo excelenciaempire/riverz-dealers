@@ -18,7 +18,7 @@ vi.mock('react', async importOriginal => {
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
 vi.mock('@/hooks/use-localized-router', () => ({ useLocalizedRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/hooks/use-workspace', () => ({ useWorkspace: () => ({ workspace: { id: 'w' }, loading: false }) }))
-vi.mock('@/hooks/use-locale', () => ({ useT: () => (key: string, vars?: Record<string, string | number>) => translate(state.locale, key, vars) }))
+vi.mock('@/hooks/use-locale', () => ({ useLocale: () => ({ locale: state.locale }), useT: () => (key: string, vars?: Record<string, string | number>) => translate(state.locale, key, vars) }))
 vi.mock('@/lib/ui/improvements-preview', () => ({ get SHOW_RIVERZ_IMPROVEMENTS() { return state.comparison } }))
 vi.mock('@/components/automations/run-journey', () => ({ RunJourney: () => <div>Existing journey</div> }))
 import Page from './page'
@@ -28,6 +28,7 @@ describe('history additions stay reserved for comparison', () => {
     state.locale = locale
     const html = renderToStaticMarkup(<Page params={Promise.resolve({ id: 'aut' })} />)
     expect(html).toContain('Ana'); expect(html).toContain('Existing journey')
+    if (locale === 'en') expect(html).not.toContain('hace ')
     expect(html).not.toContain('type="date"'); expect(html).not.toContain('<select')
     expect(html).not.toContain(locale === 'es' ? 'Cargar anteriores' : 'Load older runs')
   })

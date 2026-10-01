@@ -448,3 +448,11 @@ La ruta exige sesión y pertenencia al negocio seleccionado, acepta UUID o ident
 El Operador consulta el total exacto de las esperas del negocio, separado de las filas incluidas en la respuesta limitada. Un conteo no disponible permanece desconocido, en vez de afirmar que la muestra representa toda la cola. No cambia el límite ni la tabla existentes y no añade controles visibles.
 
 Validación: **25 pruebas específicas iniciales** y **49 archivos con 475 pruebas de regresión correctas**, incluidos conteos de más de mil doscientas filas, ramas anidadas, aislamiento de negocio y automatización, pertenencia revocada, definición eliminada, permisos de RPC, repetición de migración, total frente a muestra y errores públicos en ambos idiomas. Lint y **build completo con TypeScript correctos**. La migración 326 se aplicó atómicamente; el guard de esquema real verificó la función con entradas inválidas, sin consultar ejecuciones de clientes. Once archivos propios sobre la copia integrada de `74b04979`. No se enviaron mensajes ni se ejecutaron modelos para validar esta entrega. La publicación se comprueba después del push.
+
+Corrección de conteos C2 publicada: Render confirmó `d1cd8b5b72b6eb738ec7b77f21039186adfd1c9e` como live el 1 de octubre a las 03:52 UTC; `/api/health` confirmó el mismo commit a las 03:53 UTC, con salud, Supabase y WhatsApp `ok`. La API de esperas rechazó consultas sin sesión mediante identificador completo y corto con 401. El modo de comparación sigue sin configurar en Render.
+
+## Corrección C2: fechas del historial según el idioma activo
+
+La pantalla de registros conserva su diseño y ahora pasa el idioma de la interfaz al formateador compartido de fechas relativas. El formato anterior mostraba «hace…» incluso en inglés. Se añaden las traducciones de fechas recientes y el formato de fechas antiguas usa la utilidad de idioma existente. Los consumidores que no pasan idioma conservan el comportamiento español anterior.
+
+Validación: **47 pruebas correctas** de fechas, reserva de UI, historial y cola; lint y **build completo con TypeScript correctos**. La prueba de pantalla en inglés verifica que no aparezca «hace…». Seis archivos propios sobre la copia integrada de `d1cd8b5b`. No añade controles, no cambia datos persistidos ni ejecuta acciones externas. La publicación se comprueba después del push.

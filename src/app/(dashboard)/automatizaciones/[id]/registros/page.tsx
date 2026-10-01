@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button"
 import { RunJourney } from "@/components/automations/run-journey"
 import { cn } from "@/lib/utils"
 import { formatRelative } from "@/lib/automations/trigger-meta"
-import { useT } from "@/hooks/use-locale"
+import { useLocale, useT } from "@/hooks/use-locale"
 
 export default function AutomationLogsPage({
   params,
@@ -28,6 +28,7 @@ export default function AutomationLogsPage({
   const { id } = use(params)
   const router = useLocalizedRouter()
   const t = useT()
+  const { locale } = useLocale()
   const { workspace, loading: workspaceLoading } = useWorkspace()
 
   /**
@@ -211,7 +212,7 @@ export default function AutomationLogsPage({
                     </div>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {formatRelative(log.created_at)}
+                    {formatRelative(log.created_at, locale)}
                   </div>
                 </button>
                 {isOpen && (
