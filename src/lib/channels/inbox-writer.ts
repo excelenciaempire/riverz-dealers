@@ -41,6 +41,7 @@ import {
 import { getAdapter } from "./registry";
 import { originFromProactiveKind } from "@/lib/inbox/message-origin";
 import { storedConnectionCanSend } from "./send-guard";
+import { captureEmailWhatsAppInquiry } from './email/whatsapp-referral';
 
 /**
  * ¿Este saliente que llega de la plataforma lo mandó una funcionalidad nuestra?
@@ -363,6 +364,14 @@ export async function ingestInboundEvent(
     return null;
   }
 
+  // Capture only persisted, live inbound messages. A failed attribution must
+  // never interrupt customer support or accidentally bypass normal AI gates.
+  try {
+    const referral = await captureEmailWhatsAppInquiry(db, { event, conversationId: conversation.id, messageId: message.id });
+    if (referral) conversation.email_referral = referral;
+  } catch (error) {
+    console.error('[email-whatsapp] inquiry attribution failed:', error);
+  }
   await resolveHumanAttention(db, message);
   if (!event.outbound && isSimpleClosure(message.content_text)) {
     await reconcileHumanAttention(db, conversation.id);

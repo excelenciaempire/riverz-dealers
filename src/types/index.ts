@@ -421,6 +421,12 @@ export interface Conversation {
     body?: string;
     mediaType?: string;
   } | null;
+  email_referral?: {
+    kind: 'purchase_guide' | 'email_inquiry';
+    orderName: string | null;
+    sourceConversationId: string | null;
+    receivedAt: string;
+  } | null;
   status: ConversationStatus;
   assigned_agent_id?: string;
   last_message_text?: string;

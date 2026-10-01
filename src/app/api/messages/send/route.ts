@@ -344,6 +344,8 @@ export async function POST(req: Request): Promise<Response> {
       canal: channel,
       workspaceId: (conversation as Conversation).workspace_id,
       contactId: (contact as Contact).id,
+      connectionId: (connection as ChannelConnection).id,
+      conversationId: (conversation as Conversation).id,
     });
   }
   const caption = body.text?.trim() || undefined;

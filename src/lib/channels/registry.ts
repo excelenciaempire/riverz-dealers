@@ -1,6 +1,7 @@
 import type { Channel } from "@/types";
 import type { ChannelAdapter } from "./types";
 import { prepararTextoParaCanal } from "@/lib/marketing/enlaces-salientes";
+import { prepareEmailWhatsAppLinks } from './email/whatsapp-referral';
 import { supabaseAdmin } from "./admin-client";
 import { whatsappAdapter } from "./whatsapp/adapter";
 import { instagramAdapter } from "./instagram/adapter";
@@ -59,6 +60,8 @@ export function getAdapter(channel: Channel): ChannelAdapter {
             canal: channel,
             workspaceId: input.connection.workspace_id,
             contactId: input.contact.id,
+            connectionId: input.connection.id,
+            conversationId: input.conversation.id,
           })
         : input.text;
       return adapter.sendText({
@@ -73,7 +76,12 @@ export function getAdapter(channel: Channel): ChannelAdapter {
       await assertWorkspaceWritable(supabaseAdmin(), input.connection.workspace_id);
       await assertRecoveryStillUnanswered(supabaseAdmin(), input.conversation.id);
       await assertInboxCaseCanSend(supabaseAdmin(),input.connection.workspace_id,input.conversation.id);
-      return adapter.sendMedia!(input);
+      const caption = input.caption?.includes('http')
+        ? await prepareEmailWhatsAppLinks(supabaseAdmin(), {
+            text: input.caption, channel, workspaceId: input.connection.workspace_id,
+            connectionId: input.connection.id, conversationId: input.conversation.id,
+          }) : input.caption;
+      return adapter.sendMedia!({ ...input, caption });
     };
   }
   if (adapter.sendTemplate) {

@@ -9,6 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createShortLink } from '@/lib/links/short-link'
 import { shortLinkPublicUrl } from '@/lib/whatsapp/dynamic-links'
 import { marcarParaCanal, medioParaCanal, PARAM } from './enlaces'
+import { prepareEmailWhatsAppLinks } from '@/lib/channels/email/whatsapp-referral'
 
 const RE_URL = /https?:\/\/[^\s<>"']+/g
 const COLA = /[.,;:!?)\]}»"']+$/
@@ -20,6 +21,8 @@ export interface PrepararTextoParaCanalArgs {
   canal: string
   workspaceId: string
   contactId?: string | null
+  connectionId?: string
+  conversationId?: string
 }
 
 function tieneMarcaRiverz(url: string): boolean {
@@ -44,6 +47,11 @@ export async function prepararTextoParaCanal(
   if (!medioParaCanal(args.canal)) return args.texto
   if (!args.texto.includes('http')) return args.texto
 
+  args = { ...args, texto: await prepareEmailWhatsAppLinks(db, {
+    text: args.texto, channel: args.canal, workspaceId: args.workspaceId,
+    connectionId: args.connectionId, conversationId: args.conversationId,
+  }) }
+
   const reemplazos = new Map<string, string>()
   let salida = ''
   let cursor = 0
@@ -55,7 +63,10 @@ export async function prepararTextoParaCanal(
     const url = cola ? bruto.slice(0, -cola.length) : bruto
     let visible = url
 
-    if (url.length >= LARGO_MINIMO_PARA_ACORTAR) {
+    // Keep the email redirect visible to the repeated-redirect guard, also on
+    // staging hosts whose domain is not in the public Riverz domain list.
+    const emailWhatsAppLink = /\/api\/email\/whatsapp\/[a-f0-9]{24}(?:[?#]|$)/.test(url)
+    if (url.length >= LARGO_MINIMO_PARA_ACORTAR && !emailWhatsAppLink) {
       const destino = marcarParaCanal(url, args.canal)
       const existente = reemplazos.get(destino)
       if (existente) {

@@ -9,6 +9,11 @@ vi.mock('@/lib/links/short-link', () => ({
 const db = {} as Parameters<typeof prepararTextoParaCanal>[0]
 
 describe('prepararTextoParaCanal', () => {
+  it('keeps email WhatsApp source URLs visible on staging for duplicate-redirect detection', async () => {
+    const url = 'https://riverz-crm.onrender.com/api/email/whatsapp/abcdef012345abcdef012345';
+    expect(await prepararTextoParaCanal(db, { texto: url, canal: 'gmail', workspaceId: 'workspace-a' })).toBe(url);
+    expect(createShortLink).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.mocked(createShortLink).mockReset()
     vi.mocked(createShortLink).mockResolvedValue('AbC123xy')

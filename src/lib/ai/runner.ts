@@ -56,6 +56,7 @@ import { registrarCalificacion } from '@/lib/inbox/opinion';
 import { resolveHumanAttentionFromCustomerClosure } from '@/lib/inbox/human-attention';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
 import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
+import { emailReferralContext } from '@/lib/channels/email/whatsapp-referral';
 import {
   cargarPerfilOperativo,
   perfilOperativoAPrompt,
@@ -242,7 +243,7 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
         .eq('conversation_id', args.conversation.id).eq('sender_type', 'bot')
         .in('status', ['sent', 'delivered', 'read']).is('deleted_at', null)
         .lt('created_at', args.inboundMessage.created_at)
-        .ilike('content_text', '%https://wa.me/%').limit(1);
+        .or('content_text.ilike.%https://wa.me/%,content_text.ilike.%/api/email/whatsapp/%').limit(1);
       // Fail closed when history cannot be checked; do not repeat a redirect.
       if (previous.error || previous.data?.length) emailDisposition = 'review';
     }
@@ -941,6 +942,8 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
 
     // Notas del equipo en el contact (las 3 más recientes).
     const recentNotes = await loadRecentContactNotes(db, primaryContact.id);
+    const emailSource = emailReferralContext(args.conversation.email_referral);
+    if (emailSource) recentNotes.push(emailSource);
 
     // Contexto = toda la conversación. Ya no es configurable por agente:
     // loadContext toma los últimos 100 mensajes (su tope) + el resumen
@@ -1371,6 +1374,8 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
       canal: args.channel,
       workspaceId: args.workspaceId,
       contactId: args.contact.id,
+      connectionId: args.connection.id,
+      conversationId: args.conversation.id,
     });
     const chunks = splitReplyForMode(textoPreparado, agent.response_mode);
 

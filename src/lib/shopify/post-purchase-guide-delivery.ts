@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ChannelConnection } from '@/types';
+import { createEmailWhatsAppLink } from '@/lib/channels/email/whatsapp-referral';
 import { getFreshAccessToken } from '@/lib/channels/gmail/watch';
 import { tokenVivo } from './token-vivo';
 import { nextPageInfo } from './admin-client';
@@ -334,14 +335,23 @@ export async function deliverPostPurchaseGuides(db: SupabaseClient) {
           summary.reconciled++;
           continue;
         }
+        let body = guide.body
+          .replaceAll('{{order_name}}', order.name ?? row.order_id)
+          .replaceAll('{{guide_url}}', guide.file_url);
+        if (body.includes('{{whatsapp_url}}')) {
+          const whatsappUrl = await createEmailWhatsAppLink(db, {
+            workspaceId: guide.workspace_id, emailConnectionId: guide.connection_id,
+            sourceKey: `guide:${guide.id}:${row.order_id}`, kind: 'purchase_guide',
+            orderId: row.order_id, orderName: order.name ?? row.order_id,
+          });
+          body = body.replaceAll('{{whatsapp_url}}', whatsappUrl);
+        }
         const raw = guideEmailRaw({
           from,
           to,
           messageId,
           subject,
-          body: guide.body
-            .replaceAll('{{order_name}}', order.name ?? row.order_id)
-            .replaceAll('{{guide_url}}', guide.file_url),
+          body,
         });
         const claim = checked(
           await db

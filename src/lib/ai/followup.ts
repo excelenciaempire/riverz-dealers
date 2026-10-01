@@ -226,6 +226,8 @@ async function runFollowUpInner(db: SupabaseClient, args: Parameters<typeof runF
         canal: conversation.channel,
         workspaceId: agent.workspace_id,
         contactId: contact.id,
+        connectionId: conversation.connection_id,
+        conversationId: conversation.id,
       });
       const checkoutBlock = await followUpBlockReason(db, { ...args, agent });
       if (checkoutBlock) return { sent: false, reason: checkoutBlock };
@@ -387,6 +389,8 @@ async function runFollowUpInner(db: SupabaseClient, args: Parameters<typeof runF
       canal: conversation.channel,
       workspaceId: agent.workspace_id,
       contactId: contact.id,
+      connectionId: conversation.connection_id,
+      conversationId: conversation.id,
     });
     if (!finalText) return { sent: false, reason: 'empty' };
     const finalBlock = await followUpBlockReason(db, { ...args, agent });

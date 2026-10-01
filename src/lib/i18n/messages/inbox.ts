@@ -5,6 +5,10 @@ import type { Namespace } from "./types";
  * reactions, moderation, contact + Shopify panels, templates and search.
  */
 export const inbox = {
+  emailReferral: { es: 'Desde correo', en: 'From email' },
+  emailReferralGuide: { es: 'Guía de compra', en: 'Purchase guide' },
+  emailReferralInquiry: { es: 'Consulta derivada a WhatsApp', en: 'Inquiry redirected to WhatsApp' },
+  emailReferralOrder: { es: 'Pedido {order}', en: 'Order {order}' },
   evidenceCaseAnswer: { es:'Respuesta revisada para este caso',en:'Reviewed answer for this case' },
   evidenceCaseUnavailable: { es:'Esta fuente ya no está disponible para ti.',en:'This source is no longer available to you.' },
   evidenceCaseScope: { es:'Versión preparada como contexto de este caso. No demuestra que se aplicó a una afirmación concreta ni que se ejecutó una acción.',en:'Version prepared as context for this case. It does not prove application to a particular claim or execution of an action.' },

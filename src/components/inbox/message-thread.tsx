@@ -1885,6 +1885,14 @@ export function MessageThread({
           );
         })()}
 
+      {conversation.email_referral && (
+        <div className="flex items-center gap-3 border-b border-border bg-muted/70 px-4 py-2 text-xs">
+          <span className="rounded-full bg-primary/15 px-2 py-1 font-semibold text-accent-ink">{t('inbox.emailReferral')}</span>
+          <span>{t(conversation.email_referral.kind === 'purchase_guide' ? 'inbox.emailReferralGuide' : 'inbox.emailReferralInquiry')}
+            {conversation.email_referral.orderName && <> · {t('inbox.emailReferralOrder', { order: conversation.email_referral.orderName })}</>}
+          </span>
+        </div>
+      )}
       {/* Messages Area */}
       <div ref={scrollRef} className="scrollbar-thin min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4">
         {loading ? (

@@ -69,6 +69,8 @@ export async function enviarTextoEnConversacion(
     canal: conversation.channel,
     workspaceId: input.workspaceId,
     contactId: contact.id,
+    connectionId: conversation.connection_id,
+    conversationId: conversation.id,
   })
 
   // Un comentario no se contesta como un DM: hay que apuntarle al COMENTARIO

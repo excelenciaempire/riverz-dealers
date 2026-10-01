@@ -6,6 +6,13 @@ vi.mock('@/lib/channels/gmail/watch', () => ({
 vi.mock('./token-vivo', () => ({
   tokenVivo: vi.fn(async () => ({ accessToken: 'shop-token' })),
 }));
+vi.mock('@/lib/channels/email/whatsapp-referral', () => ({
+  createEmailWhatsAppLink: vi.fn(
+    async () =>
+      'https://riverzai.com/api/email/whatsapp/abcdef012345abcdef012345'
+  ),
+}));
+import { createEmailWhatsAppLink } from '@/lib/channels/email/whatsapp-referral';
 import { deliverPostPurchaseGuides } from './post-purchase-guide-delivery';
 import { guideMessageId } from './post-purchase-guide';
 
@@ -101,6 +108,7 @@ function database() {
   } as unknown as SupabaseClient;
 }
 beforeEach(() => {
+  vi.mocked(createEmailWhatsAppLink).mockClear();
   sentId = null;
   sendStatus = 200;
   sends = vi.fn();
@@ -187,6 +195,39 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 describe('guide delivery worker', () => {
+  it('places a persisted guide-source WhatsApp CTA in the actual Gmail payload', async () => {
+    tables.post_purchase_guides[0].body +=
+      '\nSi tienes alguna duda, escríbenos por WhatsApp: {{whatsapp_url}}';
+    await deliverPostPurchaseGuides(database());
+    expect(createEmailWhatsAppLink).toHaveBeenCalledWith(expect.anything(), {
+      workspaceId: 'ws',
+      emailConnectionId: 'mail',
+      sourceKey: 'guide:guide:99',
+      kind: 'purchase_guide',
+      orderId: '99',
+      orderName: '#99',
+    });
+    const sent = JSON.parse(String(sends.mock.calls[0][0]?.body));
+    const mime = Buffer.from(sent.raw, 'base64url').toString('utf8');
+    const body = Buffer.from(mime.split('\r\n\r\n')[1], 'base64').toString(
+      'utf8'
+    );
+    expect(body).toContain('Si tienes alguna duda, escríbenos por WhatsApp');
+    expect(body).toContain(
+      'https://riverzai.com/api/email/whatsapp/abcdef012345abcdef012345'
+    );
+    expect(body).not.toContain('{{whatsapp_url}}');
+  });
+  it('does not send or claim the guide if source-link persistence fails', async () => {
+    tables.post_purchase_guides[0].body += '\n{{whatsapp_url}}';
+    vi.mocked(createEmailWhatsAppLink).mockRejectedValueOnce(
+      new Error('source_storage_unavailable')
+    );
+    const result = await deliverPostPurchaseGuides(database());
+    expect(result.errors).toBe(1);
+    expect(sends).not.toHaveBeenCalled();
+    expect(tables.post_purchase_guide_deliveries[0].status).toBe('pending');
+  });
   it('sends once across concurrent scans, then repeated cron runs do not resend', async () => {
     const db = database();
     await Promise.all([
