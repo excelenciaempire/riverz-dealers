@@ -19,16 +19,13 @@
  *   - Nunca borramos filas — sólo enlazamos. Cada canal sigue siendo
  *     direccionable individualmente (necesario para responder por el
  *     canal exacto que el cliente usó).
- *   - Fail-soft: cualquier error de lectura/escritura se loguea y
- *     swallowea. Es una mejora opcional, no debe romper el ingest.
+ *   - Fallo de verificación: conserva la identidad y el contexto actuales,
+ *     sin escritura alternativa ni contenido privado en logs.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact } from '@/types';
-import {
-  hayContradiccion,
-  identificadoresParaUnir,
-} from './identidad-probada';
+import { UUID } from '@/lib/inbox/collaboration';
 
 /** Convierte un teléfono a E.164 estricto (best-effort) — sólo dígitos,
  *  con prefijo `+`. Si tiene < 8 dígitos lo dejamos como vino (no es un
@@ -65,118 +62,28 @@ export async function linkUnifiedContact(
   db: SupabaseClient,
   contact: Contact,
 ): Promise<string> {
+  if (!UUID.test(contact.id) || !UUID.test(contact.workspace_id)) return contact.id;
   try {
-    // Con que se puede unir y con que no.
-    //
-    // No alcanza con que el dato exista: tiene que estar RESPALDADO (migracion
-    // 206). Un correo que un anonimo tipeo en un chat no une a nadie -- unir
-    // sobre eso es una toma de cuenta en dos pasos: pongo el correo de otra
-    // clienta y me quedo con su ficha, sus pedidos y su direccion.
-    //
-    // Tampoco unen las casillas de rol (info@, ventas@) ni los telefonos de
-    // relleno: aparecen en decenas de fichas distintas y funden a todo el
-    // mundo en una sola, sin vuelta atras.
-    const usable = identificadoresParaUnir(contact);
-    const phoneNorm = normalizePhone(usable.phone);
-    const emailNorm = normalizeEmail(usable.email);
-    if (!phoneNorm && !emailNorm) return contact.id;
-
-    // Buscamos cualquier contact del mismo workspace que matchee.
-    // Usamos los índices funcionales lower(phone)/lower(email) — son
-    // O(log n) sobre 100k+ contactos.
-    const candidates: Contact[] = [];
-    if (phoneNorm) {
-      const { data: byPhone } = await db
-        .from('contacts')
-        .select('*')
-        .eq('workspace_id', contact.workspace_id)
-        .ilike('phone', phoneNorm)
-        .neq('id', contact.id);
-      candidates.push(...((byPhone as Contact[] | null) ?? []));
-    }
-    if (emailNorm) {
-      const { data: byEmail } = await db
-        .from('contacts')
-        .select('*')
-        .eq('workspace_id', contact.workspace_id)
-        .ilike('email', emailNorm)
-        .neq('id', contact.id);
-      candidates.push(...((byEmail as Contact[] | null) ?? []));
-    }
-    if (candidates.length === 0) return contact.id;
-
-    // ANTE LA DUDA, NO SE UNE.
-    //
-    // Dos frenos, y los dos son casos reales:
-    //
-    // 1. Un candidato que alguien ya separo a mano. Una persona miro esas dos
-    //    fichas y dijo que no son el mismo cliente; ninguna coincidencia de
-    //    telefono le gana a eso.
-    // 2. Candidatos que se contradicen: mismo celular y correos distintos es
-    //    un telefono de familia, no una persona. Unir de mas le muestra a
-    //    alguien la direccion y los pedidos de otro; unir de menos solo hace
-    //    que el agente pregunte algo que ya sabia. No son igual de graves.
-    const separadoAMano = candidates.some(
-      (c) => (c as Contact & { union_bloqueada?: boolean | null }).union_bloqueada,
-    );
-    if (separadoAMano) return contact.id;
-    if (hayContradiccion([contact, ...candidates])) return contact.id;
-
-    // El primario es el más viejo del grupo (incluido el actual).
-    const all = [contact, ...candidates];
-    all.sort((a, b) => {
-      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return ta - tb;
-    });
-    const primary = all[0];
-
-    // Actualizamos a TODOS los que NO sean el primario para que apunten
-    // a él (idempotente — si ya apuntaban está bien).
-    const toLink = all
-      .filter((c) => c.id !== primary.id)
-      .map((c) => c.id);
-    if (toLink.length > 0) {
-      await db
-        .from('contacts')
-        .update({ unified_contact_id: primary.id })
-        .in('id', toLink);
-    }
-    // El primario en sí debe tener unified_contact_id = NULL (no se
-    // apunta a sí mismo). Si por una merge anterior tenía algo, lo
-    // limpiamos.
-    if (primary.unified_contact_id) {
-      await db
-        .from('contacts')
-        .update({ unified_contact_id: null })
-        .eq('id', primary.id);
-    }
-    return primary.id;
-  } catch (err) {
-    console.error('[contacts/dedupe] linkUnifiedContact failed:', err);
-    return contact.id;
-  }
+    const { data, error } = await db.rpc('link_verified_contact', { p_workspace_id: contact.workspace_id, p_contact_id: contact.id });
+    if (error || typeof data !== 'string' || !UUID.test(data)) return contact.id;
+    return data;
+  } catch { return contact.id; }
 }
 
 /**
- * Carga el contact "primario" para un contact dado. Si `contact` no
- * tiene `unified_contact_id`, devuelve el mismo contact tal cual. Si lo
- * tiene, intenta cargar el primario; si falla (FK rota o nada), cae al
- * contact original.
+ * Lee el primario desde la identidad persistida y la familia verificada.
+ * No confía en un vínculo del objeto recibido; ante dudas conserva el actual.
  */
 export async function loadPrimaryContact(
   db: SupabaseClient,
   contact: Contact,
 ): Promise<Contact> {
-  if (!contact.unified_contact_id || !contact.workspace_id || contact.unified_contact_id === contact.id) return contact;
+  if (!UUID.test(contact.id) || !UUID.test(contact.workspace_id)) return contact;
   try {
-    const { data,error } = await db
-      .from('contacts')
-      .select('*')
-      .eq('workspace_id',contact.workspace_id)
-      .eq('id',contact.unified_contact_id)
-      .maybeSingle();
-    if (error || !data || data.workspace_id !== contact.workspace_id || data.id !== contact.unified_contact_id) return contact;
+    // One database snapshot checks persisted linkage, separation and both identities.
+    const { data, error } = await db.rpc('read_verified_primary_contact', { p_workspace_id: contact.workspace_id, p_contact_id: contact.id });
+    if (error || !data || typeof data !== 'object' || typeof data.id !== 'string' || !UUID.test(data.id)
+      || data.id === contact.id || data.workspace_id !== contact.workspace_id || data.unified_contact_id != null || data.union_bloqueada) return contact;
     return data as Contact;
   } catch { return contact; }
 }

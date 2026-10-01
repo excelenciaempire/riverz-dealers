@@ -54,6 +54,7 @@ import {
 } from '@/lib/channels/send-guard';
 import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
+import { verifiedConversationIds } from '@/lib/contacts/identity';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { registrarCalificacion } from '@/lib/inbox/opinion';
 import { resolveHumanAttentionFromCustomerClosure } from '@/lib/inbox/human-attention';
@@ -2123,34 +2124,7 @@ async function siblingConversationIds(
   db: SupabaseClient,
   conversation: Conversation
 ): Promise<string[]> {
-  const contactId = conversation.contact_id;
-  if (!contactId) return [conversation.id];
-  try {
-    const { data: me } = await db
-      .from('contacts')
-      .select('id, unified_contact_id')
-      .eq('id', contactId)
-      .maybeSingle();
-    const row = me as { id: string; unified_contact_id: string | null } | null;
-    const primary = row?.unified_contact_id ?? contactId;
-
-    const { data: family } = await db
-      .from('contacts')
-      .select('id')
-      .or(`id.eq.${primary},unified_contact_id.eq.${primary}`);
-    const ids = ((family ?? []) as { id: string }[]).map((c) => c.id);
-    if (!ids.includes(contactId)) ids.push(contactId);
-
-    const { data: convs } = await db
-      .from('conversations')
-      .select('id')
-      .in('contact_id', ids)
-      .is('deleted_at', null);
-    const out = ((convs ?? []) as { id: string }[]).map((c) => c.id);
-    return out.length ? out : [conversation.id];
-  } catch {
-    return [conversation.id];
-  }
+  return verifiedConversationIds(db,conversation);
 }
 
 interface CallRow {

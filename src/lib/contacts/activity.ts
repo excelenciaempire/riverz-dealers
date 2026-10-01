@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { VoiceCallDirection, VoiceCallOutcome, VoiceCallStatus, VoiceCallType } from '@/types'
+import { verifiedContactIds } from './identity'
 
 /**
  * Unified per-contact activity timeline. Aggregates every per-contact,
@@ -79,7 +80,7 @@ export async function loadContactActivity(
   // La ficha puede ser una de varias identidades del mismo cliente (WhatsApp,
   // Instagram, voz). La actividad pertenece a la persona, no a la fila que se
   // abrió, por eso se consulta el grupo unificado completo.
-  const contactIds = await resolveContactIds(db, id)
+  const contactIds = await verifiedContactIds(db, ws, id, 'human')
 
   const safe = (p: Promise<ContactActivityEvent[]>) => p.catch(() => [])
 
@@ -364,31 +365,6 @@ export async function loadContactActivity(
     return true
   })
   return deduped.slice(0, 200)
-}
-
-/** Current row + every channel identity linked to the same primary contact. */
-async function resolveContactIds(db: SupabaseClient, id: string): Promise<string[]> {
-  try {
-    const { data: current } = await db
-      .from('contacts')
-      .select('id, unified_contact_id')
-      .eq('id', id)
-      .maybeSingle()
-    const row = current as {
-      id: string
-      unified_contact_id: string | null
-    } | null
-    if (!row) return [id]
-    const primaryId = row.unified_contact_id ?? row.id
-    const { data: group } = await db
-      .from('contacts')
-      .select('id')
-      .or(`id.eq.${primaryId},unified_contact_id.eq.${primaryId}`)
-    const ids = (group ?? []).map((item: Row) => str(item.id)).filter(Boolean)
-    return [...new Set([id, primaryId, ...ids])]
-  } catch {
-    return [id]
-  }
 }
 
 /** Batch-fetch `id → name` for a table, tolerant of an absent `name` column. */

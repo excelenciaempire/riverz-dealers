@@ -2,7 +2,14 @@ import { NextResponse } from 'next/server';
 import type { Contact } from '@/types';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
-import { linkUnifiedContact } from '@/lib/contacts/dedupe';
+import { UUID } from '@/lib/inbox/collaboration';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
+
+const headers = { 'Cache-Control': 'private, no-store' };
+async function failure(status: number) {
+  return NextResponse.json({ error: translate(await getLocale(), 'contacts.unionFailed') }, { status, headers });
+}
 
 /**
  * Con quién está unido este contacto, y cómo separarlo.
@@ -25,12 +32,13 @@ async function grupoDe(
 ): Promise<{ contacto: Contact; primarioId: string; hermanos: Contact[] } | null> {
   const { data } = await supabase.from('contacts').select('*').eq('id', id).maybeSingle();
   const contacto = data as Contact | null;
-  if (!contacto) return null;
+  if (!contacto?.workspace_id) return null;
 
   const primarioId = contacto.unified_contact_id ?? contacto.id;
   const { data: hermanos } = await supabase
     .from('contacts')
     .select('*')
+    .eq('workspace_id', contacto.workspace_id)
     .or(`id.eq.${primarioId},unified_contact_id.eq.${primarioId}`)
     .neq('id', contacto.id);
 
@@ -39,14 +47,15 @@ async function grupoDe(
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  if (!UUID.test(id)) return failure(404);
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!user) return failure(401);
 
   const grupo = await grupoDe(supabase, id);
-  if (!grupo) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  if (!grupo) return failure(404);
 
   const c = grupo.contacto as Contact & { union_bloqueada?: boolean | null };
   return NextResponse.json({
@@ -59,7 +68,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       phone: h.phone,
       email: h.email,
     })),
-  });
+  }, { headers });
 }
 
 /**
@@ -74,47 +83,32 @@ export async function PUT(request: Request, ctx: { params: Promise<{ id: string 
   if (block) return block;
 
   const { id } = await ctx.params;
+  if (!UUID.test(id)) return failure(404);
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!user) return failure(401);
 
   const body = (await request.json().catch(() => null)) as { separar?: boolean } | null;
-  if (typeof body?.separar !== 'boolean') {
-    return NextResponse.json({ error: 'bad_request' }, { status: 400 });
+  if (typeof body?.separar !== 'boolean' || Object.keys(body).some(key => key !== 'separar')) {
+    return failure(400);
   }
 
-  if (body.separar) {
-    const { error } = await supabase
-      .from('contacts')
-      .update({ unified_contact_id: null, union_bloqueada: true })
-      .eq('id', id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ bloqueada: true, hermanos: [] });
-  }
-
-  // Volver a permitir la unión: se levanta el freno y se reintenta ahora
-  // mismo, para que el comercio vea el resultado y no tenga que esperar a que
-  // esa persona escriba de nuevo.
-  const { data } = await supabase
-    .from('contacts')
-    .update({ union_bloqueada: false })
-    .eq('id', id)
-    .select('*')
-    .maybeSingle();
-  const contacto = data as Contact | null;
-  if (contacto) await linkUnifiedContact(supabase, contacto).catch(() => contacto.id);
-
+  const before = await grupoDe(supabase, id);
+  if (!before) return failure(404);
+  const saved = await supabase.rpc('set_contact_unification_block', { p_workspace_id: before.contacto.workspace_id, p_contact_id: id, p_separate: body.separar });
+  if (saved.error || saved.data !== body.separar) return failure(saved.error?.message === 'subscription_read_only' ? 403 : saved.error?.message === 'invalid_contact_identity' ? 404 : 503);
   const grupo = await grupoDe(supabase, id);
+  if (!grupo) return failure(503);
   return NextResponse.json({
-    bloqueada: false,
-    hermanos: (grupo?.hermanos ?? []).map((h) => ({
+    bloqueada: Boolean((grupo.contacto as Contact & { union_bloqueada?: boolean }).union_bloqueada),
+    hermanos: grupo.hermanos.map((h) => ({
       id: h.id,
       name: h.name,
       channel: h.channel,
       phone: h.phone,
       email: h.email,
     })),
-  });
+  }, { headers });
 }
