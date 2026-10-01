@@ -729,6 +729,10 @@ export const admin = {
     es: 'Recupera pagos rechazados de Mercado Pago',
     en: 'Recovers rejected Mercado Pago payments',
   },
+  cronPostPurchaseGuides: {
+    es: 'Entrega por correo las guías incluidas en compras pagadas.',
+    en: 'Emails included guides after purchase payment is confirmed.',
+  },
   cronShopifyFeedback: {
     es: 'Pide opinión tras la entrega',
     en: 'Asks for feedback after delivery',
