@@ -26,14 +26,24 @@
   if (finish.ok || finishBody?.code !== 'P0001' || finishBody?.message !== 'invalid_http_execution_receipt') {
     throw new Error(`Apply migration 331 before deploying HTTP action receipts (HTTP ${finish.status}).`);
   }
+  const grant = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/manage_http_action_assistant_grant`, {
+    method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_workspace_id: null, p_actor_id: null, p_action_id: null, p_operation: 'list' }), signal: AbortSignal.timeout(15000),
+  });
+  const grantBody = await grant.json().catch(() => null);
+  if (grant.ok || grantBody?.code !== 'P0001' || grantBody?.message !== 'invalid_http_grant_context') {
+    throw new Error(`Apply migration 332 before deploying HTTP assistant grants (HTTP ${grant.status}).`);
+  }
   for (const table of ['http_actions?select=id,workspace_id,definition,credential_ciphertext,state,revision',
     'http_action_versions?select=action_id,workspace_id,revision,definition,credential_present',
-    'http_action_runs?select=id,workspace_id,action_id,action_revision,actor_id,conversation_id,invocation_key,input_hash,lease_id,state,status_code,error_code,result,created_at,finished_at']) {
+    'http_action_runs?select=id,workspace_id,action_id,action_revision,actor_id,conversation_id,invocation_key,input_hash,lease_id,state,status_code,error_code,result,created_at,finished_at',
+    'http_action_assistant_grants?select=workspace_id,action_id,agent_id,channel,context_scope,action_revision,revision,state,granted_by,updated_at',
+    'http_action_assistant_grant_versions?select=workspace_id,action_id,agent_id,channel,revision,action_revision,context_scope,state,granted_by,observed_at']) {
     const result = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/${table}&limit=0`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(15000),
     });
     const rows = await result.json().catch(() => null);
     if (!result.ok || !Array.isArray(rows) || rows.length !== 0) throw new Error('HTTP action configuration columns unavailable.');
   }
-  console.log('HTTP action configuration/execution RPCs and columns verified without reading action data.');
+  console.log('HTTP action configuration/execution/grant RPCs and columns verified without reading action data.');
 })().catch(error => { console.error(error.message); process.exitCode = 1; });
