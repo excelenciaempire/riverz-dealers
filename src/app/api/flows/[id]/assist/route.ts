@@ -211,7 +211,8 @@ export async function POST(
           config: n.config,
         })),
       },
-      patches
+      patches,
+      locale
     );
     if (newIssues.length > 0) {
       const detail = newIssues.map((i) => i.message).join(' ');

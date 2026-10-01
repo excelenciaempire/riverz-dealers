@@ -3,6 +3,19 @@ import type { Namespace } from "./types";
 /** Flows feature area: list, editor (canvas), simulator, variables,
  *  versions, runs/analytics, AI builder, command palette. */
 export const flows = {
+  httpLoad: { es: 'Cargar consultas', en: 'Load lookups' },
+  httpAction: { es: 'Consulta del sistema', en: 'System lookup' },
+  httpChoose: { es: 'Elegir consulta', en: 'Choose lookup' },
+  httpVariable: { es: 'Variable de entrada', en: 'Input variable' },
+  httpPrefix: { es: 'Nombre del resultado', en: 'Result name' },
+  httpSaveFirst: { es: 'Guarda el flujo antes de autorizar esta consulta.', en: 'Save the flow before authorizing this lookup.' },
+  httpAuthorize: { es: 'Autorizar consulta', en: 'Authorize lookup' },
+  httpAuthorized: { es: 'Consulta autorizada', en: 'Lookup authorized' },
+  httpWithdraw: { es: 'Retirar autorización', en: 'Withdraw authorization' },
+  httpUnavailable: { es: 'No se pudo verificar la consulta. Revisa el flujo, la acción y tus permisos.', en: 'Could not verify this lookup. Review the flow, action and your permissions.' },
+  httpInvalid: { es: 'Configura la consulta, su versión, las variables y el siguiente paso.', en: 'Configure the lookup, its version, variables and next step.' },
+  httpHidden: { es: 'La consulta del sistema está reservada para comparación.', en: 'The system lookup is reserved for comparison.' },
+  httpSimulated: { es: 'Simulación: no se consultó el sistema externo. Los resultados requieren datos de ejemplo.', en: 'Simulation: the external system was not queried. Results require sample data.' },
   // ── Flows list page (menus/page.tsx) ──
   newFlow: { es: "Nuevo flujo", en: "New flow" },
   loadFailed: { es: "No se pudieron cargar los flujos.", en: "Couldn't load flows." },

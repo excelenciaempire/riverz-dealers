@@ -97,7 +97,9 @@ import {
 import { cn } from "@/lib/utils";
 import { toShortId } from "@/lib/short-id";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
-import { useT } from "@/hooks/use-locale";
+import { useT, useLocale } from "@/hooks/use-locale";
+import { SHOW_RIVERZ_IMPROVEMENTS } from "@/lib/ui/improvements-preview";
+import { FlowHttpEditorContext, HttpFlowNodeForm } from "./http-node-form";
 import type { TFn } from "@/lib/i18n/translate";
 import {
   reachableFromEntry,
@@ -190,6 +192,7 @@ type NodeType =
   | "handoff"
   | "wait"
   | "ai_intent"
+  | "http_action"
   | "shopify_lookup"
   | "customer_reply"
   | "subflow"
@@ -319,6 +322,7 @@ const NODE_META: Record<
     color: "text-fuchsia-700 dark:text-fuchsia-400",
     bg: "bg-fuchsia-500/15",
   },
+  http_action: { label:"flows.httpAction", icon:Workflow, color:"text-indigo-600", bg:"bg-indigo-500/15" },
   shopify_lookup: {
     label: "flows.metaShopifyLookup",
     icon: ShoppingBag,
@@ -516,6 +520,7 @@ function summarizeNode(node: BuilderNode, t: TFn): string | null {
           : t("flows.sumIntentsMany", { n: list.length })
         : null;
     }
+    case "http_action": return t("flows.httpAction");
     case "shopify_lookup": {
       const kind = String(cfg.kind ?? "");
       const KIND_LABEL_KEYS: Record<string, string> = {
@@ -603,6 +608,7 @@ function defaultConfigFor(type: NodeType, t: TFn): Record<string, unknown> {
         ],
         fallback_next_key: "",
       };
+    case "http_action": return { action_id:"", action_revision:0, input_vars:{}, output_prefix:"system", next_node_key:"" };
     case "shopify_lookup":
       return {
         kind: "order_by_number",
@@ -634,6 +640,7 @@ export function FlowBuilder({
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
 
+  const { locale } = useLocale();
   const [state, setState] = useState<BuilderState>(() => ({
     name: initialFlow.name,
     description: initialFlow.description ?? "",
@@ -914,9 +921,9 @@ export function FlowBuilder({
           trigger_config: state.trigger_config,
           entry_node_id: state.entry_node_id,
         },
-        state.nodes,
+        state.nodes, locale,
       ),
-    [state],
+    [state, locale],
   );
   const blockers = issues.filter((i) => i.severity === "error");
   const canActivate = blockers.length === 0;
@@ -1741,6 +1748,7 @@ export function FlowBuilder({
               return { ...n, config: { ...cfg, sections: nextSections } };
             }
             // Tipos con UNA sola salida: next_node_key directo.
+            case "http_action":
             case "send_message":
             case "send_image":
             case "send_video":
@@ -2319,6 +2327,7 @@ export function FlowBuilder({
     // z-50 puts the editor above the dashboard sidebar (z-40) so the
     // user gets a dedicated full-screen canvas environment, no
     // sidebar chrome poking in from the left.
+    <FlowHttpEditorContext.Provider value={{flowId:initialFlow.id,workspaceId:initialFlow.workspace_id,dirty,preview:!!templatePreview}}>
     <FlowBubbleActionsContext.Provider value={bubbleActions}>
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       <div className="flex-shrink-0 border-b border-border bg-card/40 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
@@ -2534,6 +2543,7 @@ export function FlowBuilder({
       )}
     </div>
     </FlowBubbleActionsContext.Provider>
+    </FlowHttpEditorContext.Provider>
   );
 }
 
@@ -2622,6 +2632,7 @@ function hasSingleUnconnectedOutput(n: BuilderNode): boolean {
     case "collect_input":
     case "customer_reply":
     case "subflow":
+    case "http_action":
     case "set_tag":
     case "wait":
     case "start":
@@ -3432,6 +3443,7 @@ function LogicNodeBody({
         </span>
       </div>
 
+      {SHOW_RIVERZ_IMPROVEMENTS && node.node_type === "http_action" && <HttpFlowNodeForm nodeKey={node.node_key} config={cfg} onUpdateConfig={onUpdateConfig}/> }
       {node.node_type === "condition" && (
         <CompactInput
           label={t("flows.labelValue")}
@@ -3692,6 +3704,7 @@ function logicOutputs(
           connected: !!(cfg.not_found_next_key as string),
         },
       ];
+    case "http_action":
     case "wait":
     case "set_tag":
     case "start":
@@ -3898,6 +3911,10 @@ function NodeConfigForm({
   const [showAdvanced, setShowAdvanced] = useState(false);
   return (
     <div className="flex flex-col gap-3">
+      {SHOW_RIVERZ_IMPROVEMENTS && node.node_type === "http_action" && <>
+        <HttpFlowNodeForm nodeKey={node.node_key} config={cfg} onUpdateConfig={onUpdateConfig}/>
+        <NextNodeRow value={String(cfg.next_node_key??"")} allNodes={allNodes} currentKey={node.node_key} onChange={v=>onUpdateConfig({next_node_key:v})} label={t("flows.goesTo")}/>
+      </>}
       {node.node_type === "start" && (
         <NextNodeRow
           value={(cfg as { next_node_key?: string }).next_node_key ?? ""}
@@ -4999,6 +5016,7 @@ const ADDABLE_NODE_TYPES: NodeType[] = [
   "collect_input",
   "ai_intent",
   "shopify_lookup",
+  ...(SHOW_RIVERZ_IMPROVEMENTS ? ["http_action" as const] : []),
   "condition",
   "set_tag",
   "wait",
@@ -6307,6 +6325,7 @@ function DraggableTriggerWrapper({
 function getOutgoingEdges(node: BuilderNode): OutgoingEdge[] {
   const cfg = node.config
   switch (node.node_type) {
+    case "http_action":
     case "start":
     case "send_message":
     case "send_image":

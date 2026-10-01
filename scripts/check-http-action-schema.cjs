@@ -44,11 +44,32 @@
   if (assistant.ok || assistantBody?.code !== 'P0001' || assistantBody?.message !== 'invalid_http_assistant_identity_context') {
     throw new Error(`Apply migrations 333/334/335 before deploying assistant HTTP execution (HTTP ${assistant.status}).`);
   }
+  const flowBase = { p_workspace_id: null, p_run_id: null, p_flow_id: null, p_node_key: null,
+    p_expected_advanced_at: null, p_expected_vars: null };
+  for (const [name, args] of [
+    ['manage_http_flow_grant', { p_workspace_id: null, p_actor_id: null, p_flow_id: null, p_operation: 'list' }],
+    ['claim_http_action_flow', { ...flowBase, p_config: null, p_grant_revision: null, p_expected_node: null,
+      p_invocation_key: null, p_input_hash: null, p_context: null }],
+    ['finish_http_action_flow', { ...flowBase, p_config: null, p_grant_revision: null, p_receipt_id: null, p_vars: null }],
+    ['fail_http_action_flow', { ...flowBase, p_expected_node: null }],
+  ]) {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/${name}`, {
+      method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(args), signal: AbortSignal.timeout(15000),
+    });
+    const result = await response.json().catch(() => null);
+    if (response.ok || result?.code !== 'P0001' || result?.message !== 'invalid_http_flow_context') {
+      throw new Error(`Apply migration 337 before deploying native HTTP flow reads (HTTP ${response.status}).`);
+    }
+  }
   for (const table of ['http_actions?select=id,workspace_id,definition,credential_ciphertext,state,revision',
     'http_action_versions?select=action_id,workspace_id,revision,definition,credential_present',
     'http_action_runs?select=id,workspace_id,action_id,action_revision,actor_id,conversation_id,invocation_key,input_hash,lease_id,state,status_code,error_code,result,created_at,finished_at,source_kind,source_agent_id,source_channel,source_grant_revision,source_approval_id',
     'http_action_assistant_grants?select=workspace_id,action_id,agent_id,channel,context_scope,action_revision,revision,state,granted_by,updated_at',
-    'http_action_assistant_grant_versions?select=workspace_id,action_id,agent_id,channel,revision,action_revision,context_scope,state,granted_by,observed_at']) {
+    'http_action_assistant_grant_versions?select=workspace_id,action_id,agent_id,channel,revision,action_revision,context_scope,state,granted_by,observed_at',
+    'http_action_flow_grants?select=workspace_id,flow_id,node_key,action_id,action_revision,node_config,revision,state,granted_by,updated_at',
+    'http_action_flow_grant_versions?select=workspace_id,flow_id,node_key,action_id,action_revision,node_config,revision,state,granted_by,observed_at',
+    'http_action_flow_receipts?select=workspace_id,flow_run_id,flow_id,node_key,receipt_id,visit_at']) {
     const result = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/${table}&limit=0`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(15000),
     });

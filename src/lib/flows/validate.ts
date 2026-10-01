@@ -24,6 +24,9 @@
  */
 
 import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/meta-api";
+import { httpFlowConfig } from './http-contract';
+import { translate } from '@/lib/i18n/translate';
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 
 /**
  * Límites de WhatsApp Cloud API que no están en INTERACTIVE_LIMITS
@@ -76,6 +79,7 @@ interface NodeInput {
 export function validateFlowForActivation(
   flow: FlowInput,
   nodes: NodeInput[],
+  locale: 'es' | 'en' = 'es',
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
@@ -139,7 +143,7 @@ export function validateFlowForActivation(
 
   // Per-node rules (Meta limits + dead-end + edge resolution).
   for (const n of nodes) {
-    issues.push(...validateNode(n, keys));
+    issues.push(...validateNode(n, keys, locale));
   }
 
   // Reachability — every non-orphan node must be reachable from the
@@ -197,6 +201,7 @@ const AUTO_ADVANCING_TYPES = new Set<string>([
   "condition",
   "set_tag",
   "shopify_lookup",
+  "http_action",
   "subflow",
 ]);
 
@@ -300,10 +305,19 @@ function validateTrigger(
 function validateNode(
   node: NodeInput,
   knownKeys: Set<string>,
+  locale: 'es' | 'en',
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   switch (node.node_type) {
+    case 'http_action': {
+      const config = httpFlowConfig.safeParse(node.config);
+      if (!SHOW_RIVERZ_IMPROVEMENTS || !config.success || !knownKeys.has(config.data.next_node_key)) issues.push({
+        severity:'error',scope:'node',node_key:node.node_key,
+        message:translate(locale, !SHOW_RIVERZ_IMPROVEMENTS ? 'flows.httpHidden':'flows.httpInvalid'),
+      });
+      break;
+    }
     case "start": {
       const cfg = node.config as { next_node_key?: string };
       if (!cfg.next_node_key) {
@@ -1260,6 +1274,7 @@ export function reachableFromEntry(
 
 function outgoingEdges(node: NodeInput): string[] {
   switch (node.node_type) {
+    case "http_action":
     case "start":
     case "send_message":
     case "send_image":

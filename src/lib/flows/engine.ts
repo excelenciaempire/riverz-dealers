@@ -45,6 +45,7 @@ import {
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
 import { runShopifyLookup } from "./shopify-lookup";
 import { classifyIntent } from "./ai-intent";
+import { failHttpFlowNode, runHttpFlowNode } from "./http-node";
 import { resolveWorkspaceOwnerUserId } from "@/lib/workspaces/owner";
 import {
   type AiIntentNodeConfig,
@@ -133,7 +134,7 @@ export function isAutoAdvancing(node_type: string): boolean {
     node_type === "send_cta_url" ||
     node_type === "condition" ||
     node_type === "set_tag" ||
-    node_type === "shopify_lookup"
+    node_type === "shopify_lookup" || node_type === "http_action"
   );
 }
 
@@ -1196,6 +1197,26 @@ async function advanceFromNodeKey(
       }
       return { outcome: "advanced" };
     }
+    if (node.node_type === "http_action") {
+      try {
+        const result = await runHttpFlowNode(db, run, node);
+        if (result.state !== 'advanced') return { outcome: 'advanced' };
+        run.vars = result.vars;
+        run.current_node_key = result.next;
+        run.last_advanced_at = result.visitAt;
+        await logEvent(db, run.id, 'node_entered', node.node_key, {
+          node_type: 'http_action', receipt_id: result.receiptId, provider_response_received: true,
+          receipt_replayed: result.replayed,
+          business_completion_verified: false,
+        });
+        currentKey = result.next;
+      } catch (error) {
+        await logEvent(db, run.id, 'error', node.node_key, { reason: 'http_flow_review_required' });
+        const stopped = await failHttpFlowNode(db, run, node, error);
+        return { outcome: stopped ? 'completed' : 'advanced' };
+      }
+      continue;
+    }
     if (node.node_type === "shopify_lookup") {
       const cfg = node.config as unknown as ShopifyLookupNodeConfig;
       try {
@@ -1429,6 +1450,12 @@ async function handleReplyForActiveRun(
   if (!currentNode) {
     await endRun(db, run.id, "failed", "current_node_not_found");
     return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
+  }
+
+  // A reply during an HTTP lease observes the same receipt, never a reply fallback or a new request.
+  if (currentNode.node_type === 'http_action') {
+    const outcome = await advanceFromNodeKey(db, run, currentNode.node_key, nodes);
+    return { consumed: true, flow_run_id: run.id, outcome: outcome.outcome };
   }
 
   // Two ways a reply can advance:

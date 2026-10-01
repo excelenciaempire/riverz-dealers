@@ -51,9 +51,10 @@ function rpcError(message: string): never {
     subscription_read_only: 'read_only', http_execution_review_required: 'review_required', http_execution_conflict: 'conflict' };
   return fail(codes[message] ?? 'unavailable');
 }
-const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value, (_key, item) =>
+export const httpExecutionHash = (value: unknown) => createHash('sha256').update(JSON.stringify(value, (_key, item) =>
   item !== null && typeof item === 'object' && !Array.isArray(item)
     ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item)).digest('hex');
+const hash = httpExecutionHash;
 const conversationRow = z.object({ id: uuid, workspace_id: uuid, contact_id: uuid, channel: z.string(), connection_id: uuid.nullable() }).strict();
 const contactRow = z.object({ id: uuid, workspace_id: uuid, phone: z.string().nullable(), email: z.string().nullable() }).strict();
 
@@ -177,9 +178,10 @@ async function executeActiveHttpAction(db: SupabaseClient, context: HttpExecutio
 }
 
 /** No caller can dispatch without a validated private lease returned by its authorization RPC. */
-async function executeClaimedHttpAction(db: SupabaseClient,
+export async function executeClaimedHttpAction(db: SupabaseClient,
   ctx: Pick<HttpExecutionContext, 'workspaceId' | 'actionId' | 'invocationKey'>,
   action: HttpActionRecord, request: ReturnType<typeof actionRequest>, claimedData: unknown): Promise<HttpExecutionReceipt> {
+  if (!SHOW_RIVERZ_IMPROVEMENTS) return fail('not_found');
   const run = claimResult.safeParse(claimedData);
   if (!run.success) return fail('unavailable');
   if (!run.data.claimed) {

@@ -275,6 +275,7 @@ export async function aplicarPatches(
     workspaceId: string
     patches: readonly unknown[]
     userId?: string | null
+    locale?: 'es' | 'en'
   },
 ): Promise<ResultadoPatches> {
   const crudos = Array.isArray(input.patches) ? input.patches : []
@@ -302,7 +303,7 @@ export async function aplicarPatches(
     })),
   }
 
-  const nuevos = validatePatchedSnapshot(antes, patches)
+  const nuevos = validatePatchedSnapshot(antes, patches, input.locale)
   if (nuevos.length > 0) {
     throw new Error(
       `estos cambios romperían el menú: ${nuevos.map((i) => i.message).join(' ')}`,
@@ -320,6 +321,7 @@ export async function aplicarPatches(
         entry_node_id: despues.entry_node_id,
       },
       despues.nodes,
+      input.locale,
     ).filter((i) => i.severity === 'error')
     if (errores.length > 0) {
       throw new Error(
@@ -381,6 +383,7 @@ export async function cambiarEstado(
     workspaceId: string
     estado: EstadoFlujo
     userId?: string | null
+    locale?: "es" | "en"
     /** Queda en el historial de versiones publicadas. */
     nota?: string
   },
@@ -402,6 +405,7 @@ export async function cambiarEstado(
         node_type: n.node_type,
         config: n.config,
       })),
+      input.locale,
     )
     if (issues.some((i) => i.severity === 'error')) return { ok: false, issues }
   }

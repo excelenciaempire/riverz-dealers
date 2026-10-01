@@ -308,6 +308,7 @@ export interface ShopifyLookupNodeConfig {
  * extend this union — out-of-scope for the v1 engine PR.
  */
 export type FlowNodeConfig =
+  | { node_type: "http_action"; config: import('./http-contract').HttpFlowConfig }
   | { node_type: "start"; config: StartNodeConfig }
   | { node_type: "send_message"; config: SendMessageNodeConfig }
   | { node_type: "send_buttons"; config: SendButtonsNodeConfig }

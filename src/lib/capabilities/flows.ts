@@ -281,6 +281,7 @@ async function detalle(ctx: CapabilityContext, args: Record<string, unknown>) {
       entry_node_id: flow.entry_node_id,
     },
     nodos.map((n) => ({ node_key: n.node_key, node_type: n.node_type, config: n.config })),
+    ctx.locale,
   )
 
   return {
@@ -312,6 +313,7 @@ async function editar(ctx: CapabilityContext, args: Record<string, unknown>) {
     flowId: String(args.flujo_id),
     workspaceId: ctx.workspaceId,
     patches: leerPatches(args.patches),
+    locale: ctx.locale,
     userId: ctx.actor.type === 'ui' || ctx.actor.type === 'operator' ? ctx.actor.id : null,
   })
 }
@@ -326,6 +328,7 @@ async function activar(ctx: CapabilityContext, args: Record<string, unknown>) {
     estado: activo ? 'active' : 'draft',
     userId: ctx.actor.type === 'ui' || ctx.actor.type === 'operator' ? ctx.actor.id : null,
     nota: 'Publicado desde el chat',
+    locale: ctx.locale,
   })
   if (!resultado.ok) {
     throw new Error(
@@ -761,6 +764,7 @@ ${PUERTOS_Y_CABLEADO}`,
           node_type: n.node_type,
           config: n.config,
         })),
+        ctx.locale,
       ).filter((i) => i.severity === 'error')
       if (errores.length > 0) {
         throw new Error(

@@ -17,6 +17,7 @@
  *  - El undo stack mantiene granularidad por turn de chat.
  */
 
+import { SHOW_RIVERZ_IMPROVEMENTS } from "@/lib/ui/improvements-preview";
 import type { FlowNodeType } from "./types";
 import { validateFlowForActivation, type ValidationIssue } from "./validate";
 
@@ -133,6 +134,7 @@ export const ASSIST_TOOL_SCHEMA = {
                   "wait",
                   "ai_intent",
                   "shopify_lookup",
+                  ...(SHOW_RIVERZ_IMPROVEMENTS ? ["http_action"] : []),
                   "subflow",
                   "end",
                 ],
@@ -265,7 +267,8 @@ export const NODOS_Y_CONFIG = `- \`send_message\`: { text: string, next_node_key
 - \`ai_intent\`: { prompt_text: string, intents: Array<{intent_key: string, description: string, next_node_key?: string}>, fallback_next_key?: string }
 - \`shopify_lookup\`: { kind: "order_by_number"|"order_by_email"|"last_order"|"product_by_handle", output_prefix: string, found_next_key?: string, not_found_next_key?: string }
 - \`end\`: {}
-- \`start\`: { next_node_key: string }. Úsalo solo si el usuario lo pide explícitamente. Lo normal es marcar el primer paso con \`set_entry\`.`
+- \`start\`: { next_node_key: string }. Úsalo solo si el usuario lo pide explícitamente. Lo normal es marcar el primer paso con \`set_entry\`.` + (SHOW_RIVERZ_IMPROVEMENTS ? `
+- \`http_action\`: { action_id: UUID, action_revision: integer, input_vars: Record<parameter_key, flow_variable_key>, output_prefix: string, next_node_key: string }. Solo lecturas GET con contact_id del servidor. No inventes IDs ni revisiones: el administrador debe elegir una acción existente, guardar el flujo y autorizar la configuración exacta. No incluyas URL, credenciales ni autorizaciones en patches.` : '')
 
 /** Los puertos de salida de cada tipo de paso, para el patch `wire`. */
 export const PUERTOS_Y_CABLEADO = `- \`kind_of_port: "text"\` — para todos los nodos lineales (send_message, send_image, etc.). Setea \`next_node_key\`.
@@ -302,6 +305,7 @@ const VALID_NODE_TYPES = new Set<string>([
   "wait",
   "ai_intent",
   "shopify_lookup",
+  ...(SHOW_RIVERZ_IMPROVEMENTS ? ["http_action"] : []),
   "subflow",
   "end",
 ]);
@@ -561,6 +565,7 @@ export function simulateApplyPatches(
 export function validatePatchedSnapshot(
   snapshot: FlowSnapshot,
   patches: AiPatch[],
+  locale: 'es' | 'en' = 'es',
 ): ValidationIssue[] {
   const before = validateFlowForActivation(
     {
@@ -570,6 +575,7 @@ export function validatePatchedSnapshot(
       entry_node_id: snapshot.entry_node_id,
     },
     snapshot.nodes,
+    locale,
   ).filter((i) => i.severity === "error");
   const after = simulateApplyPatches(snapshot, patches);
   const afterIssues = validateFlowForActivation(
@@ -580,6 +586,7 @@ export function validatePatchedSnapshot(
       entry_node_id: after.entry_node_id,
     },
     after.nodes,
+    locale,
   ).filter((i) => i.severity === "error");
   const beforeKeys = new Set(
     before.map((i) => `${i.scope}|${i.node_key ?? ""}|${i.field ?? ""}|${i.message}`),

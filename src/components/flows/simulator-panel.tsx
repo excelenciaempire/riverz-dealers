@@ -95,10 +95,6 @@ export function SimulatorPanel({
     return m;
   }, [nodes]);
 
-  const [state, setState] = useState<SimulatorState>(() => initial());
-  const [input, setInput] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
-
   function initial(): SimulatorState {
     return {
       vars: {},
@@ -108,6 +104,16 @@ export function SimulatorPanel({
       pendingVarKey: null,
       hops: 0,
     };
+  }
+
+  const [state, setState] = useState<SimulatorState>(() => initial());
+  const [input, setInput] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [graph, setGraph] = useState({ entryKey, nodes });
+  // Reset before committing a render of a different graph.
+  if (graph.entryKey !== entryKey || graph.nodes !== nodes) {
+    setGraph({ entryKey, nodes });
+    setState(initial());
   }
 
   function start() {
@@ -128,11 +134,6 @@ export function SimulatorPanel({
     setState(next);
   }
 
-  // Reset al cambiar el flujo.
-  useEffect(() => {
-    setState(initial());
-  }, [entryKey, nodes]);
-
   useEffect(() => {
     requestAnimationFrame(() => {
       if (scrollRef.current) {
@@ -148,7 +149,7 @@ export function SimulatorPanel({
    * customer_reply) o en un nodo terminal (handoff, end).
    */
   function advance(s: SimulatorState): SimulatorState {
-    let next = { ...s };
+    const next = { ...s };
     while (next.currentKey && next.hops < MAX_HOPS) {
       next.hops++;
       const node = nodesByKey.get(next.currentKey);
@@ -337,6 +338,11 @@ export function SimulatorPanel({
             },
           ];
           next.currentKey = c.next_node_key ?? null;
+          break;
+        }
+        case "http_action": {
+          next.history=[...next.history,{from:"system",kind:"note",text:t("flows.httpSimulated")}];
+          next.currentKey=String(cfg.next_node_key??"")||null;
           break;
         }
         case "shopify_lookup": {

@@ -75,6 +75,7 @@ export async function POST(
       workspaceId: (existing as { workspace_id: string }).workspace_id,
       estado: status,
       userId: user.id,
+      locale,
     })
     if (!resultado.ok) {
       return NextResponse.json(
