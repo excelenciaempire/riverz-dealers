@@ -1,0 +1,12 @@
+import {beforeEach,expect,it,vi} from 'vitest';
+const h=vi.hoisted(()=>({visible:true,authorized:true,keys:true,auth:vi.fn(),dispatch:vi.fn(),db:vi.fn(),heartbeat:vi.fn()}));
+vi.mock('@/lib/ui/improvements-preview',()=>({get SHOW_RIVERZ_IMPROVEMENTS(){return h.visible;}}));
+vi.mock('@/lib/auth/cron',()=>({assertCronAuth:()=>{h.auth();if(!h.authorized)throw new Response(null,{status:401});}}));
+vi.mock('@/lib/cron/heartbeat',()=>({withCronRun:(_name:string,fn:(request:Request)=>Promise<Response>)=>(request:Request)=>{h.heartbeat();return fn(request);}}));
+vi.mock('@/lib/automations/admin-client',()=>({supabaseAdmin:h.db}));
+vi.mock('@/lib/pwa/push-server',()=>({browserPushKeys:()=>h.keys?{}:null,dispatchBrowserPush:h.dispatch}));
+import {GET} from './route';
+beforeEach(()=>{vi.clearAllMocks();h.visible=true;h.authorized=true;h.keys=true;h.db.mockReturnValue({private:true});h.dispatch.mockResolvedValue({acknowledged:0,claimed:0});});
+it('rejects unauthorized cron calls before heartbeat, subscriptions or provider actions',async()=>{h.authorized=false;expect((await GET(new Request('https://riverz.test/cron'))).status).toBe(401);expect(h.heartbeat).not.toHaveBeenCalled();expect(h.db).not.toHaveBeenCalled();});
+it.each(['flag','configuration'])('does no DB or heartbeat work without %s',async kind=>{if(kind==='flag')h.visible=false;else h.keys=false;expect(await (await GET(new Request('https://riverz.test/cron'))).json()).toEqual({enabled:false});expect(h.db).not.toHaveBeenCalled();expect(h.heartbeat).not.toHaveBeenCalled();});
+it('reports a private failure rather than treating provider receipt failure as success',async()=>{h.dispatch.mockRejectedValue(new Error('PRIVATE ERROR'));const response=await GET(new Request('https://riverz.test/cron'));expect(response.status).toBe(503);expect(await response.text()).not.toContain('PRIVATE ERROR');});

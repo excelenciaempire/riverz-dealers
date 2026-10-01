@@ -6,6 +6,7 @@ import type { Locale } from '@/lib/i18n/config';
 const h = vi.hoisted(() => ({ enabled: false, locale: 'es' as Locale }));
 vi.mock('@/lib/ui/improvements-preview', () => ({ get SHOW_RIVERZ_IMPROVEMENTS() { return h.enabled; } }));
 vi.mock('@/hooks/use-locale', () => ({ useT: () => (key: string) => translate(h.locale, key) }));
+vi.mock('./push-notifications',()=>({PushNotifications:()=>null}));
 import { AppInstallation, AppInstallationCapture } from './app-installation';
 
 it('renders no installation UI in the normal build', () => {

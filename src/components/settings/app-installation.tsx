@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useT } from '@/hooks/use-locale';
 import { installationController } from '@/lib/pwa/installation';
 import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
+import {PushNotifications} from './push-notifications';
 
 /** Capture early in the dashboard, including while settings is not open. */
 export function AppInstallationCapture() {
@@ -35,5 +36,6 @@ export function AppInstallation() {
     {(state.status === 'available' || state.status === 'prompting') && <Button className="mt-4" disabled={state.status === 'prompting'} onClick={() => void installationController.prompt()}>{t('settings.installButton')}</Button>}
     {state.status !== 'installed' && state.status !== 'manual' && <p className="mt-3 text-xs text-muted-foreground">{t(state.ios ? 'settings.installIos' : 'settings.installBrowser')}</p>}
     <p className="mt-3 text-xs text-muted-foreground">{t('settings.installConnection')}</p>
+    <PushNotifications />
   </section>;
 }

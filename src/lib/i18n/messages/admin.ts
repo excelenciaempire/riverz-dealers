@@ -1967,4 +1967,5 @@ export const admin = {
     en: 'A top-up credits the gross amount and Riverz pays the fee: 4.7% to 14.4% depending on size.',
   },
   cronDriveDocuments: { es: 'Sincroniza archivos autorizados de Google Drive y revisa sus permisos.', en: 'Syncs selected Google Drive files and checks their permissions.' },
+  cronBrowserPush: { es: 'Procesa avisos voluntarios por dispositivo, sin exponer contenido de clientes ni repetir envíos inciertos.', en: 'Processes opt-in device notices without exposing customer content or replaying uncertain sends.' },
 } satisfies Namespace;

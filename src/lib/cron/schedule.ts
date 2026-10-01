@@ -16,6 +16,8 @@
  * igual que Render.
  */
 
+import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
+
 export type ScheduledJob = {
   /** Nombre estable; es el que se ve en `cron_runs` y en los logs. */
   name: string;
@@ -66,6 +68,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   },
   // --- cada minuto ---
   { name: 'drive-documents', path: '/api/cron/drive-documents', schedule: '* * * * *', whatKey: 'admin.cronDriveDocuments' },
+  ...(SHOW_RIVERZ_IMPROVEMENTS?[{name:'browser-push',path:'/api/cron/browser-push',schedule:'* * * * *',whatKey:'admin.cronBrowserPush'}]:[]),
   {name:'billing-recovery',path:'/api/cron/billing-recovery',schedule:'* * * * *',whatKey:'admin.cronBillingRecovery',timeoutMs:240_000},
   {
     name: 'flows-resume',
