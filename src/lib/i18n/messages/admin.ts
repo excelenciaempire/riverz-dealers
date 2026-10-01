@@ -1966,4 +1966,5 @@ export const admin = {
     es: 'La recarga acredita el bruto y la comisión la paga Riverz: entre 4,7% y 14,4% según el monto.',
     en: 'A top-up credits the gross amount and Riverz pays the fee: 4.7% to 14.4% depending on size.',
   },
+  cronDriveDocuments: { es: 'Sincroniza archivos autorizados de Google Drive y revisa sus permisos.', en: 'Syncs selected Google Drive files and checks their permissions.' },
 } satisfies Namespace;

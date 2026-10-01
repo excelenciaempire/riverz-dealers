@@ -7,6 +7,7 @@ import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { DOCUMENT_MAX_BYTES, DOCUMENT_MAX_TEXT, isDocumentSource, type DocumentRevision, type DocumentSource } from '@/lib/ai/document-contract';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { DriveSources } from './drive-sources';
 
 export function DocumentSources({ agentId }: { agentId: string }) {
   const { t } = useLocale(), fmt = useFormat(), fetchWithCsrf = useFetchWithCsrf();
@@ -75,6 +76,7 @@ export function DocumentSources({ agentId }: { agentId: string }) {
       {error && <p role="alert" className="text-destructive text-xs">{error}</p>}
       {busy && <p role="status">{t('assistant.documentsProcessing')}</p>}
       {sources && <>
+        {canEdit && <DriveSources key={agentId} agentId={agentId} onChanged={() => void load()} />}
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" disabled={busy} variant="outline" onClick={() => void load()}>{t('assistant.documentsRefresh')}</Button>
           {canEdit && <Button type="button" size="sm" disabled={busy || sources.length >= 20} onClick={() => { replacement.current = null;fileInput.current?.click(); }}>{t('assistant.documentsUpload')}</Button>}

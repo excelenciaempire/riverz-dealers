@@ -65,6 +65,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     whatKey: 'admin.cronWalletReconciliation',
   },
   // --- cada minuto ---
+  { name: 'drive-documents', path: '/api/cron/drive-documents', schedule: '* * * * *', whatKey: 'admin.cronDriveDocuments' },
   {name:'billing-recovery',path:'/api/cron/billing-recovery',schedule:'* * * * *',whatKey:'admin.cronBillingRecovery',timeoutMs:240_000},
   {
     name: 'flows-resume',
