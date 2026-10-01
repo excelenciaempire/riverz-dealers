@@ -35,3 +35,14 @@ Pruebas de transporte/auth en `src/lib/mcp/auth-flow.test.ts`: separación de us
 - https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization
 
 La comprobación de formularios de los proveedores y las pruebas del servidor no equivalen por sí solas a una llamada de herramienta desde cada cliente. Registrar por separado cualquier validación de instalación completa.
+
+## Validación en producción
+
+Cambios de aplicación publicados en Render: `dd5acd71` y `18b1642c`. Migración 324 aplicada antes del despliegue.
+
+- 79 pruebas MCP pasan; ESLint y TypeScript de los archivos afectados pasan. El build de Render se publicó correctamente. El chequeo TypeScript local del repositorio completo agotó el heap predeterminado; no se usa como evidencia de aprobación.
+- 35 comprobaciones contra `https://riverz.co`: descubrimiento, DCR, sesiones de dos usuarios temporales, PKCE, rechazo de replay, llamada real, separación de usuarios, refresh rotativo, revocación, permisos de un agente y retirada de membresía. Identidades y datos temporales eliminados al terminar.
+- Claude web: conector personalizado de la URL CRM, herramientas descubiertas, aprobación de una sola llamada y `comprobar_conexion` real. Riverz confirmó `verified` a las 02:23:15 UTC del 1 de octubre (30 de septiembre en la zona del dueño).
+- ChatGPT web: conexión personalizada privada mediante `Create MCP App`, OAuth con la sesión propia, llamada real en un chat y confirmación `verified` a las 02:32:07 UTC. No se publicó una ficha ni se presentó una solicitud al directorio.
+- Codex: cliente MCP nativo del ejecutable de Codex, con configuración temporal mediante overrides, DCR, callback loopback y OAuth propios. Se invocó `mcpServer/tool/call` sin ejecutar un turno de IA. `comprobar_conexion` devolvió éxito y Riverz confirmó `verified` a las 02:37:15 UTC. Configuración existente conservada; credencial temporal cerrada y grants de QA revocados. Esto valida el cliente nativo, no la interacción visual de la ventana de Codex Desktop.
+- La página de producción mostró las dos acciones con configuración manual cerrada. El navegador colaborativo se desconectó al redimensionar para móvil; esa revisión visual no se considera aprobada.
