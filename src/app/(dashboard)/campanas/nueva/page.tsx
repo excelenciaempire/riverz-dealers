@@ -360,16 +360,6 @@ export default function NewBroadcastPage() {
         createConversations,
       });
 
-      const cleanMapping = Object.fromEntries(
-        Object.entries(variableMapping).filter(([, v]) => v),
-      );
-      if (Object.keys(cleanMapping).length > 0) {
-        await createClient()
-          .from('broadcasts')
-          .update({ variable_mapping: cleanMapping })
-          .eq('id', broadcastId);
-      }
-
       toast.success(
         voiceNote ? t('voiceNotes.queued') : sendMode === 'schedule'
           ? t('broadcasts.campaignScheduled')
@@ -431,7 +421,13 @@ export default function NewBroadcastPage() {
       template_language: template?.language ?? locale,
       template_variables: variables,
       variable_mapping: Object.keys(cleanMapping).length > 0 ? cleanMapping : null,
-      audience_filter: { type: audienceType, tagIds: selectedTagIds },
+      audience_filter: {
+        type: audienceType,
+        tagIds: audienceType === 'tags' ? selectedTagIds : undefined,
+        segmentId: audienceType === 'segment' ? segmentId : undefined,
+      },
+      create_conversations: createConversations,
+      scheduled_at: sendMode === 'schedule' ? new Date(scheduledAt).toISOString() : null,
       status: 'draft',
       total_recipients: 0,
       sent_count: 0,
