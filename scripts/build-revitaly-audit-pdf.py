@@ -283,8 +283,7 @@ class PDF:
 p = PDF()
 
 # 1. All attention rates use customer consultations as their denominator.
-p.header('Revitaly. Reporte de atención.', '26 al 30 de septiembre de 2026, hasta las 12:04 de Argentina.')
-p.text(42, 179, 'Atención al cliente', 'Serif', 27)
+p.header('Revitaly: atención en cifras', '26 al 30 de septiembre de 2026')
 for i, (value, percentage, label, detail) in enumerate([
     (len(customer_ids), '100%', 'Conversaciones con consultas', 'Base de los porcentajes'),
     (len(automated_ids), rate(automation_rate), 'Automatizadas: respondidas solo por IA', 'Sin respuesta humana registrada en el período'),
@@ -379,6 +378,9 @@ assert all(removed not in normalized_text for removed in ['Sin motivo de escalam
 assert all(token in normalized_text for token in ['Sentimiento', '26 · Publicidad', '10 · Compra y uso', '2 · Entregas', 'Cómo respondió la IA', 'no mide satisfacción'])
 assert all(token not in normalized_text for token in ['5 respuestas recuperadas', 'Corregido el envío', 'Recuperación automática', 'Al corte: 11', 'sin respuesta al corte', 'recuperados después'])
 assert 'comentari' not in doc[0].get_text().lower()
+assert 'Revitaly: atención en cifras' in doc[0].get_text()
+assert 'Atención al cliente' not in doc[0].get_text()
+assert 'hasta las' not in doc[0].get_text()
 assert all('Análisis de comentarios' not in page.get_text() for page in list(doc)[:-1])
 assert 'Análisis de comentarios' in doc[-1].get_text()
 assert all(token in normalized_text for token in ['Parcialmente', 'Puede automatizarse al conectar el banco', 'Una persona aprueba la cancelación o el reembolso', 'la IA no devuelve dinero por su cuenta'])
