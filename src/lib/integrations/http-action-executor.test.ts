@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-const h = vi.hoisted(() => ({ visible: true, access: vi.fn(), load: vi.fn(), credential: vi.fn(), transport: vi.fn() }));
+const h = vi.hoisted(() => ({ visible: true, access: vi.fn(), load: vi.fn(), credential: vi.fn(), identity: vi.fn(), transport: vi.fn() }));
 vi.mock('@/lib/ui/improvements-preview', () => ({ get SHOW_RIVERZ_IMPROVEMENTS() { return h.visible; } }));
 vi.mock('@/lib/mcp/access', () => ({ userAccess: h.access }));
 vi.mock('./http-action-store', async original => ({ ...await original<typeof import('./http-action-store')>(), loadHttpAction: h.load }));
+vi.mock('./http-assistant-identity', () => ({ httpAssistantIdentityAllowed: h.identity }));
 vi.mock('./http-action-credentials', () => ({ openHttpCredential: h.credential }));
 vi.mock('@/lib/security/public-json-request', async original => ({ ...await original<typeof import('@/lib/security/public-json-request')>(), requestPublicJson: h.transport }));
 import { PublicJsonError } from '@/lib/security/public-json-request';
@@ -25,7 +26,7 @@ function db(): SupabaseClient {
 }
 beforeEach(() => {
   vi.clearAllMocks(); h.visible = true; filters = [];
-  h.access.mockResolvedValue({ admin: true, sections: null });
+  h.identity.mockResolvedValue(true); h.access.mockResolvedValue({ admin: true, sections: null });
   h.load.mockResolvedValue({ id: ID, workspace_id: WS, definition: definition(), state: 'active', revision: 2, credential_ciphertext: 'sealed' });
   h.credential.mockReturnValue({ kind: 'bearer', value: 'fixture-secret' });
   h.transport.mockResolvedValue({ status: 200, data: { result: { status: 'received' }, private_trace: 'PRIVATE_PROVIDER_DATA' } });
@@ -222,6 +223,13 @@ describe('assistant HTTP gateway', () => {
     await expect(executeHttpAssistantAction(db(), { ...assistant(), approvalId: LEASE, approvalActorId: ACTOR }, { order_id: 'one' }))
       .rejects.toThrow('http_execution_confirmation_required');
     expect(rpc.mock.calls[0][1]).toMatchObject({ p_approval_id: LEASE, p_approval_actor_id: ACTOR }); expect(h.transport).not.toHaveBeenCalled();
+  });
+  it('rechecks identity eligibility before claiming even an approved request', async () => {
+    const action = await h.load(); h.load.mockResolvedValue({ ...action, definition: { ...action.definition, method: 'POST' } });
+    h.identity.mockResolvedValue(false);
+    await expect(executeHttpAssistantAction(db(), { ...assistant(), approvalId: LEASE, approvalActorId: ACTOR }, { order_id: 'one' }))
+      .rejects.toThrow('http_execution_forbidden');
+    expect(rpc).not.toHaveBeenCalled(); expect(h.credential).not.toHaveBeenCalled(); expect(h.transport).not.toHaveBeenCalled();
   });
   it('checks a different current approver separately from the grantor', async () => {
     const action = await h.load(); h.load.mockResolvedValue({ ...action, definition: { ...action.definition, method: 'POST' } });

@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-const h = vi.hoisted(() => ({ visible: true, access: vi.fn(), bindings: vi.fn(), execute: vi.fn(), ask: vi.fn(), writable: vi.fn(), merchantLocale: 'es' }));
+const h = vi.hoisted(() => ({ visible: true, access: vi.fn(), bindings: vi.fn(), execute: vi.fn(), ask: vi.fn(), identity: vi.fn(), writable: vi.fn(), merchantLocale: 'es' }));
 vi.mock('@/lib/ui/improvements-preview', () => ({ get SHOW_RIVERZ_IMPROVEMENTS() { return h.visible; } }));
 vi.mock('@/lib/mcp/access', () => ({ userAccess: h.access }));
 vi.mock('@/lib/integrations/http-action-executor', () => ({ executeHttpAssistantAction: h.execute, httpActionBindingsForConversation: h.bindings }));
+vi.mock('@/lib/integrations/http-assistant-identity', () => ({ httpAssistantIdentityAllowed: h.identity }));
 vi.mock('@/lib/approvals/ask', () => ({ askForApproval: h.ask }));
 vi.mock('@/lib/billing/read-only', () => ({ assertWorkspaceWritable: h.writable }));
 vi.mock('@/lib/i18n/cuenta', () => ({ localeDeCuenta: async () => h.merchantLocale }));
@@ -38,7 +39,7 @@ beforeEach(() => {
       name: 'Lookup fixture', description: 'Read an external status', method: 'GET', url: 'https://configured.test/status', credential_kind: 'bearer',
       parameters: [{ key: 'customer', source: 'contact_id', type: 'string', required: true }, { key: 'reference', type: 'string', required: true }],
       outputs: [{ key: 'status', type: 'string', path: ['status'], required: true }] } }] };
-  h.access.mockResolvedValue({ admin: true, sections: null });
+  h.identity.mockResolvedValue(true); h.access.mockResolvedValue({ admin: true, sections: null });
   h.bindings.mockResolvedValue({ contact_id: CONTACT, conversation_id: CONV, phone: '+10000000000', email: null });
   h.execute.mockResolvedValue({ id: RUN, state: 'acknowledged', status_code: 200, error_code: null, result: { status: 'received' }, cached: false });
   h.ask.mockResolvedValue({ ok: true, notified: true, approvalId: RUN }); h.writable.mockResolvedValue(undefined);
@@ -119,6 +120,11 @@ describe('explicit customer-assistant HTTP tools', () => {
     expect(h.ask.mock.calls[0][0].body).toContain('"reference": "one"');
     await runHttpAssistantTool(db(), ctx, name, { reference: 'one' }); expect(h.ask.mock.calls[1][0].dedupeKey).toBe(h.ask.mock.calls[0][0].dedupeKey);
     expect(h.execute).not.toHaveBeenCalled();
+  });
+  it.each(['GET', 'POST'])('blocks ineligible identity before %s dispatch or proposal', async method => {
+    definition().method = method; const ctx = await runtime(); h.identity.mockResolvedValue(false);
+    expect(JSON.parse(await runHttpAssistantTool(db(), ctx, ctx.tools[0].tool.name, { reference: 'one' })).ok).toBe(false);
+    expect(h.ask).not.toHaveBeenCalled(); expect(h.execute).not.toHaveBeenCalled(); expect(h.writable).not.toHaveBeenCalled();
   });
   it('does not promise notification and refuses read-only or unrecorded proposals', async () => {
     definition().method = 'POST'; const ctx = await runtime(), name = ctx.tools[0].tool.name;

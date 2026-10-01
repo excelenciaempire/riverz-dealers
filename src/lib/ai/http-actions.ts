@@ -10,6 +10,7 @@ import { executeHttpAssistantAction, httpActionBindingsForConversation } from '@
 import { askForApproval } from '@/lib/approvals/ask';
 import { assertWorkspaceWritable } from '@/lib/billing/read-only';
 import { localeDeCuenta } from '@/lib/i18n/cuenta';
+import { httpAssistantIdentityAllowed } from '@/lib/integrations/http-assistant-identity';
 
 const uuid = z.string().uuid().transform(value => value.toLowerCase());
 const channel = z.enum(['whatsapp', 'instagram', 'messenger', 'gmail', 'outlook', 'zoho', 'webchat', 'voice', 'ig_comment', 'fb_comment']);
@@ -128,6 +129,7 @@ export async function runHttpAssistantTool(db: SupabaseClient, runtime: HttpAssi
     const trusted = await httpActionBindingsForConversation(db, { workspaceId: ctx.workspaceId,
       actorUserId: current.grant.granted_by, conversationId: ctx.conversationId });
     if (!trusted || trusted.contact_id !== ctx.contactId) return failed();
+    if (!await httpAssistantIdentityAllowed(db, ctx.workspaceId, trusted, ctx.channel, current.action.definition)) return failed();
     actionRequest(current.action.definition, input, trusted);
     const values = actionArguments(current.action.definition, input, trusted);
     const normalized = Object.fromEntries(current.action.definition.parameters.filter(p => (!p.source || p.source === 'input')

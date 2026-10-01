@@ -41,8 +41,8 @@
     signal: AbortSignal.timeout(15000),
   });
   const assistantBody = await assistant.json().catch(() => null);
-  if (assistant.ok || assistantBody?.code !== 'P0001' || assistantBody?.message !== 'invalid_http_assistant_approval_context') {
-    throw new Error(`Apply migrations 333/334 before deploying assistant HTTP execution (HTTP ${assistant.status}).`);
+  if (assistant.ok || assistantBody?.code !== 'P0001' || assistantBody?.message !== 'invalid_http_assistant_identity_context') {
+    throw new Error(`Apply migrations 333/334/335 before deploying assistant HTTP execution (HTTP ${assistant.status}).`);
   }
   for (const table of ['http_actions?select=id,workspace_id,definition,credential_ciphertext,state,revision',
     'http_action_versions?select=action_id,workspace_id,revision,definition,credential_present',

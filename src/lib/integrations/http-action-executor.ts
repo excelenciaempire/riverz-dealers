@@ -8,6 +8,7 @@ import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { actionArguments, actionOutput, actionRequest, httpActionContainsSecret, type HttpActionBindings } from './http-action-contract';
 import { openHttpCredential } from './http-action-credentials';
 import { HttpActionStoreError, loadHttpAction, type HttpActionRecord } from './http-action-store';
+import { httpAssistantIdentityAllowed } from './http-assistant-identity';
 
 const uuid = z.string().uuid().transform(value => value.toLowerCase());
 const execution = z.object({ workspaceId: uuid, actorUserId: uuid, actionId: uuid, expectedRevision: z.number().int().positive(),
@@ -132,6 +133,7 @@ export async function executeHttpAssistantAction(db: SupabaseClient, context: Ht
     if (conversation.error) return fail('unavailable');
     if (conversation.data?.channel !== ctx.channel) return fail('not_found');
     const trusted = await httpActionBindingsForConversation(db, { workspaceId: ctx.workspaceId, actorUserId, conversationId: ctx.conversationId });
+    if (!trusted || !await httpAssistantIdentityAllowed(db, ctx.workspaceId, trusted, ctx.channel, action.definition)) return fail('forbidden');
     let request, normalized;
     try {
       request = actionRequest(action.definition, parameters, trusted ?? {});

@@ -9,7 +9,7 @@ const CONTACT = '77777777-7777-4777-8777-777777777777', APPROVAL = '88888888-888
 const OTHER = '99999999-9999-4999-8999-999999999999';
 const context = { contact_id: CONTACT, conversation_id: CONV, phone: '+10000000000', email: null };
 const parameters = { reference: 'fixture-reference' };
-let revision = 2;
+let revision = 2, defaultGrantRevision = 1;
 type Row = { id: string; claimed: boolean; state: string; lease_id?: string };
 beforeAll(async () => {
   await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role;
@@ -17,24 +17,24 @@ beforeAll(async () => {
     CREATE TABLE workspace_members(workspace_id uuid,user_id uuid,role text,allowed_sections text[]);
     CREATE TABLE ai_agents(id uuid PRIMARY KEY,workspace_id uuid,scope text,is_active boolean,assigned_only boolean,deleted_at timestamptz);
     CREATE TABLE ai_agent_channels(agent_id uuid,channel text);
-    CREATE TABLE contacts(id uuid PRIMARY KEY,workspace_id uuid,phone text,email text);
+    CREATE TABLE contacts(id uuid PRIMARY KEY,workspace_id uuid,phone text,email text,phone_origen text,email_origen text,union_bloqueada boolean NOT NULL DEFAULT false);
     CREATE TABLE conversations(id uuid PRIMARY KEY,workspace_id uuid,contact_id uuid,channel text,connection_id uuid,deleted_at timestamptz,assigned_ai_agent_id uuid);
     CREATE TABLE channel_connections(id uuid PRIMARY KEY,workspace_id uuid,channel text,created_by uuid);
     CREATE TABLE approval_requests(id uuid PRIMARY KEY,workspace_id uuid,kind text,status text,payload jsonb,decided_by text,decided_at timestamptz,expires_at timestamptz);
     CREATE TABLE billing(allowed boolean);INSERT INTO billing VALUES(true);
     CREATE FUNCTION workspace_billing_write_allowed(ws uuid) RETURNS boolean LANGUAGE sql AS $$ SELECT allowed FROM public.billing $$;`);
-  for (const name of ['330_http_action_configuration', '331_http_action_receipts', '332_http_action_assistant_grants', '333_http_assistant_execution_claims', '334_http_assistant_approved_identity']) {
+  for (const name of ['330_http_action_configuration', '331_http_action_receipts', '332_http_action_assistant_grants', '333_http_assistant_execution_claims', '334_http_assistant_approved_identity', '335_http_assistant_identity_provenance']) {
     await db.exec(readFileSync(`supabase/migrations/${name}.sql`, 'utf8'));
   }
 });
 afterAll(async () => db.close());
 beforeEach(async () => {
-  revision = 2;
+  revision = 2; defaultGrantRevision = 1;
   await db.exec('RESET ROLE;TRUNCATE workspaces CASCADE;TRUNCATE workspace_members,ai_agents,ai_agent_channels,contacts,conversations,channel_connections,approval_requests CASCADE;UPDATE billing SET allowed=true');
   await db.query('INSERT INTO workspaces VALUES($1,$2,NULL)', [WS, OWNER]);
   await db.query("INSERT INTO workspace_members VALUES($1,$2,'admin',NULL)", [WS, ADMIN]);
   await db.query("INSERT INTO ai_agents VALUES($1,$2,'workspace',true,false,NULL)", [AGENT, WS]);
-  await db.query("INSERT INTO contacts VALUES($1,$2,'+10000000000',NULL)", [CONTACT, WS]);
+  await db.query("INSERT INTO contacts(id,workspace_id,phone,email) VALUES($1,$2,'+10000000000',NULL)", [CONTACT, WS]);
   await db.query("INSERT INTO conversations VALUES($1,$2,$3,'whatsapp',NULL,NULL,NULL)", [CONV, WS, CONTACT]);
   await db.query("INSERT INTO http_actions(id,workspace_id,definition,state,revision,actor_id) VALUES($1,$2,$3,'active',2,$4)",
     [ACTION, WS, { method: 'GET', credential_kind: 'none', parameters: [{ key: 'customer', source: 'contact_id', type: 'string', required: true }] }, OWNER]);
@@ -46,20 +46,76 @@ async function grant(actor = OWNER, channel = 'whatsapp', version = 0) {
 }
 async function claim(opts: { ws?: string; agent?: string; revision?: number; grant?: number; channel?: string; key?: string; hash?: string; conv?: string; context?: unknown; parameters?: unknown; approval?: string | null; actor?: string | null } = {}) {
   return (await db.query<{ result: Row }>('SELECT claim_http_action_assistant($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) AS result',
-    [opts.ws ?? WS, opts.agent ?? AGENT, ACTION, opts.revision ?? revision, opts.channel ?? 'whatsapp', opts.grant ?? 1,
+    [opts.ws ?? WS, opts.agent ?? AGENT, ACTION, opts.revision ?? revision, opts.channel ?? 'whatsapp', opts.grant ?? defaultGrantRevision,
       opts.key ?? 'a'.repeat(64), opts.hash ?? 'b'.repeat(64), opts.conv ?? CONV, opts.context ?? context, opts.parameters ?? parameters,
       opts.approval ?? null, opts.actor ?? null])).rows[0].result;
 }
 async function post() {
-  await db.exec("UPDATE http_actions SET definition=jsonb_set(definition,'{method}','\"POST\"'),revision=3"); revision = 3;
-  await grant(OWNER, 'whatsapp', 1);
+  revision += 1;
+  await db.query("UPDATE http_actions SET definition=jsonb_set(definition,'{method}','\"POST\"'),revision=$1", [revision]);
+  await grant(OWNER, 'whatsapp', defaultGrantRevision); defaultGrantRevision += 1;
   await db.query("INSERT INTO approval_requests VALUES($1,$2,'herramienta','aprobada',$3,$4,now(),now()+interval '10 minutes')",
-    [APPROVAL, WS, { tool: `http_action_${ACTION.replaceAll('-', '')}_v3`, input: parameters, agent_id: AGENT,
+    [APPROVAL, WS, { tool: `http_action_${ACTION.replaceAll('-', '')}_v${revision}`, input: parameters, agent_id: AGENT,
       conversation_id: CONV, contact_id: CONTACT, http_action_context: context,
-      http_action: { action_id: ACTION, action_revision: 3, grant_revision: 2, channel: 'whatsapp' } }, OWNER]);
+      http_action: { action_id: ACTION, action_revision: revision, grant_revision: defaultGrantRevision, channel: 'whatsapp' } }, OWNER]);
 }
-const approved = () => ({ approval: APPROVAL, actor: OWNER, grant: 2 });
+const approved = () => ({ approval: APPROVAL, actor: OWNER, grant: defaultGrantRevision });
+async function bindIdentity(source: 'phone' | 'email', required = true) {
+  revision += 1;
+  await db.query("UPDATE http_actions SET definition=jsonb_set(definition,'{parameters}',$1::jsonb),revision=$2",
+    [JSON.stringify([{ key: 'customer', source, type: 'string', required },
+      ...(!required ? [{ key: 'contact', source: 'contact_id', type: 'string', required: true }] : [])]), revision]);
+  await grant(OWNER, 'whatsapp', defaultGrantRevision); defaultGrantRevision += 1;
+}
 describe('protected assistant HTTP execution claims', () => {
+  it.each(['canal', 'pedido', 'tienda', 'pago', 'manual', null])('accepts existing backed/legacy phone origins: %s', async origin => {
+    await bindIdentity('phone'); await db.query('UPDATE contacts SET phone=$1,phone_origen=$2', ['+573128765490', origin]);
+    expect(await claim({ context: { ...context, phone: '+573128765490' } })).toMatchObject({ claimed: true });
+  });
+  it.each(['afirmado', 'unknown', '', 'CANAL'])('denies current unbacked identity origin: %s', async origin => {
+    await bindIdentity('phone'); await db.query('UPDATE contacts SET phone=$1,phone_origen=$2', ['+573128765490', origin]);
+    await expect(claim({ context: { ...context, phone: '+573128765490' } })).rejects.toThrow('http_execution_forbidden');
+    expect((await db.query('SELECT count(*)::int AS n FROM http_action_runs')).rows).toEqual([{ n: 0 }]);
+  });
+  it.each(['+00000000000', '+11111111111', '1234567890', '9876543210', '123', ''])('rejects filler phone %s in SQL', async phone => {
+    await bindIdentity('phone'); await db.query('UPDATE contacts SET phone=$1', [phone]);
+    await expect(claim({ context: { ...context, phone } })).rejects.toThrow('http_execution_forbidden');
+  });
+  it.each(['info@example.test', 'NoReply@example.test', 'ventas@example.test', 'support@example.test', 'invalid', ''])('rejects role/invalid email %s in SQL', async email => {
+    await bindIdentity('email'); await db.query('UPDATE contacts SET email=$1,email_origen=$2', [email, 'tienda']);
+    await expect(claim({ context: { ...context, email } })).rejects.toThrow('http_execution_forbidden');
+  });
+  it('allows backed email and denies provenance revocation even on replay', async () => {
+    await bindIdentity('email'); await db.query('UPDATE contacts SET email=$1,email_origen=$2', ['buyer@example.test', 'tienda']);
+    const snapshot = { ...context, email: 'buyer@example.test' };
+    expect(await claim({ context: snapshot })).toMatchObject({ claimed: true });
+    await db.exec("UPDATE contacts SET email_origen='afirmado'");
+    await expect(claim({ context: snapshot })).rejects.toThrow('http_execution_forbidden');
+    expect((await db.query('SELECT count(*)::int AS n FROM http_action_runs')).rows).toEqual([{ n: 1 }]);
+  });
+  it('rechecks manual separation and provenance after human approval without changing the snapshot', async () => {
+    await bindIdentity('phone'); await db.query('UPDATE contacts SET phone=$1,phone_origen=$2', ['+573128765490', 'canal']);
+    await post(); const snapshot = { ...context, phone: '+573128765490' };
+    await db.query("UPDATE approval_requests SET payload=jsonb_set(payload,'{http_action_context}',$1::jsonb)", [JSON.stringify(snapshot)]);
+    await db.exec("UPDATE contacts SET phone_origen='afirmado'");
+    await expect(claim({ ...approved(), context: snapshot })).rejects.toThrow('http_execution_forbidden');
+    await db.exec("UPDATE contacts SET phone_origen='canal',union_bloqueada=true");
+    await expect(claim({ ...approved(), context: snapshot })).rejects.toThrow('http_execution_forbidden');
+    expect((await db.query('SELECT count(*)::int AS n FROM http_action_runs')).rows).toEqual([{ n: 0 }]);
+  });
+  it('blocks phone/email webchat lookups while preserving ID-only actions', async () => {
+    await grant(OWNER, 'webchat'); await db.exec("UPDATE conversations SET channel='webchat'");
+    expect(await claim({ channel: 'webchat' })).toMatchObject({ claimed: true });
+    await bindIdentity('phone');
+    await grant(OWNER, 'webchat', 1);
+    await expect(claim({ channel: 'webchat', key: 'd'.repeat(64) })).rejects.toThrow('http_execution_forbidden');
+  });
+  it('does not send optional present untrusted identity and allows absent optional values', async () => {
+    await bindIdentity('email', false); await db.exec("UPDATE contacts SET email_origen='afirmado'");
+    expect(await claim()).toMatchObject({ claimed: true });
+    await db.query('UPDATE contacts SET email=$1', ['buyer@example.test']);
+    await expect(claim({ key: 'd'.repeat(64), context: { ...context, email: 'buyer@example.test' } })).rejects.toThrow('http_execution_forbidden');
+  });
   it('records the assistant separately from the human who granted permission and replays without a lease', async () => {
     const run = await claim(); expect(run).toMatchObject({ claimed: true, state: 'claimed' }); expect(run.lease_id).toBeTruthy();
     expect((await db.query('SELECT actor_id,source_kind,source_agent_id,source_channel,source_grant_revision,source_approval_id FROM http_action_runs')).rows)

@@ -806,3 +806,17 @@ Validación inicial: **seis archivos y 80 pruebas correctas** en API, metadatos,
 
 
 **Validación final correcta:** siete archivos y 82 pruebas, lint de los cambios y builds completos normal/comparación con TypeScript. Once archivos propios, sin migración ni dependencia nueva. La aclaración final del permiso general indica que su información se comparte con clientes. La compilación normal pasó antes de esa aclaración textual y la de comparación compiló el código final. Sin interacción real de formulario ni QA visual; no se abrió UI ni se habilitó la comparación. Publicación de este incremento todavía no comprobada.
+
+
+Controles de permisos publicados en Render: revisión `938f542303c44b4dc9519959255705e9d0879ebf` LIVE a las **14:26:13 UTC** del 1 de octubre. Salud a las **14:28:19 UTC** con esa revisión, servicio, Supabase y WhatsApp `ok`; comparación comprobada sin configurar.
+
+## E2 — Procedencia de identidad en consultas externas del asistente
+
+Las herramientas HTTP reutilizan la política existente de procedencia de contactos: dato de canal, pedido, tienda, pago o registro manual; `null` conserva la compatibilidad heredada y no se presenta como verificación criptográfica. Se rechazan origen afirmado/desconocido, separación manual, teléfonos de relleno, correos de rol o inválidos. Webchat no usa teléfono/correo para identificar registros externos, igual que el buscador de pedidos existente. Una acción ligada solo al ID conserva su contrato; el proveedor debe verificar pertenencia del registro externo.
+
+La comprobación ocurre antes de proponer POST y en el gateway antes de GET/POST. No normaliza ni sustituye el snapshot revisado. Valores opcionales presentes también deben cumplir la política; una opción ausente se omite, y una identidad obligatoria ausente falla. Migración 335 vuelve a leer y bloquear el contacto dentro del claim exclusivo del servicio: cambiar únicamente el origen o la separación después de revisar una propuesta impide despachar, incluso con los mismos valores y al consultar un recibo previo. No cambia el ejecutor HTTP humano ni las herramientas previas.
+
+Validación: **siete archivos y 184 pruebas correctas**, incluidos 34 casos del helper y 47 casos SQL del claim protegido. TypeScript y lint iniciales correctos. Los fallos iniciales eran fixtures que omitían el incremento de versión/historial o el identificador obligatorio al conceder permiso; corregidos sin relajar contratos. Migración **335 aplicada atómicamente** y metadatos verificaron procedencia, identidad aprobada, RPC privada y contexto de seguridad fijo. Guard correcto con contexto nulo y `limit=0`, sin leer datos reales ni ejecutar proveedor/cliente/modelo/notificación/finanzas como QA. Compilaciones y publicación en curso. Comparación permanece oculta; E2 y el plan global siguen en ejecución.
+
+
+**Validación final correcta:** 184 pruebas, TypeScript, lint final y builds completos normal/comparación. Once archivos propios, sin dependencia nueva. No se abrió UI ni se habilitó comparación. No se crearon permisos/aprobaciones reales ni se llamó a clientes o proveedores como QA. Publicación de este incremento todavía no comprobada.
