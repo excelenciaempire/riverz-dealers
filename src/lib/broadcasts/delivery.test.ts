@@ -27,6 +27,11 @@ beforeEach(()=>{
 })
 const dispatch=()=>dispatchBroadcastRecipient(db,{broadcast,recipient,actorId:'owner',send})
 describe('shared durable campaign dispatcher',()=>{
+ it('preserves a fixed offer when recovery reloads a partially dynamic mapping',async()=>{
+  templates=[{...template,body_text:'Hola {{1}}, {{2}}.'}]
+  expect((await dispatchBroadcastRecipient(db,{broadcast:{...broadcast,variable_mapping:{'1':'first_name'}},recipient:{...recipient,params:['Old','Bundle excludes shipping']},send})).status).toBe('sent')
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({params:['Ana','Bundle excludes shipping']}))
+ })
  it('records and previews the normalized parameters actually passed to the provider',async()=>{
   const result=await dispatchBroadcastRecipient(db,{broadcast,recipient:{...recipient,params:['Ana\nPérez']},send});expect(send).toHaveBeenCalledWith(expect.objectContaining({params:['Ana · Pérez']}));expect(result.payload?.params).toEqual(['Ana · Pérez'])
  })

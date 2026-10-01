@@ -176,14 +176,12 @@ describe('campanas.crear', () => {
     expect(filas[0].params).toEqual(['Ana', '20% OFF'])
   })
 
-  it('con un texto fijo no guarda variable_mapping', async () => {
-    // Si hubiera mapping, el cron lo usaría e ignoraría los params — y el texto
-    // fijo, que no es un campo del contacto, saldría vacío.
+  it('conserva el mapping dinámico cuando hay textos fijos en otras posiciones', async () => {
     const { db, registro } = fakeDb(mundo())
     await cap('campanas.crear').run(ctxDe(db), ARGS_CREAR)
     const fila = registro.find((q) => q.tabla === 'broadcasts' && q.op === 'insert')
       ?.filas as Record<string, unknown>
-    expect(fila.variable_mapping).toBeNull()
+    expect(fila.variable_mapping).toEqual({ '1': 'first_name' })
   })
 
   it('si todas son campos guarda el mapping, para que el dato sea el del día del envío', async () => {

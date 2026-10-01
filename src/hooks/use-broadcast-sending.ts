@@ -10,6 +10,7 @@ import type { ContactSegment } from '@/lib/segments/types';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import type { VoiceNoteConfig } from '@/lib/voice-notes/types';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve-browser';
+import { resolveContactField } from '@/lib/broadcasts/variables';
 
 export type CustomFieldOperator = 'is' | 'is_not' | 'contains';
 
@@ -109,13 +110,7 @@ export function resolveVariables(
     if (v.type === 'static') return v.value;
 
     if (v.type === 'field') {
-      const fieldMap: Record<string, string | undefined> = {
-        name: contact.name,
-        phone: contact.phone,
-        email: contact.email,
-        company: contact.company,
-      };
-      return fieldMap[v.value] ?? '';
+      return resolveContactField(v.value, contact as unknown as Record<string, unknown>) ?? '';
     }
 
     // custom_field
@@ -412,9 +407,8 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         throw new Error('No contacts found for this audience.');
       }
 
-      // Resolve per-recipient template params NOW (before insert) so a
-      // scheduled campaign carries fully-resolved params and the cron
-      // sender never has to re-run audience/variable resolution.
+      // Persist a complete parameter snapshot. The shared dispatcher refreshes
+      // mapped contact fields while preserving fixed positions from this array.
       const customValueIndex = await fetchCustomValueIndex(
         supabase,
         contacts.map((c) => c.id),
@@ -449,6 +443,9 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
           voice_note: payload.voiceNote ?? null,
           template_language: payload.template?.language ?? (payload.voiceNote ? payload.locale ?? 'es' : 'en_US'),
           template_variables: payload.variables,
+          variable_mapping: Object.values(payload.variables).some(v => v.type !== 'static')
+            ? Object.fromEntries(Object.entries(payload.variables).filter(([, v]) => v.type !== 'static').map(([key, v]) => [key, v.value]))
+            : null,
           audience_filter: {
             type: payload.audience.type,
             tagIds: payload.audience.tagIds,

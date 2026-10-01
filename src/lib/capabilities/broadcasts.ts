@@ -306,14 +306,9 @@ async function crear(ctx: CapabilityContext, args: Record<string, unknown>) {
       template_language: plantilla.language ?? 'es',
       // Legible, para la pantalla de la campaña: qué va a mostrar cada {{n}}.
       template_variables: { ...textos, ...campos },
-      // Lo que lee el cron. Sólo cuando TODAS las variables son campos del
-      // contacto: con el mapping presente el cron ignora los params y
-      // recalcula, así que un mapping a medias mandaría los valores corridos
-      // de posición. Con textos fijos de por medio mandan los params, que ya
-      // vienen resueltos acá.
-      variable_mapping: Object.keys(textos).length === 0 && Object.keys(campos).length > 0
-        ? campos
-        : null,
+      // El despacho refresca las posiciones dinámicas y conserva los textos
+      // fijos de los params guardados, también cuando el mapping es parcial.
+      variable_mapping: Object.keys(campos).length > 0 ? campos : null,
       audience_filter: { type: 'segment', segmentId: String(args.segmento_id) },
       create_conversations: args.crear_conversaciones === true,
       scheduled_at: cuando,

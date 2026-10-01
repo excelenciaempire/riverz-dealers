@@ -113,10 +113,12 @@ export async function dispatchBroadcastRecipient(
   if (!voice && !template) return denied('templateUnavailable')
   if (template?.category.toLowerCase() === 'marketing' && isUsPhone(phone)) return denied('marketingUnavailable')
   const mapping = broadcast.variable_mapping
-  if (mapping != null && (typeof mapping !== 'object' || Array.isArray(mapping) || Object.keys(mapping).length > 64 || Object.values(mapping).some(v => typeof v !== 'string' || v.length > 100))) return denied('variables')
+  if (mapping != null && (typeof mapping !== 'object' || Array.isArray(mapping) || Object.keys(mapping).length > 64 || Object.keys(mapping).some(key => !/^[1-9]\d*$/.test(key) || Number(key) > 64) || Object.values(mapping).some(v => typeof v !== 'string' || v.length > 100))) return denied('variables')
   const fallback = recipient.params
   if (fallback != null && (!Array.isArray(fallback) || fallback.length > 64 || fallback.some(v => typeof v !== 'string' || v.length > 4096))) return denied('variables')
-  const params = voice ? [] : (await resolveBroadcastParams(db, recipient.contact, fallback as string[] | null, mapping as Record<string, string> | null)).map(sanitizeTemplateTextParameter)
+  let params: string[]
+  try { params = voice ? [] : (await resolveBroadcastParams(db, recipient.contact, fallback as string[] | null, mapping as Record<string, string> | null)).map(sanitizeTemplateTextParameter) }
+  catch (error) { if (error instanceof Error && error.message === 'broadcast_delivery_variables') return denied('variables'); throw error }
   if (template) {
     const numbers = templateVariableNumbers(template.body_text)
     if (numbers.length !== params.length || numbers.some((n, i) => n !== i + 1)) return denied('variables')

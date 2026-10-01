@@ -125,27 +125,32 @@ export async function resolveBroadcastParams(
   if (!contact) return fallback ?? []
 
   const keys = Object.keys(mapping).sort((a, b) => Number(a) - Number(b))
+  if (keys.some(key => !/^[1-9]\d*$/.test(key) || Number(key) > 64)) throw new Error('broadcast_delivery_variables')
+  const length = Math.max(fallback?.length ?? 0, ...keys.map(Number))
+  if (length > 64 || Array.from({ length }, (_, index) => String(index + 1)).some(key => !Object.hasOwn(mapping, key) && fallback?.[Number(key) - 1] === undefined)) throw new Error('broadcast_delivery_variables')
   const customFieldIds = keys
     .map((k) => mapping[k])
     .filter((field) => field && !BUILTIN_FIELDS.has(field))
 
   const customValues = new Map<string, string>()
   if (customFieldIds.length > 0 && contact.id) {
-    const { data: rows } = await db
+    const { data: rows, error } = await db
       .from('contact_custom_values')
       .select('custom_field_id, value')
       .eq('contact_id', contact.id as string)
       .in('custom_field_id', customFieldIds)
+    if (error) throw new Error('broadcast_delivery_unavailable')
     for (const row of (rows ?? []) as Array<{ custom_field_id: string; value: string | null }>) {
       customValues.set(row.custom_field_id, row.value ?? '')
     }
   }
 
-  return keys.map((key) => {
+  const params = Array.from({ length }, (_, index) => fallback?.[index] ?? '')
+  for (const key of keys) {
     const field = mapping[key]
-    if (!field) return ''
-    return resolveContactField(field, contact) ?? customValues.get(field) ?? ''
-  })
+    params[Number(key) - 1] = field ? resolveContactField(field, contact) ?? customValues.get(field) ?? '' : ''
+  }
+  return params
 }
 
 /**

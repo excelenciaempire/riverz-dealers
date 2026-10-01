@@ -56,6 +56,17 @@ beforeEach(() => {
 });
 
 describe('campaign workspace persistence', () => {
+  it('persists dynamic positions before sending and resolves name and Shopify fields beside fixed text', async () => {
+    state.contacts[0].name = 'Ana Perez';
+    state.contacts[0].shopify_customer_data = { orders_count: 3 };
+    state.send.mockResolvedValue(new Response(JSON.stringify({ results: [{ recipient_id: 'recipient-a', status: 'sent' }] })));
+    await useBroadcastSending().createAndSendBroadcast({ ...payload, scheduledAt: null, variables: {
+      '1': { type: 'field', value: 'first_name' }, '2': { type: 'static', value: 'Shipping excluded' }, '3': { type: 'field', value: 'shopify_orders_count' },
+    } });
+    expect(state.writes.find(w => w.table === 'broadcasts')?.value).toMatchObject({ variable_mapping: { '1': 'first_name', '3': 'shopify_orders_count' } });
+    expect(state.writes.find(w => w.table === 'broadcast_recipients')?.value).toEqual([{ broadcast_id: 'campaign-a', contact_id: 'contact-a', status: 'pending', params: ['Ana', 'Shipping excluded', '3'] }]);
+    expect(state.send).toHaveBeenCalledTimes(1);
+  });
   it('stores the workspace required by the database and keeps other workspace contacts out', async () => {
     state.contacts.push({ id: 'contact-b', workspace_id: 'workspace-b', phone: '15555550101' });
     await expect(useBroadcastSending().createAndSendBroadcast(payload)).resolves.toBe('campaign-a');
