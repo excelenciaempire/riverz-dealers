@@ -3,6 +3,7 @@ import { secureSystemPrompt, toolCallAllowed } from './input-security'
 import { toolPermissionKey } from './toolbox'
 import { redactModelSecrets } from '@/lib/security/model-secrets'
 import { observeTool,publicToolStatus } from './turn-evidence'
+import { isHttpAssistantTool, runHttpAssistantTool, type HttpAssistantToolRuntime } from './http-actions'
 
 /**
  * Tool definitions + agentic loop para el asistente IA.
@@ -925,6 +926,9 @@ function instruccionNoEncontrado(usado: { numero?: string; phone?: string; email
 }
 
 export interface LocalOrdersContext {
+  /** Explicit HTTP grant catalog and actual inbound ID derived by the server, never model arguments. */
+  httpActions?: HttpAssistantToolRuntime | null
+  httpSimulationLocale?: 'es' | 'en'
   queueOrderScreenshot?: (orderNumber: string) => Promise<void>
   queueProductOptions?: (product: ProductHit) => Promise<void>
   db: SupabaseClient
@@ -1146,6 +1150,8 @@ export async function runTool(
   localOrders: LocalOrdersContext | null = null,
   otherStore: OtherStoreContext | null = null
 ): Promise<string> {
+  // Custom inputs/results can contain selected customer data. Keep them out of tool telemetry.
+  if (isHttpAssistantTool(toolName)) return runToolInner(toolName, toolInput, shopify, voice, localOrders, otherStore);
   return traceTool(toolName, () => runToolInner(toolName, toolInput, shopify, voice, localOrders, otherStore), toolInput);
 }
 
@@ -1157,6 +1163,11 @@ async function runToolInner(
   localOrders: LocalOrdersContext | null = null,
   otherStore: OtherStoreContext | null = null
 ): Promise<string> {
+  // Reserved dynamic namespace: block every external request and approval in simulations, including GET.
+  if (isHttpAssistantTool(toolName)) {
+    if (!localOrders) return JSON.stringify({ ok: false, error: 'http_action_unavailable' });
+    return runHttpAssistantTool(localOrders.db, localOrders.httpActions, toolName, toolInput, localOrders.simulacion === true, localOrders.httpSimulationLocale);
+  }
   const requiresApproval = localOrders?.requiereAprobacion?.some(
     key => key === toolName || key === toolPermissionKey(toolName),
   )
@@ -2689,7 +2700,8 @@ export async function runWithTools(
       }
       // Se anota ANTES de correrla: si la herramienta explota a mitad, el
       // efecto puede haber ocurrido igual.
-      if (args.efectos && DEJA_HUELLA.has(block.name)) args.efectos.ejecutados += 1
+      if (args.efectos && (DEJA_HUELLA.has(block.name)
+        || args.localOrders?.httpActions?.tools.some(tool => tool.tool.name === block.name && tool.method === 'POST'))) args.efectos.ejecutados += 1
       herramientas.push(block.name)
       const observation=observeTool(block.name,'local','started')
       let result:string

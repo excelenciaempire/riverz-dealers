@@ -1,4 +1,5 @@
 import { withLatitudeTrace } from '@/lib/observability/latitude';
+import { loadHttpAssistantTools } from './http-actions';
 import { replyWasSuperseded } from './reply-freshness';
 import { inboxCaseIsSpam } from '@/lib/inbox/disposition-server';
 import { emailDispositionForPolicy, emailRedirectText, isEmailChannel, loadEmailPolicy } from './email-policy';
@@ -3601,6 +3602,10 @@ async function generateReply(
       ? recoveryCheckoutAllowed(accionRecuperacion)
       : undefined,
   });
+  const httpScope = { workspaceId: agent.workspace_id, agentId: agent.id, channel: origen.channel,
+    conversationId: origen.conversationId, contactId: contact.id, locale: agent.language?.startsWith('en') ? 'en' as const : 'es' as const };
+  const httpTools = origen.inboundId ? await loadHttpAssistantTools(db, httpScope) : [];
+  tools.push(...httpTools.map(tool => tool.tool));
   const system = systemDelTurno(partes, {
     agent,
     recoveryContext,
@@ -3618,6 +3623,7 @@ async function generateReply(
     // anonimizado), así que lookup_order cae a lo ya espejado.
     localOrders: primaryContact.id
       ? {
+          httpActions: origen.inboundId && httpTools.length ? { scope: httpScope, inboundId: origen.inboundId, tools: httpTools } : null,
           db,
           workspaceId: agent.workspace_id,
           contactId: primaryContact.id,

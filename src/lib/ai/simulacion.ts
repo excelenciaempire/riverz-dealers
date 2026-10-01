@@ -1,4 +1,5 @@
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { loadHttpAssistantTools } from './http-actions';
 import { revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-channel-policy';
 import { revitalyTransferReply } from './revitaly-transfer';
 import {emailDispositionForPolicy,emailRedirectText,isEmailChannel,loadEmailPolicy} from './email-policy';
@@ -232,6 +233,9 @@ export async function simularRespuesta(
     topeDescuento: comentario ? 0 : topeDescuento,
     ...(comentario ? { modo: 'comentario' as const } : {}),
   });
+  const httpTools = await loadHttpAssistantTools(admin, { workspaceId: a.workspace_id, agentId: a.id,
+    channel: input.simulatedChannel, locale: a.language?.startsWith('en') ? 'en' : 'es' });
+  tools.push(...httpTools.map(tool => tool.tool));
 
   let system: string | SystemPorCapas;
   if (comentario) {
@@ -333,6 +337,7 @@ export async function simularRespuesta(
       agentId: a.id,
       permitidos,
       simulacion: true,
+      httpSimulationLocale: a.language?.startsWith('en') ? 'en' : 'es',
     },
   });
 

@@ -6,6 +6,7 @@ import { cancelarPedidoEnLaTienda } from '@/lib/commerce/order-cancel'
 import { APROBACION_PENDIENTE,quienDecide } from './ask'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { translate } from '@/lib/i18n/translate'
+import { canDecideHttpAction, executeApprovedHttpAction, httpApprovalPanelMessage, isHttpActionApproval } from './http-action'
 
 const REFUND_ERRORS: Record<string, string> = {
   invalid_refund_amount: 'refundAmountInvalid', refund_pending: 'refundPending',
@@ -96,6 +97,9 @@ export async function resolveByCode(
       .eq('id', fila.id)
     return { ok: false, message: 'Esa decisión ya venció. Vuelve a mirarla desde el panel.' }
   }
+  if (fila.kind === 'herramienta' && isHttpActionApproval(fila.payload)) {
+    return { ok: false, message: httpApprovalPanelMessage(await localeDeCuenta(db, fila.workspace_id)) };
+  }
 
   if (['cancelar_pedido','reembolsar_pedido'].includes(fila.kind)) {
     const currentPhone = (await quienDecide(db,fila.workspace_id))?.replace(/\D/g,'').slice(-8)
@@ -134,10 +138,14 @@ export async function decidir(
 ): Promise<ResolveResult> {
   // Authorize financial decisions before changing the pending request, so an
   // unauthorized teammate cannot consume an approval that an admin still needs.
-  let pendingQuery = db.from('approval_requests').select('kind,workspace_id').eq('id',args.approvalId)
+  let pendingQuery = db.from('approval_requests').select('kind,workspace_id,payload').eq('id',args.approvalId)
   if (args.workspaceId) pendingQuery = pendingQuery.eq('workspace_id',args.workspaceId)
   const pending = await pendingQuery.maybeSingle()
   if (pending.error) return { ok:false,message:translate(args.workspaceId ? await localeDeCuenta(db,args.workspaceId) : 'es','approvals.decisionUnavailable') }
+  const httpDecision = pending.data?.kind === 'herramienta' && isHttpActionApproval(pending.data.payload);
+  if (httpDecision && pending.data && (!args.workspaceId || !await canDecideHttpAction(db, pending.data.workspace_id, args.decidedBy, pending.data.payload, args.via))) {
+    return { ok: false, message: httpApprovalPanelMessage(await localeDeCuenta(db, pending.data.workspace_id)) };
+  }
   if (pending.data && ['cancelar_pedido','reembolsar_pedido'].includes(pending.data.kind) && args.via === 'panel') {
     const locale = await localeDeCuenta(db,pending.data.workspace_id)
     if (!args.decidedBy) return { ok:false,message:translate(locale,'approvals.orderExecutionUnavailable') }
@@ -192,8 +200,10 @@ export async function decidir(
       const finished = await db.rpc('finish_approved_order_execution',{ p_workspace_id:fila.workspace_id,p_approval_id:fila.id,p_uncertain:ejecucion.uncertain === true })
       if (finished.error) ejecucion = { ok:false,uncertain:true,message:translate(locale,'approvals.refundResultUnverified') }
     }
-  } else ejecucion = await ejecutar(db, fila)
-  await db
+  } else if (httpDecision) ejecucion = await executeApprovedHttpAction(db,
+    { workspaceId: fila.workspace_id, approvalId: fila.id, actorId: args.decidedBy! }, fila.payload, await localeDeCuenta(db, fila.workspace_id))
+  else ejecucion = await ejecutar(db, fila)
+  const resultQuery = db
     .from('approval_requests')
     .update({
       result: ejecucion.message,
@@ -201,6 +211,18 @@ export async function decidir(
       status: ejecucion.ok ? 'aprobada' : 'fallida',
     })
     .eq('id', fila.id)
+  if (httpDecision) {
+    let saved;
+    try { saved = await resultQuery.eq('workspace_id', fila.workspace_id).select('id,status,result,execution_result').maybeSingle(); }
+    catch { return { ok: false, uncertain: true, message: httpApprovalPanelMessage(await localeDeCuenta(db, fila.workspace_id)), approvalId: fila.id }; }
+    const expected = ejecucion.execution ?? null, actual = saved.data?.execution_result;
+    const sameResult = expected === null ? actual === null : actual && typeof actual === 'object' && !Array.isArray(actual)
+      && Object.keys(actual).length === Object.keys(expected).length && Object.entries(expected).every(([key, value]) => actual[key] === value);
+    if (saved.error || saved.data?.id !== fila.id || saved.data.status !== (ejecucion.ok ? 'aprobada' : 'fallida')
+      || saved.data.result !== ejecucion.message || !sameResult) {
+      return { ok: false, uncertain: true, message: httpApprovalPanelMessage(await localeDeCuenta(db, fila.workspace_id)), approvalId: fila.id };
+    }
+  } else await resultQuery
   if (ejecucion.ok) await cerrarDuplicadosDePago(db, fila, args)
   return { ...ejecucion, approvalId: fila.id }
 }

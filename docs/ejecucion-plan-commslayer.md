@@ -776,3 +776,19 @@ Validación inicial: **siete archivos y 136 pruebas correctas**, incluyendo 20 c
 
 
 **Validación final correcta:** 136 pruebas, TypeScript, lint de los cambios, guard de esquema con contexto nulo/`limit=0` y build completo normal. Siete archivos propios, sin dependencia nueva ni uso real del gateway. La comparación permanece sin habilitar. Publicación de este incremento todavía no comprobada.
+
+
+Gateway publicado en Render: revisión `c97af71a70a26724012cfeed95a33252616cd691` LIVE a las **13:13:06 UTC** del 1 de octubre. Salud a las **13:17:42 UTC** con esa revisión, servicio, Supabase y WhatsApp `ok`; comparación comprobada sin configurar. No se ejecutó ninguna acción real como QA.
+
+## E2 — Herramientas autorizadas del superasistente y aprobación nativa
+
+El runner conserva sus herramientas anteriores y añade, solo en comparación, el catálogo explícito vigente por asistente/canal/versión. Esquemas sin URL, autenticación, concedente ni entradas ligadas a identidad. Perfil propio activo, canal cubierto, asignación de conversación compatible, contexto propio exacto y concedente vigente. Catálogo completo limitado a 12 permisos. Canales no compatibles se omiten; comentarios públicos no reciben consultas privadas y voz en tiempo real usa otro adaptador que aún no está conectado.
+
+GET usa el gateway duradero, con invocación estable ligada al mensaje entrante real y a entradas/identidad autorizadas. Marca los resultados externos no confiables y distingue observación guardada de consulta nueva. POST guarda propuesta exacta y exige decisión autenticada del administrador en el panel existente antes de ejecutar. El cuerpo muestra parámetros libres y ligados; idioma de la cuenta para revisión y del perfil para el cliente. No promete entrega de aviso cuando no fue confirmada. Suscripción read-only impide crear la propuesta. Identidad congelada completa por migración 334: cambiar teléfono/correo después de proponer exige otra revisión. El dedupe incluye la identidad para no editar la propuesta anterior con valores distintos.
+
+La decisión valida autoridad vigente antes de consumir, comparte el claim protegido y conserva identidad humana/asistente separadas. Confirma el resumen de aprobación sin datos seleccionados del proveedor. WhatsApp remite estas acciones al panel: comparar últimos ocho dígitos no prueba identidad del decisor. Las aprobaciones anteriores conservan su comportamiento. Simulaciones exponen metadatos compatibles pero bloquean todo HTTP y toda aprobación, también GET. El contador de efectos incluye POST antes de crear la propuesta y protege el reintento del modelo. No se exportan argumentos/resultados del HTTP a su trace individual; la instrumentación general del modelo conserva su política existente.
+
+Validación: **20 archivos y 207 pruebas de regresión correctas**, seguidas de **cuatro archivos y 64 casos finales correctos** al incorporar canales excluidos e idioma de la cuenta. TypeScript y lint correctos. Migración **334 aplicada atómicamente**, contrato de identidad aprobada y RPC privada con contexto de seguridad fijo comprobados por metadatos. Guard con contexto nulo y `limit=0` correcto, sin consultar datos reales. Sin llamadas reales de cliente, proveedor, modelo, notificación ni finanzas como QA. Compilación final y publicación en curso. Controles/API de asignación de permisos todavía no incluidos; esta entrega no completa E2 ni el plan global.
+
+
+**Builds normal y comparación completos correctos**, junto con TypeScript, lint, 207 pruebas de regresión y 64 casos finales. Quince archivos propios, sin dependencia nueva. No se abrió interfaz, no se habilitó comparación y no se usaron acciones reales como QA. Publicación de este incremento todavía no comprobada.

@@ -45,6 +45,7 @@ export class HttpExecutionError extends Error {
 const fail = (code: HttpExecutionError['code']): never => { throw new HttpExecutionError(code); };
 function rpcError(message: string): never {
   const codes: Record<string, HttpExecutionError['code']> = { invalid_http_execution_context: 'not_found',
+    invalid_http_assistant_approval_context: 'not_found',
     http_execution_forbidden: 'forbidden', http_action_changed: 'changed', http_execution_confirmation_required: 'confirmation_required',
     subscription_read_only: 'read_only', http_execution_review_required: 'review_required', http_execution_conflict: 'conflict' };
   return fail(codes[message] ?? 'unavailable');

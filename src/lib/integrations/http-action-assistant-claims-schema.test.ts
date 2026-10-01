@@ -23,7 +23,7 @@ beforeAll(async () => {
     CREATE TABLE approval_requests(id uuid PRIMARY KEY,workspace_id uuid,kind text,status text,payload jsonb,decided_by text,decided_at timestamptz,expires_at timestamptz);
     CREATE TABLE billing(allowed boolean);INSERT INTO billing VALUES(true);
     CREATE FUNCTION workspace_billing_write_allowed(ws uuid) RETURNS boolean LANGUAGE sql AS $$ SELECT allowed FROM public.billing $$;`);
-  for (const name of ['330_http_action_configuration', '331_http_action_receipts', '332_http_action_assistant_grants', '333_http_assistant_execution_claims']) {
+  for (const name of ['330_http_action_configuration', '331_http_action_receipts', '332_http_action_assistant_grants', '333_http_assistant_execution_claims', '334_http_assistant_approved_identity']) {
     await db.exec(readFileSync(`supabase/migrations/${name}.sql`, 'utf8'));
   }
 });
@@ -55,7 +55,8 @@ async function post() {
   await grant(OWNER, 'whatsapp', 1);
   await db.query("INSERT INTO approval_requests VALUES($1,$2,'herramienta','aprobada',$3,$4,now(),now()+interval '10 minutes')",
     [APPROVAL, WS, { tool: `http_action_${ACTION.replaceAll('-', '')}_v3`, input: parameters, agent_id: AGENT,
-      conversation_id: CONV, contact_id: CONTACT, http_action: { action_id: ACTION, action_revision: 3, grant_revision: 2, channel: 'whatsapp' } }, OWNER]);
+      conversation_id: CONV, contact_id: CONTACT, http_action_context: context,
+      http_action: { action_id: ACTION, action_revision: 3, grant_revision: 2, channel: 'whatsapp' } }, OWNER]);
 }
 const approved = () => ({ approval: APPROVAL, actor: OWNER, grant: 2 });
 describe('protected assistant HTTP execution claims', () => {
@@ -131,6 +132,14 @@ describe('protected assistant HTTP execution claims', () => {
     const replay = await claim({ ...approved(), key: 'c'.repeat(64) }); expect(replay).toMatchObject({ claimed: false, id: run.id, state: 'acknowledged' });
     expect((await db.query('SELECT count(*)::int AS n FROM http_action_runs')).rows).toEqual([{ n: 1 }]);
     await expect(claim({ ...approved(), key: 'd'.repeat(64), hash: 'e'.repeat(64) })).rejects.toThrow('http_execution_conflict');
+  });
+  it('freezes the complete approved customer identity and rejects identity changes or missing snapshots', async () => {
+    await post();
+    await db.exec("UPDATE contacts SET phone='+19999999999'");
+    await expect(claim({ ...approved(), context: { ...context, phone: '+19999999999' } })).rejects.toThrow('http_execution_confirmation_required');
+    await db.exec("UPDATE contacts SET phone='+10000000000';UPDATE approval_requests SET payload=payload-'http_action_context'");
+    await expect(claim(approved())).rejects.toThrow('http_execution_confirmation_required');
+    expect((await db.query('SELECT count(*)::int AS n FROM http_action_runs')).rows).toEqual([{ n: 0 }]);
   });
   it('checks current administrator authority and billing for approved writes', async () => {
     await post(); await db.query('UPDATE approval_requests SET decided_by=$1', [ADMIN]);
