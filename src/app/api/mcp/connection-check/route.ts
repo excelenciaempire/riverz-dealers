@@ -8,7 +8,7 @@ import { limitByKey, rateLimitResponse } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 async function context() {
-  const session = await createClient();
+  const session = await createClient({ actor: true });
   const { data: { user } } = await session.auth.getUser();
   if (!user) return null;
   const workspaceId = await resolveWorkspaceIdForUser(session, user.id);

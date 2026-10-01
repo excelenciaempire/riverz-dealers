@@ -31,7 +31,8 @@ export async function POST(request: Request) {
   const block = await csrfGuard(request)
   if (block) return block
 
-  const supabase = await createClient()
+  // OAuth exports access outside Riverz: never authorize an impersonated owner.
+  const supabase = await createClient({ actor: true })
   const {
     data: { user },
   } = await supabase.auth.getUser()

@@ -44,6 +44,9 @@ describe('pkceOk', () => {
     expect(pkceOk('algo', '')).toBe(false);
     expect(pkceOk('', 'algo')).toBe(false);
   });
+  it.each(['short', 'v'.repeat(129), ' '.repeat(43)])('rechaza verifier fuera del formato estándar: %s', v => {
+    expect(pkceOk(v, challengeDe(v))).toBe(false);
+  });
 });
 
 describe('redirectPermitido', () => {

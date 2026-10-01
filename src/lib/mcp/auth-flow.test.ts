@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 const state = vi.hoisted(() => ({ db: null as unknown as SupabaseClient, user: 'u1', workspace: 'w1', csrf: false }));
 vi.mock('@/lib/automations/admin-client', () => ({ supabaseAdmin: () => state.db }));
-vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: state.user ? { id: state.user } : null } }) } }) }));
+vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn(async () => ({ auth: { getUser: async () => ({ data: { user: state.user ? { id: state.user } : null } }) } })) }));
 vi.mock('@/lib/workspaces/resolve', () => ({ resolveWorkspaceIdForUser: async () => state.workspace }));
 vi.mock('@/lib/csrf', () => ({ csrfGuard: async () => state.csrf ? new Response(null, { status: 403 }) : null }));
 vi.mock('@/lib/rate-limit', () => ({ limitByKey: async () => ({ success: true }), clientIp: () => 'test', rateLimitResponse: () => new Response(null, { status: 429 }) }));
@@ -24,6 +24,7 @@ import { POST as exchange } from '@/app/api/oauth/token/route';
 import { POST as revoke } from '@/app/api/oauth/revoke/route';
 import { POST as mcp } from '@/app/api/mcp/route';
 import { GET as checkStatus, POST as createCheck } from '@/app/api/mcp/connection-check/route';
+import { createClient } from '@/lib/supabase/server';
 
 type Row = Record<string, unknown>;
 let tables: Record<string, Row[]>;
@@ -95,6 +96,13 @@ beforeEach(() => {
 });
 
 describe('OAuth MCP transport and isolation', () => {
+  it('uses the real signed-in actor instead of an impersonated owner for OAuth and checks', async () => {
+    vi.mocked(createClient).mockClear();
+    await connect();
+    await createCheck(jsonRequest('/api/mcp/connection-check', { provider: 'claude' }));
+    expect(vi.mocked(createClient).mock.calls.every(args => args[0]?.actor === true)).toBe(true);
+    expect(vi.mocked(createClient).mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
   it('challenges unauthenticated initialize with HTTP 401 and discovery', async () => {
     const response = await rpc(undefined, 'initialize');
     expect(response.status).toBe(401); expect(response.headers.get('WWW-Authenticate')).toContain('oauth-protected-resource');

@@ -27,7 +27,7 @@ import { revocarRefreshDeCliente } from '@/lib/mcp/oauth'
 const MAX_TOKENS = 10
 
 async function contexto(requireAdmin = false) {
-  const supabase = await createClient()
+  const supabase = await createClient({ actor: true })
   const {
     data: { user },
   } = await supabase.auth.getUser()

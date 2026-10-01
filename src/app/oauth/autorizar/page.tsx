@@ -36,7 +36,7 @@ export default async function AutorizarPage({
   const method = one('code_challenge_method');
 
   const t = await getT();
-  const supabase = await createClient();
+  const supabase = await createClient({ actor: true });
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -62,7 +62,7 @@ function sha256(v: string): string {
 
 /** Verificación de PKCE. Sólo S256 — `plain` no protege de nada. */
 export function pkceOk(verifier: string, challenge: string): boolean {
-  if (!verifier || !challenge) return false
+  if (!/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) || !challenge) return false
   const calculado = createHash('sha256').update(verifier).digest('base64url')
   return calculado === challenge
 }
