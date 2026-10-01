@@ -97,6 +97,14 @@ const creation = {
 };
 
 describe('email → WhatsApp referrals', () => {
+  it('uses the public production domain when no site URL is configured', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '');
+    try {
+      expect(await createEmailWhatsAppLink(database().db, creation)).toMatch(/^https:\/\/riverz\.co\/api\/email\/whatsapp\//);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
   it('uses the connected phone and supports the WhatsApp URL formats', () => {
     expect(whatsappPhone({ display_phone_number: '+54 9 2255 62-9123' })).toBe(
       '5492255629123'

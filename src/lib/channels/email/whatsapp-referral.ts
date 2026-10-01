@@ -139,7 +139,7 @@ export async function createEmailWhatsAppLink(
   ).data;
   if (!row) throw new Error('email_referral_link_not_persisted');
   const base = (
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://riverzai.com'
+    process.env.NEXT_PUBLIC_SITE_URL || 'https://riverz.co'
   ).replace(/\/+$/, '');
   return `${base}/api/email/whatsapp/${row.token}`;
 }
