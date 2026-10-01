@@ -52,7 +52,8 @@ it('ignores caller-supplied workspace ids and prevents stale financial responses
     {},
     'my-workspace',
     2,
-    expect.any(Function)
+    expect.any(Function),
+    undefined
   );
   const read = mocks.history.mock.calls[0][3];
   await read('pi_existing');

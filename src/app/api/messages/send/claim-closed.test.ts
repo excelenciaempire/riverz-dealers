@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({ adapter: vi.fn(), tables: [] as string[] }));
 const workspaceId = "11111111-1111-4111-8111-111111111111";
 
 vi.mock("@/lib/csrf", () => ({ csrfGuard: async () => null }));
+vi.mock("@/lib/billing/read-only", () => ({ workspaceReadOnly: async () => false }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: { id: "user" } } }) },

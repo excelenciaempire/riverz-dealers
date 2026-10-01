@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { hasMessageForContact } from '@/lib/channels/message-lookup';
 
 /**
  * Open (or reuse) a WhatsApp conversation in the unified inbox for a
@@ -38,13 +39,9 @@ export async function recordBroadcastConversation(
   // Replaying a confirmed receipt repairs recording after a crash without moving
   // an already recorded message out of its original (even closed) thread.
   if (whatsappMessageId && workspaceId) {
-    const recorded = await db.from('messages')
-      .select('id,conversation:conversations!inner(workspace_id,contact_id)')
-      .eq('message_id', whatsappMessageId)
-      .eq('conversation.workspace_id', workspaceId)
-      .eq('conversation.contact_id', contactId).limit(1);
-    if (recorded.error) throw new Error('broadcast_conversation_unavailable');
-    if (recorded.data?.length) return;
+    if (await hasMessageForContact(db, {
+      workspaceId, contactId, channel: 'whatsapp', externalMessageId: whatsappMessageId,
+    })) return;
   }
 
   // Find an existing open WhatsApp conversation for this contact, else create.

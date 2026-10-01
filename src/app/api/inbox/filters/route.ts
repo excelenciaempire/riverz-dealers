@@ -39,7 +39,7 @@ export async function GET() {
     return serverError(error);
   }
   const filters = [];
-  const ownConnections = await supabase.from('channel_connections').select('id').eq('created_by', user.id).in('channel', ['gmail', 'outlook', 'zoho']);
+  const ownConnections = await supabase.from('channel_connections').select('id').eq('workspace_id', workspaceId).eq('created_by', user.id).in('channel', ['gmail', 'outlook', 'zoho']);
   if (ownConnections.error) return serverError(ownConnections.error, translate(locale, 'inbox.teamFailed'));
   const emailIds = (ownConnections.data ?? []).map(c => c.id);
   for (const row of data ?? []) {

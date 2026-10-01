@@ -41,6 +41,7 @@ describe('isolated presentation account', () => {
   it('keeps the normal motor status and execution behavior for live stores', async () => {
     const row = { suspended_at: null, motor_apagado_at: null };
     const db = {
+      rpc: vi.fn().mockResolvedValue({ data: true, error: null }),
       from: vi.fn(() => ({
         select: () => ({
           eq: () => ({

@@ -1,7 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ adapter: vi.fn(), tables: [] as string[] }));
+const mocks = vi.hoisted(() => ({ adapter: vi.fn(), billing: vi.fn(), tables: [] as string[] }));
 const workspace = '11111111-1111-4111-8111-111111111111';
 vi.mock('@/lib/csrf', () => ({ csrfGuard: async () => null }));
+vi.mock('@/lib/billing/read-only', () => ({ workspaceReadOnly: mocks.billing, BILLING_READ_ONLY: 'subscription_read_only' }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({
   auth: { getUser: async () => ({ data: { user: { id: 'user' } } }) },
 }) }));
@@ -18,7 +19,20 @@ vi.mock('@/lib/channels/admin-client', () => ({ supabaseAdmin: () => ({
   },
 }) }));
 import { POST } from './route';
-beforeEach(() => { vi.clearAllMocks(); mocks.tables = []; });
+beforeEach(() => { vi.clearAllMocks(); mocks.billing.mockResolvedValue(false); mocks.tables = []; });
+
+it.each(['read-only', 'unavailable'])('stops outbound access when billing is %s', async state => {
+  if (state === 'read-only') mocks.billing.mockResolvedValue(true);
+  else mocks.billing.mockRejectedValue(new Error('billing unavailable'));
+  const response = await POST(new Request('https://riverz.test/api/messages/send', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ conversation_id: 'conversation', text: 'Hello' }),
+  }));
+  expect(response.status).toBe(state === 'read-only' ? 402 : 503);
+  expect(mocks.billing).toHaveBeenCalledWith(expect.anything(), workspace);
+  expect(mocks.tables).toEqual(['conversations', 'workspace_members']);
+  expect(mocks.adapter).not.toHaveBeenCalled();
+});
 
 it.each([
   '/api/media/22222222-2222-4222-8222-222222222222/thread/proof.pdf',

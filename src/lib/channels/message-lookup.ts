@@ -27,6 +27,21 @@ export interface MessageRef {
   conversation_id: string
 }
 
+/** A confirmed receipt for this contact; a failed read must not create a duplicate. */
+export async function hasMessageForContact(
+  db: SupabaseClient,
+  args: { workspaceId: string; contactId: string; channel: Channel; externalMessageId: string },
+): Promise<boolean> {
+  const { data, error } = await db.from('messages')
+    .select('id,conversation:conversations!inner(workspace_id,contact_id)')
+    .eq('channel', args.channel)
+    .eq('message_id', args.externalMessageId)
+    .eq('conversation.workspace_id', args.workspaceId)
+    .eq('conversation.contact_id', args.contactId).limit(1)
+  if (error) throw new Error('broadcast_conversation_unavailable')
+  return Boolean(data?.length)
+}
+
 /** Un mensaje del workspace, o null si no está (todavía) ingerido. */
 export async function findMessageByExternalId<
   T extends Record<string, unknown> = Record<string, never>,

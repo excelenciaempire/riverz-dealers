@@ -5,7 +5,7 @@ vi.mock('@/lib/automations/admin-client', () => ({ supabaseAdmin: () => ({ rpc }
 import { POST } from './route';
 
 const payload = () => ({ version: 1, shopify_order_id: '123456', observed_at: new Date().toISOString(),
-  evidence: { account_id: '455408', shop_id: '404013', dropi_order_id: '123', status: 'PENDIENTE',
+  evidence: { account_id: '455408', shop_id: '404013', dropi_order_id: '123', status: 'PENDIENTE CONFIRMACION',
     tracking_number: null, incident_reason: null, total: '110000', product_cost: '50000',
     shipping_cost: '10000', wallet_net: null, currency: 'COP', buyer_history: {
       classification: 'safe', buyer_type: 'Frecuente', total: 20, delivered: 20, returned: 0,
@@ -15,6 +15,11 @@ const request = (body: unknown) => new Request('https://example.com/api/internal
   { method: 'POST', body: JSON.stringify(body) });
 beforeEach(() => { vi.clearAllMocks(); verify.mockReturnValue(true); rpc.mockResolvedValue({ data: 'updated', error: null }); });
 describe('signed Dropi snapshot receipt', () => {
+  it('rejects the broader pending state even with a valid signature', async () => {
+    const p = payload(); p.evidence.status = 'PENDIENTE';
+    expect((await POST(request(p))).status).toBe(400);
+    expect(rpc).not.toHaveBeenCalled();
+  });
   it('enriches only the server-bound workspace and shop', async () => {
     expect((await POST(request(payload()))).status).toBe(200);
     expect(rpc).toHaveBeenCalledWith('record_dropi_order_evidence', expect.objectContaining({
