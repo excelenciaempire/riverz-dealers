@@ -8,6 +8,11 @@ import type { Namespace } from "./types";
  * anota, alguien resuelve.
  */
 export const returns = {
+  invalidDecision: { es: 'La decisión de devolución no es válida.', en: 'The return decision is invalid.' },
+  notFound: { es: 'La devolución no existe en este negocio.', en: 'This return does not exist in this business.' },
+  platformManaged: { es: 'Esta devolución se gestiona en su plataforma de origen.', en: 'This return is managed in its source platform.' },
+  decisionChanged: { es: 'La devolución cambió. Actualízala antes de decidir.', en: 'The return changed. Refresh it before deciding.' },
+  decisionPreview: { es: 'Pedido {order} · estado actual: {status}. Estado propuesto: {next}. Cambia el expediente; no ejecuta un reembolso, cancelación, etiqueta de retorno ni aviso al cliente.', en: 'Order {order} · current status: {status}. Proposed status: {next}. Updates the case; it does not execute a refund, cancellation, return label or customer notification.' },
   viewAll: { es: 'Ver todas', en: 'View all' },
   loadFailed: { es: 'No se pudieron cargar las devoluciones.', en: 'Could not load returns.' },
   unauthorized: { es: 'Inicia sesión para continuar.', en: 'Sign in to continue.' },

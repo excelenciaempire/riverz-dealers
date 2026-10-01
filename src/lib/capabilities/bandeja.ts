@@ -13,6 +13,8 @@
  * Se tapa cargando el dato una vez.
  */
 import { gapCapabilityActor } from '@/lib/ai/gap-knowledge-actions'
+import { decideReturn, loadReturnDecision, returnStatus, ReturnDecisionError } from '@/lib/returns/decision'
+import { translate } from '@/lib/i18n/translate'
 import { hoursWaiting } from './predicates'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import { cambio, corto, fecha, lista, tabla, tablero, tt } from './vistas'
@@ -75,7 +77,7 @@ async function devoluciones(ctx: CapabilityContext, args: Record<string, unknown
   let q = ctx.db
     .from('returns')
     .select(
-      'id, order_number, kind, reason, customer_note, status, resolution, created_at, decided_at, conversation_id, contacts(name)',
+      'id, order_number, kind, reason, customer_note, status, resolution, created_at, updated_at, decided_at, conversation_id, platform, contacts(id,name)',
     )
     .eq('workspace_id', ctx.workspaceId)
     .order('created_at', { ascending: false })
@@ -83,33 +85,37 @@ async function devoluciones(ctx: CapabilityContext, args: Record<string, unknown
   if (typeof args.estado === 'string') q = q.eq('status', args.estado)
 
   const { data, error } = await q
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(translate(ctx.locale ?? 'es', 'returns.loadFailed'))
+
+  const rows = (data ?? []) as unknown as Array<{
+    id: string; order_number: string | null; kind: string | null; reason: string | null; customer_note: string | null;
+    status: string | null; resolution: string | null; created_at: string; updated_at: string; decided_at: string | null;
+    conversation_id: string | null; platform: string | null; contacts: { id: string; name: string | null } | null;
+  }>
+  const contactIds = [...new Set(rows.flatMap(row => row.contacts?.id ? [row.contacts.id] : []))]
+  let allowed = new Set<string>()
+  if (contactIds.length) {
+    const contacts = await ctx.db.from('contacts').select('id').eq('workspace_id', ctx.workspaceId).in('id', contactIds)
+    if (contacts.error) throw new Error(translate(ctx.locale ?? 'es', 'returns.loadFailed'))
+    allowed = new Set((contacts.data ?? []).map(row => String(row.id)))
+  }
 
   return {
-    devoluciones: ((data ?? []) as unknown as Array<{
-      id: string
-      order_number: string | null
-      kind: string | null
-      reason: string | null
-      customer_note: string | null
-      status: string | null
-      resolution: string | null
-      created_at: string
-      decided_at: string | null
-      conversation_id: string | null
-      contacts: { name: string | null } | null
-    }>).map((d) => ({
+    devoluciones: rows.map((d) => ({
       devolucion_id: d.id,
       pedido: d.order_number,
-      cliente: d.contacts?.name ?? 'sin nombre',
+      cliente: d.contacts && allowed.has(d.contacts.id) ? d.contacts.name ?? translate(ctx.locale ?? 'es', 'returns.noName') : translate(ctx.locale ?? 'es', 'returns.noName'),
       tipo: d.kind,
       motivo: d.reason,
       lo_que_dijo: d.customer_note,
       estado: d.status,
       resolucion: d.resolution,
       pedida_el: d.created_at,
+      updated_at: d.updated_at,
       decidida_el: d.decided_at,
       conversation_id: d.conversation_id,
+      plataforma: d.platform,
+      gestionable_aqui: d.platform === null,
     })),
   }
 }
@@ -274,57 +280,28 @@ async function activarReparto(ctx: CapabilityContext, args: Record<string, unkno
 // ---------------------------------------------------------------------------
 
 /** Los estados por los que pasa una devolución. */
-const ESTADOS_DEVOLUCION = ['abierta', 'aprobada', 'rechazada', 'recibida', 'resuelta'] as const
+const ESTADOS_DEVOLUCION = returnStatus.options
 
-const QUE_SIGNIFICA: Record<string, string> = {
-  abierta: 'la deja esperando una decisión',
-  aprobada: 'ACEPTA la devolución: el cliente devuelve y se le reintegra',
-  rechazada: 'RECHAZA la devolución: no hay reintegro',
-  recibida: 'marca que el producto ya volvió',
-  resuelta: 'la da por cerrada',
+function returnDecisionFailure(ctx: CapabilityContext, error: unknown): Error {
+  const code = error instanceof ReturnDecisionError ? error.code : 'saveFailed'
+  return new Error(translate(ctx.locale ?? 'es', `returns.${code}`))
 }
 
 async function devolucionPorId(ctx: CapabilityContext, id: string) {
-  const { data } = await ctx.db
-    .from('returns')
-    .select('id, order_number, kind, reason, status, contacts(name)')
-    .eq('workspace_id', ctx.workspaceId)
-    .eq('id', id)
-    .maybeSingle()
-  if (!data) throw new Error('Esa devolución no existe en esta cuenta.')
-  return data as unknown as {
-    id: string
-    order_number: string | null
-    kind: string | null
-    reason: string | null
-    status: string
-    contacts: { name: string | null } | null
-  }
+  try { return await loadReturnDecision(ctx.db, ctx.workspaceId, id) }
+  catch (error) { throw returnDecisionFailure(ctx, error) }
 }
 
 async function decidirDevolucion(ctx: CapabilityContext, args: Record<string, unknown>) {
-  const dev = await devolucionPorId(ctx, String(args.devolucion_id ?? '').trim())
-  const estado = String(args.estado ?? '')
-  if (!(ESTADOS_DEVOLUCION as readonly string[]).includes(estado)) {
-    throw new Error(`Estado desconocido: ${estado}`)
-  }
-
-  const { error } = await ctx.db
-    .from('returns')
-    .update({
-      status: estado,
-      resolution:
-        typeof args.nota === 'string' ? args.nota.trim().slice(0, 500) || null : null,
-      decided_by: ctx.actor.type === 'operator' ? (ctx.actor.id ?? null) : null,
-      decided_at: new Date().toISOString(),
+  const actor = ctx.actor.type === 'mcp' ? ctx.actor.userId : ['operator', 'ui'].includes(ctx.actor.type) ? ctx.actor.id : null
+  try {
+    const result = await decideReturn(ctx.db, ctx.workspaceId, actor ?? '', {
+      id: String(args.devolucion_id ?? '').trim(), status: args.estado as Parameters<typeof decideReturn>[3]['status'],
+      ...(args.nota !== undefined ? { resolution: args.nota as string } : {}),
+      ...(args.expected_updated_at !== undefined ? { expected_updated_at: args.expected_updated_at as string } : {}),
     })
-    .eq('id', dev.id)
-    // El recorte de cuenta: sin esto un id suelto movería la devolución de otro
-    // comercio, porque esto corre con llave de servicio.
-    .eq('workspace_id', ctx.workspaceId)
-  if (error) throw new Error(error.message)
-
-  return { devolucion_id: dev.id, pedido: dev.order_number, estado }
+    return { devolucion_id: result.id, pedido: result.order_number, estado: result.status, updated_at: result.updated_at, sin_cambio: result.unchanged, reembolso_ejecutado: false }
+  } catch (error) { throw returnDecisionFailure(ctx, error) }
 }
 
 
@@ -507,8 +484,8 @@ function vistaCrearAtajo(ctx: CapabilityContext, args: Record<string, unknown>):
 /**
  * Decidir una devolución.
  *
- * Le llega al cliente: aceptar una devolución es plata que vuelve y rechazarla
- * es una conversación que se pone difícil. La tarjeta dice cuál de las dos es.
+ * Changes the case only. Financial execution and customer notifications remain
+ * separate authorized actions.
  */
 function vistaDecidirDevolucion(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
   const estado = String(args.decision ?? args.estado ?? '')
@@ -522,25 +499,27 @@ export const BANDEJA_CAPABILITIES: Capability[] = [
   {
     key: 'bandeja.decidir_devolucion',
     description:
-      'Decide una devolución o cambio: aprobarla, rechazarla, marcar que el producto volvió o darla por cerrada, con la nota de por qué. Aprobar significa que el cliente devuelve y se le reintegra la plata — es una decisión de negocio y no se deshace sola.',
+      'Decide el estado de una devolución o cambio local, con una nota opcional. No ejecuta un reembolso, cancelación, etiqueta de retorno ni aviso al cliente. Los expedientes de otra plataforma se gestionan allá.',
     descriptionEn:
-      'Decides a return or exchange: approve it, reject it, mark the product as received or close it, with a note explaining why. Approving means the customer returns the item and gets their money back — a business decision that does not undo itself.',
+      'Decides the status of a local return or exchange, with an optional note. It does not execute a refund, cancellation, return label or customer notification. Cases from another platform are managed there.',
     risk: 'irreversible',
     schema: {
       type: 'object',
       properties: {
         devolucion_id: { type: 'string', description: 'El id que devuelve bandeja.devoluciones.' },
         estado: { type: 'string', enum: [...ESTADOS_DEVOLUCION] },
-        nota: { type: 'string', description: 'Por qué se decidió así. La lee el equipo.' },
+        nota: { type: 'string', maxLength: 500, description: 'Por qué se decidió así. Omitirla conserva la nota existente.' },
+        expected_updated_at: { type: 'string', format: 'date-time', description: 'Fecha exacta observada para rechazar una decisión obsoleta.' },
       },
       required: ['devolucion_id', 'estado'],
     },
     async preview(ctx, args) {
       const dev = await devolucionPorId(ctx, String(args.devolucion_id ?? '').trim())
-      const quien = dev.contacts?.name ?? 'un cliente'
-      const pedido = dev.order_number ? ` del pedido ${dev.order_number}` : ''
-      const que = QUE_SIGNIFICA[String(args.estado ?? '')] ?? 'la mueve de estado'
-      return `Sobre la devolución de ${quien}${pedido} (hoy «${dev.status}»): ${que}.`
+      if (dev.platform !== null) throw returnDecisionFailure(ctx, new ReturnDecisionError('platformManaged'))
+      const status = returnStatus.safeParse(args.estado)
+      if (!status.success) throw returnDecisionFailure(ctx, new ReturnDecisionError('invalidDecision'))
+      const locale = ctx.locale ?? 'es'
+      return translate(locale, 'returns.decisionPreview', { order: dev.order_number ?? dev.id, status: translate(locale, `returns.status.${dev.status}`), next: translate(locale, `returns.status.${status.data}`) })
     },
     run: decidirDevolucion,
     artifact: (ctx, args) => vistaDecidirDevolucion(ctx, args),

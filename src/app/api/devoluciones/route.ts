@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { supabaseAdmin } from '@/lib/channels/admin-client';
-import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import { inboxSession } from '@/lib/inbox/server-context';
+import { decideReturn, returnDecisionInput, ReturnDecisionError } from '@/lib/returns/decision';
 import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -21,31 +20,25 @@ export const dynamic = 'force-dynamic';
 const ESTADOS = ['abierta', 'aprobada', 'rechazada', 'recibida', 'resuelta'] as const;
 
 async function contexto() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const admin = supabaseAdmin();
-  const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
-  if (!workspaceId) return null;
-  return { admin, workspaceId, userId: user.id };
+  const ctx = await inboxSession();
+  if (ctx.response) return { response: ctx.response };
+  return { admin: ctx.db, workspaceId: ctx.workspaceId, userId: ctx.userId };
 }
 
 export async function GET(request: Request) {
   const locale = await getLocale();
   const ctx = await contexto();
-  if (!ctx) return NextResponse.json({ error: translate(locale, 'returns.unauthorized') }, { status: 401 });
+  if (ctx.response) { ctx.response.headers.set('Cache-Control', 'private, no-store'); return ctx.response; }
 
   const estado = new URL(request.url).searchParams.get('estado');
   const contactId = new URL(request.url).searchParams.get('contact_id');
   if (contactId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contactId)) {
-    return NextResponse.json({ error: translate(locale, 'returns.invalidContact') }, { status: 400 });
+    return NextResponse.json({ error: translate(locale, 'returns.invalidContact') }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
   }
   let q = ctx.admin
     .from('returns')
     .select(
-      'id, order_number, kind, reason, customer_note, photos, status, resolution, created_at, decided_at, contact_id, conversation_id, platform, external_url, contacts(name, email, phone)',
+      'id, order_number, kind, reason, customer_note, photos, status, resolution, created_at, updated_at, decided_at, contact_id, conversation_id, platform, external_url, contacts(id, name, email, phone)',
     )
     .eq('workspace_id', ctx.workspaceId)
     .order('created_at', { ascending: false })
@@ -54,52 +47,39 @@ export async function GET(request: Request) {
   if (contactId) q = q.eq('contact_id', contactId);
 
   const { data, error } = await q;
-  if (error) return NextResponse.json({ error: translate(locale, 'returns.loadFailed') }, { status: 502 });
+  if (error) return NextResponse.json({ error: translate(locale, 'returns.loadFailed') }, { status: 502, headers: { 'Cache-Control': 'private, no-store' } });
 
   const filas = (data ?? []) as Array<Record<string, unknown>>;
+  const contactIds = [...new Set(filas.flatMap(row => row.contacts && typeof row.contacts === 'object' && 'id' in row.contacts ? [String(row.contacts.id)] : []))];
+  let allowed = new Set<string>();
+  if (contactIds.length) {
+    const contacts = await ctx.admin.from('contacts').select('id').eq('workspace_id', ctx.workspaceId).in('id', contactIds);
+    if (contacts.error) return NextResponse.json({ error: translate(locale, 'returns.loadFailed') }, { status: 503, headers: { 'Cache-Control': 'private, no-store' } });
+    allowed = new Set((contacts.data ?? []).map(row => String(row.id)));
+  }
+  for (const row of filas) if (row.contacts && (typeof row.contacts !== 'object' || Array.isArray(row.contacts) || !('id' in row.contacts) || !allowed.has(String(row.contacts.id)))) row.contacts = null;
   // Lo que espera una decisión va primero, aunque sea más viejo: es la lista de
   // trabajo, no un registro histórico.
   const peso = (s: unknown) => (s === 'abierta' ? 0 : s === 'recibida' ? 1 : s === 'aprobada' ? 2 : 3);
   filas.sort((a, b) => peso(a.status) - peso(b.status));
 
-  return NextResponse.json({ returns: filas });
+  return NextResponse.json({ returns: filas }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
 export async function PATCH(request: Request) {
+  const locale = await getLocale();
   const block = await csrfGuard(request);
   if (block) return block;
   const ctx = await contexto();
-  if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-
-  const body = (await request.json().catch(() => null)) as {
-    id?: unknown;
-    status?: unknown;
-    resolution?: unknown;
-  } | null;
-  const id = typeof body?.id === 'string' ? body.id : '';
-  const status = typeof body?.status === 'string' ? body.status : '';
-  if (!id || !(ESTADOS as readonly string[]).includes(status)) {
-    return NextResponse.json({ error: 'bad_request' }, { status: 400 });
+  const fail = (key: string, status: number) => NextResponse.json({ error: translate(locale, `returns.${key}`) }, { status, headers: { 'Cache-Control': 'private, no-store' } });
+  if (ctx.response) { ctx.response.headers.set('Cache-Control', 'private, no-store'); return ctx.response; }
+  const body = returnDecisionInput.safeParse(await request.json().catch(() => null));
+  if (!body.success) return fail('invalidDecision', 400);
+  try {
+    const result = await decideReturn(ctx.admin, ctx.workspaceId, ctx.userId, body.data);
+    return NextResponse.json({ ok: true, status: result.status, updated_at: result.updated_at, unchanged: result.unchanged }, { headers: { 'Cache-Control': 'private, no-store' } });
+  } catch (error) {
+    const code = error instanceof ReturnDecisionError ? error.code : 'saveFailed';
+    return fail(code, code === 'unauthorized' ? 403 : code === 'notFound' ? 404 : code === 'invalidDecision' ? 400 : ['platformManaged', 'decisionChanged'].includes(code) ? 409 : 503);
   }
-
-  const { error } = await ctx.admin
-    .from('returns')
-    .update({
-      status,
-      resolution:
-        typeof body?.resolution === 'string' ? body.resolution.trim().slice(0, 500) || null : null,
-      decided_by: ctx.userId,
-      decided_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-    // El recorte de cuenta: sin esto un id suelto movía la devolución de otro
-    // comercio, y esta ruta corre con llave de servicio.
-    .eq('workspace_id', ctx.workspaceId)
-    // Las espejadas de una plataforma no se deciden acá: su estado lo escribe
-    // el sincronizador y la próxima corrida pisaría el cambio, dejando a la
-    // pantalla diciendo una cosa y a Mercado Libre otra.
-    .is('platform', null);
-  if (error) return NextResponse.json({ error: 'update_failed' }, { status: 502 });
-
-  return NextResponse.json({ ok: true });
 }

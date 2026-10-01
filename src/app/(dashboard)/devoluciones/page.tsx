@@ -34,6 +34,7 @@ interface Devolucion {
   status: Estado;
   resolution: string | null;
   created_at: string;
+  updated_at?: string;
   /** Plataforma donde nació. NULL = la abrió el agente desde el chat. */
   platform: string | null;
   external_url: string | null;
@@ -101,7 +102,7 @@ function DevolucionesContent() {
       const res = await fetchWithCsrf('/api/devoluciones', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status }),
+        body: JSON.stringify({ id, status, expected_updated_at: items?.find(item => item.id === id)?.updated_at }),
       });
       if (!res.ok) throw new Error();
       // Se recarga en vez de parchear en memoria: el orden depende del estado,

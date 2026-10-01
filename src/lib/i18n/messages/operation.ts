@@ -906,8 +906,8 @@ export const operation = {
     en: "It becomes available by typing a slash in the inbox.",
   },
   vDecidirDevolucionAviso: {
-    es: "Le llega al cliente.",
-    en: "The customer is notified.",
+    es: "Cambia el expediente. No ejecuta un reembolso ni avisa al cliente.",
+    en: "Updates the case. It does not execute a refund or notify the customer.",
   },
   vTitSegmentos: { es: "Segmentos", en: "Segments" },
   vTitAlcance: { es: "A cuánta gente alcanza", en: "How many people it reaches" },
