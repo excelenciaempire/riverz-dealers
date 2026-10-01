@@ -178,6 +178,7 @@ async function processWorkspace(
       .from('contacts')
       .select('*')
       .eq('id', conv.contact_id)
+      .eq('workspace_id', workspaceId)
       .maybeSingle();
     if (!contactRow) continue;
 
@@ -210,7 +211,7 @@ async function processWorkspace(
           followup_count: effectiveCount + 1,
           followup_last_at: new Date().toISOString(),
         })
-        .eq('id', conv.id);
+        .eq('id', conv.id).eq('workspace_id', workspaceId).eq('contact_id', conv.contact_id);
     }
   }
 
@@ -242,6 +243,8 @@ async function loadConnection(
       .from('channel_connections')
       .select('*')
       .eq('id', conv.connection_id)
+      .eq('workspace_id', workspaceId)
+      .eq('channel', conv.channel)
       .neq('status', 'disconnected')
       .maybeSingle();
     // Never reroute a historical conversation through another account of the

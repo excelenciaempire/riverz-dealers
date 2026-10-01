@@ -25,6 +25,7 @@ import {
 } from './registro-rioplatense';
 import { toolEnabled } from './toolbox';
 import { loadAgentToolContext } from './tool-context';
+import { followUpBlockReason, followUpContextMatches } from './followup-eligibility';
 import type { AiAgent } from './types';
 
 /**
@@ -141,26 +142,6 @@ function extractText(resp: {
     .trim();
 }
 
-/**
- * ¿Pidió la baja?
- *
- * El cron de reactivación lo chequea desde siempre (`opted_out = false` en su
- * consulta); el de seguimientos no lo miraba en ningún lado. Un contacto que
- * escribió "no me escribas más" —marcado en `inbox-writer`— seguía siendo
- * elegible para un mensaje que sale solo.
- */
-async function estaDadoDeBaja(
-  db: SupabaseClient,
-  contactId: string
-): Promise<boolean> {
-  const { data } = await db
-    .from('contacts')
-    .select('opted_out')
-    .eq('id', contactId)
-    .maybeSingle();
-  return (data as { opted_out?: boolean | null } | null)?.opted_out === true;
-}
-
 export async function runFollowUp(
   db: SupabaseClient,
   args: {
@@ -174,6 +155,7 @@ export async function runFollowUp(
     campaignHint?: string | null;
   }
 ): Promise<FollowUpResult> {
+  if (!followUpContextMatches(args)) return { sent: false, reason: 'context_mismatch' };
   return withLatitudeTrace('customer-followup', { workspaceId: args.agent.workspace_id, sessionId: args.conversation.id, userId: args.contact.id, channel: args.conversation.channel, agentId: args.agent.id, privateValues: [args.contact.name, args.contact.phone, args.contact.email, args.contact.external_id] }, () => runFollowUpInner(db, args));
 }
 
@@ -214,15 +196,8 @@ async function runFollowUpInner(db: SupabaseClient, args: Parameters<typeof runF
     if (!toolEnabled(agent, 'enviar_proactivo')) {
       return { sent: false, reason: 'proactive_not_allowed' };
     }
-    // Quien pidió la baja no recibe un mensaje que sale solo. Faltaba en TODO
-    // este camino —ni el cron ni esta función lo miraban—, así que un contacto
-    // que escribió "no me escribas más" seguía siendo elegible; el cron de
-    // reactivación sí lo chequeaba desde siempre. Va antes de la recuperación
-    // de carrito, que hasta ahora se saltaba también este control y el de
-    // aprobación por ser una rama anterior.
-    if (await estaDadoDeBaja(db, contact.id)) {
-      return { sent: false, reason: 'opted_out' };
-    }
+    const initialBlock = await followUpBlockReason(db, { ...args, agent });
+    if (initialBlock) return { sent: false, reason: initialBlock };
     // 0. Recuperación de pago: si el asistente envió un link de checkout y
     //    el cliente no pagó, este "seguimiento" se convierte en un mensaje
     //    de recuperación con el link (migraciones 081/082). Reusa el timing
@@ -231,19 +206,16 @@ async function runFollowUpInner(db: SupabaseClient, args: Parameters<typeof runF
     //    el cron shopify-cart-recovery, para no pisarse).
     const pendingUrl = conversation.pending_checkout_url;
     if (conversation.pending_checkout_at && pendingUrl) {
-      const orParts = [
-        contact.phone ? `customer_phone.eq.${contact.phone}` : '',
-        contact.email ? `customer_email.eq.${contact.email}` : '',
-      ].filter(Boolean);
-      if (orParts.length) {
-        const { data: openCheckout } = await db
-          .from('shopify_checkouts')
-          .select('id')
-          .eq('status', 'open')
-          .or(orParts.join(','))
-          .limit(1)
-          .maybeSingle();
-        if (openCheckout) return { sent: false, reason: 'cart_recovery_owns' };
+      const identities: Array<[string, string]> = [];
+      if (contact.phone) identities.push(['customer_phone', contact.phone]);
+      if (contact.email) identities.push(['customer_email', contact.email]);
+      if (identities.length) {
+        const checkouts = await Promise.all(identities.map(([field, value]) => db
+          .from('shopify_checkouts').select('id')
+          .eq('workspace_id', agent.workspace_id).eq('status', 'open')
+          .eq(field, value).limit(1).maybeSingle()));
+        if (checkouts.some(result => result.error)) return { sent: false, reason: 'cart_recovery_unavailable' };
+        if (checkouts.some(result => result.data)) return { sent: false, reason: 'cart_recovery_owns' };
       }
       const first = (contact.name || '').trim().split(/\s+/)[0];
       const text = await prepararTextoParaCanal(db, {
@@ -254,6 +226,8 @@ async function runFollowUpInner(db: SupabaseClient, args: Parameters<typeof runF
         workspaceId: agent.workspace_id,
         contactId: contact.id,
       });
+      const checkoutBlock = await followUpBlockReason(db, { ...args, agent });
+      if (checkoutBlock) return { sent: false, reason: checkoutBlock };
       // "Aprobar cada mensaje" vale también acá. Esta rama estaba ANTES del
       // chequeo de más abajo, así que un comercio que aprueba todo igual tenía
       // la recuperación de carrito saliendo sola. Se limpia el pendiente junto
@@ -274,7 +248,7 @@ async function runFollowUpInner(db: SupabaseClient, args: Parameters<typeof runF
         await db
           .from('conversations')
           .update({ pending_checkout_at: null, pending_checkout_url: null })
-          .eq('id', conversation.id);
+          .eq('id', conversation.id).eq('workspace_id', agent.workspace_id).eq('contact_id', contact.id);
         return { sent: false, reason: 'awaiting_approval' };
       }
       const adapter = getAdapter(conversation.channel);
@@ -311,7 +285,7 @@ async function runFollowUpInner(db: SupabaseClient, args: Parameters<typeof runF
           pending_checkout_at: null,
           pending_checkout_url: null,
         })
-        .eq('id', conversation.id);
+        .eq('id', conversation.id).eq('workspace_id', agent.workspace_id).eq('contact_id', contact.id);
       return { sent: true };
     }
 
@@ -414,6 +388,8 @@ async function runFollowUpInner(db: SupabaseClient, args: Parameters<typeof runF
       contactId: contact.id,
     });
     if (!finalText) return { sent: false, reason: 'empty' };
+    const finalBlock = await followUpBlockReason(db, { ...args, agent });
+    if (finalBlock) return { sent: false, reason: finalBlock };
 
     // Un agente que necesita aprobación tampoco manda seguimientos solo: el
     // seguimiento queda como propuesta, igual que una respuesta (migración 170).
@@ -464,7 +440,7 @@ async function runFollowUpInner(db: SupabaseClient, args: Parameters<typeof runF
         last_sender_type: 'bot',
         updated_at: now,
       })
-      .eq('id', conversation.id);
+      .eq('id', conversation.id).eq('workspace_id', agent.workspace_id).eq('contact_id', contact.id);
 
     return { sent: true };
   } catch (err) {
