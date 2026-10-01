@@ -9,13 +9,31 @@
   if (response.ok || body?.code !== 'P0001' || body?.message !== 'invalid_http_action_context') {
     throw new Error(`Apply migration 330 before deploying HTTP action configuration (HTTP ${response.status}).`);
   }
+  const claim = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/claim_http_action`, {
+    method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_workspace_id: null, p_actor_id: null, p_action_id: null, p_revision: null,
+      p_invocation_key: null, p_input_hash: null }), signal: AbortSignal.timeout(15000),
+  });
+  const claimBody = await claim.json().catch(() => null);
+  if (claim.ok || claimBody?.code !== 'P0001' || claimBody?.message !== 'invalid_http_execution_context') {
+    throw new Error(`Apply migration 331 before deploying HTTP action execution (HTTP ${claim.status}).`);
+  }
+  const finish = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/finish_http_action`, {
+    method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_workspace_id: null, p_run_id: null, p_lease_id: null, p_state: null }), signal: AbortSignal.timeout(15000),
+  });
+  const finishBody = await finish.json().catch(() => null);
+  if (finish.ok || finishBody?.code !== 'P0001' || finishBody?.message !== 'invalid_http_execution_receipt') {
+    throw new Error(`Apply migration 331 before deploying HTTP action receipts (HTTP ${finish.status}).`);
+  }
   for (const table of ['http_actions?select=id,workspace_id,definition,credential_ciphertext,state,revision',
-    'http_action_versions?select=action_id,workspace_id,revision,definition,credential_present']) {
+    'http_action_versions?select=action_id,workspace_id,revision,definition,credential_present',
+    'http_action_runs?select=id,workspace_id,action_id,action_revision,actor_id,conversation_id,invocation_key,input_hash,lease_id,state,status_code,error_code,result,created_at,finished_at']) {
     const result = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/${table}&limit=0`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(15000),
     });
     const rows = await result.json().catch(() => null);
     if (!result.ok || !Array.isArray(rows) || rows.length !== 0) throw new Error('HTTP action configuration columns unavailable.');
   }
-  console.log('HTTP action configuration RPC and columns verified without reading action data.');
+  console.log('HTTP action configuration/execution RPCs and columns verified without reading action data.');
 })().catch(error => { console.error(error.message); process.exitCode = 1; });
