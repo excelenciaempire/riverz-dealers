@@ -4,10 +4,30 @@ import type { Namespace } from "./types";
  * Chat web — la página de configuración del widget que el comercio instala en
  * su tienda. Todo lo de acá lo lee el comercio en el panel.
  *
- * Lo que el VISITANTE ve dentro del chat no sale de acá: sigue el idioma del
- * agente, igual que los mensajes que el agente manda por WhatsApp.
+ * Los controles de pedidos del visitante también se resuelven aquí, usando
+ * el idioma del widget explícitamente, sin la cookie de quien administra.
  */
 export const webchat = {
+  ordersTitle: { es: 'Mis pedidos', en: 'My orders' },
+  ordersLoading: { es: 'Cargando…', en: 'Loading…' },
+  ordersEmpty: { es: 'No hay pedidos vinculados a este chat.', en: 'No orders are linked to this chat.' },
+  ordersMore: { es: 'Ver anteriores', en: 'Show older orders' },
+  orderUnavailable: { es: 'No se pudieron consultar los pedidos. Intenta de nuevo.', en: 'Orders could not be loaded. Try again.' },
+  orderNotAvailable: { es: 'Esta función no está disponible.', en: 'This feature is unavailable.' },
+  orderInvalid: { es: 'La solicitud de pedidos no es válida.', en: 'The order request is invalid.' },
+  orderAction: { es: 'Solicitud', en: 'Request' },
+  orderAction_confirm: { es: 'Confirmar pedido', en: 'Confirm order' },
+  orderAction_address: { es: 'Corregir dirección', en: 'Correct address' },
+  orderAction_variant: { es: 'Cambiar talla o color', en: 'Change size or color' },
+  orderAction_cancel: { es: 'Solicitar cancelación', en: 'Request cancellation' },
+  orderDetails_address: { es: 'Dirección completa', en: 'Full address' },
+  orderDetails_variant: { es: 'Producto, talla o color deseados', en: 'Product, size or color requested' },
+  orderDetails_cancel: { es: 'Motivo', en: 'Reason' },
+  orderSendRequest: { es: 'Enviar solicitud', en: 'Send request' },
+  orderRequest_confirm: { es: 'Quiero confirmar que recibiré el pedido {order}. Revisa si todavía puede confirmarse.', en: 'I want to confirm that I will receive order {order}. Check whether it can still be confirmed.' },
+  orderRequest_address: { es: 'Solicito corregir la dirección del pedido {order}. Esta es la dirección que quiero que revises:', en: 'I request an address correction for order {order}. This is the address I want you to review:' },
+  orderRequest_variant: { es: 'Solicito cambiar la talla o el color en el pedido {order}. Quiero que revises este cambio:', en: 'I request a size or color change for order {order}. Please review this change:' },
+  orderRequest_cancel: { es: 'Solicito cancelar el pedido {order}. Este es el motivo:', en: 'I request cancellation of order {order}. This is the reason:' },
   title: { es: "Chat web", en: "Web chat" },
   subtitle: {
     es: "El chat de tu tienda, atendido por tu agente.",

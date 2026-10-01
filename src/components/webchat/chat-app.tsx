@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MessageText } from './message-text';
 import { MessageMedia, type Media } from './message-media';
+import { OrderRequests } from './order-requests';
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 // La forma de la configuración se declara UNA vez, del lado del servidor que
 // la emite. Estaba copiada a mano acá y ya se habían separado: el chat leía
 // campos que el servidor no mandaba y al revés.
@@ -452,7 +454,7 @@ export function ChatApp() {
    *  sugeridas, que son un mensaje del visitante como cualquier otro. */
   const enviarTexto = useCallback(async (crudo: string) => {
     const text = crudo.trim();
-    if (!text || !session || expired) return;
+    if (!text || !session || expired) return false;
     const clientMessageId = crypto.randomUUID();
     // El mensaje aparece al instante: esperar el ida y vuelta hace sentir el
     // chat lento aunque el servidor conteste en 200 ms.
@@ -474,7 +476,7 @@ export function ChatApp() {
       if (res.status === 401) {
         setExpired(true);
         setWaiting(false);
-        return;
+        return false;
       }
       if (!res.ok) throw new Error(String(res.status));
       const { message_id: serverId, pixel_event_id: pixelId } = (await res.json()) as {
@@ -510,9 +512,11 @@ export function ChatApp() {
         }).catch(() => {});
       }
       poll().catch(() => {});
+      return true;
     } catch {
       setPending((prev) => prev.map((p) => (p.id === clientMessageId ? { ...p, failed: true } : p)));
       setWaiting(false);
+      return false;
     }
   }, [session, expired, poll]);
 
@@ -746,6 +750,7 @@ export function ChatApp() {
       {/* `aria-live` para que un lector de pantalla anuncie lo que llega: sin
           esto, una respuesta que aparece sola es invisible para quien no ve. */}
       <div ref={scroller} aria-live="polite" className="flex-1 overflow-y-auto px-4 py-4">
+        {SHOW_RIVERZ_IMPROVEMENTS && session && !expired ? <OrderRequests key={session} session={session} locale={settings?.locale === 'en' ? 'en' : 'es'} onSend={enviarTexto} onExpired={() => { setExpired(true); setWaiting(false); }} /> : null}
         {settings?.greeting && timeline.length === 0 ? (
           <>
             <Autor nombre={settings.brand_name || T.equipo} ia T={T} />

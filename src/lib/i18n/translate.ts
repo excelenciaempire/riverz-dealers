@@ -1,8 +1,7 @@
-import { DEFAULT_LOCALE, type Locale } from "./config";
+import type { Locale } from "./config";
 import { MESSAGES } from "./messages/registry";
-
-export type TVars = Record<string, string | number>;
-export type TFn = (key: string, vars?: TVars) => string;
+import { translateMessages, type TVars } from './namespace';
+export type { TVars, TFn } from './namespace';
 
 /**
  * Resolve a message key for a locale, interpolating `{var}` placeholders.
@@ -10,12 +9,5 @@ export type TFn = (key: string, vars?: TVars) => string;
  * translation degrades visibly instead of crashing.
  */
 export function translate(locale: Locale, key: string, vars?: TVars): string {
-  const entry = MESSAGES[key];
-  let str = entry ? (entry[locale] ?? entry[DEFAULT_LOCALE] ?? key) : key;
-  if (vars) {
-    for (const [name, value] of Object.entries(vars)) {
-      str = str.split(`{${name}}`).join(String(value));
-    }
-  }
-  return str;
+  return translateMessages(locale, MESSAGES, key, vars);
 }
