@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { guardarGrafo } from '@/lib/flows/write'
+import { HttpFlowReviewRequiredError } from '@/lib/flows/http-activation'
 import { csrfGuard } from '@/lib/csrf'
 import { serverError } from '@/lib/api/errors'
 import { getLocale } from '@/lib/i18n/server'
@@ -160,11 +161,15 @@ export async function PUT(
       campos: flowPatch,
       nodos: body.nodes,
       userId: guard.userId,
+      locale,
     })
     // Re-fetch and return the new state — the editor uses the response
     // to reconcile its local form state.
     return NextResponse.json({ flow, nodes })
   } catch (err) {
+    if (err instanceof HttpFlowReviewRequiredError) {
+      return NextResponse.json({ error: err.message }, { status: 422 })
+    }
     return serverError(err)
   }
 }

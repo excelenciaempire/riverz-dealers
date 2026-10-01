@@ -14,6 +14,12 @@ export const flows = {
   httpWithdraw: { es: 'Retirar autorización', en: 'Withdraw authorization' },
   httpUnavailable: { es: 'No se pudo verificar la consulta. Revisa el flujo, la acción y tus permisos.', en: 'Could not verify this lookup. Review the flow, action and your permissions.' },
   httpInvalid: { es: 'Configura la consulta, su versión, las variables y el siguiente paso.', en: 'Configure the lookup, its version, variables and next step.' },
+  httpActivationUnavailable: { es: 'No se pudo verificar la consulta antes de activar. Revisa tus permisos y el estado del negocio.', en: 'Could not verify this lookup before activation. Review your permissions and workspace status.' },
+  httpActivationAdmin: { es: 'La activación requiere un administrador con acceso a Automatizaciones y Bandeja.', en: 'Activation requires an administrator with access to Automations and Inbox.' },
+  httpActivationAction: { es: 'Selecciona una consulta activa con su versión vigente.', en: 'Select an active lookup at its current version.' },
+  httpActivationInputs: { es: 'Asigna las variables obligatorias de esta consulta y elimina las entradas que ya no existen.', en: 'Map this lookup’s required variables and remove inputs that no longer exist.' },
+  httpActivationAuthorization: { es: 'Guarda el flujo y autoriza esta configuración con un administrador vigente.', en: 'Save the flow and authorize this configuration with a current administrator.' },
+  httpActiveEditBlocked: { es: 'Pausa el flujo antes de cambiar una consulta. Guarda los cambios, revisa su autorización y vuelve a activarlo.', en: 'Pause the flow before changing a lookup. Save the changes, review its authorization and reactivate it.' },
   httpHidden: { es: 'La consulta del sistema está reservada para comparación.', en: 'The system lookup is reserved for comparison.' },
   httpSimulated: { es: 'Simulación: no se consultó el sistema externo. Los resultados requieren datos de ejemplo.', en: 'Simulation: the external system was not queried. Results require sample data.' },
   // ── Flows list page (menus/page.tsx) ──

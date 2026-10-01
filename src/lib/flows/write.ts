@@ -30,6 +30,7 @@ import {
   type FlowSnapshot,
 } from './ai-patches'
 import { validateFlowForActivation, type ValidationIssue } from './validate'
+import { HttpFlowReviewRequiredError, httpFlowActivationIssues } from './http-activation'
 
 /**
  * Cuánto se corre a la derecha un paso nuevo que no trae posición.
@@ -131,8 +132,27 @@ export async function guardarGrafo(
     nodos?: NodoGuardable[]
     /** Quién guardó, para el historial de versiones. */
     userId?: string | null
+    locale?: 'es' | 'en'
   },
 ): Promise<FlujoGuardado> {
+  // Both the manual editor and assisted patches pass here. An active HTTP
+  // graph must retain its reviewed configuration before any destructive graph write.
+  if (input.nodos?.some(node => node.node_type === 'http_action')) {
+    const current = await db.from('flows')
+      .select('id, name, status, trigger_type, trigger_config, entry_node_id')
+      .eq('id', input.flowId).eq('workspace_id', input.workspaceId).is('deleted_at', null).maybeSingle()
+    if (current.error) throw new Error('http_flow_edit_unavailable')
+    if (!current.data) throw new Error('ese menú no existe en esta cuenta')
+    if (current.data.status === 'active') {
+      const fields = { ...current.data, ...(input.campos ?? {}) } as FilaFlujo
+      const issues = validateFlowForActivation({ name: fields.name, trigger_type: fields.trigger_type,
+        trigger_config: fields.trigger_config ?? {}, entry_node_id: fields.entry_node_id }, input.nodos, input.locale)
+      if (issues.some(issue => issue.severity === 'error')) throw new HttpFlowReviewRequiredError(input.locale)
+      const httpIssues = await httpFlowActivationIssues(db, { workspaceId: input.workspaceId,
+        flowId: input.flowId, actorId: input.userId, nodes: input.nodos, locale: input.locale })
+      if (httpIssues.length) throw new HttpFlowReviewRequiredError(input.locale)
+    }
+  }
   // El `.select()` no es para leer: es para saber CUÁNTAS filas tocó. Un menú
   // de otra cuenta no matchea el filtro de workspace y Postgres no lo llama
   // error —cero filas, todo bien—, así que el guardado seguía de largo hasta el
@@ -349,6 +369,7 @@ export async function aplicarPatches(
       position_y: pos.get(n.node_key)?.y ?? 0,
     })),
     userId: input.userId ?? null,
+    locale: input.locale,
   })
 
   return {
@@ -407,6 +428,9 @@ export async function cambiarEstado(
       })),
       input.locale,
     )
+    if (!issues.some((i) => i.severity === 'error')) issues.push(...await httpFlowActivationIssues(db, {
+      workspaceId: input.workspaceId, flowId: flow.id, actorId: input.userId, nodes: nodos, locale: input.locale,
+    }))
     if (issues.some((i) => i.severity === 'error')) return { ok: false, issues }
   }
 
