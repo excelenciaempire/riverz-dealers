@@ -33,8 +33,9 @@ export function McpOauthConnect() {
   }
   async function start(id: Provider, open = true) {
     if (busy) return;
-    if (open) window.open(CLIENTS[id].url, '_blank', 'noopener,noreferrer');
     if (id === 'chatgpt' && open) void copy(MCP_URL, 'url');
+    // Start clipboard access while this page still has the user's focus.
+    if (open) window.open(CLIENTS[id].url, '_blank', 'noopener,noreferrer');
     setProvider(id); setCheck(null); setStatus('waiting'); setBusy(true);
     try {
       const response = await fetchWithCsrf('/api/mcp/connection-check', {
