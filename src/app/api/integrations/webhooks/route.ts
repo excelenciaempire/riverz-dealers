@@ -36,10 +36,11 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({})) as { name?: string; url?: string; events?: string[] };
   const name = typeof body?.name === 'string' ? body.name.trim() : '';
   const url = typeof body?.url === 'string' ? body.url.trim() : '';
+  const destination = url.length <= 2048 ? isPublicHttpsUrl(url) : null;
   const events = Array.isArray(body?.events) ? [...new Set(body.events.filter((event): event is (typeof WEBHOOK_EVENTS)[number] => typeof event === 'string' && WEBHOOK_EVENTS.includes(event as (typeof WEBHOOK_EVENTS)[number])))] : [];
-  if (!name || name.length > 80 || !url || url.length > 2048 || !isPublicHttpsUrl(url) || !events.length) return NextResponse.json({ code: 'invalid_webhook', error: translate(await safeLocale(), 'settings.webhookInvalid') }, { status: 400 });
+  if (!name || name.length > 80 || !destination || destination.href.length > 2048 || !events.length) return NextResponse.json({ code: 'invalid_webhook', error: translate(await safeLocale(), 'settings.webhookInvalid') }, { status: 400 });
   const secret = crypto.randomBytes(32).toString('hex');
-  const { data, error } = await supabaseAdmin().from('webhook_endpoints').insert({ workspace_id: auth.workspaceId, created_by: auth.user.id, name, url, events, secret }).select('id, name, url, events, is_active, created_at').single();
+  const { data, error } = await supabaseAdmin().from('webhook_endpoints').insert({ workspace_id: auth.workspaceId, created_by: auth.user.id, name, url: destination.href, events, secret }).select('id, name, url, events, is_active, created_at').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ endpoint: data, secret }, { status: 201 });
 }

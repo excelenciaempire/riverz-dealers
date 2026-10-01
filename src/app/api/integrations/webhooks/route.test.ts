@@ -30,6 +30,14 @@ it('localizes rejected input in Spanish', async () => {
   h.locale = 'es'; const response = await run(null);
   expect((await response.json()).error).toBe('Revisa el nombre, la URL HTTPS y los eventos.');
 });
+it('stores the canonical HTTPS URL accepted by the existing database constraint', async () => {
+  expect((await run({ ...valid(), url: 'HTTPS://RECEIVER.TEST:443/events' })).status).toBe(201);
+  expect(h.insert).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://receiver.test/events' }));
+});
+it('rejects a URL that exceeds the send limit after canonical encoding', async () => {
+  expect((await run({ ...valid(), url: `https://receiver.test/${'é'.repeat(400)}` })).status).toBe(400);
+  expect(h.insert).not.toHaveBeenCalled();
+});
 it.each(['csrf', 'anonymous', 'member'])('preserves the %s guard before inserting', async state => {
   if (state === 'csrf') h.csrf = true; if (state === 'anonymous') h.user = null; if (state === 'member') h.role = 'member';
   expect((await run(valid())).status).toBe(state === 'csrf' ? 403 : 401); expect(h.insert).not.toHaveBeenCalled();

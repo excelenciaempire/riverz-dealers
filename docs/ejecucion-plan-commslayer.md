@@ -666,3 +666,11 @@ El cargador común incorpora `connection_id`. El helper de acceso admite una com
 Validación de regresión: **107 archivos y 1.079 pruebas correctas**, incluidos capacidades, MCP, Operador, colaboración y rutas de bandeja. Casos específicos de los tres proveedores, actor ausente, conexiones de otro negocio/canal, cambio de dueño, fallos de lectura, denegación antes de mensajes/escrituras y filtro previo al límite. Compilación y publicación en curso.
 
 Lint de los cambios y **build completo correctos**, incluidos TypeScript y generación de rutas. Seis archivos propios. No se consultaron buzones ni mensajes de clientes en producción, utilizaron modelos o hicieron cambios de estado reales para probar. Publicación de esta entrega todavía no comprobada.
+
+Buzones personales publicados en Render: revisión `158b2e0e9142b58f3afa63537a7c05fb6fba2aef` LIVE a las **09:28:59 UTC** del 1 de octubre. Salud a las **09:32:17 UTC** con esa revisión, servicio, Supabase y WhatsApp `ok`. La comprobación no leyó mensajes ni ejecutó herramientas sobre clientes reales.
+
+## E2 — URL de webhook coherente entre validación, registro y envío
+
+La protección HTTPS acepta una URL normalizada por el parser, pero la restricción histórica de la tabla exige el prefijo literal `https://`. Se guarda ahora la URL canónica: por ejemplo, `HTTPS://RECEIVER.TEST:443/events` se registra como `https://receiver.test/events`, conservando su destino. Se comprueba también el límite de **2.048 caracteres después de codificarla**, para no guardar una URL que el emisor rechace por longitud.
+
+Validación: **cuatro archivos y 56 pruebas de webhooks/transporte correctas**, lint de los dos archivos de código y **build completo correctos**. No se creó un webhook real ni se envió una prueba externa. Tres archivos propios, sin migración ni cambios de UI. Publicación de esta entrega todavía no comprobada.
