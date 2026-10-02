@@ -133,6 +133,27 @@ function syntheticSmsRequest(body,url,method){
  }
  return reply({code:'invalid'},400);
 }
+let syntheticReviewSettings={configured:true,connectionId:ids.flow,revision:ids.message,shopifyConnectionId:ids.product,shopDomain:'fixture-store.myshopify.com',enabled:false,dailyReplies:50,stores:[{id:ids.product,shopDomain:'fixture-store.myshopify.com'}]};
+const syntheticReviewReceipts=new Map();
+const syntheticReviewRows=[{id:42,title:copy('Excelente atención','Excellent service'),body:copy('Me ayudaron a elegir la talla y recibí el pedido a tiempo.','They helped me choose the size and my order arrived on time.'),rating:5,hidden:false,createdAt:now,updatedAt:now,productExternalId:123,productTitle:copy('Camiseta de ejemplo','Example T-shirt'),snapshot:'a'.repeat(64),reply:{blocked:false,state:null,ownAttemptId:null}}];
+function syntheticReviewRequest(body,url,method){
+ window.__comparisonReviews={synthetic:true,providerCalled:false,aiUsage:false,publicReplyCreated:false,emailRequested:false};
+ if(method==='GET'&&url.searchParams.get('view')==='settings')return reply(syntheticReviewSettings);
+ if(method==='POST'&&body.action==='settings'){syntheticReviewSettings={...syntheticReviewSettings,enabled:body.input.enabled,dailyReplies:body.input.dailyReplies};return reply(syntheticReviewSettings);}
+ if(method==='GET'&&url.searchParams.get('view')==='page')return syntheticReviewSettings.enabled?reply({configured:true,enabled:true,connectionId:ids.flow,revision:ids.message,shopDomain:syntheticReviewSettings.shopDomain,rows:syntheticReviewRows,page:Number(url.searchParams.get('page')),hasNext:false}):reply({configured:false,enabled:false,rows:[],page:1,hasNext:false});
+ if(method==='GET'&&url.searchParams.get('view')==='receipt'){const saved=syntheticReviewReceipts.get(url.searchParams.get('attemptId'));return saved?reply(saved):reply({code:'attemptNotFound'},404);}
+ if(method==='POST'&&body.action==='reply'){
+  const input=body.input,row=syntheticReviewRows.find(value=>value.id===input.reviewId);
+  const old=syntheticReviewReceipts.get(input.attemptId);if(old)return reply({receipt:old,recovered:true});
+  if(!syntheticReviewSettings.enabled||!input.confirmed||!input.reviewedStorefront||input.connectionId!==ids.flow||input.revision!==ids.message||!row||row.reply.blocked||row.snapshot!==input.snapshot)return reply({code:'notAllowed'},403);
+  const stamp=new Date().toISOString(),receipt={attemptId:input.attemptId,connectionId:ids.flow,reviewId:input.reviewId,text:input.text,state:'accepted',providerConfirmedCreation:true,independentPublicationVerified:false,emailRequested:false,createdAt:stamp,updatedAt:stamp};
+  syntheticReviewReceipts.set(input.attemptId,receipt);row.reply={blocked:true,state:'accepted',ownAttemptId:input.attemptId};window.__comparisonReviewReceipt=structuredClone(receipt);
+  // A synthetic API acknowledgement is lost after known local acceptance;
+  // the next operation is a receipt GET, never another publication.
+  return reply({code:'uncertain'},503);
+ }
+ return reply({code:'invalid'},400);
+}
 export async function fixtureFetch(input, init = {}) {
   const url = new URL(typeof input === 'string' ? input : input.url, location.origin);
   if (url.origin !== location.origin) return reply({ error: 'comparison_external_request_blocked' }, 403);
@@ -140,11 +161,12 @@ export async function fixtureFetch(input, init = {}) {
   window.__comparisonCalls ??= []; window.__comparisonCalls.push({ path, method: init.method ?? 'GET' });
   const body = typeof init.body === 'string' ? JSON.parse(init.body) : {};
   const method = init.method ?? 'GET';
-  const editable = path==='/api/voice/connection'&&method==='PUT' || path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || (path.endsWith('/help-portal')||path.startsWith('/api/help-portals/'))&&method==='POST' || ['/api/contacts/migrations','/api/contacts/migrations/native','/api/contacts/migrations/external','/api/contacts/migrations/history','/api/voice/handoff','/api/voice/whatsapp','/api/integrations/sms'].includes(path)&&method==='POST';
+  const editable = path==='/api/voice/connection'&&method==='PUT' || path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || (path.endsWith('/help-portal')||path.startsWith('/api/help-portals/'))&&method==='POST' || ['/api/contacts/migrations','/api/contacts/migrations/native','/api/contacts/migrations/external','/api/contacts/migrations/history','/api/voice/handoff','/api/voice/whatsapp','/api/integrations/sms','/api/integrations/reviews'].includes(path)&&method==='POST';
   if (method !== 'GET' && !editable) return reply({ error: copy('Operación bloqueada en la comparación local.', 'Operation blocked in the local comparison.') }, 503);
   if(path==='/api/voice/handoff')return syntheticHumanRequest(body,url,method);
   if(path==='/api/voice/whatsapp')return syntheticWhatsAppRequest(body,url,method);
   if(path==='/api/integrations/sms')return syntheticSmsRequest(body,url,method);
+  if(path==='/api/integrations/reviews')return syntheticReviewRequest(body,url,method);
   if(path==='/api/voice/connection'){if(method==='PUT'){syntheticVoiceConfig={...syntheticVoiceConfig,...body.config};window.__comparisonVoiceConfig=structuredClone(syntheticVoiceConfig);}return reply({config:syntheticVoiceConfig,status:'connected',ok:true});}
   if(path==='/api/voice/calls/'+ids.conversation&&method==='GET')return reply({call:{id:ids.conversation,workspace_id:ids.workspace,agent_id:ids.agent,contact_id:ids.product,conversation_id:ids.conversation,direction:'outbound',call_type:'manual',phone:'EXAMPLE',language:locale,status:'in_progress',outcome:null,outcome_details:null,summary:null,context:{},external_call_id:null,room_name:null,started_at:now,answered_at:now,ended_at:null,duration_seconds:17,cost:{total_usd:0},recording_url:null,created_at:now,city:null,attempt:1,max_attempts:1,upsell_amount:0,contact:{id:ids.product,name:copy('Cliente de ejemplo','Example customer'),phone:null},agent:{id:ids.agent,name:copy('Asistente de ejemplo','Example assistant')},...(selected.get('page')==='voice-mailbox'?{agent_id:null,agent:null,direction:'inbound',call_type:'inbound',status:'completed',ended_at:now,duration_seconds:20,outcome:'no_outcome',outcome_details:{mailbox_capture:'recording_requested',capture_seconds:20},context:{fallback_reason:'no_voice_agent',voice_mailbox:{enabled:true,maxSeconds:60,version:1}}}:{} )},transcript:[]});
 

@@ -1,0 +1,933 @@
+{
+  "observedAt": "2026-10-02T14:21:56.796Z",
+  "scope": "private_real_components_fictional_data",
+  "publicUiEnabled": false,
+  "externalActions": false,
+  "providerCalls": false,
+  "emailRequested": false,
+  "aiUsage": false,
+  "tests": {
+    "files": 15,
+    "passed": 243,
+    "log": "native-reviews-sms-final-tests.log"
+  },
+  "typecheck": "passed",
+  "builds": {
+    "normal": "passed",
+    "comparison": "passed"
+  },
+  "lint": {
+    "newFiles": "passed",
+    "initialUiWarnings": 2,
+    "finalUiWarnings": 0,
+    "existingChannelsPanelBaseline": "pre-existing set-state-in-effect error and seven warnings documented in native-sms-qa.json; no claim of repository-wide clean lint"
+  },
+  "schema": {
+    "migration": "373_native_store_reviews.sql",
+    "installedOnce": true,
+    "ready": true,
+    "privateProbe": true,
+    "fixedInvoker": true,
+    "privateTables": true,
+    "serviceRoleReady": true,
+    "nullActorDenied": true,
+    "probeOnly": true,
+    "noCustomerProviderOrPurgeOperation": true
+  },
+  "isolation": {
+    "apiAndWriteRoutes": "blocked",
+    "privateFiles": "not_served",
+    "externalConnections": "blocked_by_csp",
+    "hostRejected": true,
+    "rootCredentialsLoaded": false
+  },
+  "nativeReviews": [
+    {
+      "at": "2026-10-02T14:23:50.473Z",
+      "baseline": {
+        "requests": [],
+        "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nActual\nMenú\nLa base actual se conserva\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nEl catálogo y las reseñas de Mercado Libre se conservan. Judge.me añade un control plegado dentro de Productos."
+      },
+      "checks": {
+        "acceptedReviewStaysBlocked": true,
+        "controlsFit": true,
+        "creationNotVisibility": true,
+        "doubleClickOnePost": true,
+        "editClearsBothReviews": true,
+        "exactReviewedText": true,
+        "fontsLoaded": true,
+        "lostAckLocksDraft": true,
+        "noCredentialReturned": true,
+        "noHorizontalOverflow": true,
+        "noNewRuntimeErrors": true,
+        "noProviderFetchOnMount": true,
+        "noTranslationKeys": true,
+        "publicControlHidden": true,
+        "receiptWorksWhenPaused": true,
+        "recoveryDoesNotPublish": true,
+        "reviewAllowsPublish": true,
+        "twoReviewsRequired": true
+      },
+      "errors": [],
+      "final": {
+        "flags": {
+          "aiUsage": false,
+          "emailRequested": false,
+          "providerCalled": false,
+          "publicReplyCreated": false,
+          "synthetic": true
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          }
+        ],
+        "text": "Reseñas · Judge.me\n\nJudge.me · #42\n\nConsultar respuesta guardada\n\nJudge.me confirmó la creación de la respuesta\n\nApproved synthetic public reply\n\nVisibilidad en la tienda sin verificar. Compruébala en tu tienda; no repitas la publicación.\n\nCerrar resultado\nActualizar reseñas\n\nConfigura Judge.me en Ajustes → Canales."
+      },
+      "firstReceipt": {
+        "receipt": {
+          "attemptId": "23f971c5-36cb-441c-a1b5-2e34852344d1",
+          "connectionId": "10000000-0000-4000-8000-000000000008",
+          "createdAt": "2026-10-02T14:23:40.475Z",
+          "emailRequested": false,
+          "independentPublicationVerified": false,
+          "providerConfirmedCreation": true,
+          "reviewId": 42,
+          "state": "accepted",
+          "text": "Approved synthetic public reply",
+          "updatedAt": "2026-10-02T14:23:40.475Z"
+        },
+        "text": "Reseñas · Judge.me\n\nJudge.me · #42\n\nConsultar respuesta guardada\n\nJudge.me confirmó la creación de la respuesta\n\nApproved synthetic public reply\n\nVisibilidad en la tienda sin verificar. Compruébala en tu tienda; no repitas la publicación.\n\nCerrar resultado\nActualizar reseñas\n\nfixture-store.myshopify.com\n\nPágina 1 · 1 reseñas en esta página\n\n#42 · ★★★★★ · Camiseta de ejemplo\n\nExcelente atención\n\nMe ayudaron a elegir la talla y recibí el pedido a tiempo.\n\nRespuesta pública\n\nRespuesta pública, sin correo solicitado. La API no permite comprobar respuestas ya publicadas: revisa tu tienda antes de confirmar.\n\nRevisé la reseña en mi tienda y confirmé que no tiene una respuesta que deba conservar.\nPublicar este texto en fixture-store.myshopify.com, reseña #42.\nPublicar respuesta\nPágina anterior\nPágina siguiente"
+      },
+      "locale": "es",
+      "viewport": {
+        "height": 1000,
+        "width": 1440
+      }
+    },
+    {
+      "at": "2026-10-02T14:24:48.467Z",
+      "baseline": {
+        "requests": [],
+        "text": "riverz\nOperator\nDAILY\nDashboard\nInbox\nContacts\nCUSTOMER SERVICE\nAI Assistant\nFlows\nAI Comments\nCalls\nWeb chat\nOUTBOUND\nTemplates\nAutomations\nCampaigns\nAI Prospecting\nSTORE\nProducts\nOrders\nIntegrations\nSettings\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nCurrent\nMenu\nThe current foundation is preserved\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nThe catalog and Mercado Libre reviews are preserved. Judge.me adds a collapsed control inside Products."
+      },
+      "checks": {
+        "acceptedReviewStaysBlocked": true,
+        "controlsFit": true,
+        "creationNotVisibility": true,
+        "doubleClickOnePost": true,
+        "editClearsBothReviews": true,
+        "exactReviewedText": true,
+        "fontsLoaded": true,
+        "lostAckLocksDraft": true,
+        "noCredentialReturned": true,
+        "noHorizontalOverflow": true,
+        "noNewRuntimeErrors": true,
+        "noProviderFetchOnMount": true,
+        "noTranslationKeys": true,
+        "publicControlHidden": true,
+        "receiptWorksWhenPaused": true,
+        "recoveryDoesNotPublish": true,
+        "reviewAllowsPublish": true,
+        "twoReviewsRequired": true
+      },
+      "errors": [],
+      "final": {
+        "flags": {
+          "aiUsage": false,
+          "emailRequested": false,
+          "providerCalled": false,
+          "publicReplyCreated": false,
+          "synthetic": true
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          }
+        ],
+        "text": "Reviews · Judge.me\n\nJudge.me · #42\n\nCheck saved reply\n\nJudge.me confirmed reply creation\n\nApproved synthetic public reply\n\nStorefront visibility is unverified. Check your store; do not repeat publication.\n\nClose result\nRefresh reviews\n\nConfigure Judge.me in Settings → Channels."
+      },
+      "firstReceipt": {
+        "receipt": {
+          "attemptId": "fd01fc3b-0d10-495b-b826-4063fa29857d",
+          "connectionId": "10000000-0000-4000-8000-000000000008",
+          "createdAt": "2026-10-02T14:24:38.465Z",
+          "emailRequested": false,
+          "independentPublicationVerified": false,
+          "providerConfirmedCreation": true,
+          "reviewId": 42,
+          "state": "accepted",
+          "text": "Approved synthetic public reply",
+          "updatedAt": "2026-10-02T14:24:38.465Z"
+        },
+        "text": "Reviews · Judge.me\n\nJudge.me · #42\n\nCheck saved reply\n\nJudge.me confirmed reply creation\n\nApproved synthetic public reply\n\nStorefront visibility is unverified. Check your store; do not repeat publication.\n\nClose result\nRefresh reviews\n\nfixture-store.myshopify.com\n\nPage 1 · 1 reviews on this page\n\n#42 · ★★★★★ · Example T-shirt\n\nExcellent service\n\nThey helped me choose the size and my order arrived on time.\n\nPublic reply\n\nPublic reply, with no email requested. The API cannot verify existing published replies: check your storefront before confirming.\n\nI checked the review on my storefront and confirmed it has no reply that needs preserving.\nPublish this text on fixture-store.myshopify.com, review #42.\nPublish reply\nPrevious page\nNext page"
+      },
+      "locale": "en",
+      "viewport": {
+        "height": 1000,
+        "width": 1440
+      }
+    },
+    {
+      "at": "2026-10-02T14:22:50.468Z",
+      "baseline": {
+        "requests": [],
+        "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nActual\nMenú\nLa base actual se conserva\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nEl catálogo y las reseñas de Mercado Libre se conservan. Judge.me añade un control plegado dentro de Productos."
+      },
+      "checks": {
+        "acceptedReviewStaysBlocked": true,
+        "controlsFit": true,
+        "creationNotVisibility": true,
+        "doubleClickOnePost": true,
+        "editClearsBothReviews": true,
+        "exactReviewedText": true,
+        "fontsLoaded": true,
+        "lostAckLocksDraft": true,
+        "noCredentialReturned": true,
+        "noHorizontalOverflow": true,
+        "noNewRuntimeErrors": true,
+        "noProviderFetchOnMount": true,
+        "noTranslationKeys": true,
+        "publicControlHidden": true,
+        "receiptWorksWhenPaused": true,
+        "recoveryDoesNotPublish": true,
+        "reviewAllowsPublish": true,
+        "twoReviewsRequired": true
+      },
+      "errors": [],
+      "final": {
+        "flags": {
+          "aiUsage": false,
+          "emailRequested": false,
+          "providerCalled": false,
+          "publicReplyCreated": false,
+          "synthetic": true
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          }
+        ],
+        "text": "Reseñas · Judge.me\n\nJudge.me · #42\n\nConsultar respuesta guardada\n\nJudge.me confirmó la creación de la respuesta\n\nApproved synthetic public reply\n\nVisibilidad en la tienda sin verificar. Compruébala en tu tienda; no repitas la publicación.\n\nCerrar resultado\nActualizar reseñas\n\nConfigura Judge.me en Ajustes → Canales."
+      },
+      "firstReceipt": {
+        "receipt": {
+          "attemptId": "93cf0a71-2a7c-4a10-924b-c8fc5432a8b1",
+          "connectionId": "10000000-0000-4000-8000-000000000008",
+          "createdAt": "2026-10-02T14:22:40.475Z",
+          "emailRequested": false,
+          "independentPublicationVerified": false,
+          "providerConfirmedCreation": true,
+          "reviewId": 42,
+          "state": "accepted",
+          "text": "Approved synthetic public reply",
+          "updatedAt": "2026-10-02T14:22:40.475Z"
+        },
+        "text": "Reseñas · Judge.me\n\nJudge.me · #42\n\nConsultar respuesta guardada\n\nJudge.me confirmó la creación de la respuesta\n\nApproved synthetic public reply\n\nVisibilidad en la tienda sin verificar. Compruébala en tu tienda; no repitas la publicación.\n\nCerrar resultado\nActualizar reseñas\n\nfixture-store.myshopify.com\n\nPágina 1 · 1 reseñas en esta página\n\n#42 · ★★★★★ · Camiseta de ejemplo\n\nExcelente atención\n\nMe ayudaron a elegir la talla y recibí el pedido a tiempo.\n\nRespuesta pública\n\nRespuesta pública, sin correo solicitado. La API no permite comprobar respuestas ya publicadas: revisa tu tienda antes de confirmar.\n\nRevisé la reseña en mi tienda y confirmé que no tiene una respuesta que deba conservar.\nPublicar este texto en fixture-store.myshopify.com, reseña #42.\nPublicar respuesta\nPágina anterior\nPágina siguiente"
+      },
+      "locale": "es",
+      "viewport": {
+        "height": 844,
+        "width": 390
+      }
+    },
+    {
+      "at": "2026-10-02T14:26:43.460Z",
+      "baseline": {
+        "requests": [],
+        "text": "riverz\nOperator\nDAILY\nDashboard\nInbox\nContacts\nCUSTOMER SERVICE\nAI Assistant\nFlows\nAI Comments\nCalls\nWeb chat\nOUTBOUND\nTemplates\nAutomations\nCampaigns\nAI Prospecting\nSTORE\nProducts\nOrders\nIntegrations\nSettings\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nCurrent\nMenu\nThe current foundation is preserved\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nThe catalog and Mercado Libre reviews are preserved. Judge.me adds a collapsed control inside Products."
+      },
+      "checks": {
+        "acceptedReviewStaysBlocked": true,
+        "controlsFit": true,
+        "creationNotVisibility": true,
+        "doubleClickOnePost": true,
+        "editClearsBothReviews": true,
+        "exactReviewedText": true,
+        "fontsLoaded": true,
+        "lostAckLocksDraft": true,
+        "noCredentialReturned": true,
+        "noHorizontalOverflow": true,
+        "noNewRuntimeErrors": true,
+        "noProviderFetchOnMount": true,
+        "noTranslationKeys": true,
+        "publicControlHidden": true,
+        "receiptWorksWhenPaused": true,
+        "recoveryDoesNotPublish": true,
+        "reviewAllowsPublish": true,
+        "twoReviewsRequired": true
+      },
+      "errors": [],
+      "final": {
+        "flags": {
+          "aiUsage": false,
+          "emailRequested": false,
+          "providerCalled": false,
+          "publicReplyCreated": false,
+          "synthetic": true
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/reviews"
+          }
+        ],
+        "text": "Reviews · Judge.me\n\nJudge.me · #42\n\nCheck saved reply\n\nJudge.me confirmed reply creation\n\nApproved synthetic public reply\n\nStorefront visibility is unverified. Check your store; do not repeat publication.\n\nClose result\nRefresh reviews\n\nConfigure Judge.me in Settings → Channels."
+      },
+      "firstReceipt": {
+        "receipt": {
+          "attemptId": "35adbe9b-4fda-48fc-bec3-f6ea984d97b5",
+          "connectionId": "10000000-0000-4000-8000-000000000008",
+          "createdAt": "2026-10-02T14:26:33.474Z",
+          "emailRequested": false,
+          "independentPublicationVerified": false,
+          "providerConfirmedCreation": true,
+          "reviewId": 42,
+          "state": "accepted",
+          "text": "Approved synthetic public reply",
+          "updatedAt": "2026-10-02T14:26:33.474Z"
+        },
+        "text": "Reviews · Judge.me\n\nJudge.me · #42\n\nCheck saved reply\n\nJudge.me confirmed reply creation\n\nApproved synthetic public reply\n\nStorefront visibility is unverified. Check your store; do not repeat publication.\n\nClose result\nRefresh reviews\n\nfixture-store.myshopify.com\n\nPage 1 · 1 reviews on this page\n\n#42 · ★★★★★ · Example T-shirt\n\nExcellent service\n\nThey helped me choose the size and my order arrived on time.\n\nPublic reply\n\nPublic reply, with no email requested. The API cannot verify existing published replies: check your storefront before confirming.\n\nI checked the review on my storefront and confirmed it has no reply that needs preserving.\nPublish this text on fixture-store.myshopify.com, review #42.\nPublish reply\nPrevious page\nNext page"
+      },
+      "locale": "en",
+      "viewport": {
+        "height": 844,
+        "width": 390
+      }
+    }
+  ],
+  "screenshots": [
+    {
+      "review": "en-desktop",
+      "file": "comparison-preview/native-reviews-en-desktop.png",
+      "inspected": true
+    },
+    {
+      "review": "es-mobile",
+      "file": "comparison-preview/native-reviews-es-mobile.png",
+      "inspected": true
+    },
+    {
+      "review": "es-mobile-receipt",
+      "file": "comparison-preview/native-reviews-es-mobile-receipt.png",
+      "inspected": true
+    }
+  ],
+  "nativeQa": "passed",
+  "sources": [
+    {
+      "sha256": "8188cb64afdf153f746f06dde63472bf1c2492dc393b4dd4c127b4b0ce147340",
+      "file": "scripts/check-native-reviews-schema.cjs"
+    },
+    {
+      "sha256": "b010d46b372603114a10f1d4d055380f2a82fc6cbed5b3c21d6fb4fbf5f15fd1",
+      "file": "src/app/api/integrations/reviews/route.test.ts"
+    },
+    {
+      "sha256": "e4f99be5ef8715a5adf34647c56fe2016e1ae7fad933b7d2cc7953b64e2bdf35",
+      "file": "src/app/api/integrations/reviews/route.ts"
+    },
+    {
+      "sha256": "a76bc17f84523325deebc2b68f316631c6e741c291573938b41ad9cc925ac5c2",
+      "file": "src/components/products/store-reviews.test.tsx"
+    },
+    {
+      "sha256": "00fee723984ea3bd13b56ea6795595518b9e18919fcf73c38d9f229720338dbc",
+      "file": "src/components/products/store-reviews.tsx"
+    },
+    {
+      "sha256": "83856470cdbdb2442f6acfc9134238f6b04b4b790917f57cbd6573da5208d0fd",
+      "file": "src/components/settings/review-settings.tsx"
+    },
+    {
+      "sha256": "fc492112595afce1449c131820bc70f356214c37745f67ddc2b7e7a6149dec43",
+      "file": "src/lib/integrations/expansion/review-schema.test.ts"
+    },
+    {
+      "sha256": "019e866149b5f198a9141d815161d1bd30f298eab23ca41a8aab0a0d20143cc3",
+      "file": "src/lib/integrations/expansion/review-service.test.ts"
+    },
+    {
+      "sha256": "f0737c253d1db9e2cdfd20b29a65bd83c8d882bd6f5275644084e7dbd4677416",
+      "file": "src/lib/integrations/expansion/review-service.ts"
+    },
+    {
+      "sha256": "6241c5888d329d4ff3e0d2db1bf22e82cd60b5ef61be034a355b807e3d0b2a6e",
+      "file": "src/lib/integrations/expansion/review-ui-contract.ts"
+    },
+    {
+      "sha256": "36238be7626216399ce6fef0c4f75de0a58c64e528d0d3668d86c7a9615ddf32",
+      "file": "supabase/migrations/373_native_store_reviews.sql"
+    },
+    {
+      "sha256": "42f2cb1c777f2e6bbe991ec2721d9eb6001870d7fd856485581470d24103dba5",
+      "file": "package.json"
+    },
+    {
+      "sha256": "6bd5ffefec8fd1506ec0680d5a0157c2a85893b6baba743a8fbe708ddd36a69e",
+      "file": "scripts/comparison/app.jsx"
+    },
+    {
+      "sha256": "62cb09e9a435888bd1294bf44bb5428cfd02d3b2ddac032ddef4db5cca069ae9",
+      "file": "scripts/comparison/fixtures.jsx"
+    },
+    {
+      "sha256": "e417d24d0dcb5e9688a349b4cf79d0f54e3b007ea41abab97d8280604522c114",
+      "file": "scripts/comparison/review.js"
+    },
+    {
+      "sha256": "8a7cedacbacb51b01b0a802242fd9595804d4aea5446dc46d3d70ff1a4988ef6",
+      "file": "src/app/(dashboard)/productos/page.tsx"
+    },
+    {
+      "sha256": "397edebcb491130fc2a40f1e31b36b3a4d4fbd3c15702c2035e0f72b72055061",
+      "file": "src/app/api/cron/pii-purge/route.ts"
+    },
+    {
+      "sha256": "3453ba4e668af61654f53f1000fd6752d382904004f4afb8523781f1938a0adb",
+      "file": "src/components/settings/channels-panel.tsx"
+    },
+    {
+      "sha256": "82ec583a868d96beefb587d5a5c578173705137651f9efe7eb1434dd332365d6",
+      "file": "src/lib/i18n/messages/settings.ts"
+    },
+    {
+      "sha256": "9445ba6e4080d1cdefa648b8977e98e47889b3399928ac46a039ac3c477e18a7",
+      "file": "src/lib/integrations/expansion/judgeme-client.ts"
+    },
+    {
+      "sha256": "9e1f1977188e36b95e3a54553f662728c82edc7aaddd4c4c5cc6927815ffe9f8",
+      "file": "src/lib/integrations/expansion/sms-service.test.ts"
+    },
+    {
+      "sha256": "e057a841548334593ffb604fbb6e06032648f95b05e32c5ec45916d0e3d8bde1",
+      "file": "src/lib/integrations/expansion/sms-service.ts"
+    }
+  ],
+  "styles": [
+    {
+      "file": "0y7fmymffc1f-.css",
+      "sha256": "a9ebecb14064ea8dd75f94623210eda384a7b55a0dda3b2d684cf2a51bd9c6df"
+    },
+    {
+      "file": "0ydpypn-7ctjk.css",
+      "sha256": "932d47c5b5820b2dd6a9a39a5a25bd6a26ab6e94db2b45fe9f2ff99727087666"
+    },
+    {
+      "file": "1bliujhpm9e2n.css",
+      "sha256": "162a497f498c1d1bf1baaf2e307f93fccd9f0308ee25ad57e62e5eb98fd1906a"
+    },
+    {
+      "file": "21rtznmd83uia.css",
+      "sha256": "36494c893a9698a87a9073917ae4fdee7aada2f7f63bdb75eac0b7602d00468d"
+    },
+    {
+      "file": "24hrtzo5s_sl1.css",
+      "sha256": "918623f67958b347bcd22eb9cc2010cf26a434083cf47bd9517aad84a1ae229e"
+    },
+    {
+      "file": "2rmecej376eld.css",
+      "sha256": "69b419d05a7eb4a71904be8d7b6f9cd719fe55ef6bf0881feca4652b0dcd4c5e"
+    },
+    {
+      "file": "3s7aa-p955seo.css",
+      "sha256": "25f2e876fb87c418429be603ca585b0d52e15a51be6d59166a7856c45ee82448"
+    }
+  ],
+  "bundleSha256": "0d84aa00a032190d531103cda7ac21af589b13e072b2a0d8d569a987a57c0237",
+  "initialEsMobileDiagnostic": {
+    "at": "2026-10-02T14:21:08.147Z",
+    "baseline": {
+      "requests": [],
+      "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nActual\nMenú\nLa base actual se conserva\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nEl catálogo y las reseñas de Mercado Libre se conservan. Judge.me añade un control plegado dentro de Productos."
+    },
+    "checks": {
+      "acceptedReviewStaysBlocked": true,
+      "controlsFit": true,
+      "creationNotVisibility": true,
+      "doubleClickOnePost": true,
+      "editClearsBothReviews": true,
+      "exactReviewedText": true,
+      "fontsLoaded": true,
+      "lostAckLocksDraft": false,
+      "noCredentialReturned": true,
+      "noHorizontalOverflow": true,
+      "noNewRuntimeErrors": true,
+      "noProviderFetchOnMount": true,
+      "noTranslationKeys": true,
+      "publicControlHidden": true,
+      "receiptWorksWhenPaused": true,
+      "recoveryDoesNotPublish": true,
+      "reviewAllowsPublish": true,
+      "twoReviewsRequired": true
+    },
+    "errors": [],
+    "final": {
+      "flags": {
+        "aiUsage": false,
+        "emailRequested": false,
+        "providerCalled": false,
+        "publicReplyCreated": false,
+        "synthetic": true
+      },
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        }
+      ],
+      "text": "Reseñas · Judge.me\n\nJudge.me · #42\n\nConsultar respuesta guardada\n\nJudge.me confirmó la creación de la respuesta\n\nApproved synthetic public reply\n\nVisibilidad en la tienda sin verificar. Compruébala en tu tienda; no repitas la publicación.\n\nCerrar resultado\nActualizar reseñas\n\nConfigura Judge.me en Ajustes → Canales."
+    },
+    "firstReceipt": {
+      "receipt": {
+        "attemptId": "83f038c2-6447-4db8-9754-bbc4ab8bf2ea",
+        "connectionId": "10000000-0000-4000-8000-000000000008",
+        "createdAt": "2026-10-02T14:21:07.327Z",
+        "emailRequested": false,
+        "independentPublicationVerified": false,
+        "providerConfirmedCreation": true,
+        "reviewId": 42,
+        "state": "accepted",
+        "text": "Approved synthetic public reply",
+        "updatedAt": "2026-10-02T14:21:07.327Z"
+      },
+      "text": "Reseñas · Judge.me\n\nJudge.me · #42\n\nConsultar respuesta guardada\n\nJudge.me confirmó la creación de la respuesta\n\nApproved synthetic public reply\n\nVisibilidad en la tienda sin verificar. Compruébala en tu tienda; no repitas la publicación.\n\nCerrar resultado\nActualizar reseñas\n\nfixture-store.myshopify.com\n\nPágina 1 · 1 reseñas en esta página\n\n#42 · ★★★★★ · Camiseta de ejemplo\n\nExcelente atención\n\nMe ayudaron a elegir la talla y recibí el pedido a tiempo.\n\nRespuesta pública\n\nRespuesta pública, sin correo solicitado. La API no permite comprobar respuestas ya publicadas: revisa tu tienda antes de confirmar.\n\nRevisé la reseña en mi tienda y confirmé que no tiene una respuesta que deba conservar.\nPublicar este texto en fixture-store.myshopify.com, reseña #42.\nPublicar respuesta\nPágina anterior\nPágina siguiente"
+    },
+    "locale": "es",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    }
+  },
+  "initialDiagnosticExplanation": "The first test read textarea.disabled, which does not include an ancestor fieldset's disabled state; the repeat checks the effective :disabled selector. Original false result is preserved.",
+  "followupCaptureReview": {
+    "at": "2026-10-02T14:27:50.464Z",
+    "baseline": {
+      "requests": [],
+      "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nActual\nMenú\nLa base actual se conserva\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nEl catálogo y las reseñas de Mercado Libre se conservan. Judge.me añade un control plegado dentro de Productos."
+    },
+    "checks": {
+      "acceptedReviewStaysBlocked": true,
+      "controlsFit": true,
+      "creationNotVisibility": true,
+      "doubleClickOnePost": true,
+      "editClearsBothReviews": true,
+      "exactReviewedText": true,
+      "fontsLoaded": true,
+      "lostAckLocksDraft": true,
+      "noCredentialReturned": true,
+      "noHorizontalOverflow": true,
+      "noNewRuntimeErrors": true,
+      "noProviderFetchOnMount": true,
+      "noTranslationKeys": true,
+      "publicControlHidden": true,
+      "receiptWorksWhenPaused": true,
+      "recoveryDoesNotPublish": true,
+      "reviewAllowsPublish": true,
+      "twoReviewsRequired": true
+    },
+    "errors": [],
+    "final": {
+      "flags": {
+        "aiUsage": false,
+        "emailRequested": false,
+        "providerCalled": false,
+        "publicReplyCreated": false,
+        "synthetic": true
+      },
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        }
+      ],
+      "text": "Reseñas · Judge.me\n\nJudge.me · #42\n\nConsultar respuesta guardada\n\nJudge.me confirmó la creación de la respuesta\n\nApproved synthetic public reply\n\nVisibilidad en la tienda sin verificar. Compruébala en tu tienda; no repitas la publicación.\n\nCerrar resultado\nActualizar reseñas\n\nConfigura Judge.me en Ajustes → Canales."
+    },
+    "firstReceipt": {
+      "receipt": {
+        "attemptId": "b3f9ee60-d515-4002-a3d1-5c7b7104606d",
+        "connectionId": "10000000-0000-4000-8000-000000000008",
+        "createdAt": "2026-10-02T14:27:40.466Z",
+        "emailRequested": false,
+        "independentPublicationVerified": false,
+        "providerConfirmedCreation": true,
+        "reviewId": 42,
+        "state": "accepted",
+        "text": "Approved synthetic public reply",
+        "updatedAt": "2026-10-02T14:27:40.466Z"
+      },
+      "text": "Reseñas · Judge.me\n\nJudge.me · #42\n\nConsultar respuesta guardada\n\nJudge.me confirmó la creación de la respuesta\n\nApproved synthetic public reply\n\nVisibilidad en la tienda sin verificar. Compruébala en tu tienda; no repitas la publicación.\n\nCerrar resultado\nActualizar reseñas\n\nfixture-store.myshopify.com\n\nPágina 1 · 1 reseñas en esta página\n\n#42 · ★★★★★ · Camiseta de ejemplo\n\nExcelente atención\n\nMe ayudaron a elegir la talla y recibí el pedido a tiempo.\n\nRespuesta pública\n\nRespuesta pública, sin correo solicitado. La API no permite comprobar respuestas ya publicadas: revisa tu tienda antes de confirmar.\n\nRevisé la reseña en mi tienda y confirmé que no tiene una respuesta que deba conservar.\nPublicar este texto en fixture-store.myshopify.com, reseña #42.\nPublicar respuesta\nPágina anterior\nPágina siguiente"
+    },
+    "locale": "es",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    }
+  },
+  "capturePreparation": [
+    {
+      "at": "2026-10-02T14:25:15.554Z",
+      "flags": {
+        "aiUsage": false,
+        "emailRequested": false,
+        "providerCalled": false,
+        "publicReplyCreated": false,
+        "synthetic": true
+      },
+      "locale": "en",
+      "receipt": {
+        "attemptId": "fd01fc3b-0d10-495b-b826-4063fa29857d",
+        "connectionId": "10000000-0000-4000-8000-000000000008",
+        "createdAt": "2026-10-02T14:24:38.465Z",
+        "emailRequested": false,
+        "independentPublicationVerified": false,
+        "providerConfirmedCreation": true,
+        "reviewId": 42,
+        "state": "accepted",
+        "text": "Approved synthetic public reply",
+        "updatedAt": "2026-10-02T14:24:38.465Z"
+      },
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        }
+      ],
+      "viewport": {
+        "height": 1000,
+        "width": 1440
+      }
+    },
+    {
+      "at": "2026-10-02T14:28:48.463Z",
+      "flags": {
+        "aiUsage": false,
+        "emailRequested": false,
+        "providerCalled": false,
+        "publicReplyCreated": false,
+        "synthetic": true
+      },
+      "locale": "es",
+      "receipt": {
+        "attemptId": "b3f9ee60-d515-4002-a3d1-5c7b7104606d",
+        "connectionId": "10000000-0000-4000-8000-000000000008",
+        "createdAt": "2026-10-02T14:27:40.466Z",
+        "emailRequested": false,
+        "independentPublicationVerified": false,
+        "providerConfirmedCreation": true,
+        "reviewId": 42,
+        "state": "accepted",
+        "text": "Approved synthetic public reply",
+        "updatedAt": "2026-10-02T14:27:40.466Z"
+      },
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/reviews"
+        }
+      ],
+      "viewport": {
+        "height": 844,
+        "width": 390
+      }
+    }
+  ],
+  "consoleEntries": [
+    {
+      "level": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 0",
+      "timestamp": "2026-10-02T06:25:24.234Z",
+      "source": "console"
+    },
+    {
+      "level": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 1",
+      "timestamp": "2026-10-02T06:27:51.925Z",
+      "source": "console"
+    }
+  ],
+  "noNewConsoleErrors": true
+}

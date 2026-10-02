@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { UnifyPanel } from '@/components/products/unify-panel';
+import { StoreReviews } from '@/components/products/store-reviews';
 import Link from '@/components/i18n/locale-link';
 import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { toast } from 'sonner';
@@ -256,6 +257,7 @@ export default function ProductosPage() {
   return (
     <div className="space-y-6">
       <UnifyPanel />
+      <StoreReviews />
 
       {/* Header — solo el título + sincronizar (sutil) */}
       <div className="flex items-center justify-between gap-3">

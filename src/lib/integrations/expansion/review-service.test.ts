@@ -1,0 +1,49 @@
+import {beforeEach,describe,expect,it,vi} from 'vitest';
+import type {SupabaseClient} from '@supabase/supabase-js';
+import type {NativeReviewReplyReceipt} from './review-ui-contract';
+vi.mock('@/lib/ui/improvements-preview',()=>({SHOW_RIVERZ_IMPROVEMENTS:true}));
+vi.mock('@/lib/channels/encryption',()=>({encrypt:(value:string)=>'encrypted:'+value+'x'.repeat(80),decrypt:(value:string)=>{if(value.startsWith('CORRUPTED:'))throw new Error('Fixture undecryptable');return 'fixture-private-review-key';}}));
+import {createNativeReviewService,storeReviewSnapshot} from './review-service';
+const ws='11111111-1111-4111-8111-111111111111',actor='22222222-2222-4222-8222-222222222222',connection='33333333-3333-4333-8333-333333333333',attempt='55555555-5555-4555-8555-555555555555',shop='66666666-6666-4666-8666-666666666666',revision='88888888-8888-4888-8888-888888888888',domain='fixture-store.myshopify.com';
+const source={id:100,title:'Fixture review',body:'Untrusted public text',rating:4,hidden:false,createdAt:'2026-10-02T10:00:00Z',updatedAt:'2026-10-02T10:00:00Z',productExternalId:123,productTitle:'Fixture product'},snapshot=storeReviewSnapshot(domain,source);
+const providerReview={id:source.id,title:source.title,body:source.body,rating:source.rating,hidden:false,created_at:source.createdAt,updated_at:source.updatedAt,product_external_id:source.productExternalId,product_title:source.productTitle,reviewer:{email:'PRIVATE_REVIEWER_EMAIL'},ip_address:'192.0.2.1'};
+const stored={id:connection,workspace_id:ws,shopify_connection_id:shop,shop_domain:domain,encrypted_key:'encrypted:'+'x'.repeat(80),revision,enabled:true,daily_replies:50};
+const settings={configured:true,connectionId:connection,shopifyConnectionId:shop,shopDomain:domain,revision,enabled:true,dailyReplies:50,stores:[{id:shop,shopDomain:domain}]};
+const input={attemptId:attempt,connectionId:connection,revision,reviewId:source.id,snapshot,text:'Approved public fixture reply',confirmed:true,reviewedStorefront:true};
+const prototypeReceipt:NativeReviewReplyReceipt={attemptId:attempt,connectionId:connection,reviewId:source.id,text:input.text,state:'reviewed',providerConfirmedCreation:false,independentPublicationVerified:false,emailRequested:false,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+let localReceipt:NativeReviewReplyReceipt|null=null;
+const rpc=vi.fn(),read=vi.fn<typeof fetch>(),db={rpc} as unknown as SupabaseClient,service=()=>createNativeReviewService(db,read);
+beforeEach(()=>{
+ localReceipt=null;stored.encrypted_key='encrypted:'+'x'.repeat(80);
+ rpc.mockReset().mockImplementation(async(name:string,args:Record<string,unknown>)=>{
+  if(name==='native_reviews_settings_read')return {data:settings,error:null};
+  if(name==='native_reviews_private_connection')return {data:stored,error:null};
+  if(name==='set_native_reviews_settings')return {data:{...settings,enabled:args.p_enabled},error:null};
+  if(name==='cache_native_store_reviews')return {data:(args.p_rows as unknown[]).map(row=>({...row as object,reply:{blocked:!!localReceipt,state:localReceipt?.state??null,ownAttemptId:localReceipt?.attemptId??null}})),error:null};
+  if(name==='native_review_reply_receipt')return {data:localReceipt,error:null};
+  if(name==='review_native_store_reply'){localReceipt={...prototypeReceipt};return {data:{claimed:true,attemptId:attempt,nonce:args.p_nonce},error:null};}
+  if(name==='claim_native_store_reply'){localReceipt={...prototypeReceipt,state:'dispatching'};return {data:true,error:null};}
+  if(name==='finish_native_store_reply'){const state=args.p_outcome as NativeReviewReplyReceipt['state'];localReceipt={...prototypeReceipt,state,providerConfirmedCreation:state==='accepted'};return {data:true,error:null};}
+  throw new Error('Unexpected review fixture RPC');
+ });
+ read.mockReset().mockImplementation(async(url,init)=>{
+  const path=new URL(String(url)).pathname;
+  if(path==='/api/v1/reviews')return Response.json({current_page:1,per_page:100,reviews:[providerReview]});
+  if(path==='/api/v1/reviews/100')return Response.json({review:providerReview});
+  if(path==='/api/v1/replies'&&init?.method==='POST')return new Response('',{status:200});
+  throw new Error('Unexpected review fixture provider route');
+ });
+});
+describe('Native review orchestration, local fixtures only',()=>{
+ it('reads a current page and persists only projected evidence after SQL authority recheck',async()=>{const result=await service().page(ws,actor,1);expect(result).toMatchObject({configured:true,shopDomain:domain,rows:[{id:100,snapshot,reply:{blocked:false}}],hasNext:false});expect(JSON.stringify(result)).not.toMatch(/PRIVATE_REVIEWER|192\.0\.2|encrypted|private-review-key/);expect(read.mock.calls.every(([,init])=>init?.method==='GET')).toBe(true);expect(rpc.mock.calls.at(-1)?.[0]).toBe('cache_native_store_reviews');});
+ it('performs one exact-source GET and one claimed publication with no incidental email or invented visibility proof',async()=>{expect(await service().reply(ws,actor,input)).toMatchObject({recovered:false,receipt:{state:'accepted',providerConfirmedCreation:true,independentPublicationVerified:false,emailRequested:false}});const sends=read.mock.calls.filter(([,init])=>init?.method==='POST');expect(sends).toHaveLength(1);expect(JSON.parse(String(sends[0][1]?.body))).toEqual({review_id:100,send_reply_email:false,reply:{content:input.text}});const calls=rpc.mock.calls.map(([name])=>name);expect(calls.indexOf('claim_native_store_reply')).toBeGreaterThan(calls.indexOf('cache_native_store_reviews'));});
+ it.each(['accepted','uncertain'] as const)('recovers %s locally without provider access or another claim',async state=>{localReceipt={...prototypeReceipt,state,providerConfirmedCreation:state==='accepted'};expect(await service().reply(ws,actor,input)).toMatchObject({recovered:true,receipt:{state}});expect(read).not.toHaveBeenCalled();expect(rpc).toHaveBeenCalledOnce();});
+ it('rejects changed recovered content or review before any provider request',async()=>{localReceipt={...prototypeReceipt,state:'accepted',providerConfirmedCreation:true};for(const value of [{text:'Other text'},{reviewId:101}])await expect(service().reply(ws,actor,{...input,...value})).rejects.toMatchObject({code:'notAllowed'});expect(read).not.toHaveBeenCalled();});
+ it.each([{confirmed:false},{reviewedStorefront:false},{text:'<img src=x onerror=bad>'},{text:'unpaired\ud800'},{text:' '},{text:'x'.repeat(4001)}])('rejects missing review or unsafe public text before creating an attempt',async value=>{await expect(service().reply(ws,actor,{...input,...value})).rejects.toMatchObject({code:'invalid'});expect(rpc).not.toHaveBeenCalled();expect(read).not.toHaveBeenCalled();});
+ it.each([{body:'Changed source'},{hidden:true}])('cancels a changed/hidden source before the claim or publication',async value=>{read.mockResolvedValueOnce(Response.json({review:{...providerReview,...value}}));await expect(service().reply(ws,actor,input)).rejects.toMatchObject({code:'notAllowed'});expect(read).toHaveBeenCalledOnce();expect(rpc.mock.calls.some(([name])=>name==='claim_native_store_reply')).toBe(false);expect(rpc.mock.calls.at(-1)?.[1]).toMatchObject({p_outcome:'canceled'});});
+ it('does not publish when current SQL authority rejects the final claim',async()=>{const original=rpc.getMockImplementation()!;rpc.mockImplementation(async(name,args)=>name==='claim_native_store_reply'?{data:false,error:null}:original(name,args));await expect(service().reply(ws,actor,input)).rejects.toMatchObject({code:'notAllowed'});expect(read.mock.calls.filter(([,init])=>init?.method==='POST')).toHaveLength(0);expect(localReceipt?.state).toBe('canceled');});
+ it('preserves uncertainty after a lost claim response without canceling or publishing',async()=>{const original=rpc.getMockImplementation()!;rpc.mockImplementation(async(name,args)=>name==='claim_native_store_reply'?{data:null,error:{message:'PRIVATE_DATABASE_CLAIM_RESPONSE_LOST'}}:original(name,args));await expect(service().reply(ws,actor,input)).rejects.toMatchObject({code:'uncertain'});expect(read.mock.calls.filter(([,init])=>init?.method==='POST')).toHaveLength(0);expect(localReceipt?.state).toBe('uncertain');});
+ it('does not repeat a provider timeout and later recovery reads only the saved receipt',async()=>{const original=read.getMockImplementation()!;read.mockImplementation(async(url,init)=>{if(init?.method==='POST')throw new Error('PRIVATE_PROVIDER_TIMEOUT');return original(url,init);});await expect(service().reply(ws,actor,input)).rejects.toMatchObject({code:'uncertain'});expect(await service().reply(ws,actor,input)).toMatchObject({recovered:true,receipt:{state:'uncertain'}});expect(read.mock.calls.filter(([,init])=>init?.method==='POST')).toHaveLength(1);});
+ it('requires current installation authority and exact selected-store metadata before provider access',async()=>{rpc.mockResolvedValueOnce({data:null,error:{message:'expansion_not_allowed'}});await expect(service().saveSettings(ws,actor,{shopifyConnectionId:shop,shopDomain:domain,enabled:true,dailyReplies:50})).rejects.toMatchObject({code:'notAllowed'});expect(read).not.toHaveBeenCalled();await expect(service().saveSettings(ws,actor,{shopifyConnectionId:shop,shopDomain:'other-store.myshopify.com',enabled:true,dailyReplies:50})).rejects.toMatchObject({code:'notAllowed'});expect(read).not.toHaveBeenCalled();});
+ it('can stop a connection without decrypting its unusable key, fetching the provider or returning secrets',async()=>{stored.encrypted_key='CORRUPTED:'+'x'.repeat(80);const result=await service().saveSettings(ws,actor,{shopifyConnectionId:shop,shopDomain:domain,enabled:false,dailyReplies:50});expect(result).toMatchObject({enabled:false});expect(JSON.stringify(result)).not.toMatch(/CORRUPTED|encrypted_key/);expect(read).not.toHaveBeenCalled();expect(rpc.mock.calls.at(-1)?.[1]).toMatchObject({p_encrypted_key:stored.encrypted_key,p_enabled:false});});
+});

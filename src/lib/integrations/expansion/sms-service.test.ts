@@ -2,7 +2,7 @@ import {beforeEach,describe,expect,it,vi} from 'vitest';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {generateKeyPairSync,sign} from 'node:crypto';
 vi.mock('@/lib/ui/improvements-preview',()=>({SHOW_RIVERZ_IMPROVEMENTS:true}));
-vi.mock('@/lib/channels/encryption',()=>({encrypt:(value:string)=>'encrypted:'+value,decrypt:(value:string)=>value.replace(/^encrypted:/,'')}));
+vi.mock('@/lib/channels/encryption',()=>({encrypt:(value:string)=>'encrypted:'+value,decrypt:(value:string)=>{if(value.startsWith('CORRUPTED:'))throw new Error('Fixture undecryptable key');return value.replace(/^encrypted:/,'');}}));
 import {createNativeSmsService} from './sms-service';
 import type {NativeSmsReceipt} from './sms-ui-contract';
 const ws='11111111-1111-4111-8111-111111111111',actor='22222222-2222-4222-8222-222222222222',connection='33333333-3333-4333-8333-333333333333',attempt='55555555-5555-4555-8555-555555555555',contact='66666666-6666-4666-8666-666666666666',conversation='88888888-8888-4888-8888-888888888888',revision='99999999-9999-4999-8999-999999999999',profile='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',organization='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',messageId='cccccccc-cccc-4ccc-8ccc-cccccccccccc',eventId='dddddddd-dddd-4ddd-8ddd-dddddddddddd',peer='+573001234567',phone='+12025550100';
@@ -15,6 +15,7 @@ const prototypeReceipt:NativeSmsReceipt={attemptId:attempt,conversationId:conver
 let localReceipt:typeof prototypeReceipt|null=null;
 const rpc=vi.fn(),read=vi.fn<typeof fetch>();const db={rpc} as unknown as SupabaseClient;
 beforeEach(()=>{
+ stored.encrypted_key='encrypted:FIXTURE_PRIVATE_SMS_KEY';
  localReceipt=null;
  rpc.mockReset().mockImplementation(async(name:string,params:Record<string,unknown>)=>{
   if(name==='native_sms_receipt')return {data:localReceipt,error:null};
@@ -38,6 +39,7 @@ beforeEach(()=>{
 });
 const service=()=>createNativeSmsService(db,read);
 describe('Native SMS orchestration, fixtures only',()=>{
+ it('can stop a connection even when its saved credential cannot be decrypted, preserving ciphertext without provider work',async()=>{stored.encrypted_key='CORRUPTED:'+'x'.repeat(80);expect(await service().saveSettings(ws,actor,{identity,enabled:false,maxSegments:3,dailySegments:100})).toMatchObject({enabled:false});expect(read).not.toHaveBeenCalled();expect(rpc.mock.calls.find(([name])=>name==='set_native_sms_settings')?.[1]).toMatchObject({p_encrypted_key:stored.encrypted_key,p_enabled:false});});
  it('requeues inbox ingestion through current database authority without accessing provider credentials or sending',async()=>{
   rpc.mockResolvedValueOnce({data:2,error:null});expect(await service().retryInbox(ws,actor,connection)).toEqual({queued:2});
   expect(rpc).toHaveBeenCalledExactlyOnceWith('retry_native_sms_inbox',{p_workspace_id:ws,p_actor_id:actor,p_connection_id:connection,p_limit:20});expect(read).not.toHaveBeenCalled();

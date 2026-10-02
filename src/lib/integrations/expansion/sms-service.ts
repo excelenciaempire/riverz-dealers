@@ -34,10 +34,11 @@ export function createNativeSmsService(db:SupabaseClient,read:typeof fetch=fetch
    const existing=parsed(settings,await rpc('native_sms_settings_read',{p_workspace_id:workspaceId,p_actor_id:actorId}));
    if(existing.configured&&JSON.stringify({phoneNumberId:existing.phoneNumberId,phone:existing.phone,profileId:existing.profileId,organizationId:existing.organizationId})!==JSON.stringify(body.identity))throw new ExpansionProviderError('notAllowed');
    const old=existing.configured?await connection(existing.connectionId):null;
-   const secret=body.key!==undefined?privateProviderSecret(body.key):old?key(old):null,signingKey=body.publicKey??old?.public_key;
-   if(!secret||!signingKey)throw new ExpansionProviderError('invalid');
-   if(body.enabled)await createTelnyxSmsClient(secret,read).verifyAccount(body.identity);
-   return parsed(settings,await rpc('set_native_sms_settings',{p_workspace_id:workspaceId,p_actor_id:actorId,p_connection_id:existing.configured?existing.connectionId:randomUUID(),p_revision:randomUUID(),p_identity:body.identity,p_encrypted_key:encrypt(secret),p_public_key:signingKey,p_enabled:body.enabled,p_max_segments:body.maxSegments,p_daily_segments:body.dailySegments}));
+   const secret=body.key!==undefined?privateProviderSecret(body.key):body.enabled&&old?key(old):null,signingKey=body.publicKey??old?.public_key;
+   const encryptedKey=body.key!==undefined&&secret?encrypt(secret):old?.encrypted_key;
+   if(!encryptedKey||!signingKey)throw new ExpansionProviderError('invalid');
+   if(body.enabled){if(!secret)throw new ExpansionProviderError('invalid');await createTelnyxSmsClient(secret,read).verifyAccount(body.identity);}
+   return parsed(settings,await rpc('set_native_sms_settings',{p_workspace_id:workspaceId,p_actor_id:actorId,p_connection_id:existing.configured?existing.connectionId:randomUUID(),p_revision:randomUUID(),p_identity:body.identity,p_encrypted_key:encryptedKey,p_public_key:signingKey,p_enabled:body.enabled,p_max_segments:body.maxSegments,p_daily_segments:body.dailySegments}));
   },
   async peerPolicy(workspaceId:string,actorId:string,connectionId:string,peer:string){
    allowed(workspaceId,actorId);if(!uuid.safeParse(connectionId).success||!smsPhone.safeParse(peer).success)throw new ExpansionProviderError('invalid');

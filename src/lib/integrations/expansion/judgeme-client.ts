@@ -1,8 +1,11 @@
 import 'server-only';
 import {z} from 'zod';
 import {ExpansionProviderError,expansionHttp,privateProviderSecret} from './provider-http';
+import {reviewReplyText} from './review-ui-contract';
 const domain=z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}\.myshopify\.com$/);
 const id=z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+// Judge.me calls archived reviews `hidden`. This is not a publication flag;
+// neither hidden=false nor updated_at proves a publicly visible reply.
 const review=z.object({id,title:z.string().max(4000).nullable().optional(),body:z.string().max(20000),rating:z.number().int().min(1).max(5),hidden:z.boolean(),created_at:z.string().datetime({offset:true}),updated_at:z.string().datetime({offset:true}),product_external_id:id.nullable().optional(),product_title:z.string().max(4000).nullable().optional()}).passthrough();
 const page=z.object({current_page:z.number().int().positive(),per_page:z.number().int().min(1).max(100),reviews:z.array(review).max(100)}).passthrough();
 export type StoreReview={id:number;title:string|null;body:string;rating:number;hidden:boolean;createdAt:string;updatedAt:string;productExternalId:number|null;productTitle:string|null};
@@ -34,7 +37,7 @@ export function createJudgeMeClient(shopDomain:string,privateKey:string,read:typ
    if(result.review.id!==reviewId)throw new ExpansionProviderError('unavailable');return project(result.review);
   },
   async publicReply(reviewId:number,content:string,authorize:()=>Promise<boolean>){
-   if(!id.safeParse(reviewId).success||typeof content!=='string'||!content.trim()||content.length>4000||/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(content))throw new ExpansionProviderError('invalid');
+   if(!id.safeParse(reviewId).success||!reviewReplyText.safeParse(content).success)throw new ExpansionProviderError('invalid');
    // Endpoint's email default is true. Always opt out explicitly. A reply
    // still publishes externally and requires the durable human review guard.
    await request('/api/v1/replies',{method:'POST',headers,query,body:{review_id:reviewId,send_reply_email:false,reply:{content}},authorize,responseKind:'ack',successStatus:200});
