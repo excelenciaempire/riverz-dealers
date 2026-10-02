@@ -12,6 +12,7 @@ export type CaseOrderAction = { type: 'refund'; amount: number | null; reason: s
 export interface CaseOrderOperation {
   id: string; order_id: string; requested_by: string; approved_by: string | null;
   action: CaseOrderAction; preview: { order_name: string; amount: string | null; currency: string; financial_status: string; fulfillment_status: string | null;
+    customer_request?: { version:1;request_id:string;source_message_id:string };
     return_receipt?: { version:1;case_id:string;receipt_id:string;reference:string;condition:ReturnRefundContext['receipt']['condition'];quantity:number;recorded_at:string };
     shipping_address?:OrderShippingAddress | null; shipping_change?:{ before:OrderShippingAddress | null; after:OrderShippingAddress; validation:'disabled' | 'accept' | 'confirm' }; item_change?:OrderItemsQuote;
     item_current?:{ items:OrderItemDisplay[]; total:string; currency:string }; replacement?:ReplacementQuote; draft_current?:ReplacementDraftState; hold?:FulfillmentHoldQuote; hold_current?:HoldPreparation[]; credit?:StoreCreditQuote; credit_current?:ObservedStoreCredit };

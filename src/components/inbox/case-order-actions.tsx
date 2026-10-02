@@ -15,6 +15,7 @@ import type { StoreCreditReceipt,ObservedStoreCredit } from '@/lib/shopify/store
 import Link from '@/components/i18n/locale-link'
 import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview'
 import {returnRefundReceipt,returnRefundContext} from '@/lib/returns/refund-link-contract'
+import { CustomerAddressRequests } from './customer-address-requests'
 
 interface State { orders: { id:string; shopify_order_id:string }[]; history:CaseOrderOperation[]; locks:{ order_id:string; status:string }[]; actors:Record<string,string | null>; can_execute:boolean }
 interface Review { source_id:string; action_type:CaseOrderOperation['action']['type'] | 'financial'; fingerprint:string; preview:CaseOrderOperation['preview'] }
@@ -44,6 +45,7 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
     const data = await r.json()
     if (!r.ok) throw new Error(data.error ?? t('inbox.orderUnavailable'))
     if (!signal?.aborted) { setState(data); setError(null) }
+    return data as State
   },[endpoint,shopifyOrderId,t])
   useEffect(() => {
     if (!open) return
@@ -189,6 +191,11 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
       {error && <p role="alert" className="text-destructive">{error}</p>}
       {!state && <Button variant="ghost" size="sm" onClick={() => void load().catch(e => setError(e.message))}>{t('inbox.actionRetry')}</Button>}
       {!!state?.locks.length && <p className="text-muted-foreground">{t('inbox.orderBusy')}</p>}
+      {SHOW_RIVERZ_IMPROVEMENTS && localOrderId && <CustomerAddressRequests key={`${conversationId}-${localOrderId}`} conversationId={conversationId} orderId={localOrderId} onPrepared={async (operationId, requestId) => {
+        const fresh = await load(), operation = fresh.history.find(value => value.id === operationId && value.order_id === localOrderId);
+        if (!operation || operation.action.type !== 'address' || operation.preview.customer_request?.request_id !== requestId) throw new Error(t('inbox.orderUnavailable'));
+        setPreview(operation); setConfirmed(false)
+      }} />}
       {state?.can_execute && state.locks.some(lock => lock.status === 'uncertain') && !review && <Button size="sm" variant="outline" disabled={busy} onClick={() => void inspectResult()}>{t('inbox.orderReconcile')}</Button>}
       {review && <div className="space-y-2 rounded-md border p-2">
         <p className="font-medium">{review.preview.order_name}</p>
@@ -228,7 +235,7 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
       {preview && <div className="space-y-2 rounded-md bg-muted/40 p-2">
         <p className="font-medium">{preview.preview.order_name} · {t(`inbox.${ACTION_LABEL[preview.action.type]}`)}</p>
         <p>{payment(preview.preview.financial_status)} · {shipment(preview.preview.fulfillment_status)}</p>
-        {preview.action.type === 'credit' ? creditPreview(preview) : preview.action.type === 'hold' ? holdPreview(preview) : preview.action.type === 'replacement' ? replacementPreview(preview) : preview.action.type === 'address' ? addressPreview(preview) : preview.action.type === 'items' ? itemPreview(preview) : <p>{money(preview)}</p>}<p className="break-words">{preview.action.reason}</p>
+        {preview.action.type === 'credit' ? creditPreview(preview) : preview.action.type === 'hold' ? holdPreview(preview) : preview.action.type === 'replacement' ? replacementPreview(preview) : preview.action.type === 'address' ? addressPreview(preview) : preview.action.type === 'items' ? itemPreview(preview) : <p>{money(preview)}</p>}<p className="break-words">{preview.preview.customer_request && preview.action.reason === 'webchat_address_request' ? t('webchat.addressRequestTitle') : preview.action.reason}</p>
         {returnReceipt(preview)}
         <p className="text-muted-foreground">{t(`inbox.orderStatus.${preview.status}`)}</p>
         {typeof preview.result?.error === 'string' && <p role="alert">{t(`inbox.${preview.result.error}`)}</p>}

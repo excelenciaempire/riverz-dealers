@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Locale } from '@/lib/i18n/config';
 import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { orderRequestAction, visitorOrderPage, widgetOrderRequest, widgetOrderText, type OrderRequestAction, type VisitorOrder } from '@/lib/channels/webchat/order-contract';
+import { WidgetAddressRequest } from './address-request';
 
 export function OrderRequests({ session, locale, onSend, onExpired }: {
   session: string; locale: Locale; onSend: (text: string) => Promise<boolean>; onExpired: () => void;
@@ -41,7 +42,7 @@ export function OrderRequests({ session, locale, onSend, onExpired }: {
   }
 
   if (!SHOW_RIVERZ_IMPROVEMENTS) return null;
-  return <details className="mb-3 rounded-xl border border-neutral-200 p-3">
+  return <details className="mb-3 rounded-xl border border-neutral-200 p-3" onToggle={event => { if (!event.currentTarget.open) { controller.current?.abort(); setLoading(false); setSelected(null); } }}>
     <summary className="cursor-pointer text-sm font-medium" onClick={event => { if (!event.currentTarget.parentElement?.hasAttribute('open') && !loading) { setSelected(null); setDetails(''); void load(); } }}>{t('ordersTitle')}</summary>
     <div className="mt-3 space-y-2 text-sm">
       {loading ? <p role="status" className="text-neutral-500">{t('ordersLoading')}</p> : null}
@@ -50,7 +51,7 @@ export function OrderRequests({ session, locale, onSend, onExpired }: {
       {orders?.map(order => <button key={order.id} type="button" disabled={sending} className="block w-full rounded-lg border border-neutral-200 px-3 py-2 text-left hover:bg-neutral-50 disabled:opacity-50" onClick={() => { setSelected(order); setAction('confirm'); setDetails(''); }}>{order.reference}</button>)}
       {next && !error ? <button type="button" disabled={loading} className="underline disabled:opacity-50" onClick={() => void load(next)}>{t('ordersMore')}</button> : null}
       {selected ? <form className="space-y-2 border-t border-neutral-200 pt-3" onSubmit={async event => {
-        event.preventDefault(); if (sending) return;
+        event.preventDefault(); if (sending || action === 'address') return;
         const text = widgetOrderRequest(locale, selected, action, details); if (!text) return;
         setSending(true);
         try { if (await onSend(text)) { setSelected(null); setDetails(''); } }
@@ -62,10 +63,11 @@ export function OrderRequests({ session, locale, onSend, onExpired }: {
             {orderRequestAction.options.map(value => <option key={value} value={value}>{t(`orderAction_${value}`)}</option>)}
           </select>
         </label>
-        {action !== 'confirm' ? <label className="block">{t(`orderDetails_${action}`)}
+        {action === 'address' ? <WidgetAddressRequest key={selected.id} session={session} locale={locale} orderId={selected.id} onExpired={onExpired} /> : null}
+        {action !== 'confirm' && action !== 'address' ? <label className="block">{t(`orderDetails_${action}`)}
           <textarea className="mt-1 block w-full resize-none rounded-lg border border-neutral-200 p-2" rows={3} required maxLength={600} disabled={sending} value={details} onChange={event => setDetails(event.target.value)} />
         </label> : null}
-        <button type="submit" disabled={sending || (action !== 'confirm' && !details.trim())} className="rounded-lg bg-neutral-900 px-3 py-2 text-white disabled:opacity-50">{t('orderSendRequest')}</button>
+        {action !== 'address' ? <button type="submit" disabled={sending || (action !== 'confirm' && !details.trim())} className="rounded-lg bg-neutral-900 px-3 py-2 text-white disabled:opacity-50">{t('orderSendRequest')}</button> : null}
       </form> : null}
     </div>
   </details>;
