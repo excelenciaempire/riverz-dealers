@@ -14,7 +14,8 @@ export function explicitlyStacksDiscounts(text: string): boolean {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
   return normalized.split(/[.!?;\n]/).some((clause) => {
-    if (!/cupon|coupon/.test(clause)) return false;
+    // Percentage-only promises ("5% web + 10% transfer") are stacking too.
+    if (!/cupon|coupon/.test(clause) && (clause.match(/\d+(?:[.,]\d+)?\s*%/g) ?? []).length < 2) return false;
     // A refusal or a choice between offers must remain deliverable.
     if (
       /\b(no|nunca|not|never|cannot|can't|don't)\b|sin\s+(?:acumul|combin|sum|aplic)|no acumul|non.?stack|instead|en lugar|\b(?:o|or)\b/.test(

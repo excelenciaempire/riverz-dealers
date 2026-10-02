@@ -30,6 +30,14 @@ beforeEach(() => {
 const url = (r: unknown) => (r as { checkout_url: string }).checkout_url;
 
 describe('carrito con varios productos', () => {
+  it('rejects Revitaly coupon plus manual transfer even without checkout configuration', async () => {
+    const result = await createCheckoutLink({ items: [{ variant_id: '111' }], discount_code: 'REVITALY5', payment_hint: 'transfer' }, ctx({
+      shopDomain: 'tkjiax-hc.myshopify.com', config: null,
+    }));
+    expect(result).toMatchObject({ error: 'discounts_not_combinable' });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it.each([
     { quantity: 1 },
     { items: [{ variant_id: '111' }, { variant_id: '222' }] },

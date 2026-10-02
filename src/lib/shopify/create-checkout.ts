@@ -254,8 +254,11 @@ export async function createCheckoutLink(
   const config = ctx.config ?? null
   if (conflictingCheckoutDiscounts({
     discountCode: input.discount_code,
-    transferDiscount: input.payment_hint === 'transfer' &&
-      typeof config?.transfer_discount_amount === 'number' && config.transfer_discount_amount > 0,
+    transferDiscount: input.payment_hint === 'transfer' && (
+      (typeof config?.transfer_discount_amount === 'number' && config.transfer_discount_amount > 0) ||
+      // Revitaly's manual 10% policy is guidance, not a fixed-amount checkout config.
+      ctx.shopDomain.toLowerCase() === 'tkjiax-hc.myshopify.com'
+    ),
   })) {
     return {
       error: 'discounts_not_combinable',

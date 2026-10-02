@@ -16,6 +16,10 @@ describe('global non-stacking policy', () => {
     'Con el cupón de 5% más el 10% por transferencia y envío sin costo.',
     'Te aplico el cupón A5 + el cupón B10.',
     'Your FIRST5 coupon gives you 5% plus 10% off for bank transfer.',
+    'El 5% de la web más el 10% por transferencia te da un 15%.',
+    'Aplicamos 5% y además 10% por transferencia.',
+    'You get 5% online plus 10% for bank transfer.',
+    'Primero aplicamos 5% y luego sumamos 10% por transferencia.',
   ])('blocks explicit stacking without a model: %s', (text) => {
     expect(explicitlyStacksDiscounts(text)).toBe(true);
   });
@@ -28,6 +32,8 @@ describe('global non-stacking policy', () => {
     'Your 5% coupon cannot be combined with the transfer discount.',
     'El pack de 4 meses cuesta $61.990. Por transferencia con 10% queda en $55.791.',
     'Aplica el cupón del 5%. Además, te envío más información del producto.',
+    'El 5% es sólo en la web; por transferencia al alias tienes 10%, no se combinan.',
+    'El 5% y el 10% no se suman ni se aplican sucesivamente.',
   ])('preserves alternatives, refusals and single discounts: %s', (text) => {
     expect(explicitlyStacksDiscounts(text)).toBe(false);
   });

@@ -2,6 +2,7 @@ import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { loadHttpAssistantTools } from './http-actions';
 import { revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-channel-policy';
 import { revitalyTransferReply } from './revitaly-transfer';
+import { revitalyDiscountReply } from './revitaly-discounts';
 import { revitalyTransferShippingReply } from './revitaly-transfer-shipping';
 import { loadRevitalyWhatsAppPolicy, revitalyWhatsAppRedirectText } from './revitaly-whatsapp-policy';
 import { loadRevitalyPackagingNotice } from './revitaly-packaging';
@@ -143,6 +144,10 @@ export async function simularRespuesta(
     if(redirect)return {reply:redirect,chunks:[redirect],herramientas:[],usage:{input_tokens:0,output_tokens:0,iterations:0}};
   }
   const reglasCrudas = await cargarReglas(admin, a.workspace_id, a.id);
+  const discountReply = !input.traspaso && input.superficie !== 'comentario' ? revitalyDiscountReply({
+    workspaceId: a.workspace_id, agentId: a.id, channel: input.simulatedChannel,
+    language: a.language, inbound: input.message, rules: reglasCrudas,
+  }) : null;
   const transferReply = !input.traspaso && input.superficie !== 'comentario' ? revitalyTransferReply({
     workspaceId: a.workspace_id, agentId: a.id, channel: input.simulatedChannel,
     language: a.language, inbound: input.message, rules: reglasCrudas,
@@ -150,7 +155,7 @@ export async function simularRespuesta(
   const shippingReply = input.superficie !== 'comentario' ? revitalyTransferShippingReply({ workspaceId: a.workspace_id,
     agentId: a.id, channel: input.simulatedChannel, language: a.language, inbound: input.message,
     rules: reglasCrudas, history: input.historial }) : null;
-  const transferAndShipping = [transferReply, shippingReply].filter(Boolean).join('\n\n');
+  const transferAndShipping = [discountReply, transferReply, shippingReply].filter(Boolean).join('\n\n');
   if (transferAndShipping) {
     const reply = ensureRevitalyIntroduction({ workspaceId: a.workspace_id, channel: input.simulatedChannel,
       language: a.language, text: transferAndShipping, hasPriorReply: input.historial.some(m => m.role === 'assistant') });

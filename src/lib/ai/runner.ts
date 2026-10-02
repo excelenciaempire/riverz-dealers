@@ -10,6 +10,7 @@ import { inboxCaseIsSpam } from '@/lib/inbox/disposition-server';
 import { emailDispositionForPolicy, emailRedirectText, isEmailChannel, loadEmailPolicy } from './email-policy';
 import { revitalyFeedbackBrief, ensureRevitalyIntroduction } from './revitaly-channel-policy';
 import { revitalyTransferReply } from './revitaly-transfer';
+import { revitalyDiscountReply } from './revitaly-discounts';
 import { revitalyTransferShippingReply } from './revitaly-transfer-shipping';
 import { loadRevitalyWhatsAppPolicy, trackedRevitalyWhatsAppReply } from './revitaly-whatsapp-policy';
 import { loadRevitalyPackagingNotice, revitalyPackagingBurst, revitalyPackagingChunks, revitalyPackagingFormEmail, revitalyPackagingInquiry, revitalyPackagingNeedsContext } from './revitaly-packaging';
@@ -3482,6 +3483,10 @@ async function generateReply(
   // The normal runner still applies billing, opt-out, freshness and approval gates.
   if (redirect) return { text: redirect, promptTokens: 0, completionTokens: 0, herramientas: [] };
   const reglasCrudas = await cargarReglas(db, agent.workspace_id, agent.id);
+  const discountReply = !origen.traspaso ? revitalyDiscountReply({
+    workspaceId: agent.workspace_id, agentId: agent.id, channel: origen.channel,
+    language: agent.language, inbound: origen.inboundText, rules: reglasCrudas,
+  }) : null;
   const transferReply = !origen.traspaso ? revitalyTransferReply({
     workspaceId: agent.workspace_id, agentId: agent.id, channel: origen.channel,
     language: agent.language, inbound: origen.inboundText, rules: reglasCrudas,
@@ -3489,7 +3494,7 @@ async function generateReply(
   const shippingReply = revitalyTransferShippingReply({ workspaceId: agent.workspace_id, agentId: agent.id,
     channel: origen.channel, language: agent.language, inbound: [origen.inboundText, origen.inboundEvidence].filter(Boolean).join('\n'), rules: reglasCrudas,
     history: context.messages.map(m => ({ role: m.role, content: m.content })) });
-  const transferAndShipping = [transferReply, shippingReply].filter(Boolean).join('\n\n');
+  const transferAndShipping = [discountReply, transferReply, shippingReply].filter(Boolean).join('\n\n');
   if (transferAndShipping) {
     observeContext(agent.id, reglasCrudas, origen.inboundId ? [{ kind: 'message', id: origen.inboundId }] : []);
     return {

@@ -74,9 +74,12 @@ describe('preguntasDeVerificacion y veredictoDesde', () => {
 })
 
 describe('verificarRespuesta', () => {
-  it('blocks the reported Revitaly response even without Jev or merchant rules', async () => {
+  it.each([
+    'Con el cupón REVITALY5 (5%) más el 10% por transferencia, queda en $53.001,45.',
+    'El 5% de la web más el 10% por transferencia te da 15%.',
+  ])('blocks stacking even without Jev or merchant rules: %s', async respuesta => {
     jev.hay = false
-    const result = await verificarRespuesta({ db: {} as never, workspaceId: 'any-merchant', respuesta: 'Con el cupón REVITALY5 (5%) más el 10% por transferencia, queda en $53.001,45.', ultimoMensaje: null, reglas: { prohibido: [], ofertas: [] } })
+    const result = await verificarRespuesta({ db: {} as never, workspaceId: 'any-merchant', respuesta, ultimoMensaje: null, reglas: { prohibido: [], ofertas: [] } })
     expect(result?.ok).toBe(false)
     expect(result?.motivos.join(' ')).toContain('Combinar varios cupones')
     jev.hay = true
