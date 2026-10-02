@@ -6,6 +6,7 @@ import type {
 } from '@/types'
 import type { Locale } from '@/lib/i18n/config'
 import { retentionTemplateSeeds, retentionTriggerConfig } from './retention-plan'
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview'
 
 export type TemplateSlug =
   | 'carrito-abandonado'
@@ -18,6 +19,7 @@ export type TemplateSlug =
   | 'recompras'
   | 'postventa-reposicion'
   | 'postventa-acompanamiento'
+  | 'novedad-entrega'
 
 export type TemplateCategory =
   | 'shopify'
@@ -98,6 +100,23 @@ export interface AutomationTemplateDefinition {
  * el merchant registre el template en Meta con el cuerpo correcto.
  */
 export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefinition> = {
+  'novedad-entrega': {
+    slug: 'novedad-entrega', name: 'Novedad de entrega',
+    description: 'Solicita la corrección de datos tras una novedad registrada en Shopify. Las respuestas continúan con el asistente actual; una respuesta no confirma una corrección en la transportadora.',
+    category: 'soporte', icon: 'truck', tags: ['Shopify'],
+    trigger_type: 'shopify_order_incident_opened',
+    trigger_config: { platforms: ['shopify'], stop_on_inbound: true, delivery_incident_context: true },
+    suggested_template_body: 'Hola {{recipient_name}}, tu pedido tiene una novedad de entrega registrada.\n\n{{order_items}}\nMotivo: {{incident_reason}}\nGuía: {{tracking_number}}\nSeguimiento: {{tracking_url}}\n\n¿Los datos de entrega son correctos o necesitas corregir alguno?',
+    steps: [
+      { step_type: 'send_template', step_config: { template_name: '', language: 'es', variables: {
+        '1': '{{vars.recipient_name}}', '2': '{{vars.order_items}}', '3': '{{vars.incident_reason}}',
+        '4': '{{vars.tracking_number}}', '5': '{{vars.tracking_url}}',
+      } } },
+      // Retain the context while awaiting a reply. This is not another reminder.
+      { step_type: 'wait', step_config: { amount: 72, unit: 'hours' } },
+      { step_type: 'add_tag', step_config: { tag_id: '' } },
+    ],
+  },
   'carrito-abandonado': {
     slug: 'carrito-abandonado',
     name: 'Carrito abandonado',
@@ -553,6 +572,7 @@ export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
   'nuevo-pedido',
   'enviar-tracking',
   'postventa-reposicion',
+  'novedad-entrega',
 ]
 
 /**
@@ -564,6 +584,7 @@ export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
  * merchant's locale so an English merchant doesn't seed Spanish defaults.
  */
 const SUGGESTED_BODIES_EN: Partial<Record<TemplateSlug, string>> = {
+  'novedad-entrega': 'Hi {{recipient_name}}, your order has a recorded delivery issue.\n\n{{order_items}}\nReason: {{incident_reason}}\nTracking number: {{tracking_number}}\nTrack it here: {{tracking_url}}\n\nAre the delivery details correct, or do you need to change anything?',
   'pago-pendiente-mercadopago': 'Hi {{customer_name}}, your {{total_price}} {{currency}} payment is still pending. View your voucher and payment instructions here: {{payment_url}}. If you have already paid, send us your receipt here.',
   'carrito-abandonado':
     'Hi {{customer_name}}, your cart is still ready.\n\nYou can finish your purchase from the button. If shipping, payment, or a question got in the way, we can help here.\n\nWould you like to pick it back up?',
@@ -607,6 +628,8 @@ export function getTemplate(
   slug: string,
   locale: Locale = 'es',
 ): AutomationTemplateDefinition | null {
+  if (!Object.prototype.hasOwnProperty.call(AUTOMATION_TEMPLATES, slug)) return null
+  if (slug === 'novedad-entrega' && !SHOW_RIVERZ_IMPROVEMENTS) return null
   const t = AUTOMATION_TEMPLATES[slug as TemplateSlug]
   return t ? localizeTemplate(t, locale) : null
 }
@@ -628,9 +651,9 @@ export function automationTemplateDescKey(slug: string): string {
 export function listTemplates(locale: Locale = 'es'): AutomationTemplateDefinition[] {
   const out: AutomationTemplateDefinition[] = []
   for (const slug of TEMPLATE_GALLERY_ORDER) {
-    const t = AUTOMATION_TEMPLATES[slug]
+    const t = getTemplate(slug, locale)
     if (t) {
-      out.push(localizeTemplate(t, locale))
+      out.push(t)
     }
   }
   return out

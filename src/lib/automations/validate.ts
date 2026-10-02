@@ -240,6 +240,10 @@ export function validateTriggerForActivation(
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = []
   const cfg = (triggerConfig ?? {}) as Record<string, unknown>
+  if (cfg.delivery_incident_context !== undefined &&
+    (typeof cfg.delivery_incident_context !== 'boolean' || (cfg.delivery_incident_context === true && !['shopify_order_incident_opened','shopify_order_incident_resolved'].includes(triggerType)))) {
+    issues.push({path:'trigger.delivery_incident_context',message:'Invalid delivery issue context trigger',key:'automations.issueIncidentContext'})
+  }
   if (cfg.event_entries !== undefined || cfg.event_triggers !== undefined) {
     const entries = eventEntries(cfg)
     const events = [...new Set(entries.map(e => e.trigger_type))].sort()

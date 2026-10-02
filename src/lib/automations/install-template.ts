@@ -20,12 +20,18 @@ import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
 import { installRetentionPackage } from './install-retention'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
+import { userAccess } from '@/lib/mcp/access'
+import { assertWorkspaceWritable } from '@/lib/billing/read-only'
+import { z } from 'zod'
 
 export interface InstalledAutomation {
   id: string
   name: string
   trigger_type: string
   is_active: boolean
+}
+export class DeliveryIncidentInstallError extends Error {
+  constructor() { super('delivery_incident_access_forbidden') }
 }
 
 export async function installTemplate(
@@ -35,11 +41,19 @@ export async function installTemplate(
     workspaceId: string
     /** Dueño de la fila. Puede faltar cuando la crea un proceso y no una persona. */
     userId?: string | null
+    actorId?: string
     locale: Locale
   },
 ): Promise<InstalledAutomation> {
   const template = getTemplate(args.templateId, args.locale)
   if (!template) throw new Error(`no existe la receta "${args.templateId}"`)
+  if (args.templateId === 'novedad-entrega') {
+    const actorId = args.actorId ?? args.userId
+    if (!z.string().uuid().safeParse(actorId).success) throw new DeliveryIncidentInstallError()
+    const access = await userAccess(db, actorId!, args.workspaceId)
+    if (!access?.admin || (access.sections !== null && !access.sections.includes('/automatizaciones'))) throw new DeliveryIncidentInstallError()
+    await assertWorkspaceWritable(db, args.workspaceId)
+  }
 
   // `automations.user_id` es NOT NULL, y quien instala no siempre es una
   // persona: puede ser el Operator o la activación guiada. En ese caso la fila

@@ -4,7 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { getTemplate } from '@/lib/automations/templates'
-import { installTemplate } from '@/lib/automations/install-template'
+import { installTemplate, DeliveryIncidentInstallError } from '@/lib/automations/install-template'
+import { BillingReadOnlyError } from '@/lib/billing/read-only'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 import { resolveWorkspaceIdForUser, isMemberOfLiveWorkspace } from '@/lib/workspaces/resolve'
@@ -31,13 +32,13 @@ import { resolveWorkspaceIdForUser, isMemberOfLiveWorkspace } from '@/lib/worksp
 export async function POST(request: Request) {
   const block = await csrfGuard(request)
   if (block) return block
+  const locale = await getLocale()
 
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const locale = await getLocale()
+  if (!user) return NextResponse.json({ error: translate(locale, 'automations.recipeSignIn') }, { status: 401 })
 
   const body = (await request.json().catch(() => null)) as
     | { template_id?: string; workspace_id?: string }
@@ -98,10 +99,15 @@ export async function POST(request: Request) {
       templateId: template.slug,
       workspaceId,
       userId: user.id,
+      ...(template.slug === 'novedad-entrega' ? { actorId: user.id } : {}),
       locale,
     })
     return NextResponse.json({ automation }, { status: 201 })
   } catch (e) {
+    if (template.slug === 'novedad-entrega') return NextResponse.json(
+      { error: translate(locale, e instanceof DeliveryIncidentInstallError ? 'automations.recipeForbidden' : e instanceof BillingReadOnlyError ? 'automations.recipeReadOnly' : 'automations.recipeSaveFailed') },
+      { status: e instanceof DeliveryIncidentInstallError ? 403 : e instanceof BillingReadOnlyError ? 402 : 503, headers: { 'Cache-Control': 'private, no-store' } },
+    )
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'insert failed' },
       { status: 500 },

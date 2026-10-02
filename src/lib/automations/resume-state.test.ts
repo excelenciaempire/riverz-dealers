@@ -48,6 +48,22 @@ beforeEach(() => {
 })
 
 describe('real engine continuation', () => {
+  it('hands a delivery reply to the current assistant with its order context, preserving human assignment', async () => {
+    const automationId='11111111-1111-4111-8111-111111111111';
+    Object.assign(state.tables.automations[0], { id:automationId,trigger_type:'shopify_order_incident_opened',trigger_config:{stop_on_inbound:true,delivery_incident_context:true} });
+    Object.assign(state.tables.automation_pending_executions[0], { automation_id:automationId,status:'pending',context:{vars:{order_id:'42',incident_status:'active',incident_source:'shopify_tag',incident_reason:'Confirm address'}} });
+    state.tables.conversations=[{id:'cv',workspace_id:'w',contact_id:'c',assigned_agent_id:'human',assigned_ai_agent_id:'current-assistant'}];
+    await cancelPendingAutomationsOnInbound({workspaceId:'w',contactId:'c',conversationId:'cv',messageText:'CORREGIR DATOS'});
+    expect(state.tables.automation_pending_executions[0].status).toBe('done');expect(state.tables.conversations[0]).toMatchObject({assigned_agent_id:'human',assigned_ai_agent_id:'current-assistant',automation_context:{order_id:'42',inbound_text:'CORREGIR DATOS',delivery_incident_handoff:{automation_id:automationId,source:'shopify_tag',status:'active'}}});
+    const saved=JSON.stringify(state.tables.conversations[0]);await cancelPendingAutomationsOnInbound({workspaceId:'w',contactId:'c',conversationId:'cv',messageText:'Repeat'});expect(JSON.stringify(state.tables.conversations[0])).toBe(saved);
+  })
+  it('does not create delivery origin from a customer-text signal or unrelated actual trigger', async () => {
+    const automationId='11111111-1111-4111-8111-111111111111';
+    Object.assign(state.tables.automations[0], { id:automationId,trigger_type:'shopify_order_created',trigger_config:{stop_on_inbound:true,delivery_incident_context:true} });
+    Object.assign(state.tables.automation_pending_executions[0], { automation_id:automationId,status:'pending',context:{vars:{order_id:'42',incident_status:'active',incident_source:'customer_text'}} });
+    state.tables.conversations=[{id:'cv',workspace_id:'w',contact_id:'c',assigned_agent_id:'human'}];
+    await cancelPendingAutomationsOnInbound({workspaceId:'w',contactId:'c',conversationId:'cv',messageText:'Correction'});expect(state.tables.conversations[0].automation_context).toBeUndefined();expect(state.reads).not.toContain('conversations');
+  })
   it('settles an inbound cancellation without leaving an orphan wait alarm', async () => {
     state.tables.automations[0].trigger_config = { stop_on_inbound: true }
     Object.assign(state.tables.automation_pending_executions[0], { status: 'pending' })

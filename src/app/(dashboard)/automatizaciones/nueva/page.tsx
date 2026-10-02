@@ -11,7 +11,6 @@ import {
   type ServerStepNode,
 } from "@/components/automations/automation-builder"
 import {
-  AUTOMATION_TEMPLATES,
   getTemplate,
   automationTemplateNameKey,
   automationTemplateDescKey,
@@ -64,7 +63,7 @@ export default function NewAutomationPage() {
   // When arriving from a gallery card we're *previewing* a template: the
   // builder shows a "Usar plantilla" CTA that persists it (and lands the
   // user in the editor) instead of the plain "Guardar borrador".
-  const isTemplatePreview = !!(template && AUTOMATION_TEMPLATES[template])
+  const isTemplatePreview = !!(template && getTemplate(template, locale))
 
   return <AutomationBuilder initial={initial} templatePreview={isTemplatePreview} />
 }

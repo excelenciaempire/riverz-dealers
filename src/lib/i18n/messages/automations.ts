@@ -151,6 +151,19 @@ export const automations = {
   // gallery metadata is translated — the suggested_template_body / step
   // copy stay in the catalog (customer-facing copy the merchant edits).
   "tpl_carrito-abandonado_name": { es: "Carrito abandonado", en: "Abandoned cart" },
+  "tpl_novedad-entrega_name": { es: "Novedad de entrega", en: "Delivery issue" },
+  "tpl_novedad-entrega_desc": {
+    es: "Solicita revisar los datos de entrega ante una novedad registrada en Shopify. La respuesta continúa con el asistente; la transportadora debe confirmar cualquier cambio.",
+    en: "Ask the customer to check delivery details after an issue is recorded in Shopify. Replies continue with the assistant; the carrier must confirm any change.",
+  },
+  recipeCreatePreview: { es: 'Crearía «{name}» con {n} pasos, en pausa. Revisa la plantilla de WhatsApp y la etiqueta antes de activarla.', en: 'Would create “{name}” with {n} steps, paused. Review the WhatsApp template and tag before activating it.' },
+  recipePausedNote: { es: 'Queda pausada. Revisa la plantilla de WhatsApp y la etiqueta antes de activarla.', en: 'It stays paused. Review the WhatsApp template and tag before activating it.' },
+  recipeUnavailable: { es: 'Esta configuración no está disponible.', en: 'This configuration is unavailable.' },
+  recipeSignIn: { es: 'Inicia sesión para continuar.', en: 'Sign in to continue.' },
+  recipeForbidden: { es: 'Necesitas permiso de administración y acceso a Automatizaciones.', en: 'You need administrator permission and access to Automations.' },
+  recipeReadOnly: { es: 'La suscripción permite consultar, pero no crear automatizaciones.', en: 'The subscription allows viewing, but not creating automations.' },
+  recipeSaveFailed: { es: 'No se pudo crear la configuración. Intenta de nuevo.', en: 'Could not create the configuration. Try again.' },
+  issueIncidentContext: { es: 'El contexto de novedades requiere un disparador de novedad de Shopify.', en: 'Delivery issue context requires a Shopify delivery issue trigger.' },
   "tpl_carrito-abandonado_desc": {
     es: "A la hora de abandonar el carrito, si todavía no compró, le damos una forma directa de retomarlo o pedir ayuda. Marca como recuperado solo a quien compra después.",
     en: "One hour after the cart is abandoned, if they still haven't purchased, we give them a direct way to finish or ask for help. Only those who buy afterwards get tagged as recovered.",

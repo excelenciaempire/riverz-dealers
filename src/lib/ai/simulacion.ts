@@ -12,6 +12,7 @@ import { recortarSalida, salidaParaCliente } from '@/lib/ai/salida';
 import { IG_DM_MAX_CHARS, SURFACE_RULES } from '@/lib/ai/super-agent';
 import { orderConversationModel } from './order-conversation-policy';
 import { recoveryHasExistingOrder } from './recovery-policy';
+import { isDeliveryIncidentHandoff } from '@/lib/automations/delivery-incident-context';
 import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
 import { withDocumentKnowledge } from './document-sources';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
@@ -244,6 +245,7 @@ export async function simularRespuesta(
     agent: a,
     hayContacto: true,
     caseReasonAvailable: true,
+    deliveryIssue: isDeliveryIncidentHandoff(automationContext),
     shopify,
     otherStore: otraTienda,
     // Nunca se llama por teléfono a nadie desde una prueba.

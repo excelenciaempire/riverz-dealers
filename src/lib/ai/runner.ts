@@ -1,6 +1,7 @@
 import { withLatitudeTrace } from '@/lib/observability/latitude';
 import { loadHttpAssistantTools } from './http-actions';
 import { CASE_REASON_TOOL } from './case-reason-tool';
+import { deliveryIncidentPrompt, isDeliveryIncidentHandoff } from '@/lib/automations/delivery-incident-context';
 import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { replyWasSuperseded } from './reply-freshness';
 import { inboxCaseIsSpam } from '@/lib/inbox/disposition-server';
@@ -480,9 +481,10 @@ async function runAiAgentInner(db:SupabaseClient,args:Parameters<typeof runAiAge
       return;
     }
 
-    const existingOrderRecovery = !automationContext?.retention_handoff && recoveryHasExistingOrder(automationContext);
+    const deliveryIssue = isDeliveryIncidentHandoff(automationContext);
+    const existingOrderRecovery = !deliveryIssue && !automationContext?.retention_handoff && recoveryHasExistingOrder(automationContext);
     const recoveryIntent = recoveryAction({
-      assignedOnly: !automationContext?.retention_handoff && Boolean(agent.assigned_only),
+      assignedOnly: !deliveryIssue && !automationContext?.retention_handoff && Boolean(agent.assigned_only),
       text: textoEntrante,
       benefitPercent: automationContext?.benefit_percent,
       existingOrder: existingOrderRecovery,
@@ -2995,6 +2997,8 @@ export function construirHerramientas(args: {
   descuentoFijo?: number | null;
   /** Recuperación sólo puede abrir checkout tras una respuesta autorizada. */
   checkoutPermitido?: boolean;
+  /** Delivery corrections cannot accidentally open another sale or coupon. */
+  deliveryIssue?: boolean;
   /** Only real inbound-bound turns or the explicit no-write simulator. */
   caseReasonAvailable?: boolean;
   /** Por defecto, el agente contestando. Ver `ModoDeHerramientas`. */
@@ -3025,6 +3029,7 @@ export function construirHerramientas(args: {
   // las otras dos se habian quedado atras.
   const puede = (k: string) => {
     if (!toolEnabled(agent, k)) return false;
+    if (args.deliveryIssue && ['crear_checkout','crear_pedido','crear_cupon'].includes(k)) return false;
     if (k === 'crear_checkout' && args.checkoutPermitido === false)
       return false;
     if (modo === 'borrador' && ESCRIBEN.has(k)) return false;
@@ -3161,6 +3166,8 @@ export function bloquesDeEntrega(
   channel: Channel
 ): string {
   let system = '';
+  const incidentPrompt = deliveryIncidentPrompt(recoveryContext);
+  if (incidentPrompt) return incidentPrompt;
   const handoffContext = recoveryContext?.retention_handoff ? null : recoveryContext;
   if (recoveryContext?.retention_handoff) {
     system += '\n\nRECOMPRA PAUSADA\nLa persona respondió a un seguimiento después de una compra. Tú atiendes su respuesta con naturalidad: dudas, incidencias, intención de compra o cambio de fecha. El seguimiento automático está pausado. No lo trates como recuperación ni confirmación de un pedido pendiente. Si pide dejar los recordatorios, usa gestionar_recompra para cancelar. Si acuerda una nueva fecha, confirma cuántos días esperar y usa gestionar_recompra; no prometas una fecha sin éxito de la herramienta. Ante un problema, deja el seguimiento pausado y resuélvelo con las herramientas autorizadas. No fuerces palabras exactas ni ofrezcas descuentos no autorizados.';
@@ -3545,7 +3552,8 @@ async function generateReply(
     perfilOperativo,
     origen.channel
   );
-  const handoffContext = recoveryContext?.retention_handoff ? null : recoveryContext;
+  const deliveryIssue = isDeliveryIncidentHandoff(recoveryContext);
+  const handoffContext = recoveryContext?.retention_handoff || deliveryIssue ? null : recoveryContext;
 
   const messages = normalizarLimitesDeConversacion(context.messages, {
     role: 'user',
@@ -3613,7 +3621,7 @@ async function generateReply(
     : 0;
   const etapaBeneficio = Number(handoffContext?.benefit_percent ?? 0);
   const accionRecuperacion = recoveryAction({
-    assignedOnly: !recoveryContext?.retention_handoff && Boolean(agent.assigned_only),
+    assignedOnly: !deliveryIssue && !recoveryContext?.retention_handoff && Boolean(agent.assigned_only),
     text: origen.inboundText,
     benefitPercent: etapaBeneficio,
     existingOrder: recoveryHasExistingOrder(handoffContext),
@@ -3654,6 +3662,7 @@ async function generateReply(
     voiceCtx,
     topeDescuento,
     descuentoFijo,
+    deliveryIssue,
     checkoutPermitido: agent.assigned_only
       ? recoveryCheckoutAllowed(accionRecuperacion)
       : undefined,

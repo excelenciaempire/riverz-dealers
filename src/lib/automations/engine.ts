@@ -54,6 +54,7 @@ import { recentlyContacted } from '@/lib/outreach/cooldown'
 import { shouldStopRunOnInbound } from './inbound-stop'
 import { nextReminderTime } from './reminder-hours'
 import { retentionStockReply } from './retention-reply'
+import { deliveryIncidentContext } from './delivery-incident-context'
 import { anchoredWait, templatePastDeadline, paymentStartedAt } from './payment-deadline'
 import { retentionProductVars } from './retention-product'
 import { settledLogStatus } from './log-status'
@@ -235,13 +236,14 @@ export async function cancelPendingAutomationsOnInbound(input: {
   const ids = [...new Set(pending.map((p) => String(p.automation_id)))]
   const { data: automations } = await db
     .from('automations')
-    .select('id, trigger_config')
+    .select('id, trigger_type, trigger_config')
     .in('id', ids)
     .eq('workspace_id', input.workspaceId)
   const stops = new Map(
     (automations ?? [])
       .map((a) => [String(a.id), a.trigger_config as Record<string, unknown>]),
   )
+  const triggerTypes = new Map((automations ?? []).map(a => [String(a.id), String(a.trigger_type)]))
   const target = pending.filter((p) => stops.has(String(p.automation_id)) &&
     shouldStopRunOnInbound(stops.get(String(p.automation_id)), p.context))
   if (!target.length) return
@@ -288,10 +290,11 @@ export async function cancelPendingAutomationsOnInbound(input: {
   const context = last.context
   const trigger = stops.get(String(last.automation_id)) ?? {}
   const agentId = String(trigger.handoff_ai_agent_id ?? context.vars?.handoff_ai_agent_id ?? '').trim()
-  if (agentId || trigger.retention_ai_managed === true) {
+  const incidentContext = deliveryIncidentContext(String(last.automation_id), triggerTypes.get(String(last.automation_id)) ?? '', trigger, context.vars ?? {})
+  if (agentId || trigger.retention_ai_managed === true || incidentContext) {
     await db.from('conversations').update({
       ...(agentId ? { assigned_ai_agent_id: agentId } : {}),
-      automation_context: { ...(context.vars ?? {}), inbound_text: input.messageText,
+      automation_context: { ...(incidentContext ?? context.vars ?? {}), inbound_text: input.messageText,
         ...(trigger.retention_ai_managed === true ? { retention_handoff: { automation_id: last.automation_id, pending_id: last.id, token: context.vars?.retention_pause_token } } : {}),
       },
     }).eq('id', input.conversationId).eq('workspace_id', input.workspaceId).eq('contact_id', input.contactId)
@@ -1238,12 +1241,20 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       // Human assignment is intentionally untouched.
       const handoffId = String((args.automation.trigger_config as Record<string, unknown>)?.handoff_ai_agent_id ?? '').trim()
       const aiManaged = (args.automation.trigger_config as Record<string, unknown>)?.retention_ai_managed === true
-      if (handoffId || aiManaged) {
-        const { error } = await db.from('conversations').update({
+      const incidentContext = deliveryIncidentContext(args.automation.id, args.automation.trigger_type,
+        (args.automation.trigger_config ?? {}) as Record<string,unknown>, args.context.vars ?? {})
+      if (handoffId || aiManaged || incidentContext) {
+        const contextWrite = db.from('conversations').update({
           ...(handoffId ? { assigned_ai_agent_id: handoffId } : {}),
-          automation_context: { ...args.context.vars, ...(aiManaged ? { retention_handoff: { automation_id: args.automation.id } } : {}) },
+          automation_context: { ...(incidentContext ?? args.context.vars), ...(aiManaged ? { retention_handoff: { automation_id: args.automation.id } } : {}) },
         }).eq('id', conversationId).eq('workspace_id', args.automation.workspace_id)
-        if (error) throw new Error(`automation reply context: ${error.message}`)
+        if (incidentContext) {
+          const confirmed = await contextWrite.eq('contact_id', args.contactId).is('deleted_at', null).select('id').maybeSingle()
+          if (confirmed.error || confirmed.data?.id !== conversationId) throw new Error('delivery_incident_case_unavailable')
+        } else {
+          const { error } = await contextWrite
+          if (error) throw new Error(`automation reply context: ${error.message}`)
+        }
       }
       let photoDetail = ''
       if (configured.purchase_confirmation && !variant) {

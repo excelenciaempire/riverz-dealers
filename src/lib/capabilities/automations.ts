@@ -35,10 +35,9 @@ import { insertSteps, loadStepsTree, replaceSteps } from '@/lib/automations/step
 import { resolverReferencias } from '@/lib/automations/resolve-tag-seeds'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import {
-  AUTOMATION_TEMPLATES,
-  TEMPLATE_GALLERY_ORDER,
+  getTemplate,
+  listTemplates,
   automationTemplateNameKey,
-  type TemplateSlug,
   type TemplateStepSeed,
 } from '@/lib/automations/templates'
 import type { BuilderStepInput } from '@/lib/automations/steps-tree'
@@ -46,6 +45,7 @@ import { translate } from '@/lib/i18n/translate'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import { cambio, corto, fecha, lista, numero, tabla, tieneCampos, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
+import { gapCapabilityActor } from '@/lib/ai/gap-knowledge-actions'
 
 async function listar(ctx: CapabilityContext) {
   const { data } = await ctx.db
@@ -415,8 +415,8 @@ async function editar(ctx: CapabilityContext, args: Record<string, unknown>) {
 
 async function recetas(ctx: CapabilityContext) {
   const locale = ctx.locale ?? 'es'
-  return TEMPLATE_GALLERY_ORDER.map((slug) => {
-    const t = AUTOMATION_TEMPLATES[slug]
+  return listTemplates(locale).map((t) => {
+    const slug = t.slug
     return {
       receta: slug,
       nombre: translate(locale, automationTemplateNameKey(slug)),
@@ -589,13 +589,14 @@ async function crearDesdeReceta(ctx: CapabilityContext, args: Record<string, unk
     templateId: String(args.receta),
     workspaceId: ctx.workspaceId,
     userId: ctx.actor.type === 'ui' || ctx.actor.type === 'operator' ? ctx.actor.id : null,
+    ...(args.receta === 'novedad-entrega' ? { actorId: gapCapabilityActor(ctx) } : {}),
     locale: ctx.locale ?? 'es',
   })
   return {
     ...automation,
     // Se dice acá y no en la descripción porque es lo que hay que hacer
     // ahora: la receta deja en blanco la plantilla y la etiqueta a propósito.
-    nota: 'Queda pausada. Completa el nombre de la plantilla y la etiqueta antes de prenderla.',
+    nota: translate(ctx.locale ?? 'es', 'automations.recipePausedNote'),
   }
 }
 
@@ -1221,16 +1222,16 @@ Las preguntas (condition) NO se escriben a mano: se elige un "dato" de la lista 
     inerte: true,
     async preview(ctx, args) {
       const slug = String(args.receta)
-      const t = AUTOMATION_TEMPLATES[slug as TemplateSlug]
-      if (!t) throw new Error(`No hay ninguna lista para armar que se llame "${slug}".`)
+      const t = getTemplate(slug, ctx.locale ?? 'es')
+      if (!t) throw new Error(translate(ctx.locale ?? 'es', 'automations.recipeUnavailable'))
       const nombre = translate(ctx.locale ?? 'es', automationTemplateNameKey(slug))
-      return `Crearía «${nombre}» con sus ${t.steps.length} pasos ya armados, en pausa. Después hay que completar la plantilla de WhatsApp y la etiqueta antes de prenderla.`
+      return translate(ctx.locale ?? 'es', 'automations.recipeCreatePreview', { name: nombre, n: t.steps.length })
     },
     // Se dibuja igual que la que se arma desde cero. Sin esto, elegir una lista
     // para usar dejaba el banco vacío: la única de las dos formas de crear una
     // automatización que no mostraba lo que iba a quedar.
     artifact: (ctx, args) => {
-      const t = AUTOMATION_TEMPLATES[String(args.receta) as TemplateSlug]
+      const t = getTemplate(String(args.receta), ctx.locale ?? 'es')
       if (!t) return null
       return artefactoDeSnapshot({
         nombre: translate(ctx.locale ?? 'es', automationTemplateNameKey(String(args.receta))),
