@@ -11,6 +11,7 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { Button } from '@/components/ui/button';
 import { ReturnCaseHistory } from '@/components/returns/case-history';
 import { ReturnLogisticsEvidence } from '@/components/returns/logistics-evidence';
+import { ReturnRefundPreparation } from '@/components/returns/refund-preparation';
 import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 
 /**
@@ -144,9 +145,10 @@ function DevolucionesContent() {
         </div>
       ) : (
         items.map((d) => (
-          <article key={d.id} className="rounded-xl border border-border p-4">
+          <article key={d.id} id={SHOW_RIVERZ_IMPROVEMENTS ? `return-${d.id}` : undefined} className="rounded-xl border border-border p-4">
             {SHOW_RIVERZ_IMPROVEMENTS && <ReturnCaseHistory key={`${d.id}:${d.updated_at}`} caseId={d.id} />}
             {SHOW_RIVERZ_IMPROVEMENTS && <ReturnLogisticsEvidence key={`logistics:${d.id}:${d.updated_at}`} caseId={d.id} onChanged={() => void cargar()} />}
+            {SHOW_RIVERZ_IMPROVEMENTS && !d.platform && d.status === 'recibida' && <ReturnRefundPreparation key={`refund:${d.id}:${d.updated_at}`} caseId={d.id} />}
             <div className="flex flex-wrap items-center gap-2">
               <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${COLOR[d.status]}`}>
                 {t(`returns.status.${d.status}`)}

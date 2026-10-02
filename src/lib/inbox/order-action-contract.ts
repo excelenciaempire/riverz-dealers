@@ -6,11 +6,13 @@ import type { OrderItemsQuote } from '@/lib/shopify/reviewed-order-items'
 import type { ReplacementQuote,ReplacementDraftState } from '@/lib/shopify/replacement-draft'
 import type { FulfillmentHoldQuote,HoldPreparation } from '@/lib/shopify/fulfillment-hold'
 import type { StoreCreditQuote,ObservedStoreCredit } from '@/lib/shopify/store-credit'
+import type { ReturnRefundContext } from '@/lib/returns/refund-link-contract'
 
 export type CaseOrderAction = { type: 'refund'; amount: number | null; reason: string } | { type: 'cancel'; reason: string } | { type:'address'; address:OrderShippingAddress; reason:string } | { type:'items'; items:ReviewedOrderItem[]; reason:string } | { type:'replacement'; items:ReviewedOrderItem[]; reason:string } | { type:'hold'; reason:string } | { type:'credit'; amount:number; reason:string }
 export interface CaseOrderOperation {
   id: string; order_id: string; requested_by: string; approved_by: string | null;
   action: CaseOrderAction; preview: { order_name: string; amount: string | null; currency: string; financial_status: string; fulfillment_status: string | null;
+    return_receipt?: { version:1;case_id:string;receipt_id:string;reference:string;condition:ReturnRefundContext['receipt']['condition'];quantity:number;recorded_at:string };
     shipping_address?:OrderShippingAddress | null; shipping_change?:{ before:OrderShippingAddress | null; after:OrderShippingAddress; validation:'disabled' | 'accept' | 'confirm' }; item_change?:OrderItemsQuote;
     item_current?:{ items:OrderItemDisplay[]; total:string; currency:string }; replacement?:ReplacementQuote; draft_current?:ReplacementDraftState; hold?:FulfillmentHoldQuote; hold_current?:HoldPreparation[]; credit?:StoreCreditQuote; credit_current?:ObservedStoreCredit };
   fingerprint: string; status: 'preview' | 'running' | 'completed' | 'failed' | 'uncertain' | 'expired' | 'reviewed';

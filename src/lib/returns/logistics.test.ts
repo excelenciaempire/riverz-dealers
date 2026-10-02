@@ -15,7 +15,7 @@ describe('Shared return logistics service',()=>{
   const rpc=vi.fn().mockResolvedValue({data:page,error:null});expect(await readReturnLogistics({rpc} as unknown as SupabaseClient,ws,actor,id,'{"event_sequence":42}')).toEqual(page);
   expect(rpc).toHaveBeenCalledExactlyOnceWith('read_return_logistics',{p_workspace_id:ws,p_actor_id:actor,p_case_id:id,p_cursor_sequence:42});
  });
- it.each([['invalid_return_logistics','invalid'],['return_access_forbidden','forbidden'],['return_not_found','notFound'],['return_platform_managed','platformManaged'],['return_decision_changed','changed'],['return_logistics_conflict','changed'],['return_subscription_read_only','readOnly'],['return_logistics_limit','limit'],['PRIVATE_SECRET','unavailable']] as const)('maps %s without leaking internals',async(message,code)=>{
+ it.each([['invalid_return_logistics','invalid'],['return_access_forbidden','forbidden'],['return_not_found','notFound'],['return_platform_managed','platformManaged'],['return_decision_changed','changed'],['return_logistics_conflict','changed'],['return_refund_pending','changed'],['return_subscription_read_only','readOnly'],['return_logistics_limit','limit'],['PRIVATE_SECRET','unavailable']] as const)('maps %s without leaking internals',async(message,code)=>{
   const rpc=vi.fn().mockResolvedValue({data:null,error:{message}});await expect(recordReturnLogistics({rpc} as unknown as SupabaseClient,ws,actor,id,input)).rejects.toMatchObject({code});
  });
  it('rejects unknown credentials or identity fields, invalid amounts and invented provider confirmation',()=>{

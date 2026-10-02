@@ -5,7 +5,7 @@ import {returnStatus} from './decision';
 import {parseReturnHistoryCursor} from './history';
 export class ReturnLogisticsError extends Error{constructor(readonly code:'invalid'|'forbidden'|'notFound'|'platformManaged'|'changed'|'readOnly'|'limit'|'unavailable'){super(code);}}
 function failure(message:string):never{
- const map:Record<string,ReturnLogisticsError['code']>={invalid_return_logistics:'invalid',return_access_forbidden:'forbidden',return_not_found:'notFound',return_platform_managed:'platformManaged',return_decision_changed:'changed',return_logistics_conflict:'changed',invalid_return_transition:'changed',return_subscription_read_only:'readOnly',return_logistics_limit:'limit'};
+ const map:Record<string,ReturnLogisticsError['code']>={invalid_return_logistics:'invalid',return_access_forbidden:'forbidden',return_not_found:'notFound',return_platform_managed:'platformManaged',return_decision_changed:'changed',return_logistics_conflict:'changed',return_refund_pending:'changed',invalid_return_transition:'changed',return_subscription_read_only:'readOnly',return_logistics_limit:'limit'};
  throw new ReturnLogisticsError(map[message]??'unavailable');
 }
 function identity(workspaceId:string,actorId:string,caseId:string){if(![workspaceId,actorId,caseId].every(value=>z.string().uuid().safeParse(value).success))throw new ReturnLogisticsError('invalid');}

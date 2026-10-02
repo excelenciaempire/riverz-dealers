@@ -8,6 +8,22 @@ import type { Namespace } from "./types";
  * anota, alguien resuelve.
  */
 export const returns = {
+  refundPrepare:{es:'Preparar reembolso',en:'Prepare refund'},
+  refundPrepareScope:{es:'Consulta el saldo actual y prepara una revisión. No ejecuta dinero ni envía mensajes.',en:'Reads the current balance and prepares a review. It does not move money or send messages.'},
+  refundReceipt:{es:'Recepción declarada: {reference} · {quantity} unidades · {condition}',en:'Reported receipt: {reference} · {quantity} units · {condition}'},
+  refundAmount:{es:'Importe',en:'Amount'},
+  refundRemaining:{es:'Vacío: saldo cobrado restante',en:'Empty: remaining paid balance'},
+  refundReason:{es:'Motivo del reembolso',en:'Refund reason'},
+  refundProposalAmount:{es:'Importe de la propuesta: {amount}',en:'Proposed amount: {amount}'},
+  refundPreparedScope:{es:'La preparación no ejecuta dinero. Abre el historial de Pedidos del caso para revisar, aprobar y comprobar el resultado.',en:'Preparation does not move money. Open the case’s order history to review, approve and check the result.'},
+  refundExpires:{es:'Revisión vigente hasta: {date}',en:'Review valid until: {date}'},
+  refundReview:{es:'Abrir caso para revisar',en:'Open case for review'},
+  refundInvalid:{es:'Revisa el importe, motivo y recepción seleccionada.',en:'Check the amount, reason and selected receipt.'},
+  refundChanged:{es:'La recepción o el caso cambió. Revisa la evidencia actual antes de preparar otra propuesta.',en:'The receipt or case changed. Review current evidence before preparing another proposal.'},
+  refundPending:{es:'Ya hay una revisión vigente o una ejecución pendiente para esta recepción. Abre Pedidos del caso para comprobarla.',en:'This receipt already has a valid review or pending execution. Open the case’s orders to check it.'},
+  refundReceiptRequired:{es:'Registra una recepción del equipo antes de preparar el reembolso.',en:'Record a team receipt before preparing the refund.'},
+  refundLimited:{es:'Espera un minuto antes de consultar más propuestas de reembolso.',en:'Wait a minute before requesting more refund proposals.'},
+  refundUnavailable:{es:'No se pudo comprobar el caso, la tienda o el saldo actual. No se preparó una acción confirmada.',en:'Could not verify the case, store or current balance. No confirmed action was prepared.'},
   logisticsTitle:{es:'Guía y recepción',en:'Return tracking and receipt'},
   logisticsScope:{es:'Registros del equipo. No confirman aceptación de la transportadora ni devolución de dinero.',en:'Team records. They do not confirm carrier acceptance or a refund.'},
   logisticsRecord:{es:'Registrar',en:'Record'},

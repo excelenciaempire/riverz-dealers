@@ -12,6 +12,9 @@ import { CaseOrderItemsForm } from './case-order-items-form'
 import type { ReplacementDraftState } from '@/lib/shopify/replacement-draft'
 import type { HoldPreparation } from '@/lib/shopify/fulfillment-hold'
 import type { StoreCreditReceipt,ObservedStoreCredit } from '@/lib/shopify/store-credit'
+import Link from '@/components/i18n/locale-link'
+import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview'
+import {returnRefundReceipt,returnRefundContext} from '@/lib/returns/refund-link-contract'
 
 interface State { orders: { id:string; shopify_order_id:string }[]; history:CaseOrderOperation[]; locks:{ order_id:string; status:string }[]; actors:Record<string,string | null>; can_execute:boolean }
 interface Review { source_id:string; action_type:CaseOrderOperation['action']['type'] | 'financial'; fingerprint:string; preview:CaseOrderOperation['preview'] }
@@ -111,6 +114,14 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
   }
   function displayAmount(value:string | number,currency:string) { return fmt.currency(Number(value),currency,{ maximumFractionDigits:6 }) }
   function money(op:CaseOrderOperation) { return op.preview.amount === null ? t('inbox.orderNoRefund') : displayAmount(Number(op.preview.amount),op.preview.currency) }
+  function returnReceipt(op:CaseOrderOperation){
+    const marker=op.preview.return_receipt;
+    if(!SHOW_RIVERZ_IMPROVEMENTS||!marker||marker.version!==1||!returnRefundContext.shape.case_id.safeParse(marker.case_id).success)return null;
+    const parsed=returnRefundReceipt.safeParse({id:marker.receipt_id,reference:marker.reference,condition:marker.condition,quantity:marker.quantity,recorded_at:marker.recorded_at});
+    if(!parsed.success)return null;const receipt=parsed.data;
+    return <div className="space-y-1 border-l-2 pl-3"><p>{t('returns.refundReceipt',{reference:receipt.reference,quantity:fmt.number(receipt.quantity),condition:t(`returns.receipt_${receipt.condition}`)})}</p>
+      <p className="text-muted-foreground">{t('returns.logisticsScope')}</p><Link className="underline" href={`/devoluciones#return-${marker.case_id}`}>{t('returns.history')}</Link></div>
+  }
   function payment(value:string) { return PAYMENT[value] ? t(`inbox.${PAYMENT[value]}`) : value }
   function shipment(value:string | null) { return SHIPMENT[value ?? ''] ? t(`inbox.${SHIPMENT[value ?? '']}`) : value }
   function addressText(value:OrderShippingAddress | null) {
@@ -218,6 +229,7 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
         <p className="font-medium">{preview.preview.order_name} · {t(`inbox.${ACTION_LABEL[preview.action.type]}`)}</p>
         <p>{payment(preview.preview.financial_status)} · {shipment(preview.preview.fulfillment_status)}</p>
         {preview.action.type === 'credit' ? creditPreview(preview) : preview.action.type === 'hold' ? holdPreview(preview) : preview.action.type === 'replacement' ? replacementPreview(preview) : preview.action.type === 'address' ? addressPreview(preview) : preview.action.type === 'items' ? itemPreview(preview) : <p>{money(preview)}</p>}<p className="break-words">{preview.action.reason}</p>
+        {returnReceipt(preview)}
         <p className="text-muted-foreground">{t(`inbox.orderStatus.${preview.status}`)}</p>
         {typeof preview.result?.error === 'string' && <p role="alert">{t(`inbox.${preview.result.error}`)}</p>}
         {preview.status === 'preview' && <>
@@ -233,6 +245,7 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
         <summary className="cursor-pointer text-muted-foreground">{t('inbox.orderHistory')}</summary>
         <ul className="mt-2 space-y-2">{state.history.filter(op => state.orders.some(o => o.id === op.order_id)).map(op => <li key={op.id} className="rounded-md border p-2">
           <p>{t(`inbox.${ACTION_LABEL[op.action.type]}`)}{['refund','cancel'].includes(op.action.type) && <> · {money(op)}</>}</p>
+          {returnReceipt(op)}
           {op.action.type === 'address' && addressPreview(op)}
           {op.action.type === 'items' && itemPreview(op)}
           {op.action.type === 'items' && op.status === 'completed' && actualItemTotal(op)}
