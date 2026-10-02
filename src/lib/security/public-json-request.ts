@@ -32,11 +32,12 @@ export async function requestChatwootJson(input:{url:string;token:string}):Promi
   if(!url)throw new PublicJsonError('http_destination_forbidden');
   const resource=/^\/api\/v1\/accounts\/[1-9][0-9]{0,15}\/(contacts(?:\/[1-9][0-9]{0,15}\/conversations)?|conversations(?:\/[1-9][0-9]{0,15}(?:\/messages)?)?)$/.exec(url.pathname)?.[1];
   if(!resource)throw new PublicJsonError('http_destination_forbidden');
-  const allowed=resource==='contacts'?['page','sort','include_contact_inboxes']:resource==='conversations'?['page','status','assignee_type']:resource.endsWith('/messages')?['before']:[];
+  const allowed=resource==='contacts'?['page','sort','include_contact_inboxes']:resource==='conversations'?['page','status','assignee_type']:resource.endsWith('/messages')?['before']:resource.startsWith('contacts/')?['conversation_id']:[];
   const params=url.searchParams;
   if([...params].some(([key])=>!allowed.includes(key))||allowed.some(key=>params.getAll(key).length>1)||
     params.has('page')&&(!/^[1-9][0-9]{0,9}$/.test(params.get('page')!)||Number(params.get('page'))>2147483647)||
     params.has('before')&&(!/^[1-9][0-9]{0,9}$/.test(params.get('before')!)||Number(params.get('before'))>2147483647)||
+    params.has('conversation_id')&&(!/^[1-9][0-9]{0,15}$/.test(params.get('conversation_id')!)||Number(params.get('conversation_id'))>Number.MAX_SAFE_INTEGER)||
     params.has('sort')&&!['name','-name','email','-email','phone_number','-phone_number','last_activity_at','-last_activity_at'].includes(params.get('sort')!)||
     params.has('include_contact_inboxes')&&params.get('include_contact_inboxes')!=='false'||
     params.has('status')&&params.get('status')!=='all'||params.has('assignee_type')&&params.get('assignee_type')!=='all')throw new PublicJsonError('http_input_invalid');

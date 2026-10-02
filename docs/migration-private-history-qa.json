@@ -1,0 +1,474 @@
+{
+  "kind": "private_observed_history",
+  "tests": {
+    "files": 26,
+    "passed": 456,
+    "log": "tmp/archive-final-tests.log"
+  },
+  "typecheck": {
+    "passed": true,
+    "heapMb": 4096,
+    "log": "QA/tmp/archive-types-final.log"
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 0,
+    "log": "tmp/archive-lint-final.log"
+  },
+  "builds": {
+    "normal": "QA/tmp/archive-normal-build-final.log",
+    "comparison": "QA/tmp/archive-comparison-build-final.log",
+    "bothComplete": true
+  },
+  "schema": {
+    "migration": 363,
+    "installedOnce": true,
+    "ready": true,
+    "privateInvoker": true,
+    "nullContextDenied": 5,
+    "noRealCustomerOrProviderOperations": true,
+    "log": "tmp/native-history-schema-production-proof.log"
+  },
+  "browser": {
+    "reviews": [
+      {
+        "viewport": {
+          "width": 1280,
+          "height": 800
+        },
+        "value": {
+          "locale": "es",
+          "queued": true,
+          "tokenRemoved": true,
+          "ready": true,
+          "blocked": true,
+          "noUnreviewedWrite": true,
+          "privateNote": true,
+          "deleted": true,
+          "hasFile": true,
+          "approved": true,
+          "saved": true,
+          "tokenCleared": true,
+          "recovered": true,
+          "eraseBlocked": true,
+          "noUnapprovedErase": true,
+          "erased": true,
+          "finalSaved": true,
+          "storageLeaks": false,
+          "currentHidden": true,
+          "overflow": false,
+          "fonts": "loaded",
+          "fontFamily": "\"Inter Tight\", \"Inter Tight Fallback\"",
+          "alerts": [],
+          "posts": 5,
+          "gets": 6
+        }
+      },
+      {
+        "viewport": {
+          "width": 1280,
+          "height": 800
+        },
+        "value": {
+          "alerts": [],
+          "approved": true,
+          "blocked": true,
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            }
+          ],
+          "currentHidden": true,
+          "deleted": true,
+          "eraseBlocked": true,
+          "erased": true,
+          "finalSaved": true,
+          "fontFamily": "\"Inter Tight\", \"Inter Tight Fallback\"",
+          "fonts": "loaded",
+          "hasFile": true,
+          "locale": "en",
+          "noUnapprovedErase": true,
+          "noUnreviewedWrite": true,
+          "overflow": false,
+          "privateNote": true,
+          "queued": true,
+          "ready": true,
+          "recovered": true,
+          "saved": true,
+          "storageLeaks": false,
+          "tokenCleared": true,
+          "tokenRemoved": true
+        }
+      },
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "value": {
+          "alerts": [],
+          "approved": true,
+          "blocked": true,
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            }
+          ],
+          "currentHidden": true,
+          "deleted": true,
+          "eraseBlocked": true,
+          "erased": true,
+          "finalSaved": true,
+          "fontFamily": "\"Inter Tight\", \"Inter Tight Fallback\"",
+          "fonts": "loaded",
+          "hasFile": true,
+          "locale": "es",
+          "noUnapprovedErase": true,
+          "noUnreviewedWrite": true,
+          "overflow": false,
+          "privateNote": true,
+          "queued": true,
+          "ready": true,
+          "recovered": true,
+          "saved": true,
+          "storageLeaks": false,
+          "tokenCleared": true,
+          "tokenRemoved": true
+        }
+      },
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "value": {
+          "alerts": [],
+          "approved": true,
+          "blocked": true,
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/history"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/history"
+            }
+          ],
+          "currentHidden": true,
+          "deleted": true,
+          "eraseBlocked": true,
+          "erased": true,
+          "finalSaved": true,
+          "fontFamily": "\"Inter Tight\", \"Inter Tight Fallback\"",
+          "fonts": "loaded",
+          "hasFile": true,
+          "locale": "en",
+          "noUnapprovedErase": true,
+          "noUnreviewedWrite": true,
+          "overflow": false,
+          "privateNote": true,
+          "queued": true,
+          "ready": true,
+          "recovered": true,
+          "saved": true,
+          "storageLeaks": false,
+          "tokenCleared": true,
+          "tokenRemoved": true
+        }
+      }
+    ],
+    "visualInspection": [
+      "es-desktop",
+      "en-mobile"
+    ],
+    "screenshots": [
+      "docs/comparison-preview/history-archive-es-desktop.png",
+      "docs/comparison-preview/history-archive-en-desktop.png",
+      "docs/comparison-preview/history-archive-es-mobile.png",
+      "docs/comparison-preview/history-archive-en-mobile.png"
+    ],
+    "historicalConsoleEntries": [
+      {
+        "level": "error",
+        "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 0",
+        "timestamp": "2026-10-02T06:25:24.234Z",
+        "source": "console"
+      },
+      {
+        "level": "error",
+        "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 1",
+        "timestamp": "2026-10-02T06:27:51.925Z",
+        "source": "console"
+      }
+    ],
+    "newConsoleEntriesSinceBundle": [],
+    "bundleWrittenAt": "2026-10-02T07:23:58Z",
+    "bundleSha256": "cbcc9cc3f1dd0b09fcc31c400fa57e05bbc4eb8fc7c70be3cbc8ca2442fb42dd",
+    "apiFixture": "synthetic_in_memory_only",
+    "fileDownloadedInBrowser": false
+  },
+  "isolation": {
+    "apiAndWritesBlocked": true,
+    "privateFilesNotServed": true,
+    "host403": true,
+    "cspConnectNone": true,
+    "noRootSecretsBundled": true
+  },
+  "productionUiEnabled": false,
+  "pricingChanged": false,
+  "aiCalls": false,
+  "remainingScope": "Other native source connectors and X1/X3/X4/X5 are not declared complete by this delivery.",
+  "frozenFiles": [
+    {
+      "path": "package.json",
+      "sha256": "a2c8b68bf66307d01c595c312cf21d35471e6d7a4ad1be4050ed5086348e80ef"
+    },
+    {
+      "path": "scripts/comparison/fixtures.jsx",
+      "sha256": "9b751060c1bfb9c563ca7976032a737508eaad9b6f86d8eb1679e4648e30197e"
+    },
+    {
+      "path": "src/app/api/cron/contact-migrations/route.test.ts",
+      "sha256": "9a1f5cfe5a1437462c701bcc9ec5ee8118b621b350c386fb2f1acfa7f92131b7"
+    },
+    {
+      "path": "src/app/api/cron/contact-migrations/route.ts",
+      "sha256": "fa4130be88b58547f72b96f164e88cb35a2ea8b673f06e856268f3a0e5ca06ef"
+    },
+    {
+      "path": "src/app/api/cron/pii-purge/route.ts",
+      "sha256": "15e92ed1ab274a499ad38778b5cd0cad52eea7b8939fbe87b566e9b59e1d9e41"
+    },
+    {
+      "path": "src/components/contacts/migration-preview.tsx",
+      "sha256": "4a0f2dabc7f19949287e32e9d2c6145ab036cbe3f71a1704f3b4c37addc0f9d9"
+    },
+    {
+      "path": "src/lib/i18n/messages/contacts.ts",
+      "sha256": "c79d96effca46743c3f7c60ea00ed32ec2f140b35efc3cfced723733a42d2356"
+    },
+    {
+      "path": "src/lib/security/public-json-request.test.ts",
+      "sha256": "3334d7a065398703bb3c7ae15b3765adc8b78c19151471530d48359bc8a31d3c"
+    },
+    {
+      "path": "src/lib/security/public-json-request.ts",
+      "sha256": "996c466ebc9ca178514f725f1498d7eee8b61ae8bc456d2ea7fa0ab27730b634"
+    },
+    {
+      "path": "scripts/check-native-history-archive-schema.cjs",
+      "sha256": "1a3a3cfddd0a749969e6d8ccb91d9268a1b98a4254655a0f100371370921bf02"
+    },
+    {
+      "path": "src/app/api/contacts/migrations/history/route.test.ts",
+      "sha256": "70004908274066f48feeec37f3d896b8a1b43c33c4962d8f5b1ff879cc064bce"
+    },
+    {
+      "path": "src/app/api/contacts/migrations/history/route.ts",
+      "sha256": "fb8a873c3b73f781724ade1090a6e00c5e9883aaa5ced6c0e4865e90fd3c60cd"
+    },
+    {
+      "path": "src/components/contacts/history-migration.tsx",
+      "sha256": "00b4fd4d3721b1e58143c74bcbedb5f0785fa167f824819865c3026547b0734e"
+    },
+    {
+      "path": "src/lib/migrations/archive-collection.test.ts",
+      "sha256": "aed327d900cfc59f7c7cae80ab52cf1370be4e3219b1a0fdf29ca82bef3602af"
+    },
+    {
+      "path": "src/lib/migrations/archive-collection.ts",
+      "sha256": "64fcfba2546b6f2cc079652345394379cb50e60c8765ecf64d95b40ec0f69cfb"
+    },
+    {
+      "path": "src/lib/migrations/archive-contract.test.ts",
+      "sha256": "4b064be7b86c95d8cc215084e7bd11d56280f61fad789718dc509fdaee5a94de"
+    },
+    {
+      "path": "src/lib/migrations/archive-contract.ts",
+      "sha256": "2fc7d07dcfc60115035f9e4e9e9eedc2ab1152c4a6095dfcdc83c4cd0ea383ee"
+    },
+    {
+      "path": "src/lib/migrations/archive-credentials.test.ts",
+      "sha256": "7cdeeb3f732d87954125cb5b59b7e5bb77b866534dac54dc6dce5bb3bda1a28c"
+    },
+    {
+      "path": "src/lib/migrations/archive-credentials.ts",
+      "sha256": "cb2eadfd8229ab7af7cff04cd792b04907ce203e59b5e429c14cc065a1ed1a0b"
+    },
+    {
+      "path": "src/lib/migrations/archive-download.test.ts",
+      "sha256": "4a7ae9c6c8ccd5e3eb5ca6efab0515ab711dfe4f118b58b80898a7907d73c93d"
+    },
+    {
+      "path": "src/lib/migrations/archive-download.ts",
+      "sha256": "72a4f677044ea828624dd99e25adf7468e60acc15ec907df5a37f6fc394408bd"
+    },
+    {
+      "path": "src/lib/migrations/archive-schema.test.ts",
+      "sha256": "1e6c8adf8abebeb820c37ba7802f4f3abb2ffc4baa28697aaf7de98a561f9c35"
+    },
+    {
+      "path": "src/lib/migrations/archive-service.test.ts",
+      "sha256": "3fb5af0c209578ad296962c0199c814d404c4714a037c5d6bb739d9f5ad6363f"
+    },
+    {
+      "path": "src/lib/migrations/archive-service.ts",
+      "sha256": "2797b2c4122bb7169bdaaf15c19c7cc8ac867b95a66f642c1952d06cc8286038"
+    },
+    {
+      "path": "src/lib/migrations/archive-storage.test.ts",
+      "sha256": "26a128b042c3f90f6b6b8073966798f3ad662d082ab259ead4c54753a8f356bd"
+    },
+    {
+      "path": "src/lib/migrations/archive-storage.ts",
+      "sha256": "3d27fb0324bdf4c63b92ecca38a1eed4ace37f5a22d6454f4f0145bea960b70d"
+    },
+    {
+      "path": "src/lib/migrations/archive-worker.test.ts",
+      "sha256": "c202ee83d212dcccaa99a8f1e2141f4a65cbc2487e75ac7ebbb8eba5f4f88a75"
+    },
+    {
+      "path": "src/lib/migrations/archive-worker.ts",
+      "sha256": "06fe9dc0d5538d1269a1b0e2498e3c43e0cd0f30548aaef7ec370466ae746693"
+    },
+    {
+      "path": "src/lib/migrations/providers/chatwoot-history-client.test.ts",
+      "sha256": "7f7cff9fc2a5a25581a992a0d908cdcaed6a614ef1dbb5a96edd8e963e4877c3"
+    },
+    {
+      "path": "src/lib/migrations/providers/chatwoot-history-client.ts",
+      "sha256": "afe149928316ce75334186c7a65278668af9bf737ee19ccb99cd8c2c5b6d6e48"
+    },
+    {
+      "path": "src/lib/migrations/providers/chatwoot-history.test.ts",
+      "sha256": "2d7c75b5974a7f0550324f5c5065aa75204073fe5cd3753e87de29e18511c97c"
+    },
+    {
+      "path": "src/lib/migrations/providers/chatwoot-history.ts",
+      "sha256": "9b09ebfde4ea192e1674bdfeadabd1a33e345c7ba46ec6400bd80717f99aa344"
+    },
+    {
+      "path": "supabase/migrations/363_private_history_archives.sql",
+      "sha256": "e9be3d15edbe75e9628ef9990666cf15416b48e2a9dcb0e7d5f7649f96ff0413"
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
 import {MIGRATION_FIELDS,MIGRATION_PROVIDERS,MIGRATION_MAX_BYTES,MigrationPreviewError,readMigrationCsv,previewContactMigration,type MigrationProvider,type MigrationMapping} from '@/lib/migrations/contact-preview';
 import {MigrationImportReview} from './migration-import-review';
 import {NativeMigration} from './native-migration';
+import {HistoryMigration} from './history-migration';
 
 const emptyMapping=():MigrationMapping=>({sourceId:-1,phone:-1,name:-1,email:-1,company:-1});
 export function MigrationPreview({onImported}:{onImported?:()=>void}={}) {
@@ -40,6 +41,7 @@ export function MigrationPreview({onImported}:{onImported?:()=>void}={}) {
     <summary className="cursor-pointer text-sm font-medium">{t('contacts.migrationTitle')}</summary>
     <div className="mt-3 space-y-3">
       <NativeMigration key={`native:${nativeGeneration}`} onImported={onImported}/>
+      <HistoryMigration key={`history:${nativeGeneration}`}/>
       <p className="text-xs text-muted-foreground">{t('contacts.migrationScope')}</p>
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="space-y-1 text-xs">{t('contacts.migrationProvider')}<select className={inputClass} value={provider} onChange={event=>{invalidate();setProvider(event.target.value as MigrationProvider);}}>{MIGRATION_PROVIDERS.map(value=><option key={value} value={value}>{value==='kommo'?'Kommo':value==='leadsales'?'Leadsales':value==='manychat'?'ManyChat':value==='chatwoot'?'Chatwoot':value==='gorgias'?'Gorgias':'Zendesk'}</option>)}</select></label>

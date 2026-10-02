@@ -4,6 +4,7 @@ import { assertCronAuth } from '@/lib/auth/cron'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { withCronRun } from "@/lib/cron/heartbeat";
 import { getLogger } from '@/lib/log/logger'
+import {purgeNativeHistoryStorage} from '@/lib/migrations/archive-worker'
 
 const log = getLogger('cron.pii-purge')
 
@@ -98,11 +99,15 @@ async function cronHandler(request: Request) {
   }
   const nativeMigrationRetention = await admin.rpc('purge_native_contact_migrations')
   if (nativeMigrationRetention.error) { failed++; log.error('native contact migration retention failed') }
+  const historyRetention=await admin.rpc('purge_native_history_archives')
+  if(historyRetention.error){failed++;log.error('native history archive retention failed')}
+  let archiveObjectsCleared:number|null=null
+  try{archiveObjectsCleared=await purgeNativeHistoryStorage(admin)}catch{failed++;log.error('native history archive object cleanup failed')}
 
   // 207 si algún workspace falló, para que el monitor de Render lo marque.
   const status = failed > 0 ? 207 : 200
   return NextResponse.json(
-    { candidates: targets.length, purged, failed, graceDays, retencion, migrationPreviewsCleared: migrationRetention.error ? null : migrationRetention.data, nativeMigrationStagingCleared: nativeMigrationRetention.error ? null : nativeMigrationRetention.data, results },
+    { candidates: targets.length, purged, failed, graceDays, retencion, migrationPreviewsCleared: migrationRetention.error ? null : migrationRetention.data, nativeMigrationStagingCleared: nativeMigrationRetention.error ? null : nativeMigrationRetention.data, historyArchivesCleared:historyRetention.error?null:historyRetention.data,archiveObjectsCleared, results },
     { status },
   )
 }

@@ -1,12 +1,13 @@
 import {beforeEach,expect,it,vi} from 'vitest';
-const f=vi.hoisted(()=>({enabled:true,authorized:true,auth:vi.fn(),db:vi.fn(),heartbeat:vi.fn(),sync:vi.fn()}));
+const f=vi.hoisted(()=>({enabled:true,authorized:true,auth:vi.fn(),db:vi.fn(),heartbeat:vi.fn(),sync:vi.fn(),history:vi.fn(),cleanup:vi.fn()}));
 vi.mock('@/lib/ui/improvements-preview',()=>({get SHOW_RIVERZ_IMPROVEMENTS(){return f.enabled;}}));
 vi.mock('@/lib/auth/cron',()=>({assertCronAuth:()=>{f.auth();if(!f.authorized)throw new Response(null,{status:401});}}));
 vi.mock('@/lib/cron/heartbeat',()=>({withCronRun:(_name:string,fn:(request:Request)=>Promise<Response>)=>(request:Request)=>{f.heartbeat();return fn(request);}}));
 vi.mock('@/lib/automations/admin-client',()=>({supabaseAdmin:f.db}));vi.mock('@/lib/migrations/native-contact-worker',()=>({syncNativeContactSources:f.sync}));
+vi.mock('@/lib/migrations/archive-worker',()=>({syncNativeHistoryArchives:f.history,purgeNativeHistoryStorage:f.cleanup}));
 import {GET} from './route';
 const request=()=>new Request('https://riverzai.com/api/cron/contact-migrations');
-beforeEach(()=>{vi.clearAllMocks();f.enabled=true;f.authorized=true;f.db.mockReturnValue({private:true});f.sync.mockResolvedValue({pages:2,failed:0,skipped:0});});
+beforeEach(()=>{vi.clearAllMocks();f.enabled=true;f.authorized=true;f.db.mockReturnValue({private:true});f.sync.mockResolvedValue({pages:2,failed:0,skipped:0});f.history.mockResolvedValue({steps:2,failed:0,skipped:0});f.cleanup.mockResolvedValue(0);});
 it('stays closed in production before auth, heartbeat, queue or provider IO',async()=>{f.enabled=false;expect((await GET(request())).status).toBe(404);for(const fn of [f.auth,f.db,f.heartbeat,f.sync])expect(fn).not.toHaveBeenCalled();});
 it('requires scheduler authority before even recording a heartbeat',async()=>{f.authorized=false;expect((await GET(request())).status).toBe(401);for(const fn of [f.db,f.heartbeat,f.sync])expect(fn).not.toHaveBeenCalled();});
-it('runs the bounded private worker and reports sanitized failures',async()=>{expect(await (await GET(request())).json()).toEqual({pages:2,failed:0,skipped:0});f.sync.mockRejectedValue(new Error('PRIVATE_SECRET'));const response=await GET(request());expect(response.status).toBe(503);expect(await response.text()).not.toContain('PRIVATE_SECRET');});
+it('runs both bounded private workers and reports sanitized failures',async()=>{expect(await (await GET(request())).json()).toEqual({pages:2,failed:0,skipped:0,history:{steps:2,failed:0,skipped:0},archiveObjectsCleared:0});f.sync.mockRejectedValue(new Error('PRIVATE_SECRET'));const response=await GET(request());expect(response.status).toBe(503);expect(await response.text()).not.toContain('PRIVATE_SECRET');});

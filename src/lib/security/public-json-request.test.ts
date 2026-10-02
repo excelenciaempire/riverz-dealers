@@ -42,11 +42,14 @@ describe('bounded public JSON transport', () => {
     expect(h.calls).toHaveLength(1);expect(h.calls[0].options).toMatchObject({method:'GET',rejectUnauthorized:true,headers:{api_access_token:'FIXTURE_TOKEN'}});
     expect(h.calls[0].options.headers).not.toHaveProperty('authorization');expect(h.calls[0].body).toBeUndefined();expect(h.dns).toHaveBeenCalledOnce();
   });
-  it.each(['/api/v1/accounts/7/conversations?status=all&page=1&assignee_type=all','/api/v1/accounts/7/conversations/11','/api/v1/accounts/7/conversations/11/messages?before=42','/api/v1/accounts/7/contacts/8/conversations'])('allows only the documented read resource %s',async path=>{
+  it.each(['/api/v1/accounts/7/conversations?status=all&page=1&assignee_type=all','/api/v1/accounts/7/conversations/11','/api/v1/accounts/7/conversations/11/messages?before=42','/api/v1/accounts/7/contacts/8/conversations','/api/v1/accounts/7/contacts/8/conversations?conversation_id=11','/api/v1/accounts/7/contacts/8/conversations?conversation_id=9007199254740991'])('allows only the documented read resource %s',async path=>{
     await requestChatwootJson({url:'https://source.example.test'+path,token:'FIXTURE_TOKEN'});expect(h.calls[0].options.method).toBe('GET');
   });
   it.each(['/api/v1/profile','/api/v1/accounts/7/campaigns','/api/v1/accounts/7/conversations/11/messages?after=0','/api/v1/accounts/7/contacts?page=1&page=2',
-    '/api/v1/accounts/7/contacts?sort=bogus','/api/v1/accounts/7/conversations?status=open','/api/v1/accounts/7/contacts?include_contact_inboxes=true','/api/v1/accounts/7/contacts?page=2147483648'])('rejects unscoped or malformed provider reads %s before DNS',async path=>{
+    '/api/v1/accounts/7/contacts?sort=bogus','/api/v1/accounts/7/conversations?status=open','/api/v1/accounts/7/contacts?include_contact_inboxes=true','/api/v1/accounts/7/contacts?page=2147483648',
+    '/api/v1/accounts/7/contacts/8/conversations?conversation_id=0','/api/v1/accounts/7/contacts/8/conversations?conversation_id=9007199254740992',
+    '/api/v1/accounts/7/contacts/8/conversations?conversation_id=11&conversation_id=12','/api/v1/accounts/7/conversations/11/messages?conversation_id=11',
+    '/api/v1/accounts/7/contacts/8/conversations?conversation_id=1.5','/api/v1/accounts/7/contacts/8/conversations?conversation_id=-1'])('rejects unscoped or malformed provider reads %s before DNS',async path=>{
     await expect(requestChatwootJson({url:'https://source.example.test'+path,token:'FIXTURE_TOKEN'})).rejects.toBeInstanceOf(Error);expect(h.dns).not.toHaveBeenCalled();expect(h.calls).toHaveLength(0);
   });
   it.each([{method:'POST'},{headers:{cookie:'PRIVATE'}},{token:'x\r\nHost: private'},{token:'x'.repeat(4097)}])('refuses injected writes, headers or invalid provider credentials',async extra=>{

@@ -4,9 +4,13 @@ import {withCronRun} from '@/lib/cron/heartbeat';
 import {supabaseAdmin} from '@/lib/automations/admin-client';
 import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
 import {syncNativeContactSources} from '@/lib/migrations/native-contact-worker';
+import {syncNativeHistoryArchives,purgeNativeHistoryStorage} from '@/lib/migrations/archive-worker';
 async function handler(){
   if(!SHOW_RIVERZ_IMPROVEMENTS)return NextResponse.json({error:'not_found'},{status:404});
-  try{return NextResponse.json(await syncNativeContactSources(supabaseAdmin()));}
+  try{const db=supabaseAdmin();const results=await Promise.allSettled([syncNativeContactSources(db),syncNativeHistoryArchives(db)]);
+    if(results.some(result=>result.status==='rejected'))throw new Error('unavailable');
+    const contacts=results[0],history=results[1];if(contacts.status!=='fulfilled'||history.status!=='fulfilled')throw new Error('unavailable');
+    const archiveObjectsCleared=await purgeNativeHistoryStorage(db);return NextResponse.json({...contacts.value,history:history.value,archiveObjectsCleared});}
   catch{return NextResponse.json({error:'native_contact_worker_unavailable'},{status:503});}
 }
 const run=withCronRun('contact-migrations',handler);

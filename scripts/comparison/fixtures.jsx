@@ -36,6 +36,7 @@ let policySnapshot = { product_id: ids.product, revision: 1, changed_at: now, po
   remedies: ['exchange', 'replacement'], conditions: copy('Revisar que el producto no tenga uso.', 'Check that the product is unused.') } };
 const migrationJobs=new Map();
 const nativeMigrationJobs=new Map();
+const historyMigrationJobs=new Map();
 function reply(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 function prepareSyntheticMigration(input){
   const previous=migrationJobs.get(input.id);
@@ -56,9 +57,31 @@ export async function fixtureFetch(input, init = {}) {
   window.__comparisonCalls ??= []; window.__comparisonCalls.push({ path, method: init.method ?? 'GET' });
   const body = typeof init.body === 'string' ? JSON.parse(init.body) : {};
   const method = init.method ?? 'GET';
-  const editable = path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || ['/api/contacts/migrations','/api/contacts/migrations/native'].includes(path)&&method==='POST';
+  const editable = path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || ['/api/contacts/migrations','/api/contacts/migrations/native','/api/contacts/migrations/history'].includes(path)&&method==='POST';
   if (method !== 'GET' && !editable) return reply({ error: copy('Operación bloqueada en la comparación local.', 'Operation blocked in the local comparison.') }, 503);
   // Synthetic in-memory receipts only. These are not database/import evidence.
+  if(path==='/api/contacts/migrations/history'){
+    if(method==='POST'&&body.action==='start'){
+      const {id,receiptId,provider,origin,accountId}=body.input;
+      const snapshot={id,workspace_id:ids.workspace,actor_id:ids.user,receipt_id:receiptId,source:{provider,origin:new URL(origin).origin,accountId},state:'queued',created_at:now,expires_at:'2026-10-02T14:00:00Z',confirmed_at:null,revision:null,error:null,targets:2,contacts_collected:0,conversations:0,messages:0,files:0,next:null};
+      historyMigrationJobs.set(id,snapshot);return reply(snapshot);
+    }
+    const job=historyMigrationJobs.get(method==='POST'?body.input?.id:url.searchParams.get('id'));if(!job)return reply({code:'notFound'},404);
+    if(method==='POST'&&['cancel','delete'].includes(body.action)){Object.assign(job,{state:'cancelled',confirmed_at:null,contacts_collected:0,conversations:0,messages:0,files:0});return reply(job);}
+    if(method==='POST'&&body.action==='confirm'){
+      if(body.input.confirmed!==true||body.input.revision!==job.revision||job.state!=='ready')return reply({code:'changed'},409);
+      Object.assign(job,{state:'confirmed',confirmed_at:now});return reply(job);
+    }
+    if(url.searchParams.get('view')==='file')return new Response('PRIVATE_SYNTHETIC_FILE',{headers:{'Content-Type':'text/plain'}});
+    if(url.searchParams.get('view')==='messages')return reply({id:job.id,revision:job.revision,total:3,next:null,rows:[
+      {sourceId:'10',kind:'incoming',private:false,text:copy('¿Puedes revisar mi pedido anterior?','Can you check my previous order?'),sourceDeleted:false},
+      {sourceId:'11',kind:'note',private:true,text:copy('Nota privada del equipo: verificar talla antes de responder.','Private team note: check size before replying.'),sourceDeleted:false},
+      {sourceId:'12',kind:'outgoing',private:false,text:'',sourceDeleted:true},
+    ].map(message=>({contactId:ids.product,contactSourceId:'1',conversation:{sourceId:'7',contactSourceId:'1',inboxSourceId:'3',state:'resolved',at:now,sourceChannel:'Channel::Api'},
+      message:{...message,conversationSourceId:'7',inboxSourceId:'3',at:now,sourceFormat:'text'},files:message.sourceId==='11'?[{fileId:'99',type:'file',mime:'text/plain',bytes:22}]:[]}))});
+    if(method==='GET'&&['queued','fetching'].includes(job.state))Object.assign(job,{state:'ready',revision:'b'.repeat(64),contacts_collected:2,conversations:1,messages:3,files:1});
+    return reply(job);
+  }
   if(path==='/api/contacts/migrations/native'){
     if(method==='POST'&&body.action==='start'){
       const {id,provider,origin,accountId}=body.input;
