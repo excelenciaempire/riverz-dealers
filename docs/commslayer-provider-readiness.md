@@ -51,3 +51,9 @@ Fuentes: [Kommo: límites de API](https://developers.kommo.com/docs/limitations)
 | HTTP personalizado | Guard, configuración, recibos y ejecución aislada | Cumplimiento comercial del sistema destinatario |
 
 Ninguna de estas condiciones se transforma en éxito por un build, una respuesta HTTP 2xx o datos ficticios. La revisión privada permite comparar el producto sin escribir en clientes, enviar mensajes, cambiar pedidos o mover fondos.
+
+## Importación X2 revisada
+
+La migración 360 incorpora staging privado, preparación inmutable, confirmación atómica y comprobantes por actor/negocio. Sus tablas no se leen directamente desde el navegador ni desde service_role; los RPCs privados derivan autoridad mediante la sesión del endpoint y vuelven a comprobarla en SQL. En producción se comprobaron metadatos y rechazo de cuatro llamadas con identidad nula, sin leer o importar contactos reales. No se ejecutó el barrido de privacidad como prueba. [Alcance y retención](migration-contact-import.md).
+
+Los nombres de seis proveedores en CSV no acreditan conectores nativos. Para el siguiente trabajo, la documentación de [Chatwoot Contacts](https://developers.chatwoot.com/api-reference/contacts/list-contacts) especifica el header `api_access_token`, ID de cuenta y páginas de 15 contactos; [Conversations](https://developers.chatwoot.com/api-reference/conversations/conversations-list) añade filtros y páginas. Las respuestas pueden incluir atributos o credenciales de agentes: deben proyectarse únicamente campos necesarios, sin guardar el JSON completo. [Kommo Contacts](https://developers.kommo.com/reference/contacts-list) documenta OAuth bearer y límite de 250 por página. Esta lectura no ejecuta extracción ni acredita permisos de una cuenta.

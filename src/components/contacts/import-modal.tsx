@@ -311,7 +311,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
         </DialogHeader>
 
         <div className="space-y-4">
-          <MigrationPreview />
+          <MigrationPreview onImported={onImported} />
           {/* Template + upload */}
           {!result && (
             <button

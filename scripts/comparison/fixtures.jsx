@@ -1,5 +1,6 @@
 import React from 'react';
 import { LOCALE_STORAGE_KEY } from '@/lib/i18n/config';
+import {readMigrationCsv,previewContactMigration} from '@/lib/migrations/contact-preview';
 export const ids = { workspace: '10000000-0000-4000-8000-000000000001', user: '10000000-0000-4000-8000-000000000002',
   conversation: '10000000-0000-4000-8000-000000000003', rule: '10000000-0000-4000-8000-000000000004',
   agent: '10000000-0000-4000-8000-000000000005', product: '10000000-0000-4000-8000-000000000006',
@@ -33,6 +34,7 @@ const caseAnswer = { gap_id: ids.flow, question: copy('¿Podemos reservar la tal
   created_at: now, answer: copy('Reserva autorizada solo para este caso durante 24 horas; confirmar existencias antes del cambio.', 'Reservation authorized only for this case for 24 hours; confirm stock before the exchange.'), revision: 1, answered_at: now, answered_by: ids.user, resolved_at: null };
 let policySnapshot = { product_id: ids.product, revision: 1, changed_at: now, policy: { mode: 'allow', window_days: 15, starts_at: 'delivery',
   remedies: ['exchange', 'replacement'], conditions: copy('Revisar que el producto no tenga uso.', 'Check that the product is unused.') } };
+const migrationJobs=new Map();
 function reply(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 /** The browser fetch is replaced before any product component mounts. No credentials or server calls. */
 export async function fixtureFetch(input, init = {}) {
@@ -42,8 +44,34 @@ export async function fixtureFetch(input, init = {}) {
   window.__comparisonCalls ??= []; window.__comparisonCalls.push({ path, method: init.method ?? 'GET' });
   const body = typeof init.body === 'string' ? JSON.parse(init.body) : {};
   const method = init.method ?? 'GET';
-  const editable = path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy');
+  const editable = path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || path==='/api/contacts/migrations'&&method==='POST';
   if (method !== 'GET' && !editable) return reply({ error: copy('Operación bloqueada en la comparación local.', 'Operation blocked in the local comparison.') }, 503);
+  // Synthetic in-memory receipts only. These are not database/import evidence.
+  if(path==='/api/contacts/migrations'){
+    if(method==='POST'&&body.action==='prepare'){
+      const input=body.input,previous=migrationJobs.get(input.id);
+      if(previous){if(previous.input!==JSON.stringify(input))return reply({code:'changed'},409);return reply(previous.snapshot);}
+      try{
+        const preview=previewContactMigration({...input,...readMigrationCsv(input.csv)});
+        const rows=preview.rows.map(row=>({...row,state:row.issues.length?'excluded':'new',contact_id:null}));
+        const snapshot={id:input.id,workspace_id:ids.workspace,actor_id:ids.user,provider:input.provider,account:input.account,revision:'a'.repeat(64),state:'prepared',
+          prepared_at:now,expires_at:'2026-10-01T14:30:00Z',completed_at:null,counts:{total:rows.length,new:preview.reviewable,existing:0,excluded:preview.excluded,created:0},rows:rows.slice(0,25),next:rows.length>25?26:null};
+        migrationJobs.set(input.id,{input:JSON.stringify(input),snapshot,rows,results:null});return reply(snapshot);
+      }catch{return reply({code:'invalid'},400);}
+    }
+    const job=migrationJobs.get(method==='POST'?body.input?.id:url.searchParams.get('id'));
+    if(!job)return reply({code:'notFound'},404);
+    if(method==='POST'){
+      if(body.action!=='confirm'||body.input?.confirmed!==true||body.input.revision!==job.snapshot.revision)return reply({code:'invalid'},400);
+      job.results=job.rows.map(row=>({row:row.row,sourceId:row.sourceId,state:row.state==='new'?'created':row.state,issues:row.issues,contact_id:row.state==='new'?ids.product:null}));
+      job.snapshot={...job.snapshot,state:'completed',counts:{...job.snapshot.counts,created:job.snapshot.counts.new},completed_at:now,rows:[],next:null};return reply(job.snapshot);
+    }
+    const after=Number(url.searchParams.get('after')??0),results=url.searchParams.get('results')==='true';
+    if(results&&!job.results)return reply({code:'changed'},409);
+    const all=results?job.results:job.snapshot.state==='prepared'?job.rows:[],rows=all.filter(row=>row.row>after).slice(0,25),last=rows.at(-1)?.row;
+    const next=all.some(row=>last!==undefined&&row.row>last)?last:null;
+    return reply(results?{id:job.snapshot.id,workspace_id:ids.workspace,actor_id:ids.user,revision:job.snapshot.revision,total:job.snapshot.counts.total,rows,next}:{...job.snapshot,rows,next});
+  }
   if (path.endsWith('/collaboration')) {
     if (body.action === 'case') collaboration.case = { case_priority: body.priority, case_reason: body.reason };
     if (body.action === 'note') collaboration.notes.unshift({ id: body.id, body: body.body, author_id: ids.user, author_name: 'Camila', created_at: now, mentioned_user_ids: body.mentions });

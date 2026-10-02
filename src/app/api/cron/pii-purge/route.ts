@@ -89,11 +89,18 @@ async function cronHandler(request: Request) {
   }
 
   const retencion = await purgeOperationalLogs(admin)
+  // Only the new import staging/receipts. Expiry is enforced on reads even
+  // if this daily sweep is delayed; never logs uploaded contact fields.
+  const migrationRetention = await admin.rpc('purge_contact_migration_payloads')
+  if (migrationRetention.error) {
+    failed++
+    log.error('contact migration retention failed')
+  }
 
   // 207 si algún workspace falló, para que el monitor de Render lo marque.
   const status = failed > 0 ? 207 : 200
   return NextResponse.json(
-    { candidates: targets.length, purged, failed, graceDays, retencion, results },
+    { candidates: targets.length, purged, failed, graceDays, retencion, migrationPreviewsCleared: migrationRetention.error ? null : migrationRetention.data, results },
     { status },
   )
 }

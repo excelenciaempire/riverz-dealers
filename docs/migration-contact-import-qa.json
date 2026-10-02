@@ -1,0 +1,359 @@
+{
+  "scope": "X2 reviewed CSV contacts only; provider extraction, histories and attachments remain in construction",
+  "tests": {
+    "passed": 178,
+    "files": 8
+  },
+  "typecheck": {
+    "passed": true,
+    "heapMegabytes": 4096
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "builds": {
+    "normal": true,
+    "comparison": true
+  },
+  "sourceHashes": {
+    "package.json": "bcb040687a902ca9c28df3599b29ed93bc90a21fbbe3e94d7db514f54f1ba187",
+    "scripts/check-contact-migration-schema.cjs": "6a339ad6e3e4691d7315b9a30f2c0439c28200e5d88577c7c677a8a87aa4b456",
+    "scripts/comparison/fixtures.jsx": "f98696afa54e2497344f644fffd85838a7b74684cbaf8b949b50c5430bc5fb5e",
+    "src/app/api/cron/pii-purge/route.ts": "a9b5bd679b029db16d9d3692a2ee344f9915065a554c3c44f18ce2b8a80af018",
+    "src/components/contacts/import-modal.tsx": "2cf029f44884409f7a0474ed12681854a9f78b02fc28c91b6d2f92c3f89e33c3",
+    "src/components/contacts/migration-preview.tsx": "2ac761b72b1336a83962aa479263f66f365bab0a5f243d5dae16905131e88407",
+    "src/components/contacts/migration-preview.test.tsx": "b35ec57d490b4975799aeda0a4c7882053f8d77ece21e2ae82436f150e3f30fc",
+    "src/components/contacts/migration-import-review.tsx": "343dc7d369f17d8aba5a650339014902ccde44dfac90549be802a9b82e10a5c5",
+    "src/lib/i18n/messages/contacts.ts": "19f4e85ef1b80583daab907ed9fa7a47dbe50789f212db56a67ff05666d5e34a",
+    "supabase/migrations/360_contact_migration_receipts.sql": "9fcf020ac7ff1ef75d5bc448e88dcc18420582b4e26b4656fb0c47fec2d49662",
+    "src/lib/migrations/contact-import-contract.test.ts": "c6f73da8de11a130523b703cc3ee9e6e0090404b7a30c90ad754abf78566430e",
+    "src/lib/migrations/contact-import-contract.ts": "6ab8d5b5d176d928ab99070e62f9f7a14339a986916dca2367160f769a8574e6",
+    "src/lib/migrations/contact-import-schema.test.ts": "d4250b5ebda16082c30e979a0e33d06b9fc774834109f9f89687a4f9f9fae520",
+    "src/lib/migrations/contact-import.test.ts": "018734d3839bb0d7ffed030c5f7ebee5c5f652a2fd18ac564af587fb0045c951",
+    "src/lib/migrations/contact-import.ts": "42ba78891d17d235091625c6d834a924a275e1877059dcbbf0d2d0cbcc354d31",
+    "src/lib/migrations/limited-json.ts": "4e9b9bc3ed9ae902ac5b93d86eb3187f1e0aa5b563a464b3acd717109ffc0289",
+    "src/app/api/contacts/migrations/route.ts": "b3b19bcb1ce7dd6698a29e47f80ce426ce3924e497351cfd883d8ffb5fa84f10",
+    "src/app/api/contacts/migrations/route.test.ts": "ba3b642b64c0897237ff55b2236ce8b023db1ffb8da6c8967aa19f7607dc27ba"
+  },
+  "schema": {
+    "migration": 360,
+    "installedOnce": true,
+    "metadataOnly": true,
+    "ready": true,
+    "privateGuard": true,
+    "fixedInvoker": true,
+    "workspaceContactForeignKey": true,
+    "nullContextDenied": [
+      "prepare_contact_migration",
+      "confirm_contact_migration",
+      "read_contact_migration",
+      "read_contact_migration_results"
+    ],
+    "realCustomerReads": false,
+    "realImports": false,
+    "privacySweepInvoked": false
+  },
+  "visual": {
+    "reviews": [
+      {
+        "locale": "es",
+        "viewport": {
+          "width": 1280,
+          "height": 800
+        },
+        "result": {
+          "alerts": [],
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations"
+            }
+          ],
+          "countsCorrect": true,
+          "currentHidden": true,
+          "disabledBefore": true,
+          "locale": "es",
+          "overflow": [
+            false,
+            false
+          ],
+          "recoveryMatches": true,
+          "reportRows": [
+            "aImportado",
+            "bImportado",
+            "bFila repetida",
+            "cTeléfono inválido o sin país"
+          ],
+          "saved": "Importados: 2. Comprobante guardado.",
+          "unapprovedCalls": 1
+        },
+        "fonts": {
+          "panes": [
+            {
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "localeResolved": true,
+              "ready": true
+            },
+            {
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "localeResolved": true,
+              "ready": true
+            }
+          ],
+          "parentReady": true
+        },
+        "screenshotPath": "C:\\Users\\river\\.t3\\userdata\\browser-artifacts\\browser-screenshot-127-0-0-1-muqjnul4-6a5198ca.png",
+        "simulation": true,
+        "screenshot": "docs/comparison-preview/migration-import-es-desktop.png",
+        "screenshotSha256": "06f820fd7facd5a46403af48e041f210d856a2b604a8909cde0ccfc829b8034d"
+      },
+      {
+        "locale": "es",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "result": {
+          "alerts": [],
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations"
+            }
+          ],
+          "countsCorrect": true,
+          "currentHidden": true,
+          "disabledBefore": true,
+          "locale": "es",
+          "overflow": [
+            false,
+            false
+          ],
+          "recoveryMatches": true,
+          "reportRows": [
+            "aImportado",
+            "bImportado",
+            "bFila repetida",
+            "cTeléfono inválido o sin país"
+          ],
+          "saved": "Importados: 2. Comprobante guardado.",
+          "unapprovedCalls": 1
+        },
+        "fonts": {
+          "panes": [
+            {
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "localeResolved": true,
+              "ready": true
+            },
+            {
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "localeResolved": true,
+              "ready": true
+            }
+          ],
+          "parentReady": true
+        },
+        "screenshotPath": "C:\\Users\\river\\.t3\\userdata\\browser-artifacts\\browser-screenshot-127-0-0-1-muqjnvu9-9f4f245a.png",
+        "simulation": true,
+        "screenshot": "docs/comparison-preview/migration-import-es-mobile.png",
+        "screenshotSha256": "478f91cc3940c70352d572e7adfcaeb7a4b9409cdde165f929cb4e92bbbaf1d4"
+      },
+      {
+        "locale": "en",
+        "viewport": {
+          "width": 1280,
+          "height": 800
+        },
+        "result": {
+          "alerts": [],
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations"
+            }
+          ],
+          "countsCorrect": true,
+          "currentHidden": true,
+          "disabledBefore": true,
+          "locale": "en",
+          "overflow": [
+            false,
+            false
+          ],
+          "recoveryMatches": true,
+          "reportRows": [
+            "aImported",
+            "bImported",
+            "bDuplicate row",
+            "cInvalid phone or missing country"
+          ],
+          "saved": "Imported: 2. Receipt saved.",
+          "unapprovedCalls": 1
+        },
+        "fonts": {
+          "panes": [
+            {
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "localeResolved": true,
+              "ready": true
+            },
+            {
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "localeResolved": true,
+              "ready": true
+            }
+          ],
+          "parentReady": true
+        },
+        "screenshotPath": "C:\\Users\\river\\.t3\\userdata\\browser-artifacts\\browser-screenshot-127-0-0-1-muqjnx4p-d2c37f63.png",
+        "simulation": true,
+        "screenshot": "docs/comparison-preview/migration-import-en-desktop.png",
+        "screenshotSha256": "d6da73ff98ce67e6830785b4ce86d9964edc139884af84d0e676bdafaeb2bf50"
+      },
+      {
+        "locale": "en",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "result": {
+          "alerts": [],
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations"
+            }
+          ],
+          "countsCorrect": true,
+          "currentHidden": true,
+          "disabledBefore": true,
+          "locale": "en",
+          "overflow": [
+            false,
+            false
+          ],
+          "recoveryMatches": true,
+          "reportRows": [
+            "aImported",
+            "bImported",
+            "bDuplicate row",
+            "cInvalid phone or missing country"
+          ],
+          "saved": "Imported: 2. Receipt saved.",
+          "unapprovedCalls": 1
+        },
+        "fonts": {
+          "panes": [
+            {
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "localeResolved": true,
+              "ready": true
+            },
+            {
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "localeResolved": true,
+              "ready": true
+            }
+          ],
+          "parentReady": true
+        },
+        "screenshotPath": "C:\\Users\\river\\.t3\\userdata\\browser-artifacts\\browser-screenshot-127-0-0-1-muqjnyd1-50609e69.png",
+        "simulation": true,
+        "screenshot": "docs/comparison-preview/migration-import-en-mobile.png",
+        "screenshotSha256": "2699fd124ac4dd90f8b7ec77037c74a275db789b61b9a1dbcf146f01a1462f49"
+      }
+    ],
+    "diagnostics": {
+      "consoleEntries": [],
+      "networkEntries": []
+    },
+    "simulatedReceipts": true,
+    "diagnosticRecordedNetworkEntries": 0
+  },
+  "isolation": {
+    "localServer": "isolated",
+    "apiAndWriteRoutes": "blocked",
+    "privateFiles": "not_served",
+    "externalConnections": "blocked_by_csp",
+    "hostStatus": 403,
+    "bundleSha256": "9ea716077df1f0c71a0fffe4444757463914c9f04c0391109f3a343ba9cded8b",
+    "results": [
+      {
+        "method": "GET",
+        "route": "/api/conversations",
+        "status": 403
+      },
+      {
+        "method": "POST",
+        "route": "/api/whatsapp/send",
+        "status": 403
+      },
+      {
+        "method": "GET",
+        "route": "/.env.local",
+        "status": 404
+      },
+      {
+        "method": "GET",
+        "route": "/.claude/secrets.env",
+        "status": 404
+      },
+      {
+        "method": "GET",
+        "route": "/assets/%2e%2e/%2e%2e/.env.local",
+        "status": 404
+      }
+    ]
+  },
+  "capturedAt": "2026-10-02T05:52:42.695469+00:00"
+}
