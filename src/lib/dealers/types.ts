@@ -1,0 +1,81 @@
+export const VEHICLE_STATUSES = ['available', 'reserved', 'sold'] as const;
+export const STAGES = [
+  'inquiry',
+  'qualified',
+  'appointment',
+  'visit',
+  'negotiation',
+  'won',
+  'lost',
+] as const;
+export const APPOINTMENT_STATUSES = [
+  'requested',
+  'confirmed',
+  'completed',
+  'cancelled',
+  'no_show',
+] as const;
+export interface Vehicle {
+  id: string;
+  workspace_id: string;
+  stock_number: string;
+  vin: string | null;
+  make: string;
+  model: string;
+  year: number;
+  mileage: number;
+  mileage_unit: 'mi' | 'km';
+  price: number;
+  currency: string;
+  status: (typeof VEHICLE_STATUSES)[number];
+  photos: string[];
+  notes: string;
+  created_at: string;
+}
+export interface Opportunity {
+  id: string;
+  workspace_id: string;
+  contact_id: string;
+  stage: (typeof STAGES)[number];
+  budget: number | null;
+  currency: string;
+  preferences: string;
+  buying_timeframe: string;
+  financing: boolean;
+  trade_in: string;
+  next_follow_up_at: string | null;
+  follow_up_note: string;
+  follow_up_paused: boolean;
+  created_at: string;
+}
+export interface Appointment {
+  id: string;
+  workspace_id: string;
+  opportunity_id: string;
+  vehicle_id: string;
+  seller_id: string;
+  starts_at: string;
+  ends_at: string;
+  location: string;
+  kind: 'visit' | 'test_drive';
+  status: (typeof APPOINTMENT_STATUSES)[number];
+  created_at: string;
+}
+export interface DealerContact {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  opted_out: boolean;
+}
+export interface DealerData {
+  vehicles: Vehicle[];
+  opportunities: Opportunity[];
+  appointments: Appointment[];
+  interests: { opportunity_id: string; vehicle_id: string }[];
+  contacts: DealerContact[];
+  timezone: string;
+  seller_id: string;
+}
+export function vehicleTitle(v: Pick<Vehicle, 'year' | 'make' | 'model'>) {
+  return `${v.year} ${v.make} ${v.model}`;
+}

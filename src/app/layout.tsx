@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata, Viewport } from 'next';
 import {
   Inter_Tight,
   Fraunces,
@@ -6,34 +6,35 @@ import {
   Instrument_Serif,
   Instrument_Sans,
   Geist_Mono,
-} from "next/font/google";
-import { headers } from "next/headers";
-import { Toaster } from "sonner";
-import "./globals.css";
-import { ThemeProvider } from "@/hooks/use-theme";
-import { LocaleProvider } from "@/hooks/use-locale";
-import { getLocale } from "@/lib/i18n/server";
+} from 'next/font/google';
+import { headers } from 'next/headers';
+import { Toaster } from 'sonner';
+import './globals.css';
+import { ThemeProvider } from '@/hooks/use-theme';
+import { LocaleProvider } from '@/hooks/use-locale';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 import {
   DEFAULT_LANDING_THEME,
   DEFAULT_THEME,
   LANDING_PATHS,
   STORAGE_KEY,
   THEME_IDS,
-} from "@/lib/themes";
+} from '@/lib/themes';
 
 // Force dynamic rendering per-request so the CSP nonce minted by the
 // proxy (forwarded via the x-nonce header) is available to inject into
 // the streaming inline theme-boot script below.
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 // Inter Tight is Riverz's editorial typeface — used app-wide. The
 // negative tracking and lighter weights give the "expensive" feel of
 // the Riverz design system.
 const interTight = Inter_Tight({
-  variable: "--font-sans",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  display: "swap",
+  variable: '--font-sans',
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  display: 'swap',
 });
 
 // Tipografía exclusiva de la portada «Papel y Señal» (/portada). Fraunces es
@@ -44,17 +45,17 @@ const interTight = Inter_Tight({
 // next/font descarga y sirve ambas desde el propio dominio en build, así que
 // pasan el `font-src 'self' data:` de la CSP sin abrirla (src/proxy.ts).
 const fraunces = Fraunces({
-  variable: "--font-display",
-  subsets: ["latin"],
-  axes: ["SOFT", "WONK", "opsz"],
-  display: "swap",
+  variable: '--font-display',
+  subsets: ['latin'],
+  axes: ['SOFT', 'WONK', 'opsz'],
+  display: 'swap',
 });
 
 const martianMono = Martian_Mono({
-  variable: "--font-mono-ui",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  display: "swap",
+  variable: '--font-mono-ui',
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  display: 'swap',
 });
 
 // Tipografía de la portada editorial (/portada-b). Instrument Serif e
@@ -63,109 +64,58 @@ const martianMono = Martian_Mono({
 // grandes, y una grotesca neutra para navegación y texto corrido. Geist Mono
 // carga solo etiquetas en mayúsculas y cifras.
 const instrumentSerif = Instrument_Serif({
-  variable: "--font-editorial",
-  subsets: ["latin"],
-  weight: "400",
-  display: "swap",
+  variable: '--font-editorial',
+  subsets: ['latin'],
+  weight: '400',
+  display: 'swap',
 });
 
 const instrumentSans = Instrument_Sans({
-  variable: "--font-grotesk",
-  subsets: ["latin"],
-  display: "swap",
+  variable: '--font-grotesk',
+  subsets: ['latin'],
+  display: 'swap',
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-mono-label",
-  subsets: ["latin"],
-  display: "swap",
+  variable: '--font-mono-label',
+  subsets: ['latin'],
+  display: 'swap',
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL("https://riverz.co"),
-  title: {
-    default: "riverz",
-    template: "%s · riverz",
-  },
-  description:
-    "riverz despliega agentes de IA que atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas: recomiendan, recuperan carritos y crean el pedido en tu tienda, 24/7.",
-  applicationName: "riverz",
-  authors: [{ name: "riverz", url: "https://riverz.co" }],
-  creator: "riverz",
-  publisher: "riverz",
-  category: "business",
-  keywords: [
-    "agentes de IA para ventas",
-    "agente de IA autónomo",
-    "IA agéntica para ecommerce",
-    "CRM con IA",
-    "CRM para WhatsApp",
-    "CRM para Instagram",
-    "agente para Mercado Libre",
-    "responder preguntas de Mercado Libre",
-    "bandeja multicanal",
-    "agente de voz para llamadas",
-    "chatbot de ventas WhatsApp",
-    "automatización de WhatsApp",
-    "recuperación de carritos",
-    "bandeja unificada",
-    "atención al cliente con IA",
-    "WhatsApp Business",
-    "vender por Instagram",
-  ],
-  // The public marketing surface (landing + legal + auth) must be
-  // indexable; per-route metadata still wins, so the private dashboard
-  // can opt out of indexing on its own segments if needed.
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-      "max-video-preview": -1,
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  const title = translate(locale, 'dealers.brand');
+  const description = translate(locale, 'dealers.heroText');
+  return {
+    metadataBase: new URL(
+      process.env.NEXT_PUBLIC_SITE_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        'http://localhost:3000'
+    ),
+    title: { default: title, template: `%s · ${title}` },
+    description,
+    applicationName: title,
+    category: 'business',
+    openGraph: {
+      type: 'website',
+      siteName: title,
+      title,
+      description,
+      url: '/',
+      locale: locale === 'es' ? 'es_ES' : 'en_US',
     },
-  },
-  // og:image / twitter:image are auto-injected from the site-wide
-  // opengraph-image.tsx and twitter-image.tsx file conventions — no need to
-  // declare images here.
-  openGraph: {
-    type: "website",
-    siteName: "riverz",
-    title: "riverz — Agentes de IA que venden en todos tus canales",
-    description:
-      "Atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas: recomiendan, recuperan carritos y crean el pedido.",
-    url: "/",
-    locale: "es_ES",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "riverz — Agentes de IA que venden en todos tus canales",
-    description:
-      "Atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas: recomiendan, recuperan carritos y crean el pedido.",
-  },
-  alternates: {
-    canonical: "/",
-  },
-  appleWebApp: {
-    capable: true,
-    title: "riverz",
-    statusBarStyle: "default",
-  },
-  formatDetection: {
-    email: false,
-    address: false,
-    telephone: false,
-  },
-};
-
+    twitter: { card: 'summary_large_image', title, description },
+    robots: { index: true, follow: true },
+    appleWebApp: { capable: true, title, statusBarStyle: 'default' },
+    formatDetection: { email: false, address: false, telephone: false },
+  };
+}
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f3ec" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+    { media: '(prefers-color-scheme: light)', color: '#f5f3ec' },
+    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
   ],
-  colorScheme: "light dark",
+  colorScheme: 'light dark',
 };
 
 // Inline boot script — runs before React hydrates so the right theme is on
@@ -217,7 +167,7 @@ export default async function RootLayout({
   // x-nonce request header. CSP blocks any inline <script> without it,
   // so the theme-boot tag MUST carry the same value the proxy stamped
   // into the Content-Security-Policy response header.
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
   const locale = await getLocale();
 
   return (
@@ -249,7 +199,7 @@ export default async function RootLayout({
         />
       </head>
       <body
-        className="min-h-full bg-background text-foreground font-sans"
+        className="bg-background text-foreground min-h-full font-sans"
         suppressHydrationWarning
       >
         <ThemeProvider>
@@ -259,12 +209,12 @@ export default async function RootLayout({
               position="top-right"
               toastOptions={{
                 classNames: {
-                  description: "!text-muted-foreground",
+                  description: '!text-muted-foreground',
                 },
                 style: {
-                  background: "var(--popover)",
-                  border: "1px solid var(--border)",
-                  color: "var(--popover-foreground)",
+                  background: 'var(--popover)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--popover-foreground)',
                 },
               }}
             />

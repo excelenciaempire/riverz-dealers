@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useT } from '@/hooks/use-locale';
+import { isDealerDeployment } from '@/lib/dealers/config';
 import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -118,25 +119,51 @@ export function ToolSwitchboard({
   onReglas?: (r: ReglasDeCobro) => void;
 }) {
   const t = useT();
+  const dealer = isDealerDeployment();
+  const visibleTools = dealer
+    ? AGENT_TOOLBOX.filter((spec) =>
+        [
+          'ver_contacto',
+          'etiquetar_contacto',
+          'cerrar_conversacion',
+          'no_se_la_respuesta',
+          'escalar_llamada',
+          'clasificar_motivo',
+        ].includes(spec.key)
+      )
+    : AGENT_TOOLBOX;
 
-  const set = (key: string, mode: ToolMode) => onChange({ ...(tools ?? {}), [key]: mode });
+  const set = (key: string, mode: ToolMode) =>
+    onChange({ ...(tools ?? {}), [key]: mode });
 
   // Qué significa "Aprobación" se decía en cada fila que estuviera en ese modo:
   // la misma oración hasta diez veces en una pantalla. Va una sola vez, al pie,
   // y sólo cuando hay al menos una herramienta que de verdad va a avisar.
-  const hayAprobacion = AGENT_TOOLBOX.some(
+  const hayAprobacion = visibleTools.some(
     (spec) =>
-      !spec.proponeSolo && toolMode({ ...agent, tools }, spec.key) === 'aprobacion',
+      !spec.proponeSolo &&
+      toolMode({ ...agent, tools }, spec.key) === 'aprobacion'
   );
 
   return (
     <div className="space-y-5">
+      {dealer && (
+        <div className="space-y-2 rounded-lg border p-3 text-sm">
+          <p>{t('dealers.assistantInventoryHint')}</p>
+          <p>{t('dealers.assistantBuyerHint')}</p>
+          <p>{t('dealers.requestNote')}</p>
+        </div>
+      )}
       {TOOL_GROUPS.map((g) => {
-        const del = AGENT_TOOLBOX.filter((x) => x.group === g && (x.key !== 'clasificar_motivo' || SHOW_RIVERZ_IMPROVEMENTS));
+        const del = visibleTools.filter(
+          (x) =>
+            x.group === g &&
+            (x.key !== 'clasificar_motivo' || SHOW_RIVERZ_IMPROVEMENTS)
+        );
         if (del.length === 0) return null;
         return (
           <div key={g} className="space-y-2">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
               {t(`operation.toolGroup${GRUPO[g]}`)}
             </p>
             <div className="space-y-1">
@@ -158,7 +185,7 @@ export function ToolSwitchboard({
         );
       })}
       {hayAprobacion && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-muted-foreground text-[11px]">
           {t('operation.toolModeAprobacionHint')}
         </p>
       )}
@@ -193,28 +220,34 @@ function Fila({
   // único, sí. Sólo se muestran en "solo", que es cuando gobiernan algo: en
   // "preguntar" decide una persona y las condiciones no se usan.
   const conReglas =
-    spec.key === 'registrar_pago' && typeof onReglas === 'function' && modo === 'auto';
+    spec.key === 'registrar_pago' &&
+    typeof onReglas === 'function' &&
+    modo === 'auto';
   const r = reglas ?? REGLAS_POR_DEFECTO;
   // El descuento es la única que necesita un número además del modo, y ese
   // número no vivía en ninguna pantalla: se leía en tres lugares y no se podía
   // escribir en ninguno, así que la herramienta no se podía encender nunca.
-  const conTope = spec.key === 'ofrecer_descuento' && typeof onTope === 'function';
+  const conTope =
+    spec.key === 'ofrecer_descuento' && typeof onTope === 'function';
   // Falta algo en la cuenta: la fila se puede tocar igual, porque apagarla o
   // dejarla lista de antemano es legítimo. Lo que cambia es que se dice por qué
   // hoy no va a pasar nada — un interruptor prendido que no hace nada y no
   // explica por qué es peor que uno apagado.
-  const falta = spec.requires && !disponible[spec.requires] ? FALTA[spec.requires] : null;
+  const falta =
+    spec.requires && !disponible[spec.requires] ? FALTA[spec.requires] : null;
 
   return (
-    <div className="rounded-lg border border-border/60 px-3 py-2.5">
+    <div className="border-border/60 rounded-lg border px-3 py-2.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm text-foreground">{t(`operation.tool${sufijo}`)}</p>
-          <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+          <p className="text-foreground text-sm">
+            {t(`operation.tool${sufijo}`)}
+          </p>
+          <p className="text-muted-foreground mt-0.5 text-[11px] leading-snug">
             {t(`operation.tool${sufijo}Hint`)}
           </p>
         </div>
-        <div className="flex shrink-0 rounded-md bg-muted p-0.5">
+        <div className="bg-muted flex shrink-0 rounded-md p-0.5">
           {spec.modes.map((m) => (
             <button
               key={m}
@@ -228,27 +261,36 @@ function Fila({
                   : 'text-muted-foreground hover:text-foreground')
               }
             >
-              {t(`operation.toolMode${m === 'off' ? 'Off' : m === 'auto' ? 'Auto' : 'Aprobacion'}`)}
+              {t(
+                `operation.toolMode${m === 'off' ? 'Off' : m === 'auto' ? 'Auto' : 'Aprobacion'}`
+              )}
             </button>
           ))}
         </div>
       </div>
       {conTope && modo !== 'off' && (
-        <label className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <label className="text-muted-foreground mt-2 flex items-center gap-2 text-[11px]">
           {t('operation.toolTopeDescuento')}
           <input
             type="number"
             min={0}
             max={50}
             value={tope ?? 0}
-            onChange={(e) => onTope!(Math.max(0, Math.min(50, Math.floor(Number(e.target.value) || 0))))}
-            className="w-16 rounded-md border border-border bg-background px-2 py-1 text-right text-[11px] text-foreground"
+            onChange={(e) =>
+              onTope!(
+                Math.max(
+                  0,
+                  Math.min(50, Math.floor(Number(e.target.value) || 0))
+                )
+              )
+            }
+            className="border-border bg-background text-foreground w-16 rounded-md border px-2 py-1 text-right text-[11px]"
           />
           %
         </label>
       )}
       {conReglas && (
-        <div className="mt-2.5 space-y-2 border-t border-border/60 pt-2.5">
+        <div className="border-border/60 mt-2.5 space-y-2 border-t pt-2.5">
           {(
             [
               ['exigeComprobante', 'pagoExigeComprobante'],
@@ -258,32 +300,41 @@ function Fila({
           ).map(([campo, clave]) => (
             <label
               key={campo}
-              className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground"
+              className="text-muted-foreground flex items-center justify-between gap-3 text-[11px]"
             >
               {t(`operation.${clave}`)}
               <Switch
                 checked={r[campo]}
-                onCheckedChange={(v: boolean) => onReglas!({ ...r, [campo]: v })}
+                onCheckedChange={(v: boolean) =>
+                  onReglas!({ ...r, [campo]: v })
+                }
               />
             </label>
           ))}
-          <label className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+          <label className="text-muted-foreground flex items-center justify-between gap-3 text-[11px]">
             {t('operation.pagoTolerancia')}
             <span className="flex items-center gap-1">
               {/* Sin estado propio no se puede escribir "0,5": cada tecla pasa
                   por `Number`, el punto recién tipeado no sobrevive y queda 5
                   —diez veces la tolerancia que se quiso poner—. Se guarda el
                   texto tal cual y se convierte al salir del campo. */}
-              <ToleranceInput key={r.toleranciaPct} value={r.toleranciaPct} onCommit={n => {
-                if (n !== r.toleranciaPct) onReglas!({ ...r, toleranciaPct: n });
-              }} />
+              <ToleranceInput
+                key={r.toleranciaPct}
+                value={r.toleranciaPct}
+                onCommit={(n) => {
+                  if (n !== r.toleranciaPct)
+                    onReglas!({ ...r, toleranciaPct: n });
+                }}
+              />
               %
             </span>
           </label>
           {/* Lo que pasa a valer sin esas pruebas. No es una advertencia moral:
               es la consecuencia exacta, y el comercio decide. */}
-          {(!r.exigeComprobante || !r.unSoloPendiente || !r.exigeReferencia) && (
-            <p className="text-[11px] leading-snug text-muted-foreground">
+          {(!r.exigeComprobante ||
+            !r.unSoloPendiente ||
+            !r.exigeReferencia) && (
+            <p className="text-muted-foreground text-[11px] leading-snug">
               {t('operation.pagoReglasFlojas')}
             </p>
           )}
@@ -292,7 +343,7 @@ function Fila({
       {/* Con tope 0 la herramienta ni se le ofrece al agente, así que decirlo
           acá —donde está el número— es lo único que cierra el círculo. */}
       {((falta && !conTope) || !spec.modes.includes('auto')) && (
-        <p className="mt-1.5 text-[11px] text-muted-foreground">
+        <p className="text-muted-foreground mt-1.5 text-[11px]">
           {falta && !conTope
             ? t(`operation.${falta}`)
             : t('operation.toolNoAutoHint')}
@@ -303,9 +354,26 @@ function Fila({
 }
 
 /** A changed saved value remounts the editor; decimal text survives each keystroke. */
-function ToleranceInput({ value,onCommit }: { value:number;onCommit:(value:number)=>void }) {
-  const [text,setText]=useState(String(value));
-  return <input type="text" inputMode="decimal" value={text} onChange={e => setText(e.target.value)}
-    onBlur={() => { const n=toleranciaDesdeTexto(text);setText(String(n));onCommit(n); }}
-    className="w-16 rounded-md border border-border bg-background px-2 py-1 text-right text-[11px] text-foreground" />;
+function ToleranceInput({
+  value,
+  onCommit,
+}: {
+  value: number;
+  onCommit: (value: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => {
+        const n = toleranciaDesdeTexto(text);
+        setText(String(n));
+        onCommit(n);
+      }}
+      className="border-border bg-background text-foreground w-16 rounded-md border px-2 py-1 text-right text-[11px]"
+    />
+  );
 }

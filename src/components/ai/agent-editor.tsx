@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { AgentStats } from '@/components/ai/agent-stats';
 import { MODELO_POR_DEFECTO } from '@/lib/ai/esfuerzo';
+import { isDealerDeployment } from '@/lib/dealers/config';
 import { ReglasPanel } from '@/components/ai/reglas-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -516,7 +517,11 @@ export function AgentEditor({
   // del producto que elijas, así que la selección es obligatoria. Los
   // existentes conservan su scope guardado (incl. "all", por compatibilidad).
   const [productScope, setProductScope] = useState<AiProductScope>(
-    agent ? (agent.product_scope ?? 'all') : 'specific'
+    isDealerDeployment()
+      ? 'all'
+      : agent
+        ? (agent.product_scope ?? 'all')
+        : 'specific'
   );
   const [selectedProducts, setSelectedProducts] = useState<string[]>(
     (agent?.ai_agent_products ?? []).map((p) => p.product_id)
@@ -945,7 +950,7 @@ export function AgentEditor({
     // Al crear (incl. cuando se generó con IA desde la web), exigimos al
     // menos un producto: el asistente se entrena con su información. En
     // edición respetamos el scope ya guardado.
-    if (isNew && selectedProducts.length === 0) {
+    if (!isDealerDeployment() && isNew && selectedProducts.length === 0) {
       setTab('business');
       setProductScope('specific');
       toast.error(t('assistant.productRequired'));
@@ -1028,7 +1033,7 @@ export function AgentEditor({
       followup_enabled: followupEnabled,
       followup_delay_hours: followupDelayHours,
       followup_max_count: followupMaxCount,
-      puede_crear_pedidos: puedeCrearPedidos,
+      puede_crear_pedidos: isDealerDeployment() ? false : puedeCrearPedidos,
       cobro_modo: cobroModo,
       medios_pago: medios,
       role,
@@ -1050,8 +1055,11 @@ export function AgentEditor({
       // ya exige `voice_enabled`: un canal guardado de más no hace nada, uno
       // borrado sí.
       channels: scope === 'channels' ? channels : [],
-      product_scope: productScope,
-      product_ids: productScope === 'specific' ? selectedProducts : [],
+      product_scope: isDealerDeployment() ? 'all' : productScope,
+      product_ids:
+        !isDealerDeployment() && productScope === 'specific'
+          ? selectedProducts
+          : [],
     };
 
     const url = currentAgentId
@@ -1163,203 +1171,218 @@ export function AgentEditor({
                 {/* Producto PRIMERO: elegirlo dispara la investigación y
                     puebla identidad, persona y conocimiento. Es el paso 1 del
                     flujo product-first. */}
-                <Field
-                  label={
-                    isNew
-                      ? t('assistant.productFieldNew')
-                      : t('assistant.productFieldEdit')
-                  }
-                >
-                  {isNew ? (
-                    applyingProduct ? (
-                      <p className="text-accent-ink flex items-center gap-2 text-[11px]">
-                        <Loader2 className="size-3.5 animate-spin" />
-                        {t('assistant.preparingWithProduct')}
-                      </p>
+                {isDealerDeployment() ? (
+                  <SectionCard
+                    title={t('dealers.vehicles')}
+                    hint={t('dealers.assistantInventoryHint')}
+                  >
+                    <Link
+                      href="/concesionario?view=vehicles"
+                      className="text-sm underline underline-offset-4"
+                    >
+                      {t('dealers.vehicles')}
+                    </Link>
+                  </SectionCard>
+                ) : (
+                  <Field
+                    label={
+                      isNew
+                        ? t('assistant.productFieldNew')
+                        : t('assistant.productFieldEdit')
+                    }
+                  >
+                    {isNew ? (
+                      applyingProduct ? (
+                        <p className="text-accent-ink flex items-center gap-2 text-[11px]">
+                          <Loader2 className="size-3.5 animate-spin" />
+                          {t('assistant.preparingWithProduct')}
+                        </p>
+                      ) : (
+                        <p className="text-muted-foreground text-[11px]">
+                          {t('assistant.productNewHint')}
+                        </p>
+                      )
                     ) : (
-                      <p className="text-muted-foreground text-[11px]">
-                        {t('assistant.productNewHint')}
-                      </p>
-                    )
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                      <ScopeCard
-                        active={productScope === 'all'}
-                        onClick={() => setProductScope('all')}
-                        title={t('assistant.wholeCatalog')}
-                      />
-                      <ScopeCard
-                        active={productScope === 'specific'}
-                        onClick={() => setProductScope('specific')}
-                        title={t('assistant.someProducts')}
-                      />
-                    </div>
-                  )}
-                  {(isNew || productScope === 'specific') && (
-                    <div className="mt-2 space-y-2">
-                      <div className="relative">
-                        <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
-                        <Input
-                          value={productSearch}
-                          onChange={(e) => setProductSearch(e.target.value)}
-                          placeholder={t('assistant.searchProduct')}
-                          className="bg-background pl-8 text-sm"
+                      <div className="grid grid-cols-2 gap-2">
+                        <ScopeCard
+                          active={productScope === 'all'}
+                          onClick={() => setProductScope('all')}
+                          title={t('assistant.wholeCatalog')}
+                        />
+                        <ScopeCard
+                          active={productScope === 'specific'}
+                          onClick={() => setProductScope('specific')}
+                          title={t('assistant.someProducts')}
                         />
                       </div>
-                      <div className="border-border bg-background max-h-[280px] overflow-y-auto rounded-lg border">
-                        {catalogLoading ? (
-                          <div className="flex justify-center py-6">
-                            <Loader2 className="text-muted-foreground size-4 animate-spin" />
-                          </div>
-                        ) : filteredCatalog.length === 0 ? (
-                          <div className="text-muted-foreground space-y-3 px-3 py-6 text-center text-xs">
-                            {catalog.length === 0 ? (
-                              <>
-                                <p>{t('assistant.noProductsYet')}</p>
-                                <Button
-                                  type="button"
-                                  onClick={goToCreateProduct}
-                                  className="bg-primary text-primary-foreground hover:bg-primary/90"
-                                >
-                                  <Package className="size-4" />
-                                  {t('assistant.createNewProduct')}
-                                </Button>
-                              </>
-                            ) : (
-                              t('assistant.noResults')
-                            )}
-                          </div>
-                        ) : (
-                          <ul className="divide-border divide-y">
-                            {filteredCatalog.map((p) => {
-                              // Cuenta como asignado si lo está CUALQUIERA de
-                              // sus publicaciones: quien asignó el producto
-                              // antes de unificarlo tiene apuntada una sola
-                              // fila, y el agente ya lo trata como el producto
-                              // entero. Mostrarlo sin asignar sería mentirle.
-                              const on = idsDelGrupo(p).some((id) =>
-                                selectedProducts.includes(id)
-                              );
-                              return (
-                                <li
-                                  key={p.id}
-                                  className={cn(
-                                    'flex items-center gap-3 px-3 py-2',
-                                    on && 'bg-primary/10'
-                                  )}
-                                >
-                                  {p.image_url ? (
-                                    /* eslint-disable-next-line @next/next/no-img-element */
-                                    <img
-                                      src={p.image_url}
-                                      alt=""
-                                      className="size-8 shrink-0 rounded object-cover"
-                                    />
-                                  ) : (
-                                    <div className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded">
-                                      <Package className="size-3.5" />
-                                    </div>
-                                  )}
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-foreground truncate text-sm">
-                                      {p.title}
-                                    </p>
-                                    <p className="text-muted-foreground truncate text-[11px]">
-                                      {[
-                                        p.product_type,
-                                        p.vendor,
-                                        p.price_min != null
-                                          ? p.price_min === p.price_max
-                                            ? `$${p.price_min}`
-                                            : `$${p.price_min}-${p.price_max}`
-                                          : null,
-                                      ]
-                                        .filter(Boolean)
-                                        .join(' · ')}
-                                    </p>
-                                    {/* En qué canales está y a cuánto en cada
+                    )}
+                    {(isNew || productScope === 'specific') && (
+                      <div className="mt-2 space-y-2">
+                        <div className="relative">
+                          <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+                          <Input
+                            value={productSearch}
+                            onChange={(e) => setProductSearch(e.target.value)}
+                            placeholder={t('assistant.searchProduct')}
+                            className="bg-background pl-8 text-sm"
+                          />
+                        </div>
+                        <div className="border-border bg-background max-h-[280px] overflow-y-auto rounded-lg border">
+                          {catalogLoading ? (
+                            <div className="flex justify-center py-6">
+                              <Loader2 className="text-muted-foreground size-4 animate-spin" />
+                            </div>
+                          ) : filteredCatalog.length === 0 ? (
+                            <div className="text-muted-foreground space-y-3 px-3 py-6 text-center text-xs">
+                              {catalog.length === 0 ? (
+                                <>
+                                  <p>{t('assistant.noProductsYet')}</p>
+                                  <Button
+                                    type="button"
+                                    onClick={goToCreateProduct}
+                                    className="bg-primary text-primary-foreground hover:bg-primary/90"
+                                  >
+                                    <Package className="size-4" />
+                                    {t('assistant.createNewProduct')}
+                                  </Button>
+                                </>
+                              ) : (
+                                t('assistant.noResults')
+                              )}
+                            </div>
+                          ) : (
+                            <ul className="divide-border divide-y">
+                              {filteredCatalog.map((p) => {
+                                // Cuenta como asignado si lo está CUALQUIERA de
+                                // sus publicaciones: quien asignó el producto
+                                // antes de unificarlo tiene apuntada una sola
+                                // fila, y el agente ya lo trata como el producto
+                                // entero. Mostrarlo sin asignar sería mentirle.
+                                const on = idsDelGrupo(p).some((id) =>
+                                  selectedProducts.includes(id)
+                                );
+                                return (
+                                  <li
+                                    key={p.id}
+                                    className={cn(
+                                      'flex items-center gap-3 px-3 py-2',
+                                      on && 'bg-primary/10'
+                                    )}
+                                  >
+                                    {p.image_url ? (
+                                      /* eslint-disable-next-line @next/next/no-img-element */
+                                      <img
+                                        src={p.image_url}
+                                        alt=""
+                                        className="size-8 shrink-0 rounded object-cover"
+                                      />
+                                    ) : (
+                                      <div className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded">
+                                        <Package className="size-3.5" />
+                                      </div>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-foreground truncate text-sm">
+                                        {p.title}
+                                      </p>
+                                      <p className="text-muted-foreground truncate text-[11px]">
+                                        {[
+                                          p.product_type,
+                                          p.vendor,
+                                          p.price_min != null
+                                            ? p.price_min === p.price_max
+                                              ? `$${p.price_min}`
+                                              : `$${p.price_min}-${p.price_max}`
+                                            : null,
+                                        ]
+                                          .filter(Boolean)
+                                          .join(' · ')}
+                                      </p>
+                                      {/* En qué canales está y a cuánto en cada
                                         uno, igual que la tarjeta de Productos.
                                         Sólo cuando está unificado: para uno de
                                         un solo canal repetiría el precio. */}
-                                    {(p.listings?.length ?? 0) > 1 ? (
-                                      <div className="mt-1 flex flex-wrap gap-1">
-                                        {p.listings!.map((l) => (
-                                          <span
-                                            key={l.id}
-                                            title={l.title ?? undefined}
-                                            className="border-border text-muted-foreground inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]"
-                                          >
-                                            <span className="text-foreground font-medium">
-                                              {CANAL[l.platform] ?? l.platform}
+                                      {(p.listings?.length ?? 0) > 1 ? (
+                                        <div className="mt-1 flex flex-wrap gap-1">
+                                          {p.listings!.map((l) => (
+                                            <span
+                                              key={l.id}
+                                              title={l.title ?? undefined}
+                                              className="border-border text-muted-foreground inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]"
+                                            >
+                                              <span className="text-foreground font-medium">
+                                                {CANAL[l.platform] ??
+                                                  l.platform}
+                                              </span>
+                                              {l.price_min != null
+                                                ? `$${l.price_min}`
+                                                : ''}
                                             </span>
-                                            {l.price_min != null
-                                              ? `$${l.price_min}`
-                                              : ''}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    ) : null}
-                                  </div>
-                                  {/* Botón explícito de asignación: la fila ya no
+                                          ))}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                    {/* Botón explícito de asignación: la fila ya no
                                       togglea entera, así la selección es precisa. */}
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant={on ? 'default' : 'outline'}
-                                    onClick={() => toggleProduct(p)}
-                                    className={cn(
-                                      'h-7 shrink-0 gap-1 px-2.5 text-xs',
-                                      on
-                                        ? 'bg-emerald-600 text-white hover:bg-emerald-600/90'
-                                        : 'border-border text-foreground hover:bg-muted bg-transparent'
-                                    )}
-                                  >
-                                    {on ? (
-                                      <>
-                                        <Check className="size-3.5" />
-                                        {t('assistant.assigned')}
-                                      </>
-                                    ) : (
-                                      t('assistant.assign')
-                                    )}
-                                  </Button>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )}
-                      </div>
-                      {/* Elegir "sólo algunos" y no elegir ninguno deja al
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant={on ? 'default' : 'outline'}
+                                      onClick={() => toggleProduct(p)}
+                                      className={cn(
+                                        'h-7 shrink-0 gap-1 px-2.5 text-xs',
+                                        on
+                                          ? 'bg-emerald-600 text-white hover:bg-emerald-600/90'
+                                          : 'border-border text-foreground hover:bg-muted bg-transparent'
+                                      )}
+                                    >
+                                      {on ? (
+                                        <>
+                                          <Check className="size-3.5" />
+                                          {t('assistant.assigned')}
+                                        </>
+                                      ) : (
+                                        t('assistant.assign')
+                                      )}
+                                    </Button>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </div>
+                        {/* Elegir "sólo algunos" y no elegir ninguno deja al
                           agente sin catálogo: no puede nombrar, cotizar ni
                           buscar un producto. Es coherente con lo que dice la
                           opción, pero pasa callado — y el agente contesta que
                           no tiene nada a la venta. */}
-                      {!isNew && selectedProducts.length === 0 && (
-                        <p className="text-foreground rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px]">
-                          {t('assistant.scopeSpecificEmpty')}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-muted-foreground text-[11px]">
-                          {productosAsignados === 1
-                            ? t('assistant.productsAssignedOne', {
-                                count: productosAsignados,
-                              })
-                            : t('assistant.productsAssignedOther', {
-                                count: productosAsignados,
-                              })}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={goToCreateProduct}
-                          className="text-accent-ink text-[11px] underline hover:opacity-80"
-                        >
-                          {t('assistant.notListedCreate')}
-                        </button>
+                        {!isNew && selectedProducts.length === 0 && (
+                          <p className="text-foreground rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px]">
+                            {t('assistant.scopeSpecificEmpty')}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-muted-foreground text-[11px]">
+                            {productosAsignados === 1
+                              ? t('assistant.productsAssignedOne', {
+                                  count: productosAsignados,
+                                })
+                              : t('assistant.productsAssignedOther', {
+                                  count: productosAsignados,
+                                })}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={goToCreateProduct}
+                            className="text-accent-ink text-[11px] underline hover:opacity-80"
+                          >
+                            {t('assistant.notListedCreate')}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </Field>
+                    )}
+                  </Field>
+                )}
 
                 {/* Identidad: nombre + tono + idioma. El modelo lo
                     elegimos nosotros (Haiku) para no abrumar al usuario
@@ -1459,7 +1482,12 @@ export function AgentEditor({
                     placeholder={t('assistant.businessInfoPlaceholder')}
                     className="bg-background resize-y font-mono text-xs leading-relaxed"
                   />
-                  {SHOW_RIVERZ_IMPROVEMENTS && currentAgentId && <DocumentSources key={currentAgentId} agentId={currentAgentId} />}
+                  {SHOW_RIVERZ_IMPROVEMENTS && currentAgentId && (
+                    <DocumentSources
+                      key={currentAgentId}
+                      agentId={currentAgentId}
+                    />
+                  )}
                 </SectionCard>
 
                 {/* Las reglas del negocio. Vivían en una tarjeta suelta debajo
@@ -1649,7 +1677,12 @@ export function AgentEditor({
                     reglas={reglasCobro}
                     onReglas={guardarReglasCobro}
                   />
-                  {SHOW_RIVERZ_IMPROVEMENTS && currentAgentId && <ToolContextPolicies key={currentAgentId} agentId={currentAgentId} />}
+                  {SHOW_RIVERZ_IMPROVEMENTS && currentAgentId && (
+                    <ToolContextPolicies
+                      key={currentAgentId}
+                      agentId={currentAgentId}
+                    />
+                  )}
                 </SectionCard>
 
                 <VoiceAgentLink
@@ -1665,7 +1698,8 @@ export function AgentEditor({
                     ella: sólo hay algo que elegir cuando el agente puede
                     tanto mandar a la caja como tomar el pedido. Con una sola
                     de las dos, la decisión ya está tomada. */}
-                {(tools?.crear_checkout ?? 'auto') !== 'off' &&
+                {!isDealerDeployment() &&
+                (tools?.crear_checkout ?? 'auto') !== 'off' &&
                 puedeCrearPedidos ? (
                   <SectionCard
                     title={t('operation.cobroTitle')}
@@ -1708,7 +1742,7 @@ export function AgentEditor({
                     peor — el que apura marca cualquier cosa, y prometer un
                     medio de pago que no existe es exactamente el error que
                     esto vino a arreglar. */}
-                {puedeCrearPedidos ? (
+                {!isDealerDeployment() && puedeCrearPedidos ? (
                   <SectionCard
                     title={t('operation.mediosTitle')}
                     hint={t('operation.mediosHint')}
@@ -1784,10 +1818,21 @@ export function AgentEditor({
               <>
                 <SectionCard title={t('assistant.apiKeyTitle')}>
                   <Field label={t('assistant.apiKeyLabel')}>
-                    <Input type="password" aria-label={t('assistant.apiKeyLabel')} autoComplete="new-password" value={apiKey}
+                    <Input
+                      type="password"
+                      aria-label={t('assistant.apiKeyLabel')}
+                      autoComplete="new-password"
+                      value={apiKey}
                       onChange={(event) => setApiKey(event.target.value)}
-                      placeholder={agent?.has_api_key ? t('assistant.apiKeyPlaceholderSaved') : 'sk-ant-…'} />
-                    <p className="mt-1 text-xs text-muted-foreground">{t('assistant.apiKeyHelp')}</p>
+                      placeholder={
+                        agent?.has_api_key
+                          ? t('assistant.apiKeyPlaceholderSaved')
+                          : 'sk-ant-…'
+                      }
+                    />
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      {t('assistant.apiKeyHelp')}
+                    </p>
                   </Field>
                 </SectionCard>
                 {/* Rol y permisos (migración 164). El rol reparte el trabajo
@@ -2093,7 +2138,9 @@ export function AgentEditor({
                           size="sm"
                           variant="secondary"
                           onClick={() =>
-                            shopifyOauth ? setShowLinkInput(true) : linkShopify()
+                            shopifyOauth
+                              ? setShowLinkInput(true)
+                              : linkShopify()
                           }
                           disabled={linking}
                         >
@@ -2117,7 +2164,6 @@ export function AgentEditor({
               </>
             )}
           </div>
-
         </div>
 
         <div className="border-border bg-card/60 flex items-center justify-end gap-2 border-t px-4 py-4 sm:px-6">

@@ -1,4 +1,6 @@
 import { traceTool } from '@/lib/observability/latitude';
+import { DEALER_SYSTEM, dealerToolset, isDealerTool, runDealerTool } from '@/lib/dealers/agent-tools';
+import { isDealerDeployment } from '@/lib/dealers/config';
 import { secureSystemPrompt, toolCallAllowed } from './input-security'
 import { toolPermissionKey } from './toolbox'
 import { redactModelSecrets } from '@/lib/security/model-secrets'
@@ -852,6 +854,8 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
  * empezar de cero.
  */
 const DEJA_HUELLA = new Set([
+  'dealer_save_buyer',
+  'dealer_request_appointment',
   'clasificar_motivo',
   'gestionar_recompra',
   'create_order',
@@ -1155,7 +1159,7 @@ export async function runTool(
   otherStore: OtherStoreContext | null = null
 ): Promise<string> {
   // Custom inputs/results can contain selected customer data. Keep them out of tool telemetry.
-  if (isHttpAssistantTool(toolName) || toolName === 'clasificar_motivo') return runToolInner(toolName, toolInput, shopify, voice, localOrders, otherStore);
+  if (isDealerTool(toolName) || isHttpAssistantTool(toolName) || toolName === 'clasificar_motivo') return runToolInner(toolName, toolInput, shopify, voice, localOrders, otherStore);
   return traceTool(toolName, () => runToolInner(toolName, toolInput, shopify, voice, localOrders, otherStore), toolInput);
 }
 
@@ -1167,6 +1171,10 @@ async function runToolInner(
   localOrders: LocalOrdersContext | null = null,
   otherStore: OtherStoreContext | null = null
 ): Promise<string> {
+  if (isDealerTool(toolName)) {
+    if (!localOrders) return JSON.stringify({ ok: false, error: 'dealer_context_missing' });
+    return runDealerTool(toolName, toolInput, localOrders);
+  }
   if (toolName === 'clasificar_motivo') return classifyCaseReason(localOrders?.caseReason,toolInput,localOrders?.simulacion === true);
   // Reserved dynamic namespace: block every external request and approval in simulations, including GET.
   if (isHttpAssistantTool(toolName)) {
@@ -2563,6 +2571,14 @@ export async function runWithTools(
    *  swap in a fallback message if the model returned empty text. */
   truncated: boolean
 }> {
+  // This independent fork exposes vehicle sales tools, never commerce/order tools.
+  if (isDealerDeployment()) args = {
+    ...args,
+    tools: dealerToolset(args.tools, Boolean(args.localOrders)),
+    system: typeof args.system === 'string'
+      ? `${args.system}\n\n${DEALER_SYSTEM}`
+      : { ...args.system, turno: `${args.system.turno ?? ''}\n\n${DEALER_SYSTEM}` },
+  };
   let messages: Anthropic.MessageParam[] = [...args.messages]
   let promptTokens = 0
   let cacheReadTokens = 0

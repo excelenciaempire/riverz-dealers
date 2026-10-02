@@ -1,7 +1,10 @@
 import type { MetadataRoute } from 'next';
 import { signupsOpen } from '@/lib/auth/signups';
 
-const BASE_URL = 'https://riverz.co';
+const BASE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.NEXT_PUBLIC_APP_URL ||
+  'http://localhost:3000';
 
 // Only public, crawlable routes belong here. The private dashboard and
 // API live behind auth and are excluded (see robots.ts).
@@ -16,16 +19,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
     {
-      url: `${BASE_URL}/calculadora`,
+      url: `${BASE_URL}/demo-dealers`,
       lastModified,
       changeFrequency: 'monthly',
       priority: 0.6,
-    },
-    {
-      url: `${BASE_URL}/afiliados`,
-      lastModified,
-      changeFrequency: 'monthly',
-      priority: 0.8,
     },
     {
       url: `${BASE_URL}/ingresar`,

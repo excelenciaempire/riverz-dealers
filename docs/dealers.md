@@ -1,0 +1,101 @@
+# Riverz Dealers
+
+## Producto
+
+La base de Riverz aporta contactos, bandeja multicanal, agentes, plantillas,
+campañas y automatizaciones. El proceso del vendedor de carros añade:
+
+1. Un inventario de **unidades concretas**: inventario/VIN, marca, modelo, año,
+   kilometraje o millaje, precio y moneda, fotos y disponibilidad.
+2. Una oportunidad abierta por comprador, con varios vehículos de interés,
+   presupuesto, preferencias, plazo, financiamiento y vehículo a cambio.
+3. Visitas y pruebas de manejo que relacionan comprador, vehículo y vendedor.
+4. Seguimiento con fecha, contexto y pausa explícita, visible en el panel diario.
+
+`/panel` muestra el día de ventas. `/concesionario` (inglés: `/dealer`) incluye
+las vistas de vehículos, oportunidades y citas. Desde una conversación se puede
+consultar la oportunidad y abrir su ficha; desde una oportunidad se abre la
+conversación más reciente del comprador.
+
+## Asistente conversacional
+
+El bucle compartido `runWithTools` añade el contexto de Dealers y reemplaza el
+catálogo de herramientas de ecommerce por:
+
+- `dealer_search_vehicles`: busca unidades disponibles en vivo. Un presupuesto
+  requiere moneda explícita. Los resultados están limitados a 12 por consulta.
+- `dealer_save_buyer`: guarda lo que compartió el comprador. El servidor fija
+  el contacto y workspace; la IA no puede cambiar la etapa ni cerrar una venta.
+- `dealer_request_appointment`: solicita un horario futuro con offset y acuerdo
+  del comprador. La cita queda **por confirmar**, a cargo del propietario del
+  workspace. El vendedor la confirma en la agenda.
+
+Se conservan las herramientas de conversación y escalada que ya estuvieran
+habilitadas. No se exponen herramientas de pedidos, checkout, cobros ni acciones
+administrativas a la IA conversacional de Dealers. Las simulaciones no escriben.
+
+El financiamiento y la valoración del carro a cambio son solicitudes para una
+persona. No se solicitan datos bancarios, SSN ni documentos crediticios.
+La agenda comprueba solapamientos; el vendedor confirma sus horas de atención.
+Este MVP está orientado al vendedor individual. La asignación avanzada entre
+vendedores y la integración con Google Calendar/DMS no están implementadas.
+
+## Persistencia y reglas
+
+La migración `375_dealers.sql` crea cuatro tablas con RLS por membresía:
+`dealer_vehicles`, `dealer_opportunities`, `dealer_interests`, `dealer_appointments`.
+Los vínculos compuestos garantizan que vehículo y oportunidad estén en el mismo
+workspace, incluso en llamadas con service role. Un trigger valida el comprador.
+
+Las citas pendientes o confirmadas bloquean solapamientos por vendedor o
+vehículo. Se usa un lock transaccional por vendedor y un bloqueo del vehículo.
+Una unidad reservada o vendida no se puede agendar. Las fechas se guardan en UTC;
+el formulario y la agenda muestran explícitamente la zona horaria del navegador.
+
+Cambiar una unidad a reservada/vendida cancela sus citas futuras y pausa los
+seguimientos vinculados. Cerrar una oportunidad pausa su seguimiento y cancela
+sus citas pendientes. El opt-out del contacto pausa seguimientos y cancela citas.
+Cambiar una oportunidad a venta no marca automáticamente todos los vehículos
+de interés como vendidos: el vendedor marca la unidad vendida en el inventario.
+
+El seguimiento de Dealers es una **lista de tareas para el vendedor**. No envía
+recordatorios externos ni mensajes automáticos. Las campañas y automatizaciones
+heredadas conservan sus propias reglas; no se crearon disparadores automáticos
+específicos de Dealers en este MVP.
+
+## Puesta en servicio
+
+Usar un proyecto Supabase independiente de Riverz ecommerce. Aplicar las
+migraciones de la base siguiendo la configuración de Supabase del proyecto y
+después `375_dealers.sql`. Configurar las credenciales de ese proyecto y una URL
+propia en las variables de entorno; nunca apuntar este fork a la DB de ecommerce.
+
+`render.yaml` define `riverz-dealers` y un worker de voz independiente. Las URLs,
+claves de Supabase, proyecto de telemetría y secretos no se heredan del despliegue
+de Riverz. El chequeo `check-dealers-schema.cjs` bloquea el build en Render si no
+están las tablas. No se aprovisionó un servicio de Render ni una DB de producción
+en esta tarea.
+
+La app conserva otras superficies del proyecto base (operador de cuenta, voz,
+integraciones, landing antiguas y documentación legal). La adaptación del
+asistente descrita aquí corresponde al bucle conversacional compartido; el
+operador de cuenta y el motor de voz no tienen herramientas de Dealers propias.
+El menú principal ya prioriza Dealers y no muestra productos ni pedidos.
+La creación de asistentes usa todo el inventario de vehículos: no exige un
+producto de ecommerce. Su editor muestra las capacidades de Dealers y oculta
+las opciones de checkout y cobro.
+
+## Validación
+
+`npm run typecheck`, `npm run lint`, `npm test`, `npm run build`.
+Las pruebas de `src/lib/dealers` ejecutan SQL real con PGlite y comprueban
+aislamiento, relaciones, disponibilidad, conflictos, opt-out, cierre y rollback.
+Las pruebas de herramientas verifican el contacto fijo, moneda, consentimiento,
+simulación y exclusión del checkout. La suite heredada se ejecuta en modo
+ecommerce para conservar sus comprobaciones originales; Dealers es el modo
+predeterminado de la aplicación y se prueba explícitamente.
+
+La comprobación amplia del repositorio original detectó un fallo heredado en
+`src/lib/capabilities/contrato.test.ts`: la receta `novedad-entrega` devuelve un
+artefacto nulo. Los archivos de esa receta y su renderizador no fueron
+modificados para Dealers. No se considera aprobada la suite heredada completa.

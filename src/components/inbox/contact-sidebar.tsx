@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/hooks/use-locale";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { OperationLinks } from './operation-links';
+import { ContactSale } from '@/components/dealers/contact-sale';
 
 type ContactSegment = NonNullable<Contact["ai_segment"]>;
 
@@ -278,6 +279,7 @@ export function ContactSidebar({ contact, onClose, conversationId }: ContactSide
           <div className="mt-3">
             <CommerceLinkButton contactId={contact.id} />
           </div>
+          <ContactSale contactId={contact.id} />
           {SHOW_RIVERZ_IMPROVEMENTS && <OperationLinks contactId={contact.id} />}
 
           {/* Divider */}

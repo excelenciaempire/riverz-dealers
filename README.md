@@ -1,102 +1,40 @@
-# wacrm — CRM Template for WhatsApp
+# Riverz Dealers
 
-> Self-hostable CRM template for WhatsApp® — shared inbox, contacts,
-> sales pipelines, broadcasts, and no-code automations. Fork it, brand
-> it, host it.
+Asistente personal de ventas para vendedores de carros, construido sobre [Riverz CRM](https://github.com/excelenciaempire/riverz-crm).
 
-[![Deploy on Hostinger](https://img.shields.io/badge/Deploy_on-Hostinger-673DE6?style=for-the-badge&logo=hostinger&logoColor=white)](https://www.hostinger.com/web-apps-hosting)
+Inventario de vehículos, oportunidades por comprador, visitas y pruebas de manejo, seguimiento diario y contexto de venta en la bandeja. Interfaz en español e inglés.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-violet.svg)](./LICENSE)
-[![CI](https://github.com/ArnasDon/wacrm/actions/workflows/ci.yml/badge.svg)](https://github.com/ArnasDon/wacrm/actions/workflows/ci.yml)
-[![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org)
-[![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Auth-3ecf8e?logo=supabase)](https://supabase.com)
-[![Stars](https://img.shields.io/github/stars/ArnasDon/wacrm?style=social)](https://github.com/ArnasDon/wacrm/stargazers)
+## Probar la demo
 
-The marketing site and self-host docs live in a separate repo:
-[ArnasDon/wacrm-site](https://github.com/ArnasDon/wacrm-site)
-([wacrm.tech](https://wacrm.tech)). This repo is the product —
-clone or fork it to run your own CRM.
+1. Ejecuta `npm ci`.
+2. Ejecuta `npm run demo`.
+3. Abre `http://localhost:3000/demo-dealers`.
 
-## What you get out of the box
+La demo usa datos de ejemplo en memoria. Permite crear y editar vehículos, oportunidades y citas; al recargar se restablecen los datos. No requiere claves ni accede a cuentas reales.
 
-- **Shared inbox** on the official WhatsApp Business API — multiple
-  agents working one number, per-conversation assignment, status, and
-  notes.
-- **Contacts + tags + custom fields**, CSV import, deduplication.
-- **Sales pipelines** (Kanban) with deals linked to conversations.
-- **Broadcasts** with Meta-approved templates, delivery + read
-  tracking, per-recipient variable substitution.
-- **No-code automations** — triggers on inbound messages, new
-  contacts, keywords, or schedule; conditional branches, waits,
-  tags, webhooks. Visual builder.
-- **Real-time dashboard** — response times, daily volume, pipeline
-  value, cross-module activity feed.
-- **Account management** — email, password, avatar, global sign-out.
+## Aplicación con datos reales
 
-## Why fork this?
+1. Configura un proyecto Supabase independiente y aplica las migraciones, incluida `supabase/migrations/375_dealers.sql`.
+2. Copia `.env.local.example` a `.env.local` y configura las claves de ese proyecto, la URL de Dealers y las integraciones que usarás.
+3. Ejecuta `npm run dev` y abre `/panel` después de iniciar sesión.
 
-This is a **template**, not a product. Forking means you get:
+El despliegue está preparado para Render en `render.yaml`. [Arquitectura, reglas y límites del MVP](docs/dealers.md).
 
-- **Full ownership** — your code, your Supabase project, your domain,
-  your data. No SaaS lock-in, no seat pricing, no trust dance.
-- **Full customisation** — add the fields your team needs, remove the
-  modules you don't, redesign anything. The stack is boring on
-  purpose (Next.js + Supabase + Tailwind) so the learning curve is
-  short.
-- **Zero ops to start** — Hostinger Managed Node.js deploys a fork in
-  a few clicks. No Docker, no Kubernetes, no infra team needed.
-- **Real security primitives** — token encryption (AES-256-GCM), RLS
-  on every table, HMAC-verified webhooks, CSP, rate limiting, CI
-  typecheck/build on every PR.
+## Validación
 
-Not a framework. Not an SDK. A concrete, working CRM you can stand up
-in an afternoon and make yours.
+- `npm run typecheck`
+- `npm run lint`
+- `npm test`
+- `npm run build`
 
-## Quick start
+## English
 
-```bash
-# Fork on GitHub first: https://github.com/ArnasDon/wacrm → Fork
-git clone https://github.com/<your-username>/wacrm.git
-cd wacrm
-npm install
-cp .env.local.example .env.local   # fill in Supabase + Meta creds
-npm run dev
-```
+Riverz Dealers is an independent vehicle-sales version of Riverz CRM: vehicle inventory, buyer opportunities, appointments and daily follow-up, with English and Spanish UI.
 
-Open <http://localhost:3000>. You'll be redirected to `/login` (or
-`/dashboard` if already signed in).
+Run `npm ci`, then `npm run demo`, and open `http://localhost:3000/demo-dealers`. Sample data stays in memory and resets on reload. For real accounts, configure a separate Supabase project and the environment variables before deploying to Render.
 
-## Documentation
+AI checks live vehicle availability, records buyer preferences and requests appointments. A salesperson confirms the time. Financing, trade-in valuations and the sale remain human decisions.
 
-Full self-host documentation — Supabase migrations, WhatsApp Business
-API config, and production deploy — lives at
-**[wacrm.tech/docs](https://wacrm.tech/docs)**
-(source: [ArnasDon/wacrm-site](https://github.com/ArnasDon/wacrm-site)).
+## License and attribution
 
-Key pages:
-- [Getting started](https://wacrm.tech/docs/getting-started)
-- [Supabase setup](https://wacrm.tech/docs/supabase-setup)
-- [WhatsApp setup](https://wacrm.tech/docs/whatsapp-setup)
-- [Environment variables](https://wacrm.tech/docs/environment-variables)
-- [Deploy on Hostinger](https://wacrm.tech/docs/deployment-hostinger)
-- [Architecture](https://wacrm.tech/docs/architecture)
-- [Troubleshooting](https://wacrm.tech/docs/troubleshooting)
-
-## Stack
-
-- **App** — Next.js 16 (App Router), React 19, TypeScript, Tailwind v4.
-- **Data** — Supabase (Postgres + Auth + Storage + RLS).
-- **WhatsApp** — Meta Cloud API (official WhatsApp Business API).
-
-## Contributing
-
-This is a template, not a collaborative product — the expected flow is
-fork → customise → deploy, **not** upstream contribution. Bug reports
-and security issues are welcome; feature PRs often belong in your fork
-rather than here. Details in
-[`CONTRIBUTING.md`](./CONTRIBUTING.md) and
-[`.github/SECURITY.md`](./.github/SECURITY.md).
-
-## License
-
-[MIT](./LICENSE). Fork it, brand it, host it.
+MIT. Based on Riverz CRM and the original WACRM project by Arnas Donauskas. The original license and notices are preserved.

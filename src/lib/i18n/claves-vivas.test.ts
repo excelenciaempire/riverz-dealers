@@ -23,6 +23,7 @@ import { MESSAGES } from './messages/registry'
  * imprimiendo `admin.sectionCodesDesc` sin que nadie lo note.
  */
 const VIGILADOS: { prefijo: string; carpetas: string[] }[] = [
+  { prefijo: 'dealers', carpetas: ['src/components/dealers', 'src/lib/dealers'] },
   { prefijo: 'operation', carpetas: ['src/components/operacion', 'src/lib/operator'] },
   { prefijo: 'admin', carpetas: ['src/app/admin'] },
   { prefijo: 'voice', carpetas: ['src/components/voice'] },

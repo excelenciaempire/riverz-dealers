@@ -11,7 +11,7 @@ services:
   # hay que pagar un cron externo sólo para mantenerlo despierto: los 7 USD del
   # starter se ahorran ese cron y traen 5× CPU.
   - type: web
-    name: riverz-crm
+    name: riverz-dealers
     runtime: node
     plan: starter
     region: frankfurt
@@ -25,6 +25,8 @@ services:
     # Si vuelve a fallar la promocion, comparar este valor contra el del servicio.
     healthCheckPath: /api/health
     envVars:
+      - key: NEXT_PUBLIC_RIVERZ_VERTICAL
+        value: dealers
       - key: NODE_VERSION
         value: '20'
       - key: NEXT_TELEMETRY_DISABLED
@@ -33,7 +35,7 @@ services:
       - key: LATITUDE_API_KEY
         sync: false
       - key: LATITUDE_PROJECT_SLUG
-        value: riverz-s-project
+        sync: false
       - key: LATITUDE_TRACING_ENABLED
         value: 'true'
       # Supabase + OAuth secrets se gestionan en el dashboard Render
@@ -51,7 +53,7 @@ services:
       - key: NEXT_PUBLIC_SITE_URL
         sync: false
       - key: NEXT_PUBLIC_APP_URL
-        value: https://riverz.co
+        sync: false
       - key: META_APP_ID
         sync: false
       - key: META_APP_SECRET
@@ -244,7 +246,7 @@ services:
   # que carga onnxruntime y el detector multilingüe de turnos. La escalera de
   # instancias no tiene nada entre 512 MB y 2 GB, así que standard es el piso.
   - type: worker
-    name: voice-worker
+    name: riverz-dealers-voice-worker
     runtime: docker
     plan: standard
     region: frankfurt

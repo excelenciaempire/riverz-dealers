@@ -15,6 +15,7 @@ import { featureForPath, isFeatureEnabled } from "@/lib/admin/feature-flags";
 import { useFeatureFlags, useRiverz2 } from "@/hooks/use-feature-flags";
 import {
   Wand2,
+  CarFront,
   Home,
   Inbox,
   Users,
@@ -24,8 +25,6 @@ import {
   Sparkles,
   Blocks,
   Settings,
-  ShoppingBag,
-  Receipt,
   Workflow,
   LogOut,
   User,
@@ -92,7 +91,10 @@ const navGroups: NavGroup[] = [
   {
     title: "nav.groupDaily",
     items: [
-      { href: "/panel", label: "nav.home", icon: Home },
+      { href: "/panel", label: "dealers.today", icon: Home },
+      { href: "/concesionario?view=vehicles", label: "dealers.vehicles", icon: CarFront },
+      { href: "/concesionario?view=opportunities", label: "dealers.opportunities", icon: Users },
+      { href: "/concesionario?view=appointments", label: "dealers.appointments", icon: LayoutTemplate },
       { href: "/bandeja", label: "nav.inbox", icon: Inbox },
       { href: "/contactos", label: "nav.contacts", icon: Users },
     ],
@@ -114,13 +116,6 @@ const navGroups: NavGroup[] = [
       { href: "/automatizaciones", label: "nav.automations", icon: Zap },
       { href: "/campanas", label: "nav.campaigns", icon: Megaphone },
       { href: "/agente-instagram", label: "nav.instagramAgent", icon: Radar },
-    ],
-  },
-  {
-    title: "nav.groupStore",
-    items: [
-      { href: "/productos", label: "nav.products", icon: ShoppingBag },
-      { href: "/pedidos", label: "nav.orders", icon: Receipt },
     ],
   },
 ];
