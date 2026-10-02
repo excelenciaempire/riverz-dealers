@@ -7,6 +7,21 @@ const source={provider:'kommo' as const,origin:'https://fixture.kommo.com',accou
 const selected={provider:'manychat' as const,origin:'https://api.manychat.com' as const,accountId:7,subscriberIds:[42,43]};
 beforeEach(()=>{f.request.mockReset().mockResolvedValue({status:200,data:{_page:1,_embedded:{contacts:[{id:1,account_id:7,name:'Fixture',custom_fields_values:null}]}}});});
 describe('Read-only native contact provider requests',()=>{
+ it('rechecks Gorgias account domain and constructs its cursor URL instead of following links',async()=>{
+  const source={provider:'gorgias' as const,origin:'https://fixture.gorgias.com'};
+  f.request.mockResolvedValueOnce({status:200,data:{domain:'fixture',status:{status:'active'}}}).mockResolvedValueOnce({status:200,data:{object:'list',data:[{id:42}],meta:{next_cursor:null}}});
+  expect(await readExternalContactPage(source,'FIXTURE_TOKEN',{page:2,collected:1,lastId:1,sourceCursor:'A+/='})).toMatchObject({done:true,sourceCursor:null});
+  expect(f.request.mock.calls[0][0].url).toBe(source.origin+'/api/account');const url=new URL(f.request.mock.calls[1][0].url);expect([...url.searchParams]).toEqual([['limit','25'],['order_by','created_datetime:asc'],['cursor','A+/=']]);
+ });
+ it('uses an explicit Zendesk end-user filter and boundary metadata',async()=>{
+  const source={provider:'zendesk' as const,origin:'https://fixture.zendesk.com'};
+  f.request.mockResolvedValueOnce({status:200,data:{users:[],meta:{has_more:false,after_cursor:null}}});
+  expect(await readExternalContactPage(source,'FIXTURE_TOKEN',cursor)).toMatchObject({done:true,sourceCursor:null});const url=new URL(f.request.mock.calls[0][0].url);expect(url.pathname).toBe('/api/v2/users.json');expect([...url.searchParams]).toEqual([['page[size]','25'],['role','end-user'],['include_boundary_indicators','true']]);
+ });
+ it('rejects absent cursors on subsequent pages and foreign Gorgias accounts before listing',async()=>{
+  const source={provider:'gorgias' as const,origin:'https://fixture.gorgias.com'};await expect(readExternalContactPage(source,'FIXTURE_TOKEN',{...cursor,page:2,collected:1})).rejects.toMatchObject({code:'source_changed'});expect(f.request).not.toHaveBeenCalled();
+  f.request.mockResolvedValueOnce({status:200,data:{domain:'other',status:{status:'active'}}});await expect(readExternalContactPage(source,'FIXTURE_TOKEN',cursor)).rejects.toMatchObject({code:'source_changed'});expect(f.request).toHaveBeenCalledOnce();
+ });
  it('uses fixed bounded Kommo pagination and constructs links itself',async()=>{
   expect(await readExternalContactPage(source,'FIXTURE_TOKEN',cursor)).toMatchObject({done:true,contacts:[{sourceId:'1',phone:''}]});
   const input=f.request.mock.calls[0][0],url=new URL(input.url);expect(input.provider).toBe('kommo');expect(url.origin).toBe(source.origin);expect(url.pathname).toBe('/api/v4/contacts');expect([...url.searchParams]).toEqual([['page','1'],['limit','25'],['order[id]','asc']]);expect(input).not.toHaveProperty('method');

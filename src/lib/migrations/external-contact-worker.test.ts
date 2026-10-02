@@ -16,6 +16,15 @@ beforeEach(()=>{
  rpc.mockReset().mockImplementation(async(name:string)=>({data:name==='claim_external_contact_migrations'?(claims++===0?[job()]:[]):true,error:null}));
 });
 describe('Bounded private native contact worker',()=>{
+ it('records cursor pages through the dedicated RPC after current authority and credential checks',async()=>{
+  const definition={provider:'zendesk',origin:'https://fixture.zendesk.com'},cursorJob={...job(),source:definition,page:2,collected:1,last_id:42,source_cursor:'A'};
+  rpc.mockResolvedValueOnce({data:[cursorJob],error:null}).mockResolvedValueOnce({data:true,error:null}).mockResolvedValueOnce({data:true,error:null}).mockResolvedValueOnce({data:[],error:null});f.read.mockResolvedValue({...page,sourceCursor:'B',done:false});
+  expect(await syncExternalContactSources(db)).toEqual({pages:1,failed:0,skipped:0});expect(f.read).toHaveBeenCalledExactlyOnceWith(definition,'FIXTURE_TOKEN',{page:2,collected:1,lastId:42,sourceCursor:'A'});expect(rpc.mock.calls[2]).toEqual(['record_external_cursor_contact_page',{p_id:id,p_lease_id:lease,p_page:2,p_done:false,p_rows:page.contacts,p_cursor:'A',p_next_cursor:'B'}]);
+ });
+ it('does not record a cursor provider response missing explicit terminal metadata',async()=>{
+  rpc.mockResolvedValueOnce({data:[{...job(),source:{provider:'gorgias',origin:'https://fixture.gorgias.com'},source_cursor:null}],error:null}).mockResolvedValueOnce({data:true,error:null}).mockResolvedValueOnce({data:true,error:null}).mockResolvedValueOnce({data:[],error:null});
+  expect((await syncExternalContactSources(db)).failed).toBe(1);expect(rpc.mock.calls[2]).toEqual(['fail_external_contact_migration',{p_id:id,p_lease_id:lease,p_code:'source_invalid'}]);
+ });
  it('does nothing with the production feature disabled',async()=>{f.enabled=false;expect(await syncExternalContactSources(db)).toEqual({pages:0,failed:0,skipped:0});expect(rpc).not.toHaveBeenCalled();expect(f.read).not.toHaveBeenCalled();});
  it('checks current authority before decryption and provider IO and stores only projected rows',async()=>{
   expect(await syncExternalContactSources(db)).toEqual({pages:1,failed:0,skipped:0});

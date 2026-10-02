@@ -1,13 +1,28 @@
 import 'server-only';
 import {requestExternalContactJson,PublicJsonError} from '@/lib/security/public-json-request';
-import {externalSourceDefinition,externalToken,type ExternalSourceDefinition} from '../external-source-contract';
+import {externalSourceDefinition,externalToken,externalOpaqueCursor,type ExternalSourceDefinition} from '../external-source-contract';
+import {checkGorgiasAccount,projectGorgiasContacts,projectZendeskContacts} from './cursor-contacts';
 import {projectKommoContacts,projectManyChatContact,checkManyChatPage,ExternalProjectionError} from './external-contacts';
 import {NativeSourceError} from './chatwoot-client';
-export async function readExternalContactPage(source:ExternalSourceDefinition,token:string,cursor:{page:number;collected:number;lastId:number}){
+export async function readExternalContactPage(source:ExternalSourceDefinition,token:string,cursor:{page:number;collected:number;lastId:number;sourceCursor?:string|null}){
  try{
   const definition=externalSourceDefinition.safeParse(source);
-  if(!definition.success||!externalToken.safeParse(token).success||!Number.isInteger(cursor.page)||cursor.page<1||cursor.page>201||!Number.isInteger(cursor.collected)||cursor.collected<0||cursor.collected>5000||!Number.isSafeInteger(cursor.lastId)||cursor.lastId<0||Object.keys(cursor).some(key=>!['page','collected','lastId'].includes(key)))throw new NativeSourceError('source_invalid');
+  if(!definition.success||!externalToken.safeParse(token).success||!Number.isInteger(cursor.page)||cursor.page<1||cursor.page>201||!Number.isInteger(cursor.collected)||cursor.collected<0||cursor.collected>5000||!Number.isSafeInteger(cursor.lastId)||cursor.lastId<0||Object.keys(cursor).some(key=>!['page','collected','lastId','sourceCursor'].includes(key)))throw new NativeSourceError('source_invalid');
   const value=definition.data;
+  if(value.provider==='gorgias'||value.provider==='zendesk'){
+   if(cursor.page===1?cursor.sourceCursor!==null&&cursor.sourceCursor!==undefined||cursor.collected!==0:!externalOpaqueCursor.safeParse(cursor.sourceCursor).success||cursor.collected<1||cursor.collected>(cursor.page-1)*25)throw new NativeSourceError('source_changed');
+   const current=cursor.sourceCursor??null;
+   if(value.provider==='gorgias'){
+    const account=await requestExternalContactJson({provider:value.provider,url:value.origin+'/api/account',token});
+    if(account.status!==200)throw new NativeSourceError('source_invalid');checkGorgiasAccount(account.data,value.origin);
+   }
+   const url=new URL(value.provider==='gorgias'?'/api/customers':'/api/v2/users.json',value.origin);
+   if(value.provider==='gorgias'){url.searchParams.set('limit','25');url.searchParams.set('order_by','created_datetime:asc');if(current)url.searchParams.set('cursor',current);}
+   else{url.searchParams.set('page[size]','25');url.searchParams.set('role','end-user');url.searchParams.set('include_boundary_indicators','true');if(current)url.searchParams.set('page[after]',current);}
+   const result=await requestExternalContactJson({provider:value.provider,url:url.href,token});if(result.status!==200)throw new NativeSourceError('source_invalid');
+   return value.provider==='gorgias'?projectGorgiasContacts(result.data,current):projectZendeskContacts(result.data,current);
+  }
+  if(cursor.sourceCursor!==undefined&&cursor.sourceCursor!==null)throw new NativeSourceError('source_changed');
   if(value.provider==='kommo'){
    if(cursor.collected!==(cursor.page-1)*25)throw new NativeSourceError('source_changed');
    const url=new URL('/api/v4/contacts',value.origin);url.searchParams.set('page',String(cursor.page));url.searchParams.set('limit','25');url.searchParams.set('order[id]','asc');

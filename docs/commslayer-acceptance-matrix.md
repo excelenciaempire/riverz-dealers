@@ -55,3 +55,6 @@ X2 incorpora [listado nativo de Kommo y selección de ManyChat](migration-native
 La matriz conserva separadas construcción, pruebas físicas, publicaciones y decisiones comerciales. Cualquier declaración del 100 % debe identificar cuál alcance terminó y conservar estos límites.
 
 La sección 12 cuenta con [evaluación privada de expansión](commslayer-us-expansion-review.md) y [ficha técnica de seguridad ES/EN](commslayer-security-review-pack.md). Son documentos preparados, sin cambio de oferta, distribución, términos legales o certificación.
+
+
+X2 suma [Gorgias/Zendesk por cursor](migration-native-cursors.md): clientes de Gorgias y usuarios finales de Zendesk, credenciales OAuth autorizadas, fin explícito, errores privados y revisión humana. Los teléfonos ausentes/ambiguos quedan excluidos; no se atribuye consentimiento o cobertura de historiales. Leadsales permanece sujeto a su API técnica; CSV de las seis fuentes sigue disponible. No se altera el alcance abierto de X3–X5.

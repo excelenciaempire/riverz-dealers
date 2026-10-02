@@ -6,7 +6,10 @@ export const externalSourceDefinition=z.discriminatedUnion('provider',[
   z.object({provider:z.literal('kommo'),origin:z.string().max(120).regex(/^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.kommo\.com$/),accountId}).strict(),
   z.object({provider:z.literal('manychat'),origin:z.literal('https://api.manychat.com'),accountId,
     subscriberIds:z.array(accountId).min(1).max(100).refine(ids=>new Set(ids).size===ids.length)}).strict(),
+  z.object({provider:z.literal('gorgias'),origin:z.string().max(120).regex(/^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.gorgias\.com$/)}).strict(),
+  z.object({provider:z.literal('zendesk'),origin:z.string().max(120).regex(/^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.zendesk\.com$/)}).strict(),
 ]);
+export const externalOpaqueCursor=z.string().min(1).max(1024).regex(/^[A-Za-z0-9+/=_-]+$/);
 export const externalSourceStart=z.object({id:z.string().uuid(),source:externalSourceDefinition,token:externalToken}).strict();
 export type ExternalSourceDefinition=z.infer<typeof externalSourceDefinition>;
 export const externalSourceSnapshot=z.object({id:z.string().uuid(),workspace_id:z.string().uuid(),actor_id:z.string().uuid(),source:externalSourceDefinition,
@@ -19,4 +22,4 @@ export const externalSourceSnapshot=z.object({id:z.string().uuid(),workspace_id:
   v.next!==null&&(v.rows.length===0||v.next>=(v.total??0))||v.source.provider==='manychat'&&v.collected>v.source.subscriberIds.length)ctx.addIssue({code:'custom',message:'external_source_snapshot_invalid'});
 });
 export type ExternalSourceSnapshot=z.infer<typeof externalSourceSnapshot>;
-export function externalSourceLabel(source:ExternalSourceDefinition){const value=externalSourceDefinition.parse(source);return `${value.origin}#${value.accountId}`;}
+export function externalSourceLabel(source:ExternalSourceDefinition){const value=externalSourceDefinition.parse(source);return 'accountId' in value?`${value.origin}#${value.accountId}`:value.origin;}

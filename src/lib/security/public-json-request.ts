@@ -25,7 +25,7 @@ export async function requestPublicJson(input: PublicJsonRequest): Promise<{ sta
 
 /** Fixed provider GET resources. Redirects are never followed, and credentials
  * cannot be sent to a caller-supplied unrelated host, path or query. */
-export async function requestExternalContactJson(input:{provider:'kommo'|'manychat';url:string;token:string}){
+export async function requestExternalContactJson(input:{provider:'kommo'|'manychat'|'gorgias'|'zendesk';url:string;token:string}){
   if(!input||Object.keys(input).some(key=>!['provider','url','token'].includes(key))||typeof input.token!=='string'||!input.token.length||input.token.length>4096||!/^[\x21-\x7e]+$/.test(input.token))throw new PublicJsonError('http_input_invalid');
   const url=typeof input.url==='string'&&input.url.length<=2048?isPublicHttpsUrl(input.url):null;
   if(!url||url.port||url.hash)throw new PublicJsonError('http_destination_forbidden');
@@ -37,6 +37,18 @@ export async function requestExternalContactJson(input:{provider:'kommo'|'manych
   }else if(input.provider==='manychat'){
     if(url.hostname!=='api.manychat.com'||!['/fb/page/getInfo','/fb/subscriber/getInfo'].includes(url.pathname))throw new PublicJsonError('http_destination_forbidden');
     if(url.pathname==='/fb/page/getInfo'?[...params].length!==0:[...params].length!==1||params.getAll('subscriber_id').length!==1||! /^[1-9][0-9]{0,15}$/.test(params.get('subscriber_id')??'')||Number(params.get('subscriber_id'))>Number.MAX_SAFE_INTEGER)throw new PublicJsonError('http_input_invalid');
+  }else if(input.provider==='gorgias'||input.provider==='zendesk'){
+    const provider=input.provider,host=new RegExp('^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.'+provider+'\\.com$');
+    if(!host.test(url.hostname))throw new PublicJsonError('http_destination_forbidden');
+    const account=provider==='gorgias'&&url.pathname==='/api/account';
+    if(account){if([...params].length)throw new PublicJsonError('http_input_invalid');}
+    else{
+      if(url.pathname!==(provider==='gorgias'?'/api/customers':'/api/v2/users.json'))throw new PublicJsonError('http_destination_forbidden');
+      const required=provider==='gorgias'?{limit:'25',order_by:'created_datetime:asc'}:{'page[size]':'25',role:'end-user',include_boundary_indicators:'true'};
+      const cursor=provider==='gorgias'?'cursor':'page[after]';
+      if([...params].some(([key])=>!(key in required)&&key!==cursor)||Object.entries(required).some(([key,value])=>params.getAll(key).length!==1||params.get(key)!==value)||
+        params.getAll(cursor).length>1||params.has(cursor)&&!/^[A-Za-z0-9+/=_-]{1,1024}$/.test(params.get(cursor)??''))throw new PublicJsonError('http_input_invalid');
+    }
   }else throw new PublicJsonError('http_input_invalid');
   return exchangePublicJson({url:url.href,method:'GET',credential:{kind:'bearer',value:input.token}});
 }

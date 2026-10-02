@@ -5,13 +5,13 @@ import {useT} from '@/hooks/use-locale';
 import {useFormat} from '@/hooks/use-format';
 import {useFetchWithCsrf} from '@/lib/api/fetch-with-csrf';
 import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
-import {externalSourceStart,externalSourceSnapshot,externalSourceLabel,type ExternalSourceSnapshot} from '@/lib/migrations/external-source-contract';
+import {externalSourceStart,externalSourceSnapshot,externalSourceLabel,type ExternalSourceSnapshot,type ExternalSourceDefinition} from '@/lib/migrations/external-source-contract';
 import {contactMigrationSnapshot,type ContactMigrationSnapshot} from '@/lib/migrations/contact-import-contract';
 import {MigrationImportReview} from './migration-import-review';
 const codes=['invalid','notFound','changed','expired','readOnly','limit','unavailable'];
 export function ExternalMigration({onImported}:{onImported?:()=>void}){
   const t=useT(),fmt=useFormat(),fetch=useFetchWithCsrf(),{workspace}=useWorkspace(),workspaceId=workspace?.id;
-  const [provider,setProvider]=useState<'kommo'|'manychat'>('kommo'),[subscriberIds,setSubscriberIds]=useState('');
+  const [provider,setProvider]=useState<ExternalSourceDefinition['provider']>('kommo'),[subscriberIds,setSubscriberIds]=useState('');
   const [origin,setOrigin]=useState(''),[accountId,setAccountId]=useState(''),[token,setToken]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[recovery,setRecovery]=useState('');
   const [job,setJob]=useState<ExternalSourceSnapshot|null>(null),[review,setReview]=useState<ContactMigrationSnapshot|null>(null);
   const attempt=useRef(''),reviewAttempt=useRef(''),version=useRef(0),controller=useRef<AbortController|null>(null);
@@ -32,7 +32,7 @@ export function ExternalMigration({onImported}:{onImported?:()=>void}){
         if(!attempt.current)attempt.current=crypto.randomUUID();
         const account=/^[1-9][0-9]{0,15}$/.test(accountId)?Number(accountId):NaN;
         const ids=subscriberIds.trim().split(/[\s,]+/).map(value=>/^[1-9][0-9]{0,15}$/.test(value)?Number(value):NaN);
-        const source=provider==='kommo'?{provider,origin,accountId:account}:{provider,origin:'https://api.manychat.com',accountId:account,subscriberIds:ids};
+        const source=provider==='manychat'?{provider,origin:'https://api.manychat.com',accountId:account,subscriberIds:ids}:provider==='kommo'?{provider,origin,accountId:account}:{provider,origin};
         const input=externalSourceStart.safeParse({id:attempt.current,source,token});
         if(!input.success)throw new Error('invalid');expectedId=input.data.id;remember(input.data.id);body={action,input:input.data};
       }else if(action==='refresh'||action==='recover'){
@@ -59,15 +59,15 @@ export function ExternalMigration({onImported}:{onImported?:()=>void}){
   }
   const inputClass='min-w-0 w-full rounded border border-border bg-card p-2 text-sm',active=job&&['queued','fetching','ready'].includes(job.state);
   return <section className="space-y-3 rounded border border-border p-3">
-    <h3 className="text-sm font-medium">{t('contacts.externalTitle')}</h3><p className="text-xs text-muted-foreground">{t(provider==='kommo'?'contacts.externalKommoScope':'contacts.externalManyChatScope')}</p>
-    {!job&&<><label className="block text-xs">{t('contacts.migrationProvider')}<select className={inputClass} value={provider} disabled={busy} onChange={event=>{change();setProvider(event.target.value as 'kommo'|'manychat');setToken('');setOrigin('');setSubscriberIds('');setAccountId('');}}><option value="kommo">Kommo</option><option value="manychat">ManyChat</option></select></label><div className="grid gap-2 sm:grid-cols-2">
-      {provider==='kommo'&&<label className="text-xs">{t('contacts.externalOrigin')}<input className={inputClass} type="url" maxLength={120} disabled={busy} value={origin} onChange={event=>{change();setOrigin(event.target.value);}} placeholder="https://your-store.kommo.com" autoComplete="off"/></label>}
-      <label className="text-xs">{t('contacts.externalAccount')}<input className={inputClass} inputMode="numeric" maxLength={16} disabled={busy} value={accountId} onChange={event=>{change();setAccountId(event.target.value);}} autoComplete="off"/></label>
-    </div>{provider==='manychat'&&<label className="block text-xs">{t('contacts.externalSubscriberIds')}<textarea className={inputClass} maxLength={1700} disabled={busy} value={subscriberIds} onChange={event=>{change();setSubscriberIds(event.target.value);}} autoComplete="off"/></label>}<label className="block text-xs">{t('contacts.nativeToken')}<input className={inputClass} type="password" autoComplete="new-password" maxLength={4096} disabled={busy} value={token} onChange={event=>{change();setToken(event.target.value);}}/></label>
-    <button type="button" disabled={busy||!workspaceId||!accountId||!token||(provider==='kommo'?!origin:!subscriberIds.trim())} className="rounded border border-border px-3 py-2 text-sm disabled:opacity-50" onClick={()=>void run('start')}>{t('contacts.nativeStart')}</button></>}
+    <h3 className="text-sm font-medium">{t('contacts.externalTitle')}</h3><p className="text-xs text-muted-foreground">{t(provider==='kommo'?'contacts.externalKommoScope':provider==='manychat'?'contacts.externalManyChatScope':provider==='gorgias'?'contacts.externalGorgiasScope':'contacts.externalZendeskScope')}</p>
+    {!job&&<><label className="block text-xs">{t('contacts.migrationProvider')}<select className={inputClass} value={provider} disabled={busy} onChange={event=>{change();setProvider(event.target.value as ExternalSourceDefinition['provider']);setToken('');setOrigin('');setSubscriberIds('');setAccountId('');}}><option value="kommo">Kommo</option><option value="manychat">ManyChat</option><option value="gorgias">Gorgias</option><option value="zendesk">Zendesk</option></select></label><div className="grid gap-2 sm:grid-cols-2">
+      {provider!=='manychat'&&<label className="text-xs">{t('contacts.externalOrigin')}<input className={inputClass} type="url" maxLength={120} disabled={busy} value={origin} onChange={event=>{change();setOrigin(event.target.value);}} placeholder={`https://your-store.${provider}.com`} autoComplete="off"/></label>}
+      {(provider==='kommo'||provider==='manychat')&&<label className="text-xs">{t('contacts.externalAccount')}<input className={inputClass} inputMode="numeric" maxLength={16} disabled={busy} value={accountId} onChange={event=>{change();setAccountId(event.target.value);}} autoComplete="off"/></label>}
+    </div>{provider==='manychat'&&<label className="block text-xs">{t('contacts.externalSubscriberIds')}<textarea className={inputClass} maxLength={1700} disabled={busy} value={subscriberIds} onChange={event=>{change();setSubscriberIds(event.target.value);}} autoComplete="off"/></label>}<label className="block text-xs">{t(provider==='gorgias'||provider==='zendesk'?'contacts.externalOauthToken':'contacts.nativeToken')}<input className={inputClass} type="password" autoComplete="new-password" maxLength={4096} disabled={busy} value={token} onChange={event=>{change();setToken(event.target.value);}}/></label>
+    <button type="button" disabled={busy||!workspaceId||!token||((provider==='kommo'||provider==='manychat')&&!accountId)||(provider==='manychat'?!subscriberIds.trim():!origin)} className="rounded border border-border px-3 py-2 text-sm disabled:opacity-50" onClick={()=>void run('start')}>{t('contacts.nativeStart')}</button></>}
     {recovery&&!job&&<button type="button" disabled={busy} className="block text-xs underline" onClick={()=>void run('recover')}>{t('contacts.nativeRecover')}</button>}
     {job&&<><p role="status" className="text-xs">{t(`contacts.nativeState_${job.state}`)} · {fmt.number(job.collected)}{job.total!==null?` / ${fmt.number(job.total)}`:''}</p>
-      <p className="break-all text-xs text-muted-foreground">{job.source.origin} #{job.source.accountId} · {job.id}</p>
+      <p className="break-all text-xs text-muted-foreground">{externalSourceLabel(job.source)} · {job.id}</p>
       {job.error&&<p role="alert" className="text-xs text-destructive">{t(job.error==='source_auth'?'contacts.externalAuth':`contacts.nativeError_${job.error}`)}</p>}
       {active&&<div className="flex flex-wrap gap-3"><button type="button" disabled={busy} className="text-xs underline" onClick={()=>void run('refresh')}>{t('contacts.nativeRefresh')}</button>
         <button type="button" disabled={busy} className="text-xs underline" onClick={()=>void run('cancel')}>{t('contacts.nativeCancel')}</button></div>}

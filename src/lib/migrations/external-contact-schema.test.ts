@@ -21,6 +21,7 @@ beforeAll(async()=>{
  GRANT USAGE ON SCHEMA public TO anon,authenticated,service_role;`);
  await db.exec(readFileSync('supabase/migrations/360_contact_migration_receipts.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/367_external_contact_migrations.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/368_external_cursor_contact_migrations.sql','utf8'));
 },30000);
 afterAll(async()=>{await db.close();});
 beforeEach(async()=>{

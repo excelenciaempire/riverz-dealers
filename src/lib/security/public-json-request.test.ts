@@ -41,6 +41,9 @@ describe('bounded public JSON transport', () => {
     {provider:'kommo' as const,url:'https://fixture.kommo.com/api/v4/contacts?page=1&limit=25&order%5Bid%5D=asc'},
     {provider:'manychat' as const,url:'https://api.manychat.com/fb/page/getInfo'},
     {provider:'manychat' as const,url:'https://api.manychat.com/fb/subscriber/getInfo?subscriber_id=42'},
+    {provider:'gorgias' as const,url:'https://fixture.gorgias.com/api/account'},
+    {provider:'gorgias' as const,url:'https://fixture.gorgias.com/api/customers?limit=25&order_by=created_datetime%3Aasc&cursor=A%2B%2F%3D'},
+    {provider:'zendesk' as const,url:'https://fixture.zendesk.com/api/v2/users.json?page%5Bsize%5D=25&role=end-user&include_boundary_indicators=true&page%5Bafter%5D=A%3D'},
   ])('allows fixed external GET resources with a bearer and pinned TLS: $url',async input=>{
     await requestExternalContactJson({...input,token:'FIXTURE_TOKEN'});expect(h.calls).toHaveLength(1);
     expect(h.calls[0].options).toMatchObject({method:'GET',rejectUnauthorized:true,headers:{authorization:'Bearer FIXTURE_TOKEN'}});expect(h.calls[0].body).toBeUndefined();
@@ -55,6 +58,14 @@ describe('bounded public JSON transport', () => {
     {provider:'manychat' as const,url:'https://api.manychat.com/fb/page/getInfo?token=secret'},
     {provider:'manychat' as const,url:'https://api.manychat.com/fb/subscriber/getInfo?subscriber_id=42&subscriber_id=43'},
     {provider:'manychat' as const,url:'https://api.manychat.com/fb/subscriber/getInfo?subscriber_id=9007199254740992'},
+    {provider:'gorgias' as const,url:'https://fixture.gorgias.com.evil.test/api/account'},
+    {provider:'gorgias' as const,url:'https://fixture.gorgias.com/api/account?token=secret'},
+    {provider:'gorgias' as const,url:'https://fixture.gorgias.com/api/tickets?limit=25'},
+    {provider:'gorgias' as const,url:'https://fixture.gorgias.com/api/customers?limit=25&order_by=created_datetime%3Aasc&cursor=A&cursor=B'},
+    {provider:'gorgias' as const,url:'https://fixture.gorgias.com/api/customers?limit=100&order_by=created_datetime%3Aasc'},
+    {provider:'zendesk' as const,url:'https://fixture.zendesk.com/api/v2/users.json?page%5Bsize%5D=25&role=admin&include_boundary_indicators=true'},
+    {provider:'zendesk' as const,url:'https://fixture.zendesk.com/api/v2/users.json?page%5Bsize%5D=25&role=end-user&include_boundary_indicators=true&page%5Bafter%5D=https%3A%2F%2Fevil.test'},
+    {provider:'zendesk' as const,url:'https://fixture.zendesk.com/api/v2/users.json?page%5Bsize%5D=25&role=end-user&include_boundary_indicators=true&include=organizations'},
   ])('rejects external scope/route/query injection before DNS: $url',async input=>{
     await expect(requestExternalContactJson({...input,token:'FIXTURE_TOKEN'})).rejects.toBeInstanceOf(PublicJsonError);expect(h.dns).not.toHaveBeenCalled();expect(h.calls).toHaveLength(0);
   });

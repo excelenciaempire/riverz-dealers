@@ -24,6 +24,11 @@ beforeEach(()=>{h.enabled=true;h.locale='es';h.index=0;h.bank=[];h.job=null;h.fe
  h.job={...h.job,state:'ready',total:1,collected:1,rows:[{sourceId:'42',phone:'+573001112233',name:'Fixture',email:'',company:''}]};return reply(h.job);
 });});
 describe('External import UI does not import on collection',()=>{
+ it.each(['gorgias','zendesk'] as const)('starts %s with an exact origin and OAuth token, without account ID guesses',async provider=>{
+  change('migrationProvider',provider);expect(render().some(e=>e.type==='textarea')).toBe(false);expect(render().some(e=>e.type==='input'&&e.props.inputMode==='numeric')).toBe(false);
+  change('externalOrigin',`https://fixture.${provider}.com`);change('externalOauthToken','FIXTURE_TOKEN');expect(button('nativeStart').props.disabled).toBe(false);(button('nativeStart').props.onClick as ()=>void)();await tick();
+  expect(JSON.parse(h.fetch.mock.calls[0][1].body).input.source).toEqual({provider,origin:`https://fixture.${provider}.com`});expect(h.bank).not.toContain('FIXTURE_TOKEN');expect(button('nativeReview')).toBeUndefined();
+ });
  it('stays invisible and performs no fetch with the gate off',()=>{h.enabled=false;expect(render()).toEqual([]);expect(h.fetch).not.toHaveBeenCalled();});
  it.each(['es','en'] as const)('requires account, source and token and clears secrets after collection in %s',async locale=>{
   h.locale=locale;expect(button('nativeStart').props.disabled).toBe(true);change('externalOrigin','https://fixture.kommo.com');change('externalAccount','7');change('nativeToken','FIXTURE_TOKEN');expect(button('nativeStart').props.disabled).toBe(false);

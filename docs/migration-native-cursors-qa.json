@@ -1,0 +1,533 @@
+{
+  "date": "2026-10-02",
+  "scope": "X2 Gorgias/Zendesk OAuth contact reads; no commercial account requests or imports",
+  "tests": {
+    "passed": 638,
+    "files": 36,
+    "log": "tmp/cursor-all-tests.log",
+    "initialFailure": {
+      "failed": 4,
+      "total": 187,
+      "reason": "PostgreSQL rejected the regex repetition count 1024; split length and allowed characters before migration installation. The subsequent focused 189 and regression 638 tests passed."
+    }
+  },
+  "schema": {
+    "migration": 368,
+    "installedOnce": true,
+    "privateTable": true,
+    "privateProbe": true,
+    "fixedInvoker": true,
+    "nullContextRestDenials": 4,
+    "customersRead": false,
+    "jobsCreated": false,
+    "purgeExecuted": false
+  },
+  "sourceHashes": [
+    {
+      "path": "scripts/check-external-contact-migration-schema.cjs",
+      "sha256": "c7dfe07d013a586488e4d5e9fd1231410ed1b3d232f9f9914caaaa684921a3a6"
+    },
+    {
+      "path": "scripts/comparison/fixtures.jsx",
+      "sha256": "69255ed08c233315418b915a489bedb7f9e150b941c251989e49ee0eda89f7c1"
+    },
+    {
+      "path": "src/components/contacts/external-migration.test.tsx",
+      "sha256": "5bd05f89d6ec742a3d33d6f7b694cdc7cb2333d612ee3f433edc1afaf4966d4c"
+    },
+    {
+      "path": "src/components/contacts/external-migration.tsx",
+      "sha256": "f9890d1006842392e3eb91d7c1b9b3fbd645fb121bb4d280fa606b7d97564f37"
+    },
+    {
+      "path": "src/lib/i18n/messages/contacts.ts",
+      "sha256": "fea3bf7bb607bdd4330c3be2d626bfbf67b7a846d50d7ab8e51c11a94cc63eac"
+    },
+    {
+      "path": "src/lib/migrations/external-contact-schema.test.ts",
+      "sha256": "ac7d1d717dbfd2ac12b5c45235cb12e4ff3788f5fe466129383e5fb69a882fd2"
+    },
+    {
+      "path": "src/lib/migrations/external-contact-worker.test.ts",
+      "sha256": "0665e138b5f0d24da561457ef9890358b5a66c2882bb06df71d15a850bb0dfec"
+    },
+    {
+      "path": "src/lib/migrations/external-contact-worker.ts",
+      "sha256": "2486bef76274da1d9491e6aa480df0a94a2e8ee6808dd341422953a31bba6aeb"
+    },
+    {
+      "path": "src/lib/migrations/external-source-contract.ts",
+      "sha256": "964ce07ce6d8f061658c3942d89f5eea6539cb51497dd5684f0995dbc7e79ee1"
+    },
+    {
+      "path": "src/lib/migrations/providers/external-client.test.ts",
+      "sha256": "7ed65a6daae0b3bfcdd1d2d3a7500b2c4a1b7dab7213d96c8dceb22241a2be13"
+    },
+    {
+      "path": "src/lib/migrations/providers/external-client.ts",
+      "sha256": "e3fb81c09a91a111e5053541f5d805e56f73b73125131526c1220c7455af8163"
+    },
+    {
+      "path": "src/lib/security/public-json-request.test.ts",
+      "sha256": "5e948374696d2a184bf68bbd2cd65ae877375d2f0c98ddf0cca1d0dc9a093679"
+    },
+    {
+      "path": "src/lib/security/public-json-request.ts",
+      "sha256": "d40cc3e1d99bddb114516e7893115e5c948bf43640eb7a7706c9e0cacc24e393"
+    },
+    {
+      "path": "src/lib/migrations/external-cursor-schema.test.ts",
+      "sha256": "6aab0b0ac902ca78dd0b16e4e7369da16e9f0b9e4b83422febc61ef3a2a1c61f"
+    },
+    {
+      "path": "src/lib/migrations/providers/cursor-contacts.test.ts",
+      "sha256": "8dbab5b6f5b1e416457c2b22773a8c0e7addeafc089036cd1c96678ab1ef1d9e"
+    },
+    {
+      "path": "src/lib/migrations/providers/cursor-contacts.ts",
+      "sha256": "e5f5359b202ea61f82f295ced21f5a8377ae316d188d74c01f114b0dce29b35a"
+    },
+    {
+      "path": "supabase/migrations/368_external_cursor_contact_migrations.sql",
+      "sha256": "42a1decba7f9c47370f6c0e50ad516be712ead400f36542681e1c68ff1410107"
+    }
+  ],
+  "builds": {
+    "normal": {
+      "exitCode": 0,
+      "log": "tmp/cursor-normal-build.log"
+    },
+    "comparison": {
+      "exitCode": 0,
+      "log": "tmp/cursor-comparison-build.log"
+    }
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 0,
+    "log": "tmp/cursor-lint.log"
+  },
+  "nativeReviews": [
+    {
+      "name": "EsDesktop",
+      "result": {
+        "locale": "es",
+        "currentHidden": true,
+        "providers": {
+          "gorgias": {
+            "noGuessedAccountId": true,
+            "oauthLabel": true,
+            "queued": true,
+            "tokenRemoved": true,
+            "reviewPrepared": true,
+            "confirmInitiallyDisabled": true,
+            "noGuessedLabel": true,
+            "excluded": true,
+            "confirmAfterCheckbox": true,
+            "cancelled": true,
+            "reviewRemoved": true
+          },
+          "zendesk": {
+            "noGuessedAccountId": true,
+            "oauthLabel": true,
+            "queued": true,
+            "tokenRemoved": true,
+            "reviewPrepared": true,
+            "confirmInitiallyDisabled": true,
+            "noGuessedLabel": true,
+            "excluded": true
+          }
+        },
+        "alerts": [],
+        "storage": [
+          {
+            "key": "riverz:history-migration:10000000-0000-4000-8000-000000000001",
+            "value": "a8ec4110-87f6-4e5f-aea0-bc81683569a7"
+          },
+          {
+            "key": "riverz:external-migration:10000000-0000-4000-8000-000000000001",
+            "value": "05af046d-1d69-49c5-a0f5-fa7ede9765cb"
+          },
+          {
+            "key": "riverz:migration:10000000-0000-4000-8000-000000000001",
+            "value": "4221fbff-ad8b-4dd5-8656-5eb51f157636"
+          },
+          {
+            "key": "riverz:native-migration:10000000-0000-4000-8000-000000000001",
+            "value": "327fc495-b631-427e-98a7-76a5601ce1e8"
+          },
+          {
+            "key": "riverz.locale",
+            "value": "es"
+          }
+        ],
+        "secretPersisted": false,
+        "calls": [
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          }
+        ],
+        "overflow": false
+      },
+      "screenshot": "docs/comparison-preview/migration-cursors-es-desktop.png"
+    },
+    {
+      "name": "EnDesktop",
+      "result": {
+        "locale": "en",
+        "currentHidden": true,
+        "providers": {
+          "gorgias": {
+            "noGuessedAccountId": true,
+            "oauthLabel": true,
+            "queued": true,
+            "tokenRemoved": true,
+            "reviewPrepared": true,
+            "confirmInitiallyDisabled": true,
+            "noGuessedLabel": true,
+            "excluded": true,
+            "confirmAfterCheckbox": true,
+            "cancelled": true,
+            "reviewRemoved": true
+          },
+          "zendesk": {
+            "noGuessedAccountId": true,
+            "oauthLabel": true,
+            "queued": true,
+            "tokenRemoved": true,
+            "reviewPrepared": true,
+            "confirmInitiallyDisabled": true,
+            "noGuessedLabel": true,
+            "excluded": true
+          }
+        },
+        "alerts": [],
+        "storage": [
+          {
+            "key": "riverz:history-migration:10000000-0000-4000-8000-000000000001",
+            "value": "a8ec4110-87f6-4e5f-aea0-bc81683569a7"
+          },
+          {
+            "key": "riverz:external-migration:10000000-0000-4000-8000-000000000001",
+            "value": "81bf01a9-d06c-46df-8981-68b4f7dcdd21"
+          },
+          {
+            "key": "riverz:migration:10000000-0000-4000-8000-000000000001",
+            "value": "82be0cea-3f70-4412-8de1-111c96ecf49a"
+          },
+          {
+            "key": "riverz:native-migration:10000000-0000-4000-8000-000000000001",
+            "value": "327fc495-b631-427e-98a7-76a5601ce1e8"
+          },
+          {
+            "key": "riverz.locale",
+            "value": "en"
+          }
+        ],
+        "secretPersisted": false,
+        "calls": [
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          }
+        ],
+        "overflow": false
+      },
+      "screenshot": "docs/comparison-preview/migration-cursors-en-desktop.png"
+    },
+    {
+      "name": "EsMobile",
+      "result": {
+        "locale": "es",
+        "currentHidden": true,
+        "providers": {
+          "gorgias": {
+            "noGuessedAccountId": true,
+            "oauthLabel": true,
+            "queued": true,
+            "tokenRemoved": true,
+            "reviewPrepared": true,
+            "confirmInitiallyDisabled": true,
+            "noGuessedLabel": true,
+            "excluded": true,
+            "confirmAfterCheckbox": true,
+            "cancelled": true,
+            "reviewRemoved": true
+          },
+          "zendesk": {
+            "noGuessedAccountId": true,
+            "oauthLabel": true,
+            "queued": true,
+            "tokenRemoved": true,
+            "reviewPrepared": true,
+            "confirmInitiallyDisabled": true,
+            "noGuessedLabel": true,
+            "excluded": true
+          }
+        },
+        "alerts": [],
+        "storage": [
+          {
+            "key": "riverz:history-migration:10000000-0000-4000-8000-000000000001",
+            "value": "a8ec4110-87f6-4e5f-aea0-bc81683569a7"
+          },
+          {
+            "key": "riverz:external-migration:10000000-0000-4000-8000-000000000001",
+            "value": "9bb386d2-0ba4-4afb-981f-1485448229c9"
+          },
+          {
+            "key": "riverz:migration:10000000-0000-4000-8000-000000000001",
+            "value": "b00e42d4-7d2c-41c7-9c4c-5895324f626e"
+          },
+          {
+            "key": "riverz:native-migration:10000000-0000-4000-8000-000000000001",
+            "value": "327fc495-b631-427e-98a7-76a5601ce1e8"
+          },
+          {
+            "key": "riverz.locale",
+            "value": "es"
+          }
+        ],
+        "secretPersisted": false,
+        "calls": [
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          }
+        ],
+        "overflow": false
+      },
+      "screenshot": "docs/comparison-preview/migration-cursors-es-mobile.png"
+    },
+    {
+      "name": "EnMobile",
+      "result": {
+        "locale": "en",
+        "currentHidden": true,
+        "providers": {
+          "gorgias": {
+            "noGuessedAccountId": true,
+            "oauthLabel": true,
+            "queued": true,
+            "tokenRemoved": true,
+            "reviewPrepared": true,
+            "confirmInitiallyDisabled": true,
+            "noGuessedLabel": true,
+            "excluded": true,
+            "confirmAfterCheckbox": true,
+            "cancelled": true,
+            "reviewRemoved": true
+          },
+          "zendesk": {
+            "noGuessedAccountId": true,
+            "oauthLabel": true,
+            "queued": true,
+            "tokenRemoved": true,
+            "reviewPrepared": true,
+            "confirmInitiallyDisabled": true,
+            "noGuessedLabel": true,
+            "excluded": true
+          }
+        },
+        "alerts": [],
+        "storage": [
+          {
+            "key": "riverz:history-migration:10000000-0000-4000-8000-000000000001",
+            "value": "a8ec4110-87f6-4e5f-aea0-bc81683569a7"
+          },
+          {
+            "key": "riverz:external-migration:10000000-0000-4000-8000-000000000001",
+            "value": "36c0ec4a-e55d-4ff7-abf5-b0cb7fa2fdc4"
+          },
+          {
+            "key": "riverz:migration:10000000-0000-4000-8000-000000000001",
+            "value": "b40c5947-2658-4e81-90d8-474e62f33b94"
+          },
+          {
+            "key": "riverz:native-migration:10000000-0000-4000-8000-000000000001",
+            "value": "327fc495-b631-427e-98a7-76a5601ce1e8"
+          },
+          {
+            "key": "riverz.locale",
+            "value": "en"
+          }
+        ],
+        "secretPersisted": false,
+        "calls": [
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          }
+        ],
+        "overflow": false
+      },
+      "screenshot": "docs/comparison-preview/migration-cursors-en-mobile.png"
+    }
+  ],
+  "console": [
+    {
+      "level": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 0",
+      "timestamp": "2026-10-02T06:25:24.234Z",
+      "source": "console"
+    },
+    {
+      "level": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 1",
+      "timestamp": "2026-10-02T06:27:51.925Z",
+      "source": "console"
+    }
+  ],
+  "publicUiEnabled": false,
+  "bundle": {
+    "kind": "real_components_with_fictional_fixtures",
+    "externalActions": false,
+    "rootCredentialsLoaded": false,
+    "styles": [
+      "0y7fmymffc1f-.css",
+      "0ydpypn-7ctjk.css",
+      "1ag9sf8mxyftp.css",
+      "1bliujhpm9e2n.css",
+      "24hrtzo5s_sl1.css",
+      "2rmecej376eld.css",
+      "3s7aa-p955seo.css"
+    ],
+    "fontClasses": [
+      "inter_tight_fa226055-module__1fYypW__variable",
+      "fraunces_9a096d75-module__DGh9ka__variable",
+      "martian_mono_27ee911d-module__4pa5XW__variable",
+      "instrument_serif_1bcd226e-module__F5bloW__variable",
+      "instrument_sans_313c338b-module__a4khDq__variable",
+      "geist_mono_aa0f1355-module__XhKG7W__variable"
+    ],
+    "bundleSha256": "dcdf23d2ea295081c8240f2021a92f5acc4edb11f08afa6d520b7e0674d973b8"
+  },
+  "normalCss": {
+    "0y7fmymffc1f-.css": "a9ebecb14064ea8dd75f94623210eda384a7b55a0dda3b2d684cf2a51bd9c6df",
+    "0ydpypn-7ctjk.css": "932d47c5b5820b2dd6a9a39a5a25bd6a26ab6e94db2b45fe9f2ff99727087666",
+    "1ag9sf8mxyftp.css": "23edb94a56b20a7702105ed107fbcd0494740b8765c87e91376c686cf606e0cf",
+    "1bliujhpm9e2n.css": "162a497f498c1d1bf1baaf2e307f93fccd9f0308ee25ad57e62e5eb98fd1906a",
+    "24hrtzo5s_sl1.css": "918623f67958b347bcd22eb9cc2010cf26a434083cf47bd9517aad84a1ae229e",
+    "2rmecej376eld.css": "69b419d05a7eb4a71904be8d7b6f9cd719fe55ef6bf0881feca4652b0dcd4c5e",
+    "3s7aa-p955seo.css": "25f2e876fb87c418429be603ca585b0d52e15a51be6d59166a7856c45ee82448"
+  },
+  "limitations": [
+    "Gorgias requires a cursor wrapper; its array-only OpenAPI shape is rejected, not declared complete.",
+    "Missing or ambiguous Gorgias phone channels remain excluded in the existing human review.",
+    "Source verified/opt-in flags do not grant Riverz consent.",
+    "Listing changes cannot establish an atomic source snapshot.",
+    "OAuth tokens must already be authorized; app approval and commercial account access were not tested.",
+    "X2 Leadsales technical API and other source history are not claimed complete; X3-X5 continue."
+  ],
+  "finalCss": {
+    "0y7fmymffc1f-.css": "a9ebecb14064ea8dd75f94623210eda384a7b55a0dda3b2d684cf2a51bd9c6df",
+    "0ydpypn-7ctjk.css": "932d47c5b5820b2dd6a9a39a5a25bd6a26ab6e94db2b45fe9f2ff99727087666",
+    "1ag9sf8mxyftp.css": "23edb94a56b20a7702105ed107fbcd0494740b8765c87e91376c686cf606e0cf",
+    "1bliujhpm9e2n.css": "162a497f498c1d1bf1baaf2e307f93fccd9f0308ee25ad57e62e5eb98fd1906a",
+    "24hrtzo5s_sl1.css": "918623f67958b347bcd22eb9cc2010cf26a434083cf47bd9517aad84a1ae229e",
+    "2rmecej376eld.css": "69b419d05a7eb4a71904be8d7b6f9cd719fe55ef6bf0881feca4652b0dcd4c5e",
+    "3s7aa-p955seo.css": "25f2e876fb87c418429be603ca585b0d52e15a51be6d59166a7856c45ee82448"
+  },
+  "normalComparisonPreviewCssIdentical": true,
+  "visuallyInspected": [
+    "EsDesktop",
+    "EnMobile"
+  ]
+}

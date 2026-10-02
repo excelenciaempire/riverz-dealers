@@ -126,7 +126,7 @@ export async function fixtureFetch(input, init = {}) {
       if(method==='POST'&&body.action==='review'){
         if(job.state!=='ready')return reply({code:'changed'},409);
         const csv=['sourceId,phone,name,email,company',...rows.map(row=>Object.values(row).join(','))].join('\n');
-        return prepareSyntheticMigration({id:body.input.reviewId,provider:job.source.provider,account:`${job.source.origin}#${job.source.accountId}`,csv,mapping:{sourceId:0,phone:1,name:2,email:3,company:4}});
+        return prepareSyntheticMigration({id:body.input.reviewId,provider:job.source.provider,account:job.source.origin+('accountId'in job.source?'#'+job.source.accountId:''),csv,mapping:{sourceId:0,phone:1,name:2,email:3,company:4}});
       }
       if(method==='GET'&&['queued','fetching'].includes(job.state))Object.assign(job,{state:'ready',total:rows.length,collected:rows.length,rows:rows.slice(0,25),next:rows.length>25?25:null});
       return reply(job);
