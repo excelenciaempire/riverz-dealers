@@ -248,6 +248,9 @@ services:
     runtime: docker
     plan: standard
     region: frankfurt
+    # Give LiveKit's existing SIGTERM drain time to finish calls/finalizers.
+    # Render supports at most 300 seconds; deploy checks must still verify idle.
+    maxShutdownDelaySeconds: 300
     branch: main
     autoDeploy: true
     # Sólo se redespliega cuando cambia SU código.

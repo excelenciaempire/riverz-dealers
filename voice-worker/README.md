@@ -227,3 +227,10 @@ lk dispatch create \
 En producción el web app crea la sala con ese metadata y hace el dispatch por API;
 el worker lee `call_id`, llama a `/voice/context`, y marca vía
 `create_sip_participant` (`wait_until_answered=true`) usando `context.sip`.
+
+
+## Toma humana privada (X3)
+
+Cuando el backend incluye `human_handoff_enabled: true`, `human_handoff.py` registra el participante SIP contestado y consulta `/api/internal/voice/handoff`. El flujo cierra `AgentSession` sin eliminar la sala, espera los slots durables del backend y confirma la entrada humana observada. Una desconexión o lease vencido termina la llamada con el finalizador/grabación actuales; no reanuda la IA. El flag apagado conserva la sesión actual sin este protocolo.
+
+`py -m unittest test_human_handoff -v` verifica el protocolo con API, sesión y sala ficticias, sin cargar SDK/modelos ni abrir llamadas. [Contrato completo](../docs/voice-human-handoff.md).

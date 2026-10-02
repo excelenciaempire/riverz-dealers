@@ -119,3 +119,13 @@ class RiverzAPI:
     async def post_result(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Reporta el desenlace de la llamada. Idempotente por call_id en el servidor."""
         return await self._request("POST", "/api/internal/voice/result", json=payload)
+
+    async def voice_handoff(self, action: str, input: dict[str, Any]) -> dict[str, Any]:
+        # Control must not block beyond the server's 15-second freshness window.
+        # No generic retry can duplicate microphone/participant side effects.
+        response = await self._client.post(
+            f"{self.base_url}/api/internal/voice/handoff",
+            json={"action": action, "input": input}, timeout=5.0,
+        )
+        response.raise_for_status()
+        return response.json()

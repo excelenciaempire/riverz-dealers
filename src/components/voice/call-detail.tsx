@@ -15,6 +15,8 @@ import {
 } from '@/lib/voice/labels';
 import { voiceExecutionMeta } from '@/lib/voice/execution-context';
 import type { VoiceCall } from '@/types';
+import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
+import {HumanVoiceHandoff} from './human-handoff';
 
 interface TranscriptTurn {
   role: 'agent' | 'customer';
@@ -89,6 +91,7 @@ export function CallDetail({ callId, onClose }: { callId: string | null; onClose
           </div>
         ) : (
           <div className="space-y-4">
+            {SHOW_RIVERZ_IMPROVEMENTS && ['dialing','in_progress'].includes(call.status) && <HumanVoiceHandoff callId={call.id} />}
             {/* Metadata */}
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
               <Meta label={t('voice.colStatus')} value={t(status!.statusKey)} />
@@ -113,6 +116,8 @@ export function CallDetail({ callId, onClose }: { callId: string | null; onClose
               )}
               {cost > 0 && <Meta label={t('voice.metricCost')} value={`$${cost.toFixed(2)}`} />}
             </dl>
+
+            {SHOW_RIVERZ_IMPROVEMENTS && call.outcome_details?.human_handoff_connected === true && <p className="text-muted-foreground text-xs">{t('voice.handoffTranscriptNote')}</p>}
 
             {/* Recording */}
             {call.recording_url && (

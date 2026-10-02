@@ -1,3 +1,4 @@
+import {CallDetail} from '@/components/voice/call-detail';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'sonner';
@@ -35,7 +36,7 @@ import { ids, now, selected, improved, locale, copy, report } from './fixtures';
 
 const pages = [['inbox', 'Bandeja', 'Inbox'], ['rules', 'Reglas', 'Rules'], ['documents', 'Documentos', 'Documents'],
   ['reports', 'Reportes', 'Reports'], ['flows', 'Flujos', 'Flows'], ['returns', 'Postventa', 'After-sales'], ['connections', 'Acciones HTTP', 'HTTP actions'],
-  ['orders', 'Acciones de pedidos', 'Order actions'], ['templates', 'Plantillas', 'Templates'], ['campaigns', 'Campañas', 'Campaigns'], ['automations', 'Automatizaciones', 'Automations'], ['mobile', 'Avisos móviles', 'Mobile notifications'], ['release', 'Lanzamiento', 'Launch'], ['migrations','Migraciones','Migrations'],['help','Ayuda','Help']];
+  ['orders', 'Acciones de pedidos', 'Order actions'], ['templates', 'Plantillas', 'Templates'], ['campaigns', 'Campañas', 'Campaigns'], ['automations', 'Automatizaciones', 'Automations'], ['mobile', 'Avisos móviles', 'Mobile notifications'], ['release', 'Lanzamiento', 'Launch'], ['migrations','Migraciones','Migrations'],['help','Ayuda','Help'],['voice','Llamadas','Calls']];
 const automationParams = Promise.resolve({ id: ids.flow });
 const noChange = () => {};
 const selectedCases = [ids.conversation];
@@ -98,6 +99,7 @@ function App() {
           {page === 'mobile' && <AppInstallation />}
           {page === 'release' && <CommslayerReleaseReview />}
           {page === 'migrations' && <MigrationPreview />}
+          {page === 'voice' && <><p className="text-sm">{copy('Llamada de ejemplo en curso. Se conservan su ficha, grabación y transcripción.','Example call in progress. Its details, recording and transcript are preserved.')}</p><CallDetail callId={ids.conversation} onClose={noChange}/></>}
         </div>}
       </main>
     </div>

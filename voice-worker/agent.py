@@ -60,6 +60,7 @@ from speakable import speakable_stream
 from riverz_api import RiverzAPI
 from tools import CallState, build_tools, hangup as _hangup
 from fallback_audio import FALLBACK_NOTICE_GZIP_BASE64
+from human_handoff import control_human_handoff
 
 # Noise cancellation (BVCTelephony) mejora mucho el audio en telefonía, pero es un
 # plugin aparte y opcional; si no está instalado, seguimos sin él (fail-soft).
@@ -205,13 +206,14 @@ def _parse_call_metadata(ctx: JobContext) -> dict | None:
     return None
 
 
-def _room_input_options() -> RoomInputOptions:
+def _room_input_options(human_handoff_enabled: bool = False) -> RoomInputOptions:
+    options = {"delete_room_on_close": False} if human_handoff_enabled else {}
     if noise_cancellation is not None:
         try:
-            return RoomInputOptions(noise_cancellation=noise_cancellation.BVCTelephony())
+            return RoomInputOptions(noise_cancellation=noise_cancellation.BVCTelephony(), **options)
         except Exception:
             logger.debug("BVCTelephony no disponible; sigo sin noise cancellation")
-    return RoomInputOptions()
+    return RoomInputOptions(**options)
 
 
 def _wire_events(session: AgentSession, call_state: CallState, usage_collector) -> None:
@@ -407,6 +409,7 @@ async def _finalize(
     agente_mudo = (
         status == "completed"
         and call_state.llm_errors > 0
+        and not call_state.human_handoff_connected
         and ultimo_es_cliente
     )
     if agente_mudo:
@@ -981,7 +984,8 @@ async def _timeout_guard(session: AgentSession, context: dict, call_state: CallS
         return
     logger.info("max_call_seconds (%s) alcanzado; cerrando llamada", max_seconds)
     try:
-        await session.say(_goodbye(context.get("language", "es")))
+        if not call_state.human_handoff_pending:
+            await session.say(_goodbye(context.get("language", "es")))
     except Exception:
         pass
     if call_state.status is None:
@@ -1010,6 +1014,8 @@ async def _silence_guard(session: AgentSession, context: dict, call_state: CallS
     try:
         while True:
             await asyncio.sleep(1.0)
+            if call_state.human_handoff_pending:
+                return
             now = time.monotonic()
 
             # Mientras el agente habla o piensa, no hay silencio que medir.
@@ -1134,7 +1140,7 @@ async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, 
 
     # Arranca la sesión en paralelo mientras marcamos (patrón del ejemplo oficial).
     session_task = _spawn(
-        session.start(agent=agent, room=ctx.room, room_input_options=_room_input_options())
+        session.start(agent=agent, room=ctx.room, room_input_options=_room_input_options(context.get("human_handoff_enabled") is True))
     )
 
     req_kwargs = dict(
@@ -1206,6 +1212,18 @@ async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, 
 
     _spawn(_timeout_guard(session, context, call_state))
     _spawn(_silence_guard(session, context, call_state))
+    if context.get("human_handoff_enabled") is True:
+        control = _spawn(control_human_handoff(
+            api=api, session=session, call_state=call_state, room=ctx.room, hangup=_hangup,
+        ))
+        async def stop_human_control(*_):
+            control.cancel()
+            try:
+                await control
+            except asyncio.CancelledError:
+                pass
+        ctx.add_shutdown_callback(stop_human_control)
+
 
 
 async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, vad) -> None:
@@ -1330,12 +1348,24 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
     # Grabación (si está habilitada).
     await _start_recording(ctx, context, call_state)
 
-    await session.start(agent=agent, room=ctx.room, room_input_options=_room_input_options())
+    await session.start(agent=agent, room=ctx.room, room_input_options=_room_input_options(context.get("human_handoff_enabled") is True))
 
     await _deliver_greeting(session, context)
 
     _spawn(_timeout_guard(session, context, call_state))
     _spawn(_silence_guard(session, context, call_state))
+    if context.get("human_handoff_enabled") is True:
+        control = _spawn(control_human_handoff(
+            api=api, session=session, call_state=call_state, room=ctx.room, hangup=_hangup,
+        ))
+        async def stop_human_control(*_):
+            control.cancel()
+            try:
+                await control
+            except asyncio.CancelledError:
+                pass
+        ctx.add_shutdown_callback(stop_human_control)
+
 
 
 async def entrypoint(ctx: JobContext) -> None:

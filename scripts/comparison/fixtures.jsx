@@ -57,6 +57,36 @@ function prepareSyntheticMigration(input){
   }catch{return reply({code:'invalid'},400);}
 }
 /** The browser fetch is replaced before any product component mounts. No credentials or server calls. */
+
+let syntheticHumanJob=null;
+function syntheticHumanSnapshot(callId){return {call_id:callId,workspace_id:ids.workspace,actor_id:ids.user,runtime_available:true,job:syntheticHumanJob};}
+export async function connectHumanAudio(grant,onDisconnected,signal){
+ if(signal?.aborted)throw new Error('changed');
+ window.__comparisonAudio={synthetic:true,microphoneRequested:false,providerConnected:false,connected:true,muted:false};
+ if(syntheticHumanJob?.id!==grant.id||syntheticHumanJob.state!=='ready')throw new Error('changed');
+ syntheticHumanJob={...syntheticHumanJob,state:'connected',joined_at:new Date().toISOString(),updated_at:new Date().toISOString(),expires_at:new Date(Date.now()+30000).toISOString()};
+ return {close:async()=>{window.__comparisonAudio.connected=false;},mute:async muted=>{window.__comparisonAudio.muted=muted;}};
+}
+function syntheticHumanRequest(body,url,method){
+ const callId=body.input?.callId??url.searchParams.get('callId');
+ if(callId!==ids.conversation)return reply({code:'notFound'},404);
+ const stamp=new Date().toISOString();
+ if(method==='GET'){
+  if(syntheticHumanJob?.state==='requested')syntheticHumanJob={...syntheticHumanJob,state:'ready',updated_at:stamp};
+  return reply(syntheticHumanSnapshot(callId));
+ }
+ if(body.action==='request'){
+  if(syntheticHumanJob)return reply({code:'changed'},409);
+  syntheticHumanJob={id:body.input.id,call_id:callId,workspace_id:ids.workspace,actor_id:ids.user,state:'requested',created_at:stamp,updated_at:stamp,expires_at:new Date(Date.now()+45000).toISOString(),joined_at:null,ended_at:null,reason:null};
+ }else{
+  if(!syntheticHumanJob||syntheticHumanJob.id!==body.input.id)return reply({code:'notFound'},404);
+  if(body.action==='join')return reply({id:syntheticHumanJob.id,callId,url:'wss://synthetic.example.invalid',token:'SYNTHETIC_NO_MEDIA_OR_CUSTOMER_TOKEN',customerIdentity:'caller-'+callId,expiresAt:new Date(Date.now()+30000).toISOString()});
+  if(body.action==='renew')syntheticHumanJob={...syntheticHumanJob,expires_at:new Date(Date.now()+30000).toISOString(),updated_at:stamp};
+  if(body.action==='end')syntheticHumanJob={...syntheticHumanJob,state:'ended',reason:'ended_by_human',ended_at:stamp,updated_at:stamp};
+ }
+ return reply(syntheticHumanSnapshot(callId));
+}
+
 export async function fixtureFetch(input, init = {}) {
   const url = new URL(typeof input === 'string' ? input : input.url, location.origin);
   if (url.origin !== location.origin) return reply({ error: 'comparison_external_request_blocked' }, 403);
@@ -64,8 +94,11 @@ export async function fixtureFetch(input, init = {}) {
   window.__comparisonCalls ??= []; window.__comparisonCalls.push({ path, method: init.method ?? 'GET' });
   const body = typeof init.body === 'string' ? JSON.parse(init.body) : {};
   const method = init.method ?? 'GET';
-    const editable = path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || (path.endsWith('/help-portal')||path.startsWith('/api/help-portals/'))&&method==='POST' || ['/api/contacts/migrations','/api/contacts/migrations/native','/api/contacts/migrations/external','/api/contacts/migrations/history'].includes(path)&&method==='POST';
+    const editable = path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || (path.endsWith('/help-portal')||path.startsWith('/api/help-portals/'))&&method==='POST' || ['/api/contacts/migrations','/api/contacts/migrations/native','/api/contacts/migrations/external','/api/contacts/migrations/history','/api/voice/handoff'].includes(path)&&method==='POST';
   if (method !== 'GET' && !editable) return reply({ error: copy('Operación bloqueada en la comparación local.', 'Operation blocked in the local comparison.') }, 503);
+  if(path==='/api/voice/handoff')return syntheticHumanRequest(body,url,method);
+  if(path==='/api/voice/calls/'+ids.conversation&&method==='GET')return reply({call:{id:ids.conversation,workspace_id:ids.workspace,agent_id:ids.agent,contact_id:ids.product,conversation_id:ids.conversation,direction:'outbound',call_type:'manual',phone:'EXAMPLE',language:locale,status:'in_progress',outcome:null,outcome_details:null,summary:null,context:{},external_call_id:null,room_name:null,started_at:now,answered_at:now,ended_at:null,duration_seconds:17,cost:{total_usd:0},recording_url:null,created_at:now,city:null,attempt:1,max_attempts:1,upsell_amount:0,contact:{id:ids.product,name:copy('Cliente de ejemplo','Example customer'),phone:null},agent:{id:ids.agent,name:copy('Asistente de ejemplo','Example assistant')}},transcript:[]});
+
   // Synthetic in-memory receipts only. These are not database/import evidence.
   if(path==='/api/widget/help-portal')return reply({portal:publicHelpPortal(url.searchParams.get('locale')??locale),orders:[{id:ids.product,reference:'#EXAMPLE-1001',status:'paid',observed_at:now}]});
   if(path.startsWith('/api/help-portals/')){

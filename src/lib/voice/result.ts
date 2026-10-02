@@ -1,4 +1,5 @@
 import { settleVoiceMedia } from './media-billing';
+import {controlledVoiceSttSeconds} from './human-media-boundary';
 /**
  * Voice AI — call result persistence.
  *
@@ -479,11 +480,12 @@ export async function persistCallResult(
   }
 
   // Settle before the finalization claim: a retried result can recover billing independently.
+  const sttSeconds = await controlledVoiceSttSeconds(db, call.id, payload.duration_seconds ?? 0, payload.usage?.stt_seconds);
   const meteredCost = await settleVoiceMedia(
     db,
     call,
     payload.duration_seconds ?? 0,
-    payload.usage?.stt_seconds ?? payload.duration_seconds ?? 0
+    sttSeconds
   );
 
   // Idempotency: fast path for the already-finalized read, plus an ATOMIC
@@ -511,7 +513,7 @@ export async function persistCallResult(
   const agent = (agentRow as AiAgent | null) ?? null;
 
   const durationSeconds = payload.duration_seconds ?? null;
-  const cost = meteredCost ?? estimateCost(payload.usage, durationSeconds);
+  const cost = meteredCost ?? estimateCost({...payload.usage, stt_seconds: sttSeconds}, durationSeconds);
   const connected =
     call.direction === 'inbound' || (payload.transcript?.length ?? 0) > 0;
 

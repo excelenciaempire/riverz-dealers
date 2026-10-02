@@ -18,7 +18,7 @@ const fontClasses = [...new Set(css.flatMap(({ text }) => [...text.matchAll(/\.(
 if (!fontClasses.some(value => value.startsWith('inter_tight_'))) throw new Error('Validated Riverz font variables unavailable');
 const mocks = new Set(['next/link', 'next/image', 'next/navigation', '@/components/i18n/locale-link', '@/hooks/use-auth',
   '@/hooks/use-workspace', '@/hooks/use-total-unread', '@/hooks/use-timezone', '@/hooks/use-saldo', '@/hooks/use-feature-flags',
-  '@/lib/api/fetch-with-csrf', '@/lib/ui/improvements-preview', '@/lib/supabase/client', '@/hooks/use-broadcast-sending']);
+  '@/lib/api/fetch-with-csrf', '@/lib/voice/human-audio', '@/lib/ui/improvements-preview', '@/lib/supabase/client', '@/hooks/use-broadcast-sending']);
 await mkdir(path.join(out, 'assets'), { recursive: true });
 const result = await build({ entryPoints: [path.join(root, 'scripts/comparison/app.jsx')], outfile: path.join(out, 'assets/app.js'), write: false,
   bundle: true, format: 'esm', platform: 'browser', jsx: 'automatic', sourcemap: false,

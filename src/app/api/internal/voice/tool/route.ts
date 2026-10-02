@@ -19,6 +19,7 @@ import { sendWhatsAppDuringCall } from '@/lib/voice/whatsapp-during-call';
 import type { Contact, VoiceCall } from '@/types';
 import { NextResponse } from 'next/server';
 import { exigirMensualidad } from '@/lib/wallet/puerta';
+import {beginControlledVoiceTool,finishControlledVoiceTool,VoiceHandoffError} from '@/lib/voice/human-handoff';
 
 /**
  * POST /api/internal/voice/tool
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
   }
 
   const db = supabaseAdmin();
+  let toolSlot: string | null = null;
   try {
     const { data: callRow } = await db
       .from('voice_calls')
@@ -61,6 +63,7 @@ export async function POST(request: Request) {
     if (!callRow)
       return NextResponse.json({ error: 'call_not_found' }, { status: 404 });
     const call = callRow as VoiceCall;
+    toolSlot = await beginControlledVoiceTool(db, call.id);
     const paymentBlock = await exigirMensualidad(db, call.workspace_id);
     if (paymentBlock) return paymentBlock;
 
@@ -251,6 +254,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, result });
   } catch (err) {
+    if (err instanceof VoiceHandoffError) return NextResponse.json({ok:false,error:'voice_control_unavailable'}, {status:409});
     return serverError(err, 'voice tool failed');
+  } finally {
+    // Do not release on HTTP disconnect: await the entire backend operation.
+    // A failed release deliberately leaves the slot closed to human takeover.
+    if (toolSlot) await finishControlledVoiceTool(db, body.call_id, toolSlot).catch(() => undefined);
   }
 }

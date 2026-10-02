@@ -1,0 +1,1147 @@
+{
+  "date": "2026-10-02",
+  "scope": "X3 browser human takeover, real CallDetail components with synthetic media only",
+  "tests": {
+    "regressionPassed": 861,
+    "files": 76,
+    "pythonPassed": 10,
+    "finalUiPassed": 5,
+    "finalUiIncludedInRegression": true
+  },
+  "builds": {
+    "normalFinalExit": 0,
+    "comparisonFinalExit": 0,
+    "typescript": "complete in both builds"
+  },
+  "schema": {
+    "migration": 369,
+    "installedOnce": true,
+    "privateProbe": true,
+    "fixedInvoker": true,
+    "nullContextRestDenials": 5,
+    "realCallsRead": false,
+    "jobsCreated": false,
+    "microphoneRequested": false,
+    "providerParticipantsCreated": false,
+    "purgeExecuted": false
+  },
+  "console": {
+    "newErrors": 0,
+    "historicalEntriesPreserved": [
+      {
+        "level": "error",
+        "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 0",
+        "timestamp": "2026-10-02T06:25:24.234Z",
+        "source": "console"
+      },
+      {
+        "level": "error",
+        "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 1",
+        "timestamp": "2026-10-02T06:27:51.925Z",
+        "source": "console"
+      }
+    ]
+  },
+  "reviews": [
+    {
+      "before": {
+        "alerts": [],
+        "audio": null,
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Preparar toma humana"
+          }
+        ],
+        "status": "La llamada está disponible para preparar la toma humana."
+      },
+      "connected": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Silenciar micrófono"
+          },
+          {
+            "disabled": false,
+            "text": "Finalizar llamada"
+          }
+        ],
+        "status": "Entrada humana confirmada."
+      },
+      "current": {
+        "controlVisible": false,
+        "dialogText": "Cliente de ejemplo\nEstado\nEn curso\nResultado\n—\nTipo\nManual\nAgente\nAsistente de ejemplo\nDuración\n0:17\nFecha\n1 oct 2026, 10:00\n\nTranscripción\n\nSin transcripción.\n\nVer en bandeja\nCerrar",
+        "voiceControlRequests": 0
+      },
+      "ended": {
+        "alerts": [],
+        "audio": {
+          "connected": false,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [],
+        "status": "Cierre solicitado. El worker libera a los participantes y finaliza la llamada."
+      },
+      "joined": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Silenciar micrófono"
+          },
+          {
+            "disabled": false,
+            "text": "Finalizar llamada"
+          }
+        ],
+        "status": "El asistente está detenido. Puedes entrar con tu micrófono."
+      },
+      "locale": "es",
+      "muted": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": true,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Activar micrófono"
+          },
+          {
+            "disabled": false,
+            "text": "Finalizar llamada"
+          }
+        ],
+        "status": "Entrada humana confirmada."
+      },
+      "panels": [
+        {
+          "alerts": [],
+          "dialogBounds": {
+            "bottom": 421.74375915527344,
+            "height": 269.88751220703125,
+            "overflowY": "auto",
+            "top": 151.8562469482422
+          },
+          "frame": "current",
+          "horizontalOverflow": false,
+          "viewport": {
+            "height": 574,
+            "width": 621
+          }
+        },
+        {
+          "alerts": [],
+          "dialogBounds": {
+            "bottom": 557.3312511444092,
+            "height": 541.0625,
+            "overflowY": "auto",
+            "top": 16.26875114440918
+          },
+          "frame": "new",
+          "horizontalOverflow": false,
+          "viewport": {
+            "height": 574,
+            "width": 621
+          }
+        }
+      ],
+      "ready": {
+        "alerts": [],
+        "audio": null,
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Entrar con micrófono"
+          },
+          {
+            "disabled": false,
+            "text": "Finalizar llamada"
+          }
+        ],
+        "status": "El asistente está detenido. Puedes entrar con tu micrófono."
+      },
+      "requested": {
+        "alerts": [],
+        "audio": null,
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Finalizar llamada"
+          }
+        ],
+        "status": "Preparando la entrada humana. El micrófono sigue apagado."
+      },
+      "storageContainsCredential": false,
+      "syntheticCalls": [
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        }
+      ],
+      "unmuted": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Silenciar micrófono"
+          },
+          {
+            "disabled": false,
+            "text": "Finalizar llamada"
+          }
+        ],
+        "status": "Entrada humana confirmada."
+      },
+      "viewport": {
+        "height": 800,
+        "width": 1280
+      }
+    },
+    {
+      "before": {
+        "alerts": [],
+        "audio": null,
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Prepare human takeover"
+          }
+        ],
+        "status": "The call is available to prepare human takeover."
+      },
+      "connected": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Mute microphone"
+          },
+          {
+            "disabled": false,
+            "text": "End call"
+          }
+        ],
+        "status": "Human takeover confirmed."
+      },
+      "current": {
+        "controlVisible": false,
+        "dialogText": "Example customer\nStatus\nIn progress\nOutcome\n—\nType\nManual\nAgent\nExample assistant\nDuration\n0:17\nDate\nOct 1, 2026, 10:00 AM\n\nTranscript\n\nNo transcript.\n\nView in inbox\nClose",
+        "voiceControlRequests": 0
+      },
+      "ended": {
+        "alerts": [],
+        "audio": {
+          "connected": false,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [],
+        "status": "Closing requested. The worker releases the participants and ends the call."
+      },
+      "joined": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Mute microphone"
+          },
+          {
+            "disabled": false,
+            "text": "End call"
+          }
+        ],
+        "status": "The assistant has stopped. You can join with your microphone."
+      },
+      "locale": "en",
+      "muted": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": true,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Unmute microphone"
+          },
+          {
+            "disabled": false,
+            "text": "End call"
+          }
+        ],
+        "status": "Human takeover confirmed."
+      },
+      "panels": [
+        {
+          "alerts": [],
+          "dialogBounds": {
+            "bottom": 421.74375915527344,
+            "height": 269.88751220703125,
+            "overflowY": "auto",
+            "top": 151.8562469482422
+          },
+          "frame": "current",
+          "horizontalOverflow": false,
+          "viewport": {
+            "height": 574,
+            "width": 621
+          }
+        },
+        {
+          "alerts": [],
+          "dialogBounds": {
+            "bottom": 557.3312511444092,
+            "height": 541.0625,
+            "overflowY": "auto",
+            "top": 16.26875114440918
+          },
+          "frame": "new",
+          "horizontalOverflow": false,
+          "viewport": {
+            "height": 574,
+            "width": 621
+          }
+        }
+      ],
+      "ready": {
+        "alerts": [],
+        "audio": null,
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Join with microphone"
+          },
+          {
+            "disabled": false,
+            "text": "End call"
+          }
+        ],
+        "status": "The assistant has stopped. You can join with your microphone."
+      },
+      "requested": {
+        "alerts": [],
+        "audio": null,
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "End call"
+          }
+        ],
+        "status": "Preparing human takeover. Your microphone is still off."
+      },
+      "storageContainsCredential": false,
+      "syntheticCalls": [
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        }
+      ],
+      "unmuted": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Mute microphone"
+          },
+          {
+            "disabled": false,
+            "text": "End call"
+          }
+        ],
+        "status": "Human takeover confirmed."
+      },
+      "viewport": {
+        "height": 800,
+        "width": 1280
+      }
+    },
+    {
+      "before": {
+        "alerts": [],
+        "audio": null,
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Preparar toma humana"
+          }
+        ],
+        "status": "La llamada está disponible para preparar la toma humana."
+      },
+      "connected": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Silenciar micrófono"
+          },
+          {
+            "disabled": false,
+            "text": "Finalizar llamada"
+          }
+        ],
+        "status": "Entrada humana confirmada."
+      },
+      "current": {
+        "controlVisible": false,
+        "dialogText": "Cliente de ejemplo\nEstado\nEn curso\nResultado\n—\nTipo\nManual\nAgente\nAsistente de ejemplo\nDuración\n0:17\nFecha\n1 oct 2026, 10:00\n\nTranscripción\n\nSin transcripción.\n\nVer en bandeja\nCerrar",
+        "voiceControlRequests": 0
+      },
+      "ended": {
+        "alerts": [],
+        "audio": {
+          "connected": false,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [],
+        "status": "Cierre solicitado. El worker libera a los participantes y finaliza la llamada."
+      },
+      "joined": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Silenciar micrófono"
+          },
+          {
+            "disabled": false,
+            "text": "Finalizar llamada"
+          }
+        ],
+        "status": "El asistente está detenido. Puedes entrar con tu micrófono."
+      },
+      "locale": "es",
+      "muted": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": true,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Activar micrófono"
+          },
+          {
+            "disabled": false,
+            "text": "Finalizar llamada"
+          }
+        ],
+        "status": "Entrada humana confirmada."
+      },
+      "panels": [
+        {
+          "alerts": [],
+          "dialogBounds": {
+            "bottom": 459.34376525878906,
+            "height": 269.88751220703125,
+            "overflowY": "auto",
+            "top": 189.4562530517578
+          },
+          "frame": "current",
+          "horizontalOverflow": false,
+          "viewport": {
+            "height": 649,
+            "width": 350
+          }
+        },
+        {
+          "alerts": [],
+          "dialogBounds": {
+            "bottom": 632.7999877929688,
+            "height": 616.7999877929688,
+            "overflowY": "auto",
+            "top": 16
+          },
+          "frame": "new",
+          "horizontalOverflow": false,
+          "viewport": {
+            "height": 649,
+            "width": 350
+          }
+        }
+      ],
+      "ready": {
+        "alerts": [],
+        "audio": null,
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Entrar con micrófono"
+          },
+          {
+            "disabled": false,
+            "text": "Finalizar llamada"
+          }
+        ],
+        "status": "El asistente está detenido. Puedes entrar con tu micrófono."
+      },
+      "requested": {
+        "alerts": [],
+        "audio": null,
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Finalizar llamada"
+          }
+        ],
+        "status": "Preparando la entrada humana. El micrófono sigue apagado."
+      },
+      "storageContainsCredential": false,
+      "syntheticCalls": [
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        }
+      ],
+      "unmuted": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Silenciar micrófono"
+          },
+          {
+            "disabled": false,
+            "text": "Finalizar llamada"
+          }
+        ],
+        "status": "Entrada humana confirmada."
+      },
+      "viewport": {
+        "height": 844,
+        "width": 390
+      }
+    },
+    {
+      "before": {
+        "alerts": [],
+        "audio": null,
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Prepare human takeover"
+          }
+        ],
+        "status": "The call is available to prepare human takeover."
+      },
+      "connected": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Mute microphone"
+          },
+          {
+            "disabled": false,
+            "text": "End call"
+          }
+        ],
+        "status": "Human takeover confirmed."
+      },
+      "current": {
+        "controlVisible": false,
+        "dialogText": "Example customer\nStatus\nIn progress\nOutcome\n—\nType\nManual\nAgent\nExample assistant\nDuration\n0:17\nDate\nOct 1, 2026, 10:00 AM\n\nTranscript\n\nNo transcript.\n\nView in inbox\nClose",
+        "voiceControlRequests": 0
+      },
+      "ended": {
+        "alerts": [],
+        "audio": {
+          "connected": false,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [],
+        "status": "Closing requested. The worker releases the participants and ends the call."
+      },
+      "joined": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Mute microphone"
+          },
+          {
+            "disabled": false,
+            "text": "End call"
+          }
+        ],
+        "status": "The assistant has stopped. You can join with your microphone."
+      },
+      "locale": "en",
+      "muted": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": true,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Unmute microphone"
+          },
+          {
+            "disabled": false,
+            "text": "End call"
+          }
+        ],
+        "status": "Human takeover confirmed."
+      },
+      "panels": [
+        {
+          "alerts": [],
+          "dialogBounds": {
+            "bottom": 459.34376525878906,
+            "height": 269.88751220703125,
+            "overflowY": "auto",
+            "top": 189.4562530517578
+          },
+          "frame": "current",
+          "horizontalOverflow": false,
+          "viewport": {
+            "height": 649,
+            "width": 350
+          }
+        },
+        {
+          "alerts": [],
+          "dialogBounds": {
+            "bottom": 622.9249877929688,
+            "height": 597.0499877929688,
+            "overflowY": "auto",
+            "top": 25.875
+          },
+          "frame": "new",
+          "horizontalOverflow": false,
+          "viewport": {
+            "height": 649,
+            "width": 350
+          }
+        }
+      ],
+      "ready": {
+        "alerts": [],
+        "audio": null,
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Join with microphone"
+          },
+          {
+            "disabled": false,
+            "text": "End call"
+          }
+        ],
+        "status": "The assistant has stopped. You can join with your microphone."
+      },
+      "requested": {
+        "alerts": [],
+        "audio": null,
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "End call"
+          }
+        ],
+        "status": "Preparing human takeover. Your microphone is still off."
+      },
+      "storageContainsCredential": false,
+      "syntheticCalls": [
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        },
+        {
+          "method": "POST",
+          "path": "/api/voice/handoff"
+        }
+      ],
+      "unmuted": {
+        "alerts": [],
+        "audio": {
+          "connected": true,
+          "microphoneRequested": false,
+          "muted": false,
+          "providerConnected": false,
+          "synthetic": true
+        },
+        "buttons": [
+          {
+            "disabled": false,
+            "text": "Mute microphone"
+          },
+          {
+            "disabled": false,
+            "text": "End call"
+          }
+        ],
+        "status": "Human takeover confirmed."
+      },
+      "viewport": {
+        "height": 844,
+        "width": 390
+      }
+    }
+  ],
+  "screenshots": [
+    {
+      "target": "docs/comparison-preview/voice-human-es-desktop.png"
+    },
+    {
+      "target": "docs/comparison-preview/voice-human-en-desktop.png"
+    },
+    {
+      "target": "docs/comparison-preview/voice-human-es-mobile.png"
+    },
+    {
+      "target": "docs/comparison-preview/voice-human-en-mobile.png"
+    }
+  ],
+  "limitations": [
+    "Media transport is a private in-memory fixture; no physical audio or customer call is accredited.",
+    "Recording, finalizer, navigation and pricing remain current.",
+    "Public UI flag remains unset. Other X3 and X2/X4/X5 requirements remain open."
+  ],
+  "initialPreviewFailure": "Initial private fixture route was not dispatched; returned unavailable without media access. Fixture dispatch corrected before the four complete real-component reviews.",
+  "sourceHashes": [
+    {
+      "file": "src/app/api/cron/pii-purge/route.ts",
+      "sha256": "3b14f419080d864d88bd3ad70592b2e457ee85130e2f251c4940dc442a684f8f",
+      "same": true
+    },
+    {
+      "file": "src/app/api/internal/voice/context/route.ts",
+      "sha256": "2533124e05c02f8b6f1f03989e506d58e1899d2dc28aaaa7a809d477c97099d8",
+      "same": true
+    },
+    {
+      "file": "src/app/api/internal/voice/tool/route.ts",
+      "sha256": "4a5646443d3a3a3b9f2411cb4556bdb1e7d687b5a4067feccdb7c2fd6f2ffafb",
+      "same": true
+    },
+    {
+      "file": "src/components/voice/call-detail.tsx",
+      "sha256": "68d044bbf54888addea969ca8cb45cc9fb28256b50b94996d720df75885b9d55",
+      "same": true
+    },
+    {
+      "file": "src/lib/i18n/messages/voice.ts",
+      "sha256": "e31d44231c811ac885ce8db9170fdc9a5d53c5f04f60dfaf09da2afcc032eb43",
+      "same": true
+    },
+    {
+      "file": "src/lib/voice/result.ts",
+      "sha256": "9f04e8789c8c3130c2fba28125fd00d52f06653d693d300830b928dd222b6bcd",
+      "same": true
+    },
+    {
+      "file": "src/app/api/internal/voice/handoff/route.test.ts",
+      "sha256": "225b6e557def4bb5c92981c6558ecd290dd71f96ef96458d475df219568ff676",
+      "same": true
+    },
+    {
+      "file": "src/app/api/internal/voice/handoff/route.ts",
+      "sha256": "483803f8e43a6a564dd31be9bbc8991578e0c0dc7b361e9fdf3b337b2329e8d1",
+      "same": true
+    },
+    {
+      "file": "src/app/api/voice/handoff/route.test.ts",
+      "sha256": "a619622df53e1394490c45d9f56066c9beac38affb9bfe0e5084eb0cc216ad77",
+      "same": true
+    },
+    {
+      "file": "src/app/api/voice/handoff/route.ts",
+      "sha256": "cc4adb81b045dd7b767ea45c001fb6962af4aa91e4fed29835dd437ff902cd50",
+      "same": true
+    },
+    {
+      "file": "src/components/voice/human-handoff.test.tsx",
+      "sha256": "9cefca435b6b30e0f5d9ac8cfb679e0548f8fe23519b673d54ea83553ff80812",
+      "same": true
+    },
+    {
+      "file": "src/components/voice/human-handoff.tsx",
+      "sha256": "598effdbf4c218ec3e66ef1106509f2f4bcbae669d48387aa17e38671da75e05",
+      "same": true
+    },
+    {
+      "file": "src/lib/voice/human-audio.test.ts",
+      "sha256": "9e6c6ff8bde093152e7d638b9b683a9b230b7b93d52c0b67480bf988c9e74c38",
+      "same": true
+    },
+    {
+      "file": "src/lib/voice/human-audio.ts",
+      "sha256": "08e2dccf611b5a647675c2330b062a3b47c894760d549b8942c5b22cfe873550",
+      "same": true
+    },
+    {
+      "file": "src/lib/voice/human-handoff-contract.test.ts",
+      "sha256": "37ff9199361004600bb63fbe08369e54428ef9bf9eaa6ebb9223b7c1aa47a36e",
+      "same": true
+    },
+    {
+      "file": "src/lib/voice/human-handoff-contract.ts",
+      "sha256": "d5608a08ad7fb641266466f9ce45c7f9d480e68192c9bb9559baca0e97ce4452",
+      "same": true
+    },
+    {
+      "file": "src/lib/voice/human-handoff-schema.test.ts",
+      "sha256": "e95b6fb5e18aa162cd1b40a0e4d70653d8bf898b689797940fab79257b93ab4b",
+      "same": true
+    },
+    {
+      "file": "src/lib/voice/human-handoff.test.ts",
+      "sha256": "1a52a9854835a5388532664be4bcbf4de01b6970150ba6120e30e48ddd6b7872",
+      "same": true
+    },
+    {
+      "file": "src/lib/voice/human-handoff.ts",
+      "sha256": "d443697460c0e430e3ac24d02180860e2049590f2522d445cd01e039c97ae053",
+      "same": true
+    },
+    {
+      "file": "src/lib/voice/human-media-boundary.test.ts",
+      "sha256": "3860ff45e2d77ca06f9ff351d3ca41481d6aa1354e4ddd15ba4faf2fff1f1ef9",
+      "same": true
+    },
+    {
+      "file": "src/lib/voice/human-media-boundary.ts",
+      "sha256": "9880c4ae438df31b5500c6d3577d8c18e6a8f4150f7660360242330cc0311d99",
+      "same": true
+    },
+    {
+      "file": "supabase/migrations/369_voice_human_handoff.sql",
+      "sha256": "cf70932430c41af276f837213d9e98c4b7ae87e780a6e9eb44c9ea1644324315",
+      "same": true
+    },
+    {
+      "file": "scripts/check-voice-human-handoff-schema.cjs",
+      "sha256": "a39302294d8a770d3f9dffa108045246e86fef28b3f58653f9d37c925c3aec8d",
+      "same": true
+    },
+    {
+      "file": "package.json",
+      "sha256": "1942f59a5f35c46b4d99a8c98a648fe117c81c8bc87e33cd78e4f6633d6bec36",
+      "same": true
+    },
+    {
+      "file": "package-lock.json",
+      "sha256": "bcd8a4f351b4048f7aaebd9afc0d75ca944d53567a4c428d88ce431d0dfa268a",
+      "same": true
+    }
+  ],
+  "cssHashes": {
+    "0y7fmymffc1f-.css": "a9ebecb14064ea8dd75f94623210eda384a7b55a0dda3b2d684cf2a51bd9c6df",
+    "0ydpypn-7ctjk.css": "932d47c5b5820b2dd6a9a39a5a25bd6a26ab6e94db2b45fe9f2ff99727087666",
+    "1ag9sf8mxyftp.css": "23edb94a56b20a7702105ed107fbcd0494740b8765c87e91376c686cf606e0cf",
+    "1bliujhpm9e2n.css": "162a497f498c1d1bf1baaf2e307f93fccd9f0308ee25ad57e62e5eb98fd1906a",
+    "24hrtzo5s_sl1.css": "918623f67958b347bcd22eb9cc2010cf26a434083cf47bd9517aad84a1ae229e",
+    "2rmecej376eld.css": "69b419d05a7eb4a71904be8d7b6f9cd719fe55ef6bf0881feca4652b0dcd4c5e",
+    "3s7aa-p955seo.css": "25f2e876fb87c418429be603ca585b0d52e15a51be6d59166a7856c45ee82448"
+  },
+  "comparison": {
+    "bundleSha256": "03d8c43187fd6aa4e06c998fb5489dfa68b8f3e6babe65e5728227fa19c17a17",
+    "externalActions": false,
+    "rootCredentialsLoaded": false,
+    "realApisStatus": 403,
+    "privateFilesStatus": 404,
+    "untrustedHostStatus": 403,
+    "cspExternalConnections": false,
+    "realMediaSdkIncluded": false,
+    "existingVoiceRecorderSourcePresent": true,
+    "existingVoiceRecorderInvoked": false
+  }
+}

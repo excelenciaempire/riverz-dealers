@@ -5,6 +5,32 @@ import type { Namespace } from './types';
  * metrics. All user-facing; both locales required.
  */
 export const voice = {
+  handoffTitle: {es: 'Tomar esta llamada', en: 'Take over this call'},
+  handoffDescription: {es: 'Habla con el cliente desde aquí. Primero detenemos al asistente y esperamos a que termine sus acciones en curso.', en: 'Speak with the customer from here. First we stop the assistant and wait for its current actions to finish.'},
+  handoffChecking: {es: 'Comprobando disponibilidad de la llamada.', en: 'Checking call availability.'},
+  handoffAvailable: {es: 'La llamada está disponible para preparar la toma humana.', en: 'The call is available to prepare human takeover.'},
+  handoffState_requested: {es: 'Preparando la entrada humana. El micrófono sigue apagado.', en: 'Preparing human takeover. Your microphone is still off.'},
+  handoffState_ready: {es: 'El asistente está detenido. Puedes entrar con tu micrófono.', en: 'The assistant has stopped. You can join with your microphone.'},
+  handoffState_connected: {es: 'Entrada humana confirmada.', en: 'Human takeover confirmed.'},
+  handoffState_ended: {es: 'Cierre solicitado. El worker libera a los participantes y finaliza la llamada.', en: 'Closing requested. The worker releases the participants and ends the call.'},
+  handoffState_failed: {es: 'La entrada humana no se pudo completar.', en: 'Human takeover could not be completed.'},
+  handoffState_expired: {es: 'El permiso de control venció. La entrada humana se cierra.', en: 'Control permission expired. Human takeover is closing.'},
+  handoffRequest: {es: 'Preparar toma humana', en: 'Prepare human takeover'},
+  handoffJoin: {es: 'Entrar con micrófono', en: 'Join with microphone'},
+  handoffEnd: {es: 'Finalizar llamada', en: 'End call'},
+  handoffMute: {es: 'Silenciar micrófono', en: 'Mute microphone'},
+  handoffUnmute: {es: 'Activar micrófono', en: 'Unmute microphone'},
+  handoffAudioConnected: {es: 'Audio conectado. La confirmación del worker puede tardar unos segundos.', en: 'Audio connected. Worker confirmation can take a few seconds.'},
+  handoffUnavailable: {es: 'La toma humana requiere una llamada contestada y un worker compatible conectado.', en: 'Human takeover requires an answered call and a connected compatible worker.'},
+  handoffCosts: {es: 'Durante la toma humana, la IA se detiene. La telefonía y la grabación habilitada conservan sus costes habituales. El tramo humano no se transcribe con IA.', en: 'During human takeover, AI stops. Telephony and enabled recording retain their usual costs. The human segment is not transcribed with AI.'},
+  handoffTranscriptNote: {es: 'El resumen y la transcripción cubren solo el tramo atendido por el asistente. El audio humano queda en la grabación si estaba habilitada.', en: 'The summary and transcript cover only the assistant segment. Human audio remains in the recording if recording was enabled.'},
+
+  handoffError_invalid: {es: 'Revisa los datos de la solicitud de llamada.', en: 'Check the call request details.'},
+  handoffError_notFound: {es: 'Esta llamada no está disponible para tu sesión y negocio.', en: 'This call is unavailable for your session and business.'},
+  handoffError_changed: {es: 'La llamada o su control cambiaron. Actualiza su estado.', en: 'The call or its control changed. Refresh its status.'},
+  handoffError_readOnly: {es: 'El negocio está en modo de solo lectura.', en: 'The business is in read-only mode.'},
+  handoffError_unavailable: {es: 'No se pudo preparar la toma humana. Inténtalo más tarde.', en: 'Human takeover could not be prepared. Try again later.'},
+
   numberBillingUnavailable: { es: 'La compra de números está temporalmente deshabilitada. Estamos habilitando el cobro por comercio.', en: 'Number purchases are temporarily disabled while per-workspace billing is being enabled.' },
   numberWalletInsufficient: { es: 'Saldo insuficiente. Recarga el saldo de este comercio para comprar su número.', en: 'Insufficient balance. Top up this workspace to purchase its number.' },
   numberQuoteExpired: { es: 'Actualiza la búsqueda para confirmar el precio vigente.', en: 'Refresh the search to confirm the current price.' },

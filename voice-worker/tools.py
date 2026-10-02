@@ -59,6 +59,9 @@ class CallState:
     # el comercio paga, y la automatizacion toma la rama «contesto».
     llm_errors: int = 0
     last_llm_error: str | None = None
+    human_handoff_pending: bool = False
+    human_handoff_connected: bool = False
+    voice_transfer_in_flight: bool = False
 
 
 async def hangup() -> None:
@@ -71,7 +74,7 @@ async def hangup() -> None:
         logger.warning("no se pudo colgar (delete_room)", exc_info=True)
 
 
-async def _graceful_hangup(ctx: RunContext) -> None:
+async def _graceful_hangup(ctx: RunContext, call_state: CallState) -> None:
     """Deja que el agente termine de hablar y luego cuelga."""
     try:
         speech = ctx.session.current_speech
@@ -79,12 +82,15 @@ async def _graceful_hangup(ctx: RunContext) -> None:
             await speech.wait_for_playout()
     except Exception:
         pass
-    await hangup()
+    if not call_state.human_handoff_pending:
+        await hangup()
 
 
 async def _forward(api, call_state: CallState, tool: str, raw_input: dict[str, Any]) -> str:
     """Reenvía la tool al backend y devuelve el string `result` verbatim al LLM.
     Input permisivo: se descartan los None y el backend valida el resto."""
+    if call_state.human_handoff_pending:
+        return json.dumps({"error": "human_control_requested"})
     payload = {k: v for k, v in raw_input.items() if v is not None}
     try:
         data = await api.run_tool(call_state.call_id, tool, payload)
@@ -319,6 +325,8 @@ def build_tools(
     async def report_outcome(
         ctx: RunContext, outcome: str, details: str | None = None
     ) -> str:
+        if call_state.human_handoff_pending:
+            return "human_control_requested"
         # details como TEXTO (no dict): un parámetro tipo objeto genera un JSON
         # schema sin `additionalProperties:false`, que los LLM en modo estricto
         # (Groq/OpenAI) RECHAZAN con 400 → tumbaba TODA la llamada al LLM.
@@ -334,7 +342,9 @@ def build_tools(
         description="Termina la llamada de forma cordial. Llama antes a report_outcome.",
     )
     async def end_call(ctx: RunContext) -> str:
-        await _graceful_hangup(ctx)
+        if call_state.human_handoff_pending:
+            return "human_control_requested"
+        await _graceful_hangup(ctx, call_state)
         return "ok"
 
     tools.append(end_call)
@@ -344,9 +354,11 @@ def build_tools(
         description="El cliente pide no ser contactado de nuevo: marca opt-out y cuelga.",
     )
     async def customer_requests_no_more_calls(ctx: RunContext) -> str:
+        if call_state.human_handoff_pending:
+            return "human_control_requested"
         call_state.opt_out = True
         call_state.outcome = "opt_out"
-        await _graceful_hangup(ctx)
+        await _graceful_hangup(ctx, call_state)
         return "ok"
 
     tools.append(customer_requests_no_more_calls)
@@ -359,6 +371,8 @@ def build_tools(
         ),
     )
     async def detected_answering_machine(ctx: RunContext) -> str:
+        if call_state.human_handoff_pending:
+            return "human_control_requested"
         call_state.status = "voicemail"
         logger.info("contestador/buzón detectado; colgando")
         await hangup()
@@ -377,6 +391,11 @@ def build_tools(
             ),
         )
         async def transfer_to_human(ctx: RunContext) -> str:
+            if call_state.human_handoff_pending:
+                return "human_control_requested"
+            # A SIP REFER already sent is uncertain until the call leaves.
+            # Browser takeover must never overlap that external operation.
+            call_state.voice_transfer_in_flight = True
             # Marca el desenlace ANTES de transferir (la llamada sale de nuestras manos).
             call_state.outcome = call_state.outcome or "callback_requested"
             call_state.outcome_details = {

@@ -1,3 +1,4 @@
+import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
 import { NextResponse } from 'next/server';
 import type { VoiceCall } from '@/types';
 import { serverError } from '@/lib/api/errors';
@@ -137,7 +138,7 @@ export async function GET(request: Request) {
           ? Number(cfg.silence_timeout_seconds)
           : 8,
     });
-    return NextResponse.json(payload);
+    return NextResponse.json({...payload, human_handoff_enabled: SHOW_RIVERZ_IMPROVEMENTS});
   } catch (err) {
     return serverError(err, 'voice context failed');
   }
