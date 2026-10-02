@@ -63,6 +63,7 @@ from fallback_audio import FALLBACK_NOTICE_GZIP_BASE64
 from human_handoff import control_human_handoff
 from voice_mailbox import capture_mailbox, transfer_definitively_rejected
 from mailbox_audio import MAILBOX_NOTICE_GZIP_BASE64
+from whatsapp_runtime import wait_for_whatsapp_customer, set_whatsapp_disconnect
 
 # Noise cancellation (BVCTelephony) mejora mucho el audio en telefonía, pero es un
 # plugin aparte y opcional; si no está instalado, seguimos sin él (fail-soft).
@@ -1375,6 +1376,10 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
         await _hangup()
         return
 
+    await _run_connected_ai(ctx, api, call_state, vad, context)
+
+
+async def _run_connected_ai(ctx, api, call_state, vad, context):
     session = _build_session(context, vad)
     usage_collector = metrics.UsageCollector()
     _wire_events(session, call_state, usage_collector)
@@ -1390,9 +1395,7 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
             transfer_number=(context.get("transfer") or {}).get("number"),
         ),
     )
-
     ctx.add_shutdown_callback(lambda *_: _finalize(api, call_state, usage_collector, context, lk_api=ctx.api))
-
     # Grabación (si está habilitada).
     await _start_recording(ctx, context, call_state)
 
@@ -1416,6 +1419,50 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
 
 
 
+async def _run_whatsapp(ctx, api, call_state, vad, meta):
+    call_state.call_id = meta.get("call_id", "")
+    call_state.phone_identity = f"whatsapp-{call_state.call_id}"
+
+    async def disconnect():
+        # A finalizer may already have closed the transcript client. Cleanup
+        # owns a fresh client so every shutdown order can still end this leg.
+        closer = RiverzAPI()
+        try:
+            return await closer.whatsapp_call("end", call_state.call_id, ctx.room.name, call_state.phone_identity)
+        finally:
+            await closer.aclose()
+
+    set_whatsapp_disconnect(disconnect)
+    async def end_connector(*_):
+        try:
+            await disconnect()
+        except Exception:
+            logger.warning("WhatsApp final cleanup uncertain")
+    ctx.add_shutdown_callback(end_connector)
+    context = await api.get_context(call_id=call_state.call_id)
+    call_state.direction = (context.get("transport") or {}).get("direction", "outbound")
+
+    async def observe(call_id, room, identity):
+        return await api.whatsapp_call("observe", call_id, room, identity)
+
+    try:
+        transport, participant = await wait_for_whatsapp_customer(
+            wait_participant=ctx.wait_for_participant, observe=observe,
+            context=context, meta=meta, room_name=ctx.room.name,
+        )
+    except asyncio.TimeoutError:
+        call_state.status = "no_answer"
+        await _finalize(api, call_state, None, context)
+        await _hangup()
+        ctx.shutdown()
+        return
+    call_state.direction = transport["direction"]
+    call_state.phone_identity = participant.identity
+    call_state.answered_at = _now_iso()
+
+    await _run_connected_ai(ctx, api, call_state, vad, context)
+
+
 async def entrypoint(ctx: JobContext) -> None:
     logger.info("job entrante en sala %s", ctx.room.name)
     await ctx.connect()
@@ -1429,7 +1476,9 @@ async def entrypoint(ctx: JobContext) -> None:
 
     meta = _parse_call_metadata(ctx)
     try:
-        if meta:  # saliente: hay call_id en el metadata
+        if meta and meta.get("transport") == "whatsapp":
+            await _run_whatsapp(ctx, api, call_state, vad, meta)
+        elif meta:  # saliente: hay call_id en el metadata
             await _run_outbound(ctx, api, call_state, vad, meta)
         else:  # entrante: llega por dispatch rule SIP, sin metadata de llamada
             await _run_inbound(ctx, api, call_state, vad)
@@ -1444,6 +1493,9 @@ async def entrypoint(ctx: JobContext) -> None:
         else:
             # Sin call_id no hay a quién reportar; sólo liberamos el cliente.
             await api.aclose()
+        if meta and meta.get("transport") == "whatsapp":
+            await _hangup()
+            ctx.shutdown()
     # En el flujo normal el cliente HTTP se cierra dentro de _finalize, que corre
     # como shutdown callback cuando termina la llamada (así sigue vivo hasta el POST).
 

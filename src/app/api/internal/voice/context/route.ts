@@ -8,6 +8,8 @@ import { buildVoiceContext } from '@/lib/voice/context';
 import { resolveInboundCall } from '@/lib/voice/inbound';
 import { roomNameForCall } from '@/lib/voice/livekit';
 import { exigirMensualidad } from '@/lib/wallet/puerta';
+import {savedWhatsAppVoiceBinding} from '@/lib/voice/whatsapp-calling-contract';
+import {whatsappVoiceContext} from '@/lib/voice/whatsapp-calling-service';
 
 /**
  * GET /api/internal/voice/context
@@ -88,6 +90,9 @@ export async function GET(request: Request) {
       );
     }
 
+    const whatsapp=savedWhatsAppVoiceBinding(call.context);
+    if(whatsapp&&!SHOW_RIVERZ_IMPROVEMENTS)return NextResponse.json({error:'call_not_found'},{status:404,headers:{'Cache-Control':'no-store'}});
+    const transport=whatsapp?await whatsappVoiceContext(db,call):null;
     // Resolve this workspace's voice connection config (caller ID, recording,
     // human-transfer target) for the worker.
     const { data: conn } = await db
@@ -122,16 +127,16 @@ export async function GET(request: Request) {
         : (cfg.outbound_first_speaker ?? 'agent');
 
     const payload = await buildVoiceContext(db, call, {
-      trunkId,
+      trunkId:transport?null:trunkId,
       callerNumber: cfg.phone_number ?? null,
       // Grabar por defecto (con aviso en el saludo) — así TODAS las llamadas
       // quedan grabadas sin depender de un flag por-conexión que puede no existir
       // (ej. workspaces sin fila de conexión de voz). Se apaga sólo si el comercio
       // pone recording_enabled=false explícito.
-      recordingEnabled: cfg.recording_enabled !== false,
+      recordingEnabled: transport?cfg.recording_enabled===true:cfg.recording_enabled !== false,
       // El aviso hablado es opt-in: por defecto el agente NO lo dice.
-      recordingDisclosure: cfg.recording_disclosure === true,
-      transferNumber: cfg.transfer_number ?? null,
+      recordingDisclosure: transport?cfg.recording_enabled===true:cfg.recording_disclosure === true,
+      transferNumber: transport?null:cfg.transfer_number ?? null,
       agentGreetsFirst: firstSpeaker === 'agent',
       greetingDelaySeconds: Number(cfg.greeting_delay_seconds) || 0,
       silenceTimeoutSeconds:
@@ -139,7 +144,7 @@ export async function GET(request: Request) {
           ? Number(cfg.silence_timeout_seconds)
           : 8,
     });
-    return NextResponse.json({...payload, human_handoff_enabled: SHOW_RIVERZ_IMPROVEMENTS});
+    return NextResponse.json({...payload,...(transport?{transport}:{}),human_handoff_enabled: SHOW_RIVERZ_IMPROVEMENTS&&!transport},{headers:{'Cache-Control':'no-store'}});
   } catch (err) {
     return serverError(err, 'voice context failed');
   }

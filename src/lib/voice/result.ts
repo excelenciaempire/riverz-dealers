@@ -1,6 +1,8 @@
 import { settleVoiceMedia } from './media-billing';
 import {controlledVoiceSttSeconds} from './human-media-boundary';
 import {isVoiceMailboxCapture} from './mailbox-policy';
+import {whatsappTelephonyRateForCall} from './whatsapp-calling-rates';
+import {WHATSAPP_VOICE_META} from './whatsapp-calling-contract';
 /**
  * Voice AI — call result persistence.
  *
@@ -77,7 +79,8 @@ function nn(v: number | null | undefined): number {
 /** Rough per-unit rates → estimated USD cost. Reconciled later (fase 2). */
 function estimateCost(
   usage: VoiceResultPayload['usage'],
-  durationSeconds: number | null
+  durationSeconds: number | null,
+  telephonyRate?:number
 ): VoiceCallCost {
   const minutes = nn(durationSeconds) / 60;
   const sttMin =
@@ -91,7 +94,7 @@ function estimateCost(
       envNum('VOICE_LLM_OUT_USD_PER_MTOK', 5);
   const tts_usd =
     (nn(usage?.tts_chars) / 1000) * envNum('VOICE_TTS_USD_PER_1K_CHARS', 0.05);
-  const telephony_usd = minutes * envNum('VOICE_TELEPHONY_USD_PER_MIN', 0.02);
+  const telephony_usd = minutes * (telephonyRate ?? envNum('VOICE_TELEPHONY_USD_PER_MIN', 0.02));
   const total_usd =
     Math.round((stt_usd + llm_usd + tts_usd + telephony_usd) * 10000) / 10000;
   return {
@@ -188,6 +191,9 @@ async function scheduleRetry(
   call: VoiceCall,
   agent: AiAgent
 ): Promise<boolean> {
+  // A WhatsApp callback/timeout must never become a PSTN child call or reuse
+  // a historical calling permission. New attempts need a separate review.
+  if(call.context&&WHATSAPP_VOICE_META in call.context)return false;
   if (call.attempt >= call.max_attempts) return false;
   const { data: ws } = await db
     .from('workspaces')
@@ -445,6 +451,12 @@ export async function persistCallResult(
   if (!callRow) return { ok: false, reason: 'call_not_found' };
   const call = callRow as VoiceCall;
 
+  // A WhatsApp grant belongs to this physical attempt. It cannot enter the
+  // PSTN dispatch queue or be reused by an automatic capacity retry.
+  if(payload.status==='capacity_limited'&&Object.hasOwn(call.context??{},WHATSAPP_VOICE_META)){
+    payload={...payload,status:'failed',error:'whatsapp_voice_capacity_unavailable'};
+  }
+
   // Provider channel limits are backpressure, not a customer-visible failure.
   // Keep the same call id (so parked automations keep waiting), clear the
   // temporary dispatch fields, and retry with a bounded delay.
@@ -518,7 +530,7 @@ export async function persistCallResult(
 
   const durationSeconds = payload.duration_seconds ?? null;
   const usage = nonAiFallback ? {llm_input_tokens:0,llm_output_tokens:0,tts_chars:0} : payload.usage;
-  const cost = meteredCost ?? estimateCost({...usage, stt_seconds: sttSeconds}, durationSeconds);
+  const cost = meteredCost ?? estimateCost({...usage, stt_seconds: sttSeconds}, durationSeconds,whatsappTelephonyRateForCall(call)??undefined);
   const connected =
     call.direction === 'inbound' || (payload.transcript?.length ?? 0) > 0;
 

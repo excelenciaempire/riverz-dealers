@@ -129,3 +129,14 @@ class RiverzAPI:
         )
         response.raise_for_status()
         return response.json()
+
+    async def whatsapp_call(self, action: str, call_id: str, room: str, customer_identity: str) -> dict[str, Any]:
+        # No generic retry for a business disconnect: response loss must not
+        # cause another provider-side call-control operation.
+        response = await self._client.post(
+            f"{self.base_url}/api/internal/voice/whatsapp",
+            json={"action": action, "callId": call_id, "room": room,
+                  "customerIdentity": customer_identity}, timeout=8.0,
+        )
+        response.raise_for_status()
+        return response.json()

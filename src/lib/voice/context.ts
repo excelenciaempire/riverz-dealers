@@ -58,6 +58,9 @@ import {
 import { publicVoiceContext, voiceExecutionMeta } from './execution-context';
 import { getVoiceModelResolved, type VoiceMode } from './model-config';
 import { effectiveBaseUrl } from './providers';
+import {WHATSAPP_VOICE_META} from './whatsapp-calling-contract';
+import {PERSONAL_EMAIL_CHANNELS} from '@/lib/inbox/access';
+import {verifiedContactIds} from '@/lib/contacts/identity';
 
 /** A model layer's runtime coordinates for the worker. */
 interface LayerCfg {
@@ -210,6 +213,7 @@ export async function resolveVoiceContextConversation(
   primaryContact: Contact
 ): Promise<Conversation | null> {
   const meta = voiceExecutionMeta(call.context);
+  const privateTransport=Object.hasOwn(call.context??{},WHATSAPP_VOICE_META);
   if (meta?.conversationId) {
     const { data } = await db
       .from('conversations')
@@ -218,7 +222,7 @@ export async function resolveVoiceContextConversation(
       .eq('workspace_id', call.workspace_id)
       .is('deleted_at', null)
       .maybeSingle();
-    if (data) {
+    if (data && (!privateTransport || (typeof data.channel==='string' && !(PERSONAL_EMAIL_CHANNELS as readonly string[]).includes(data.channel)))) {
       const candidate = data as Conversation;
       const { data: sourceContactRow } = await db
         .from('contacts')
@@ -234,6 +238,16 @@ export async function resolveVoiceContextConversation(
         if (sourcePrimary.id === primaryContact.id) return candidate;
       }
     }
+  }
+
+  if(privateTransport){
+    const contactIds=await verifiedContactIds(db,call.workspace_id,contact.id);
+    const {data,error}=await db.from('conversations').select('*').eq('workspace_id',call.workspace_id)
+      .in('contact_id',contactIds).is('deleted_at',null).not('channel','in',`(${PERSONAL_EMAIL_CHANNELS.join(',')})`)
+      .order('last_message_at',{ascending:false,nullsFirst:false}).limit(1).maybeSingle();
+    if(error || !data || typeof data.channel!=='string' || (PERSONAL_EMAIL_CHANNELS as readonly string[]).includes(data.channel)
+      || data.workspace_id!==call.workspace_id || !contactIds.includes(data.contact_id))return null;
+    return data as Conversation;
   }
 
   const { data: aliases } = await db
@@ -655,7 +669,8 @@ export async function buildVoiceContext(
     ? await loadContext(
         db,
         contextConversation,
-        Math.min(30, Math.max(1, agent.context_messages || 30))
+        Math.min(30, Math.max(1, agent.context_messages || 30)),
+        {excludePersonalEmail:Object.hasOwn(call.context??{},WHATSAPP_VOICE_META)}
       )
     : emptyContext;
   const shopifySnapshot =
@@ -684,8 +699,8 @@ export async function buildVoiceContext(
 
   const base = buildSystemPrompt(
     agent,
-    contact,
-    primaryContact,
+    Object.hasOwn(call.context??{},WHATSAPP_VOICE_META)?{...contact,ai_summary:null}:contact,
+    Object.hasOwn(call.context??{},WHATSAPP_VOICE_META)?{...primaryContact,ai_summary:null}:primaryContact,
     shopifySnapshot,
     recentNotes,
     sharedContext,

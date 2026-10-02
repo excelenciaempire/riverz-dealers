@@ -38,3 +38,18 @@ describe('Verified model history',()=>{
     expect(await verifiedConversationIds(database,conversation)).toEqual([ws]);
   });
 });
+
+describe('WhatsApp call history excludes personal mailboxes',()=>{
+ const not=vi.fn();let rows:unknown=[];
+ const query={select:()=>query,eq:()=>query,in:()=>query,is:()=>query,not:(...args:unknown[])=>{not(...args);return query;},limit:async()=>({data:rows,error:null})};
+ const database={rpc,from:()=>query} as unknown as SupabaseClient;
+ const conversation={id:ws,workspace_id:ws,contact_id:id,channel:'whatsapp'};
+ it('applies the exclusion at the database and rejects personal/unknown channels in returned rows',async()=>{
+  rows=[{id:other,workspace_id:ws,contact_id:id,channel:'gmail'},{id:id,workspace_id:ws,contact_id:id,channel:'instagram'},{id:'44444444-4444-4444-8444-444444444444',workspace_id:ws,contact_id:id}];
+  expect(await verifiedConversationIds(database,conversation,{excludePersonalEmail:true})).toEqual([ws,id]);
+  expect(not).toHaveBeenCalledWith('channel','in','(gmail,outlook,zoho)');
+ });
+ it.each(['gmail','outlook','zoho',undefined])('does not read history from a private/unknown anchor %s',async channel=>{
+  rpc.mockClear();expect(await verifiedConversationIds(database,{...conversation,channel},{excludePersonalEmail:true})).toEqual([]);expect(rpc).not.toHaveBeenCalled();
+ });
+});

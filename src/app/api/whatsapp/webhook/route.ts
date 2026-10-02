@@ -4,6 +4,7 @@ import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { getMediaUrl } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch } from '@/lib/whatsapp/phone-utils'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
+import {handleSignedWhatsAppCalls} from '@/lib/voice/whatsapp-calling-service'
 import {
   isOptOutKeyword,
   isRecoveryOptOutButton,
@@ -238,6 +239,10 @@ export async function POST(request: Request) {
   }
 
   // Process asynchronously so we can ack Meta within their timeout.
+  // Calling is handled after the same signature check but before ACK. Durable
+  // operation claims prevent Meta redelivery from accepting/dialing twice.
+  const calling=await handleSignedWhatsAppCalls(supabaseAdmin(),body)
+  if('retryable' in calling && calling.retryable>0)return NextResponse.json({status:'temporarily_unavailable'},{status:503,headers:{'Cache-Control':'no-store'}})
   processWebhook(body).catch((error) => {
     console.error('Error processing webhook:', error)
   })

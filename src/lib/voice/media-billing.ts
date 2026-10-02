@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { reservar, liquidar } from '@/lib/wallet/operacion';
 import type { VoiceCall } from '@/types';
+import {whatsappTelephonyRateForCall} from './whatsapp-calling-rates';
 
 function configuredRate(name: string) {
   const raw = process.env[name];
@@ -11,14 +12,14 @@ function configuredRate(name: string) {
 }
 export async function reserveVoiceMedia(
   db: SupabaseClient,
-  call: VoiceCall,
+  call: Pick<VoiceCall,'id'|'workspace_id'|'direction'|'context'>,
   seconds: number,
   sttProvider: string
 ) {
   // Rates must come from the account's variable usage agreement, never a monthly plan allocation.
   let rates = {
     stt: configuredRate('VOICE_STT_USD_PER_MIN'),
-    telephony: configuredRate(
+    telephony: whatsappTelephonyRateForCall(call) ?? configuredRate(
       call.direction === 'inbound'
         ? 'VOICE_TELEPHONY_INBOUND_USD_PER_MIN'
         : 'VOICE_TELEPHONY_OUTBOUND_USD_PER_MIN'

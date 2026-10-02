@@ -1,0 +1,79 @@
+import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
+import type {SupabaseClient} from '@supabase/supabase-js';
+const ids={ws:'11111111-1111-4111-8111-111111111111',actor:'22222222-2222-4222-8222-222222222222',contact:'33333333-3333-4333-8333-333333333333',call:'44444444-4444-4444-8444-444444444444',connection:'55555555-5555-4555-8555-555555555555',agent:'66666666-6666-4666-8666-666666666666',nonce:'77777777-7777-4777-8777-777777777777'};
+const f=vi.hoisted(()=>({enabled:true,rpc:vi.fn(),from:vi.fn(),decrypt:vi.fn(),wallet:vi.fn(),motor:vi.fn(),health:vi.fn(),worker:vi.fn(),profile:vi.fn(),model:vi.fn(),reserveMedia:vi.fn(),settleMedia:vi.fn(),settings:vi.fn(),permission:vi.fn(),accept:vi.fn(),dial:vi.fn(),connect:vi.fn(),disconnect:vi.fn(),participant:vi.fn(),receipt:null as unknown,duplicate:false,phone:'+12025550100',optOut:false,leg:null as null|Record<string,unknown>,ended:false}));
+vi.mock('@/lib/ui/improvements-preview',()=>({get SHOW_RIVERZ_IMPROVEMENTS(){return f.enabled;}}));
+vi.mock('@/lib/whatsapp/encryption',()=>({decrypt:f.decrypt}));
+vi.mock('@/lib/wallet/puerta',()=>({puertaDeIa:f.wallet}));vi.mock('@/lib/workspaces/motor',()=>({motorApagado:f.motor}));
+vi.mock('./provider-health',()=>({voiceProviderHealth:f.health}));vi.mock('./readiness',()=>({voiceWorkerDown:f.worker}));
+vi.mock('./agents',()=>({pickVoiceAgent:f.profile,pickInboundVoiceAgent:f.profile}));
+vi.mock('./model-config',()=>({getVoiceModelConfig:f.model}));vi.mock('./media-billing',()=>({reserveVoiceMedia:f.reserveMedia,settleVoiceMedia:f.settleMedia}));
+vi.mock('./whatsapp-calling-meta',()=>({createWhatsAppCallingMeta:()=>({settings:f.settings,outboundAllowed:f.permission})}));
+vi.mock('./whatsapp-connector',async original=>({...await original<typeof import('./whatsapp-connector')>(),createWhatsAppConnector:()=>({accept:f.accept,dial:f.dial,connect:f.connect,disconnect:f.disconnect})}));
+vi.mock('livekit-server-sdk',async original=>({...await original<typeof import('livekit-server-sdk')>(),RoomServiceClient:class{getParticipant=f.participant;}}));
+import {handleSignedWhatsAppCalls,initiateWhatsAppVoiceCall,observeWhatsAppVoiceCustomer,endWhatsAppVoiceCall,readWhatsAppVoiceSettings,saveWhatsAppVoiceSettings} from './whatsapp-calling-service';
+const db={rpc:f.rpc,from:f.from} as unknown as SupabaseClient;
+const binding=(direction='outbound',providerCallId:string|null=null)=>({version:1,callId:ids.call,workspaceId:ids.ws,connectionId:ids.connection,phoneNumberId:'123456',wabaId:'456789',peer:'12025550100',direction,apiVersion:'26.0',providerCallId});
+const inboundEvent={id:'wacid.fixture',event:'connect',direction:'USER_INITIATED',from:'12025550100',to:'573001234567',timestamp:String(Math.floor(Date.now()/1000)),session:{sdp_type:'offer',sdp:'v=0\r\nfixture'}};
+const envelope=(calls:unknown[])=>({object:'whatsapp_business_account',entry:[{id:'456789',changes:[{field:'calls',value:{metadata:{phone_number_id:'123456'},calls}}]}]});
+const initiate=()=>initiateWhatsAppVoiceCall(db,ids.ws,ids.actor,ids.contact,ids.call,'12025550100');
+beforeEach(()=>{
+ f.enabled=true;f.receipt=null;f.duplicate=false;f.phone='+12025550100';f.optOut=false;f.leg=null;f.ended=false;
+ vi.stubEnv('VOICE_WHATSAPP_INBOUND_USD_PER_MIN','0.003');vi.stubEnv('VOICE_WHATSAPP_OUTBOUND_USD_PER_MIN','0.012');vi.stubEnv('LIVEKIT_URL','wss://fixture.livekit.cloud');vi.stubEnv('LIVEKIT_API_KEY','fixture');vi.stubEnv('LIVEKIT_API_SECRET','fixture-secret');
+ vi.stubGlobal('fetch',vi.fn().mockRejectedValue(new Error('unmocked_network_forbidden')));
+ f.decrypt.mockReset().mockReturnValue('fixture-token');f.wallet.mockReset().mockResolvedValue({puede:true});f.motor.mockReset().mockResolvedValue(false);f.health.mockReset().mockResolvedValue({aiBlocking:false,telephonyBlocking:true});f.worker.mockReset().mockResolvedValue(false);f.profile.mockReset().mockResolvedValue({id:ids.agent,voice_max_call_seconds:120});f.model.mockReset().mockResolvedValue({stt_provider:'deepgram'});f.reserveMedia.mockReset().mockResolvedValue(undefined);f.settleMedia.mockReset().mockResolvedValue(null);f.settings.mockReset().mockResolvedValue({enabled:true,graphCompatible:true});f.permission.mockReset().mockResolvedValue(true);
+ f.accept.mockReset().mockResolvedValue({accepted:true});f.dial.mockReset().mockResolvedValue({initiated:true,providerCallId:'wacid.outbound'});f.connect.mockReset().mockResolvedValue({accepted:true});f.disconnect.mockReset().mockResolvedValue({disconnected:true});
+ f.participant.mockReset().mockResolvedValue({identity:'whatsapp-'+ids.call,kind:7,attributes:{'riverz.call':ids.call,'riverz.workspace':ids.ws,'riverz.transport':'whatsapp'},permission:{hidden:false}});
+ f.from.mockReset().mockImplementation((table:string)=>{
+  const filters:Record<string,unknown>={};const query={then(resolve:(value:unknown)=>unknown,reject:(cause:unknown)=>unknown){
+   let data:unknown=null;
+   if(table==='whatsapp_config'){const row={id:ids.connection,workspace_id:ids.ws,phone_number_id:'123456',waba_id:'456789',status:'connected',access_token:'encrypted-fixture'};data=filters.id?[row][0]:Object.entries(filters).every(([key,value])=>row[key as keyof typeof row]===value)?[row]:[];}
+   if(table==='contacts')data={id:ids.contact,phone:f.phone,voice_opt_out:f.optOut};
+   if(table==='channel_connections')data={config:{kill_switch:false}};
+   if(table==='voice_calls')data=f.leg?{...(f.leg.call as object),ended_at:f.ended?'2026-10-02T12:00:00Z':null}:{ended_at:null};
+   return Promise.resolve({data,error:null}).then(resolve,reject);
+  }};
+  const proxy:unknown=new Proxy(query,{get(target,key){if(key==='then')return target.then;return (...args:unknown[])=>{if(key==='eq')filters[String(args[0])]=args[1];return proxy;};}});return proxy;
+ });
+ f.rpc.mockReset().mockImplementation(async(name:string,args:Record<string,unknown>)=>{
+  let data:unknown=true;
+  if(name==='voice_whatsapp_outbound_receipt')data=f.receipt;
+  if(name==='voice_whatsapp_connection_policy')data={workspace_id:ids.ws,connection_id:ids.connection,inbound_enabled:true,outbound_enabled:true,api_version:'26.0'};
+  if(name==='voice_whatsapp_settings_read'||name==='set_voice_whatsapp_settings')data={inbound_enabled:args.p_inbound??false,outbound_enabled:args.p_outbound??false,api_version:'26.0'};
+  if(name==='reserve_voice_whatsapp_call'){
+   const reference={...binding(String(args.p_direction),args.p_provider_call_id as string|null),callId:args.p_call_id};
+   f.leg={claimed:true,call:{id:args.p_call_id,workspace_id:ids.ws,direction:args.p_direction,context:{__whatsapp_call:reference}},binding:reference,nonce:args.p_nonce};data=f.duplicate?{claimed:false}:f.leg;
+  }
+  if(name==='voice_whatsapp_call_context')data={call:{id:ids.call,workspace_id:ids.ws},binding:binding('outbound','wacid.outbound'),state:'accepted',nonce:ids.nonce};
+  if(name==='claim_voice_whatsapp_business_end'||name==='claim_voice_whatsapp_termination')data=f.duplicate?{claimed:false}:{claimed:true,call_id:ids.call,binding:binding(name==='claim_voice_whatsapp_termination'?'inbound':'outbound','wacid.fixture'),nonce:ids.nonce};
+  if(name==='claim_voice_whatsapp_answer'){const reference=binding('outbound','wacid.outbound');data=f.duplicate?{claimed:false}:{claimed:true,call:{id:ids.call,workspace_id:ids.ws,direction:'outbound',context:{__whatsapp_call:reference}},binding:reference,nonce:ids.nonce};}
+  return {data,error:null};
+ });
+});
+afterEach(()=>{vi.restoreAllMocks();vi.unstubAllEnvs();vi.unstubAllGlobals();});
+describe('WhatsApp calling orchestration, no real providers/customers',()=>{
+ it('releases a prepared budget if a delayed permission check is revoked before dialing',async()=>{
+  vi.spyOn(Date,'now').mockReturnValueOnce(0).mockReturnValue(6000);f.permission.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+  await expect(initiate()).rejects.toMatchObject({code:'notAllowed'});expect(f.reserveMedia).toHaveBeenCalledOnce();expect(f.settleMedia).toHaveBeenCalledWith(db,expect.anything(),0,0);expect(f.dial).not.toHaveBeenCalled();
+  expect(f.rpc).toHaveBeenCalledWith('cancel_voice_whatsapp_preflight',expect.objectContaining({p_call_id:ids.call}));expect(f.rpc.mock.calls.some(([name])=>name==='finish_voice_whatsapp_operation')).toBe(false);
+ });
+ it('does no work when the public-build gate is closed',async()=>{f.enabled=false;expect(await handleSignedWhatsAppCalls(db,envelope([inboundEvent]))).toEqual({disabled:true});await expect(initiate()).rejects.toMatchObject({code:'notAllowed'});expect(f.from).not.toHaveBeenCalled();expect(f.rpc).not.toHaveBeenCalled();expect(f.accept).not.toHaveBeenCalled();});
+ it('recovers before reading revoked provider permission and never dials again',async()=>{f.receipt={callId:ids.call,contactId:ids.contact,state:'uncertain'};f.permission.mockResolvedValue(false);expect(await initiate()).toMatchObject({recovered:true,callId:ids.call});expect(f.permission).not.toHaveBeenCalled();expect(f.from).not.toHaveBeenCalled();expect(f.dial).not.toHaveBeenCalled();});
+ it('rejects a receipt belonging to another reviewed contact',async()=>{f.receipt={contactId:ids.agent};await expect(initiate()).rejects.toMatchObject({code:'notAllowed'});expect(f.dial).not.toHaveBeenCalled();});
+ it('uses only the reviewed contact and blocks changed phone or opt-out before Meta calls',async()=>{f.phone='+573001234567';await expect(initiate()).rejects.toMatchObject({code:'notAllowed'});f.phone='+12025550100';f.optOut=true;await expect(initiate()).rejects.toMatchObject({code:'notAllowed'});expect(f.permission).not.toHaveBeenCalled();expect(f.dial).not.toHaveBeenCalled();});
+ it('requires current Meta authority before reservation or dialing',async()=>{f.permission.mockResolvedValue(false);await expect(initiate()).rejects.toMatchObject({code:'notAllowed'});expect(f.rpc.mock.calls.some(([name])=>name==='reserve_voice_whatsapp_call')).toBe(false);expect(f.dial).not.toHaveBeenCalled();});
+ it('reserves the existing media wallet before calling and reports initiated, not answered',async()=>{expect(await initiate()).toEqual({callId:ids.call,initiated:true});expect(f.reserveMedia).toHaveBeenCalledOnce();expect(f.reserveMedia.mock.invocationCallOrder[0]).toBeLessThan(f.dial.mock.invocationCallOrder[0]);expect(f.dial).toHaveBeenCalledOnce();expect(f.rpc).toHaveBeenCalledWith('finish_voice_whatsapp_operation',expect.objectContaining({p_result:'initiated',p_provider_call_id:'wacid.outbound'}));});
+ it('does not retry a connector timeout',async()=>{f.dial.mockRejectedValue(new Error('PRIVATE_PROVIDER_SECRET'));await expect(initiate()).rejects.toMatchObject({code:'uncertain',message:'whatsapp_voice_uncertain'});expect(f.dial).toHaveBeenCalledOnce();expect(f.rpc).toHaveBeenCalledWith('finish_voice_whatsapp_operation',expect.objectContaining({p_result:'uncertain'}));});
+ it('cancels a failed media preflight before any provider effect',async()=>{f.reserveMedia.mockRejectedValue(new Error('fixture-insufficient-balance'));await expect(initiate()).rejects.toMatchObject({code:'unavailable'});expect(f.rpc).toHaveBeenCalledWith('cancel_voice_whatsapp_preflight',expect.objectContaining({p_call_id:ids.call}));expect(f.settleMedia).toHaveBeenCalledWith(db,expect.anything(),0,0);expect(f.dial).not.toHaveBeenCalled();});
+ it('does not let PSTN provider unavailability block the WhatsApp transport',async()=>{expect(await initiate()).toMatchObject({initiated:true});expect(f.dial).toHaveBeenCalledOnce();});
+ it('rejects a stale first inbound offer without contact/call creation',async()=>{const result=await handleSignedWhatsAppCalls(db,envelope([{...inboundEvent,timestamp:'1'}]));expect(result).toMatchObject({ignored:1,accepted:0});expect(f.from.mock.calls.some(([table])=>table==='contacts')).toBe(false);expect(f.accept).not.toHaveBeenCalled();});
+ it('accepts an inbound offer once but a durable duplicate cannot start another connector',async()=>{expect(await handleSignedWhatsAppCalls(db,envelope([inboundEvent]))).toMatchObject({accepted:1});f.duplicate=true;expect(await handleSignedWhatsAppCalls(db,envelope([inboundEvent]))).toMatchObject({ignored:1});expect(f.accept).toHaveBeenCalledOnce();});
+ it('does not convert an unavailable database into an ignored successful event',async()=>{f.rpc.mockResolvedValue({data:null,error:{message:'PRIVATE_DATABASE_DETAIL'}});expect(await handleSignedWhatsAppCalls(db,envelope([inboundEvent]))).toMatchObject({uncertain:1,accepted:0});expect(f.accept).not.toHaveBeenCalled();});
+ it('preserves BSUID-only peers without guessing the business phone',async()=>{expect(await handleSignedWhatsAppCalls(db,envelope([{...inboundEvent,from:undefined,from_user_id:'fixture-bsuid'}]))).toMatchObject({ignored:1});expect(f.accept).not.toHaveBeenCalled();});
+ it('keeps signed customer termination token-free and records cleanup acknowledgement',async()=>{expect(await handleSignedWhatsAppCalls(db,envelope([{...inboundEvent,event:'terminate',status:'COMPLETED',session:undefined}]))).toMatchObject({cleaned:1});expect(f.decrypt).not.toHaveBeenCalled();expect(f.disconnect).toHaveBeenCalledWith(expect.anything(),'user');expect(f.rpc).toHaveBeenCalledWith('finish_voice_whatsapp_cleanup',expect.objectContaining({p_acknowledged:true}));});
+ it('retains uncertain cleanup and never automatically repeats disconnect',async()=>{f.disconnect.mockRejectedValue(new Error('synthetic-timeout'));const body=envelope([{...inboundEvent,event:'terminate',status:'FAILED',session:undefined}]);expect(await handleSignedWhatsAppCalls(db,body)).toMatchObject({uncertain:1});f.duplicate=true;await handleSignedWhatsAppCalls(db,body);expect(f.disconnect).toHaveBeenCalledOnce();expect(f.rpc).toHaveBeenCalledWith('finish_voice_whatsapp_cleanup',expect.objectContaining({p_acknowledged:false}));});
+ it('connects an outbound answer through its bound provider leg',async()=>{expect(await handleSignedWhatsAppCalls(db,envelope([{...inboundEvent,direction:'BUSINESS_INITIATED',from:'573001234567',to:'12025550100',session:{sdp_type:'answer',sdp:'v=0\r\nfixture'},biz_opaque_callback_data:'riverz:'+ids.call}]))).toMatchObject({accepted:1});expect(f.connect).toHaveBeenCalledOnce();expect(f.rpc).toHaveBeenCalledWith('claim_voice_whatsapp_answer',expect.objectContaining({p_callback_call_id:ids.call}));});
+ it('requires a real connector-kind participant before marking connected',async()=>{expect(await observeWhatsAppVoiceCustomer(db,ids.call,'voice_'+ids.call,'whatsapp-'+ids.call)).toEqual({observed:true});f.participant.mockResolvedValue({identity:'whatsapp-'+ids.call,kind:3,attributes:{}});await expect(observeWhatsAppVoiceCustomer(db,ids.call,'voice_'+ids.call,'whatsapp-'+ids.call)).rejects.toMatchObject({code:'notAllowed'});expect(f.rpc.mock.calls.filter(([name])=>name==='mark_voice_whatsapp_connected')).toHaveLength(1);});
+ it('uses the immutable server connection for business end and no duplicate RPC',async()=>{expect(await endWhatsAppVoiceCall(db,ids.call,'voice_'+ids.call,'whatsapp-'+ids.call)).toEqual({accepted:true});expect(f.disconnect).toHaveBeenCalledWith(expect.anything(),'business','fixture-token');f.duplicate=true;expect(await endWhatsAppVoiceCall(db,ids.call,'voice_'+ids.call,'whatsapp-'+ids.call)).toEqual({claimed:false});expect(f.disconnect).toHaveBeenCalledOnce();});
+ it('settings never modify Meta, request permission or initiate a call',async()=>{expect(await readWhatsAppVoiceSettings(db,ids.ws,ids.actor)).toMatchObject({inboundEnabled:false,ratesConfigured:{inbound:true,outbound:true}});expect(await saveWhatsAppVoiceSettings(db,ids.ws,ids.actor,{inboundEnabled:true,outboundEnabled:false,apiVersion:'26.0'})).toMatchObject({inboundEnabled:true});expect(f.settings).not.toHaveBeenCalled();expect(f.permission).not.toHaveBeenCalled();expect(f.dial).not.toHaveBeenCalled();expect(globalThis.fetch).not.toHaveBeenCalled();});
+});

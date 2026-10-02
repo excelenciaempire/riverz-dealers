@@ -27,6 +27,7 @@ import { ContactTags } from "@/components/contacts/contact-tags";
 import { ShopifyContactPanel } from "@/components/inbox/shopify-contact-panel";
 import { IgProfilePanel } from "@/components/inbox/ig-profile-panel";
 import { CallWithAiButton } from "@/components/inbox/voice-call-view";
+import {WhatsAppCallButton} from '@/components/voice/whatsapp-call-button';
 import { CommerceLinkButton } from "@/components/inbox/commerce-link-button";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -62,7 +63,7 @@ function CloseButton({ onClose }: { onClose?: () => void }) {
 
 export function ContactSidebar({ contact, onClose, conversationId }: ContactSidebarProps) {
   const t = useT();
-  const { workspace } = useWorkspace();
+  const { workspace,isAdmin } = useWorkspace();
   const [copied, setCopied] = useState(false);
   const [optOut, setOptOut] = useState<boolean>(!!contact?.voice_opt_out);
   const [notes, setNotes] = useState<ContactNote[]>([]);
@@ -261,6 +262,7 @@ export function ContactSidebar({ contact, onClose, conversationId }: ContactSide
                   className="w-full justify-center"
                 />
               )}
+              {SHOW_RIVERZ_IMPROVEMENTS && isAdmin && !optOut && <WhatsAppCallButton key={workspace.id+contact.id} workspaceId={workspace.id} contactId={contact.id} name={contact.name??null} phone={contact.phone}/>}
               <label className="flex items-center justify-between rounded-lg px-3 py-2 text-sm">
                 <span className="flex items-center gap-2 text-foreground">
                   <PhoneOff className="h-4 w-4 text-muted-foreground" />

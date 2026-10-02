@@ -1,0 +1,835 @@
+{
+  "observedAt": "2026-10-02T11:52:08.844Z",
+  "scope": "private_real_components_fictional_data",
+  "publicUiEnabled": false,
+  "externalActions": false,
+  "microphoneRequested": false,
+  "providerCalls": false,
+  "reviews": [
+    {
+      "before": {
+        "checks": [
+          false,
+          false
+        ],
+        "current": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/api/voice/connection"
+            }
+          ],
+          "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nActual\nMenú\nLa base actual se conserva\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nRespaldo humano\n\nSi la IA no puede atender una entrante, avisa y transfiere a este número.\n\nNúmero humano\nIdioma del aviso\nEspañol\nInglés\nGuardar\n\nCamila · +12025550100\n\nLlamar con IA"
+        },
+        "overflow": false,
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          }
+        ],
+        "transfer": "+12025550100"
+      },
+      "connected": {
+        "receipt": {
+          "callId": "95978100-5d7c-4929-b2cb-8e97726e3393",
+          "cleanupState": "not_requested",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "providerEnded": false,
+          "state": "connected",
+          "status": "in_progress"
+        },
+        "text": "Llamar por WhatsApp\n\nSe comprueba el permiso del cliente y la disponibilidad de Meta antes de llamar. Voz e IA consumen saldo según uso.\n\nCamila · +12025550100\n\nCliente conectado.\n\nConsultar esta llamada\nCerrar"
+      },
+      "ended": {
+        "receipt": {
+          "callId": "95978100-5d7c-4929-b2cb-8e97726e3393",
+          "cleanupState": "acknowledged",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "providerEnded": true,
+          "state": "terminated",
+          "status": "completed"
+        },
+        "text": "Llamar por WhatsApp\n\nSe comprueba el permiso del cliente y la disponibilidad de Meta antes de llamar. Voz e IA consumen saldo según uso.\n\nCamila · +12025550100\n\nLlamada terminada.\n\nConsultar esta llamada\nPreparar otra llamada\nCerrar"
+      },
+      "final": {
+        "checkbox": false,
+        "dialogWidth": 384,
+        "overflow": false,
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          }
+        ],
+        "startDisabled": true,
+        "text": "Llamar por WhatsApp\n\nSe comprueba el permiso del cliente y la disponibilidad de Meta antes de llamar. Voz e IA consumen saldo según uso.\n\nCamila · +12025550100\n\nRevisé el destinatario y autorizo esta llamada.\nIniciar llamada\nCerrar",
+        "transfer": "+12025550100",
+        "transport": {
+          "aiUsage": false,
+          "microphoneRequested": false,
+          "providerCalled": false,
+          "synthetic": true
+        },
+        "viewport": 664
+      },
+      "review": "es-desktop",
+      "uncertain": {
+        "newCallOff": true,
+        "receipt": {
+          "callId": "95978100-5d7c-4929-b2cb-8e97726e3393",
+          "cleanupState": "not_requested",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "providerEnded": false,
+          "state": "uncertain",
+          "status": "dialing"
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          }
+        ],
+        "text": "Llamar por WhatsApp\n\nSe comprueba el permiso del cliente y la disponibilidad de Meta antes de llamar. Voz e IA consumen saldo según uso.\n\nCamila · +12025550100\n\nNo se confirmó el resultado. Consultar el estado no inicia otra llamada.\n\nConsultar esta llamada\nCerrar"
+      }
+    },
+    {
+      "before": {
+        "checks": [
+          false,
+          false
+        ],
+        "current": {
+          "overflow": false,
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/api/voice/connection"
+            }
+          ],
+          "text": "riverz\nOperator\nDAILY\nDashboard\nInbox\nContacts\nCUSTOMER SERVICE\nAI Assistant\nFlows\nAI Comments\nCalls\nWeb chat\nOUTBOUND\nTemplates\nAutomations\nCampaigns\nAI Prospecting\nSTORE\nProducts\nOrders\nIntegrations\nSettings\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nCurrent\nMenu\nThe current foundation is preserved\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nHuman fallback\n\nIf AI cannot answer an inbound call, it announces and transfers to this number.\n\nHuman number\nNotice language\nSpanish\nEnglish\nSave\n\nCamila · +12025550100\n\nCall with AI"
+        },
+        "overflow": false,
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          }
+        ],
+        "transfer": "+12025550100"
+      },
+      "connected": {
+        "receipt": {
+          "callId": "d69d07b4-eb8a-4f16-88fb-08196e4fbc3f",
+          "cleanupState": "not_requested",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "providerEnded": false,
+          "state": "connected",
+          "status": "in_progress"
+        },
+        "text": "Call on WhatsApp\n\nCustomer permission and Meta availability are checked before calling. Voice and AI use balance based on usage.\n\nCamila · +12025550100\n\nCustomer connected.\n\nCheck this call\nClose"
+      },
+      "ended": {
+        "receipt": {
+          "callId": "d69d07b4-eb8a-4f16-88fb-08196e4fbc3f",
+          "cleanupState": "acknowledged",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "providerEnded": true,
+          "state": "terminated",
+          "status": "completed"
+        },
+        "text": "Call on WhatsApp\n\nCustomer permission and Meta availability are checked before calling. Voice and AI use balance based on usage.\n\nCamila · +12025550100\n\nCall ended.\n\nCheck this call\nPrepare another call\nClose"
+      },
+      "final": {
+        "checkbox": false,
+        "dialogWidth": 364.8000183105469,
+        "overflow": false,
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          }
+        ],
+        "startDisabled": true,
+        "text": "Call on WhatsApp\n\nCustomer permission and Meta availability are checked before calling. Voice and AI use balance based on usage.\n\nCamila · +12025550100\n\nI reviewed the recipient and authorize this call.\nStart call\nClose",
+        "transfer": "+12025550100",
+        "transport": {
+          "aiUsage": false,
+          "microphoneRequested": false,
+          "providerCalled": false,
+          "synthetic": true
+        },
+        "viewport": 664
+      },
+      "review": "en-desktop",
+      "reviewed": {
+        "settings": {
+          "apiVersion": "26.0",
+          "inboundEnabled": true,
+          "outboundEnabled": true,
+          "ratesConfigured": {
+            "inbound": true,
+            "outbound": true
+          }
+        },
+        "startDisabled": true,
+        "text": "Call on WhatsApp\n\nCustomer permission and Meta availability are checked before calling. Voice and AI use balance based on usage.\n\nCamila · +12025550100\n\nI reviewed the recipient and authorize this call.\nStart call\nClose"
+      },
+      "uncertain": {
+        "newCallOff": true,
+        "receipt": {
+          "callId": "d69d07b4-eb8a-4f16-88fb-08196e4fbc3f",
+          "cleanupState": "not_requested",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "providerEnded": false,
+          "state": "uncertain",
+          "status": "dialing"
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          }
+        ],
+        "text": "Call on WhatsApp\n\nCustomer permission and Meta availability are checked before calling. Voice and AI use balance based on usage.\n\nCamila · +12025550100\n\nThe result is not confirmed. Checking the status does not start another call.\n\nCheck this call\nClose"
+      }
+    },
+    {
+      "before": {
+        "checks": [
+          false,
+          false
+        ],
+        "current": {
+          "overflow": false,
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/api/voice/connection"
+            }
+          ],
+          "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nActual\nMenú\nLa base actual se conserva\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nRespaldo humano\n\nSi la IA no puede atender una entrante, avisa y transfiere a este número.\n\nNúmero humano\nIdioma del aviso\nEspañol\nInglés\nGuardar\n\nCamila · +12025550100\n\nLlamar con IA"
+        },
+        "overflow": false,
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          }
+        ],
+        "transfer": "+12025550100"
+      },
+      "connected": {
+        "receipt": {
+          "callId": "c121f029-4870-4722-b8fc-733ab6109281",
+          "cleanupState": "not_requested",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "providerEnded": false,
+          "state": "connected",
+          "status": "in_progress"
+        },
+        "text": "Llamar por WhatsApp\n\nSe comprueba el permiso del cliente y la disponibilidad de Meta antes de llamar. Voz e IA consumen saldo según uso.\n\nCamila · +12025550100\n\nCliente conectado.\n\nConsultar esta llamada\nCerrar"
+      },
+      "ended": {
+        "receipt": {
+          "callId": "c121f029-4870-4722-b8fc-733ab6109281",
+          "cleanupState": "acknowledged",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "providerEnded": true,
+          "state": "terminated",
+          "status": "completed"
+        },
+        "text": "Llamar por WhatsApp\n\nSe comprueba el permiso del cliente y la disponibilidad de Meta antes de llamar. Voz e IA consumen saldo según uso.\n\nCamila · +12025550100\n\nLlamada terminada.\n\nConsultar esta llamada\nPreparar otra llamada\nCerrar"
+      },
+      "final": {
+        "checkbox": false,
+        "dialogWidth": 317.6000061035156,
+        "overflow": false,
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          }
+        ],
+        "startDisabled": true,
+        "text": "Llamar por WhatsApp\n\nSe comprueba el permiso del cliente y la disponibilidad de Meta antes de llamar. Voz e IA consumen saldo según uso.\n\nCamila · +12025550100\n\nRevisé el destinatario y autorizo esta llamada.\nIniciar llamada\nCerrar",
+        "transfer": "+12025550100",
+        "transport": {
+          "aiUsage": false,
+          "microphoneRequested": false,
+          "providerCalled": false,
+          "synthetic": true
+        },
+        "viewport": 350
+      },
+      "review": "es-mobile",
+      "reviewed": {
+        "settings": {
+          "apiVersion": "26.0",
+          "inboundEnabled": true,
+          "outboundEnabled": true,
+          "ratesConfigured": {
+            "inbound": true,
+            "outbound": true
+          }
+        },
+        "startDisabled": true,
+        "text": "Llamar por WhatsApp\n\nSe comprueba el permiso del cliente y la disponibilidad de Meta antes de llamar. Voz e IA consumen saldo según uso.\n\nCamila · +12025550100\n\nRevisé el destinatario y autorizo esta llamada.\nIniciar llamada\nCerrar"
+      },
+      "uncertain": {
+        "newCallOff": true,
+        "receipt": {
+          "callId": "c121f029-4870-4722-b8fc-733ab6109281",
+          "cleanupState": "not_requested",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "providerEnded": false,
+          "state": "uncertain",
+          "status": "dialing"
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          }
+        ],
+        "text": "Llamar por WhatsApp\n\nSe comprueba el permiso del cliente y la disponibilidad de Meta antes de llamar. Voz e IA consumen saldo según uso.\n\nCamila · +12025550100\n\nNo se confirmó el resultado. Consultar el estado no inicia otra llamada.\n\nConsultar esta llamada\nCerrar"
+      }
+    },
+    {
+      "before": {
+        "checks": [
+          false,
+          false
+        ],
+        "current": {
+          "overflow": false,
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/api/voice/connection"
+            }
+          ],
+          "text": "riverz\nOperator\nDAILY\nDashboard\nInbox\nContacts\nCUSTOMER SERVICE\nAI Assistant\nFlows\nAI Comments\nCalls\nWeb chat\nOUTBOUND\nTemplates\nAutomations\nCampaigns\nAI Prospecting\nSTORE\nProducts\nOrders\nIntegrations\nSettings\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nCurrent\nMenu\nThe current foundation is preserved\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nHuman fallback\n\nIf AI cannot answer an inbound call, it announces and transfers to this number.\n\nHuman number\nNotice language\nSpanish\nEnglish\nSave\n\nCamila · +12025550100\n\nCall with AI"
+        },
+        "overflow": false,
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          }
+        ],
+        "transfer": "+12025550100"
+      },
+      "connected": {
+        "receipt": {
+          "callId": "37cc0c1f-8baa-4fa1-965a-02ba0b7c4a09",
+          "cleanupState": "not_requested",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "providerEnded": false,
+          "state": "connected",
+          "status": "in_progress"
+        },
+        "text": "Call on WhatsApp\n\nCustomer permission and Meta availability are checked before calling. Voice and AI use balance based on usage.\n\nCamila · +12025550100\n\nCustomer connected.\n\nCheck this call\nClose"
+      },
+      "ended": {
+        "receipt": {
+          "callId": "37cc0c1f-8baa-4fa1-965a-02ba0b7c4a09",
+          "cleanupState": "acknowledged",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "providerEnded": true,
+          "state": "terminated",
+          "status": "completed"
+        },
+        "text": "Call on WhatsApp\n\nCustomer permission and Meta availability are checked before calling. Voice and AI use balance based on usage.\n\nCamila · +12025550100\n\nCall ended.\n\nCheck this call\nPrepare another call\nClose"
+      },
+      "final": {
+        "checkbox": false,
+        "dialogWidth": 317.6000061035156,
+        "overflow": false,
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          }
+        ],
+        "startDisabled": true,
+        "text": "Call on WhatsApp\n\nCustomer permission and Meta availability are checked before calling. Voice and AI use balance based on usage.\n\nCamila · +12025550100\n\nI reviewed the recipient and authorize this call.\nStart call\nClose",
+        "transfer": "+12025550100",
+        "transport": {
+          "aiUsage": false,
+          "microphoneRequested": false,
+          "providerCalled": false,
+          "synthetic": true
+        },
+        "viewport": 350
+      },
+      "review": "en-mobile",
+      "reviewed": {
+        "settings": {
+          "apiVersion": "26.0",
+          "inboundEnabled": true,
+          "outboundEnabled": true,
+          "ratesConfigured": {
+            "inbound": true,
+            "outbound": true
+          }
+        },
+        "startDisabled": true,
+        "text": "Call on WhatsApp\n\nCustomer permission and Meta availability are checked before calling. Voice and AI use balance based on usage.\n\nCamila · +12025550100\n\nI reviewed the recipient and authorize this call.\nStart call\nClose"
+      },
+      "uncertain": {
+        "newCallOff": true,
+        "receipt": {
+          "callId": "37cc0c1f-8baa-4fa1-965a-02ba0b7c4a09",
+          "cleanupState": "not_requested",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "providerEnded": false,
+          "state": "uncertain",
+          "status": "dialing"
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "GET",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          },
+          {
+            "method": "POST",
+            "path": "/api/voice/whatsapp"
+          }
+        ],
+        "text": "Call on WhatsApp\n\nCustomer permission and Meta availability are checked before calling. Voice and AI use balance based on usage.\n\nCamila · +12025550100\n\nThe result is not confirmed. Checking the status does not start another call.\n\nCheck this call\nClose"
+      }
+    }
+  ],
+  "screenshots": [
+    {
+      "review": "es-desktop",
+      "url": "http://127.0.0.1:3107/compare?locale=es&page=voice-whatsapp",
+      "file": "comparison-preview/voice-whatsapp-es-desktop.png"
+    },
+    {
+      "review": "en-desktop",
+      "url": "http://127.0.0.1:3107/compare?locale=en&page=voice-whatsapp",
+      "file": "comparison-preview/voice-whatsapp-en-desktop.png"
+    },
+    {
+      "review": "es-mobile",
+      "url": "http://127.0.0.1:3107/compare?locale=es&page=voice-whatsapp",
+      "file": "comparison-preview/voice-whatsapp-es-mobile.png"
+    },
+    {
+      "review": "en-mobile",
+      "url": "http://127.0.0.1:3107/compare?locale=en&page=voice-whatsapp",
+      "file": "comparison-preview/voice-whatsapp-en-mobile.png"
+    }
+  ],
+  "historicalConsoleErrorsRetained": 2,
+  "newConsoleErrors": 0,
+  "initialCaptureLimitation": "The es-desktop before.requests array was captured by reference and includes later fixture exchanges; other initial request captures are cloned. Final requests and receipt states are cloned in all four reviews.",
+  "validation": {
+    "applicationTests": 535,
+    "applicationFiles": 53,
+    "pythonTests": 26,
+    "normalBuildExitCode": 0,
+    "comparisonBuildExitCode": 0,
+    "types": "full Next build TypeScript checks passed",
+    "lint": "new/modified feature files passed; two pre-existing ContactSidebar warnings preserved",
+    "failedAttemptsPreserved": [
+      "Initial privacy TypeScript check detected misplaced options signature and union narrowing; corrected before final builds.",
+      "One audio test timed out at 5s with a concurrent build; frozen regression rerun with maxWorkers=4 passed all 535.",
+      "Migration 370 metadata probe was SECURITY DEFINER; 371 narrowed it to SECURITY INVOKER and final production metadata/null-context checks passed."
+    ]
+  },
+  "productionSchema": {
+    "installedOnce": [
+      "370_whatsapp_calling_authority.sql",
+      "371_whatsapp_calling_invoker_probe.sql"
+    ],
+    "ready": true,
+    "privateProbe": true,
+    "invokerFixedPath": true,
+    "privateTables": true,
+    "nullContextsDenied": 6,
+    "nullStatus": 400,
+    "noCustomerProviderWalletOperations": true
+  },
+  "limitations": [
+    "Does not prove a physical call or audio quality.",
+    "No Calling settings or permission requests were changed at Meta.",
+    "WhatsApp human/SIP transfer not claimed by this connector.",
+    "Direction tariffs remain subject to actual configured commercial agreement."
+  ],
+  "sources": [
+    {
+      "file": "package.json",
+      "sha256": "acfa67f192c9486418616b623e5727294422b55b95b168bccde83bd01517c1a3"
+    },
+    {
+      "file": "scripts/comparison/app.jsx",
+      "sha256": "6de3f4cd52ebf761d072dbf5abfcc22b98fc07f647839044b6568c746adadf3a"
+    },
+    {
+      "file": "scripts/comparison/fixtures.jsx",
+      "sha256": "372c9f3463ff7081b6ddf087bc51d6803ddb1381adcce4c4c7aeafd1ca773c13"
+    },
+    {
+      "file": "scripts/comparison/review.js",
+      "sha256": "3c64abe2571766919a6445f295c5e352566cfeff53e2fbc3eb47718f058bfa0f"
+    },
+    {
+      "file": "src/app/(dashboard)/voz/page.tsx",
+      "sha256": "f45976853c63a3edeeb399d9763bfaebdc0d4d7627391cc5c5d8e806259a0c3e"
+    },
+    {
+      "file": "src/app/api/cron/pii-purge/route.ts",
+      "sha256": "c6af5ec1dee9c167da9d0db77b804a7d1bff5a1e1e3d09b42910b962be766be8"
+    },
+    {
+      "file": "src/app/api/internal/voice/context/route.ts",
+      "sha256": "c785375ee09c23506cffe24c04fa99057c756655d6967e35d06ef937189604a0"
+    },
+    {
+      "file": "src/app/api/whatsapp/webhook/route.ts",
+      "sha256": "2c2791b0c72f3f546205c9b136487b0e299d32952cd71cfd7ab28cfe1f7503f9"
+    },
+    {
+      "file": "src/components/inbox/contact-sidebar.tsx",
+      "sha256": "a20a018abf3c151f89079f84b65722319841b77cfab1e962cdda14bb8e34b15d"
+    },
+    {
+      "file": "src/lib/ai/runner.ts",
+      "sha256": "22e228c9f5c1129e01c7227be9d6f0f703e1f5309e322ccea0d8489591072806"
+    },
+    {
+      "file": "src/lib/contacts/identity.test.ts",
+      "sha256": "f947b2948c28ab18adf4842f48e7e2d946b7fee29b9bc4e0c5f0b1d13d45bd18"
+    },
+    {
+      "file": "src/lib/contacts/identity.ts",
+      "sha256": "92465f279de1672e319456e540f1ae9b9c2fd31d9c0929df45195ef914ddf16b"
+    },
+    {
+      "file": "src/lib/i18n/messages/voice.ts",
+      "sha256": "c7c4e7dd257fde3d820f0feb1857f1e4c56098c086d0668775c237180b12cf7f"
+    },
+    {
+      "file": "src/lib/voice/context.ts",
+      "sha256": "4647c5cf077233d8b8daf47a966197de095a30d8577ebdf664fec4c26d8ece82"
+    },
+    {
+      "file": "src/lib/voice/media-billing.ts",
+      "sha256": "3fff6a4d10f3f753717572e9f01a5f87516e0f394e0909e3c8200e787cebc112"
+    },
+    {
+      "file": "src/lib/voice/result.ts",
+      "sha256": "f482947b341d5603cb0f2736442b9e386e04fa610b4e73db2c056f4e03b88455"
+    },
+    {
+      "file": "voice-worker/agent.py",
+      "sha256": "bab6dbedf5a36013f164505a7049360309ad08883c43cda63dfcee85349b835c"
+    },
+    {
+      "file": "voice-worker/riverz_api.py",
+      "sha256": "f960bf35615e70aa2787168e94cfe304711a6a50ed998c1c61fb3a45c6952c5a"
+    },
+    {
+      "file": "voice-worker/tools.py",
+      "sha256": "65eb423d61bcf0046dd307354a513a26abf030c34358fc2253470a923d84458a"
+    },
+    {
+      "file": "scripts/check-whatsapp-calling-schema.cjs",
+      "sha256": "cda2202cdaa6f2828318aed50e5b3da229eca1ca896e4cd83b755bd87551d401"
+    },
+    {
+      "file": "src/app/api/internal/voice/whatsapp/route.test.ts",
+      "sha256": "347309641439f19d78d1ddab066b536346df837537dd155b8007f38cc17d6b66"
+    },
+    {
+      "file": "src/app/api/internal/voice/whatsapp/route.ts",
+      "sha256": "f38da20e31168da298b707abda1d488cb663ed97ea710af53ff3f76b54386895"
+    },
+    {
+      "file": "src/app/api/voice/whatsapp/route.test.ts",
+      "sha256": "ad253e06fd6b9febfd81b8f0bab52e509e3d3dab109812c8406fbfb057e7d925"
+    },
+    {
+      "file": "src/app/api/voice/whatsapp/route.ts",
+      "sha256": "f7217ed558158951e213d7fa5e0efb62a636f0938df78899ea4ba2a919f4b981"
+    },
+    {
+      "file": "src/components/voice/whatsapp-call-button.test.tsx",
+      "sha256": "07c8eb81ce62b8f84945aead0092d2e6391f6e65bb54d8b57e388b1bb31e029f"
+    },
+    {
+      "file": "src/components/voice/whatsapp-call-button.tsx",
+      "sha256": "a4abd0268632694053fccbfd3c83f63ab179750b5c3cdff4d061d830ffc1b409"
+    },
+    {
+      "file": "src/components/voice/whatsapp-calling-settings.test.tsx",
+      "sha256": "238c97235b27609a13064cf8b4d3df38a5482e3e10ea717491eb5f4c065cf0e3"
+    },
+    {
+      "file": "src/components/voice/whatsapp-calling-settings.tsx",
+      "sha256": "28db6853cdb2d6738ac9af7633dfdb1ded5ab0b5c363ce9e40aa180c2f69b09d"
+    },
+    {
+      "file": "src/lib/voice/whatsapp-call-webhook.test.ts",
+      "sha256": "4f276f1e13825134585a2066cbb020647ef6e1708f7c1a7d358518540aa09c73"
+    },
+    {
+      "file": "src/lib/voice/whatsapp-call-webhook.ts",
+      "sha256": "0565acdf7f6cd310554c012f57b9be9d96c098847feb256f75dfbcf5045a858d"
+    },
+    {
+      "file": "src/lib/voice/whatsapp-calling-contract.ts",
+      "sha256": "3a50a4a0ff9565ac6f32aa4bf22f56dc9a451964441c49c26953d8e16ed1ff03"
+    },
+    {
+      "file": "src/lib/voice/whatsapp-calling-meta.test.ts",
+      "sha256": "649e12c343de9f953d66832bdecf98d89f662a54ddb2118a9b12432537cc042a"
+    },
+    {
+      "file": "src/lib/voice/whatsapp-calling-meta.ts",
+      "sha256": "73e77496d56ad873d5f2f8f263a4eed7e499820dbf4baed1f9cd021d46255122"
+    },
+    {
+      "file": "src/lib/voice/whatsapp-calling-rates.test.ts",
+      "sha256": "b68f96f4724447d042f4ddd40b9f7f2ee4b1cf4ff987b107c0bc3bb59e554785"
+    },
+    {
+      "file": "src/lib/voice/whatsapp-calling-rates.ts",
+      "sha256": "090cf8cd2d34a8a0fcdcd232ec5682c344e2343233f81e8c6a563a5814770d7a"
+    },
+    {
+      "file": "src/lib/voice/whatsapp-calling-schema.test.ts",
+      "sha256": "36e0efe72436845ee69b3bd5ab6f11fc39560a8e95a8933a19e676dbd58a13a5"
+    },
+    {
+      "file": "src/lib/voice/whatsapp-calling-service.test.ts",
+      "sha256": "46921a300232f5b382f768e4ca3c89fa97b8819c21f5a93cec087d92f6b6aece"
+    },
+    {
+      "file": "src/lib/voice/whatsapp-calling-service.ts",
+      "sha256": "703586930f934f4ae3e7b24fefe0137d445ae029fc50f1a8b1c485cf7f9681e6"
+    },
+    {
+      "file": "src/lib/voice/whatsapp-capacity-result.test.ts",
+      "sha256": "559dbff02b8ce130ec2db2e60d56ceeca28f27e28ddaacd4509e0df091102b6a"
+    },
+    {
+      "file": "src/lib/voice/whatsapp-connector.test.ts",
+      "sha256": "5bfa0c7eaf5bddfa5cca38a65d4fa1b4c2e539957e7a330db44aa9318346d428"
+    },
+    {
+      "file": "src/lib/voice/whatsapp-connector.ts",
+      "sha256": "9bda6fae2778941a8371d9de8438675b3e2fa57da44cc9b213db06927ebe5d86"
+    },
+    {
+      "file": "src/lib/voice/whatsapp-context-privacy.test.ts",
+      "sha256": "60a614a2bf81a7041a73d28ad9d73d93c8d2ec798aa2eaa92f510924a2ac850a"
+    },
+    {
+      "file": "supabase/migrations/370_whatsapp_calling_authority.sql",
+      "sha256": "82510af6e18ea01409900c90a6f48b76ce31ca163ecb03e1a43592c012b7c865"
+    },
+    {
+      "file": "supabase/migrations/371_whatsapp_calling_invoker_probe.sql",
+      "sha256": "722888950adba74740f695d3a38a419e152510fc92cc433c3c89c15b4e07933a"
+    },
+    {
+      "file": "voice-worker/test_whatsapp_runtime.py",
+      "sha256": "5b973c9b71e81556b3bc13dcf00cc450af2fc38084a64de8969722534e8de964"
+    },
+    {
+      "file": "voice-worker/whatsapp_runtime.py",
+      "sha256": "3ed1ddd1a5b37211ec2041783019a0d12a691c180f52f1242fea13651200ba94"
+    }
+  ],
+  "styles": [
+    {
+      "file": "0y7fmymffc1f-.css",
+      "sha256": "a9ebecb14064ea8dd75f94623210eda384a7b55a0dda3b2d684cf2a51bd9c6df"
+    },
+    {
+      "file": "0ydpypn-7ctjk.css",
+      "sha256": "932d47c5b5820b2dd6a9a39a5a25bd6a26ab6e94db2b45fe9f2ff99727087666"
+    },
+    {
+      "file": "1bliujhpm9e2n.css",
+      "sha256": "162a497f498c1d1bf1baaf2e307f93fccd9f0308ee25ad57e62e5eb98fd1906a"
+    },
+    {
+      "file": "21rtznmd83uia.css",
+      "sha256": "36494c893a9698a87a9073917ae4fdee7aada2f7f63bdb75eac0b7602d00468d"
+    },
+    {
+      "file": "24hrtzo5s_sl1.css",
+      "sha256": "918623f67958b347bcd22eb9cc2010cf26a434083cf47bd9517aad84a1ae229e"
+    },
+    {
+      "file": "2rmecej376eld.css",
+      "sha256": "69b419d05a7eb4a71904be8d7b6f9cd719fe55ef6bf0881feca4652b0dcd4c5e"
+    },
+    {
+      "file": "3s7aa-p955seo.css",
+      "sha256": "25f2e876fb87c418429be603ca585b0d52e15a51be6d59166a7856c45ee82448"
+    }
+  ],
+  "bundleSha256": "49e5d73c329394bcdddf48316911d03d0daff08ff99b3fca9128bc1df368c280"
+}

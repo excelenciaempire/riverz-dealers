@@ -23,6 +23,7 @@ from typing import Any
 
 from livekit import api as lkapi
 from livekit.agents import RunContext, function_tool, get_job_context
+from whatsapp_runtime import disconnect_whatsapp_before_room_close
 
 logger = logging.getLogger("riverz-voice.tools")
 
@@ -68,6 +69,10 @@ async def hangup() -> None:
     """Cuelga eliminando la sala (desconecta a todos). El fin de sesión dispara
     el shutdown callback que reporta el resultado."""
     try:
+        try:
+            await disconnect_whatsapp_before_room_close()
+        except Exception:
+            logger.warning("WhatsApp disconnect uncertain; closing bound room")
         jc = get_job_context()
         await jc.api.room.delete_room(lkapi.DeleteRoomRequest(room=jc.room.name))
     except Exception:

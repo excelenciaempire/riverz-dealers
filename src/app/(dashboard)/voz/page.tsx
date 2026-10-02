@@ -20,6 +20,8 @@ import { VoiceOrderSettings } from '@/components/voice/voice-order-settings';
 import { TestCallDialog } from '@/components/voice/test-call-dialog';
 import { VoiceReadinessCard } from '@/components/voice/voice-readiness-card';
 import { VoiceFallbackSettings } from '@/components/voice/voice-fallback-settings';
+import {WhatsAppCallingSettings} from '@/components/voice/whatsapp-calling-settings';
+import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useVoiceReadiness } from '@/hooks/use-voice-readiness';
 import { useWorkspace } from '@/hooks/use-workspace';
@@ -240,6 +242,7 @@ export default function VoicePage() {
           workspaceId={workspaceId}
           onSaved={releerEstado}
         />
+        {SHOW_RIVERZ_IMPROVEMENTS && <WhatsAppCallingSettings workspaceId={workspaceId}/>}
 
         <VoiceAgentProfiles
           workspaceId={workspaceId}

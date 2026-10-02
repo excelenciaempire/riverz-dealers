@@ -2329,7 +2329,8 @@ export interface LoadedContext {
 export async function loadContext(
   db: SupabaseClient,
   conversation: Conversation,
-  limit: number
+  limit: number,
+  options: {excludePersonalEmail?:boolean} = {}
 ): Promise<LoadedContext> {
   const safeLimit = Math.max(1, Math.min(100, limit || 30));
 
@@ -2339,7 +2340,10 @@ export async function loadContext(
   // como si lo otro no hubiera pasado. Se juntan todos los hilos de esa
   // persona —incluidos los de sus contactos unificados— y se mezclan por
   // fecha; el tope sigue siendo el mismo para el total.
-  const conversationIds = await siblingConversationIds(db, conversation);
+  const conversationIds = options.excludePersonalEmail
+    ? await verifiedConversationIds(db,conversation,options)
+    : await siblingConversationIds(db, conversation);
+  if(options.excludePersonalEmail && conversationIds.length===0)return {messages:[],rollingSummary:null,idleResetHint:null};
 
   const { data } = await db
     .from('messages')
@@ -2435,7 +2439,9 @@ export async function loadContext(
     media: turn.media,
   }));
 
-  const rollingSummary = await resumenDeLaPersona(
+  // Existing summaries can contain older cross-channel context without
+  // mailbox provenance. Do not carry them into a newly public call transport.
+  const rollingSummary = options.excludePersonalEmail ? null : await resumenDeLaPersona(
     db,
     conversation,
     conversationIds

@@ -1,5 +1,8 @@
 import {CallDetail} from '@/components/voice/call-detail';
 import {VoiceFallbackSettings} from '@/components/voice/voice-fallback-settings';
+import {WhatsAppCallingSettings} from '@/components/voice/whatsapp-calling-settings';
+import {WhatsAppCallButton} from '@/components/voice/whatsapp-call-button';
+import {CallWithAiButton} from '@/components/inbox/voice-call-view';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'sonner';
@@ -37,7 +40,7 @@ import { ids, now, selected, improved, locale, copy, report } from './fixtures';
 
 const pages = [['inbox', 'Bandeja', 'Inbox'], ['rules', 'Reglas', 'Rules'], ['documents', 'Documentos', 'Documents'],
   ['reports', 'Reportes', 'Reports'], ['flows', 'Flujos', 'Flows'], ['returns', 'Postventa', 'After-sales'], ['connections', 'Acciones HTTP', 'HTTP actions'],
-  ['orders', 'Acciones de pedidos', 'Order actions'], ['templates', 'Plantillas', 'Templates'], ['campaigns', 'Campañas', 'Campaigns'], ['automations', 'Automatizaciones', 'Automations'], ['mobile', 'Avisos móviles', 'Mobile notifications'], ['release', 'Lanzamiento', 'Launch'], ['migrations','Migraciones','Migrations'],['help','Ayuda','Help'],['voice','Llamadas','Calls'],['voice-mailbox','Buzón','Voicemail']];
+  ['orders', 'Acciones de pedidos', 'Order actions'], ['templates', 'Plantillas', 'Templates'], ['campaigns', 'Campañas', 'Campaigns'], ['automations', 'Automatizaciones', 'Automations'], ['mobile', 'Avisos móviles', 'Mobile notifications'], ['release', 'Lanzamiento', 'Launch'], ['migrations','Migraciones','Migrations'],['help','Ayuda','Help'],['voice','Llamadas','Calls'],['voice-mailbox','Buzón','Voicemail'],['voice-whatsapp','Voz por WhatsApp','WhatsApp voice']];
 const automationParams = Promise.resolve({ id: ids.flow });
 const noChange = () => {};
 function VoiceMailboxPreview() {
@@ -48,6 +51,11 @@ function VoiceMailboxPreview() {
     <CallDetail callId={callId} onClose={()=>setCallId(null)}/>
   </div>;
 }
+function WhatsAppVoicePreview(){return <div className="space-y-4"><VoiceFallbackSettings workspaceId={ids.workspace}/>
+ {improved&&<WhatsAppCallingSettings workspaceId={ids.workspace}/>}
+ <section className="rounded-xl border bg-card p-4 space-y-3"><p className="text-sm">Camila · +12025550100</p>
+ <CallWithAiButton workspaceId={ids.workspace} contactId={ids.product} className="w-full justify-center"/>
+ {improved&&<WhatsAppCallButton workspaceId={ids.workspace} contactId={ids.product} name="Camila" phone="+12025550100"/>}</section></div>;}
 const selectedCases = [ids.conversation];
 const reportRange = { start: report.range.start, end: report.range.end, previous_start: '2026-08-01T00:00:00Z', previous_end: report.range.start };
 const embedded = selected.get('embedded') === '1';
@@ -110,6 +118,7 @@ function App() {
           {page === 'migrations' && <MigrationPreview />}
             {page === 'voice' && <><p className="text-sm">{copy('Llamada de ejemplo en curso. Se conservan su ficha, grabación y transcripción.','Example call in progress. Its details, recording and transcript are preserved.')}</p><CallDetail callId={ids.conversation} onClose={noChange}/></>}
             {page === 'voice-mailbox' && <VoiceMailboxPreview/>}
+            {page === 'voice-whatsapp' && <WhatsAppVoicePreview/>}
         </div>}
       </main>
     </div>
