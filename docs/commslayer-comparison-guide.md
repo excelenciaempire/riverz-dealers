@@ -31,6 +31,7 @@ El servidor escucha únicamente en loopback. El navegador de esta tarea permanec
 | Automatizaciones | Historial vigente con filtros nuevos y recorrido por pasos. |
 | Móvil | Instalación y avisos voluntarios del dispositivo. |
 | Lanzamiento | Seis demostraciones ilustrativas, ejemplos por negocio, pricing con fecha, fichas y changelog preparado. |
+| Migraciones | Revisión local de CSV con origen, correspondencia de campos y conflictos de identidad; todavía no importa ni extrae una cuenta externa. |
 
 ## Límites de la comparación
 
@@ -43,6 +44,8 @@ Las capturas y resultados de QA se guardan aparte. No existe ruta pública de co
 ## Evidencia visual
 
 [QA de las 52 revisiones / 104 paneles](commslayer-comparison-qa.json), con datos ficticios y límites anteriores.
+
+La sección añadida de migraciones tiene [cuatro revisiones propias / ocho paneles](migration-contact-preview-qa.json), ES/EN y escritorio/móvil, con archivo ficticio, conteos, ausencia de llamadas, limpieza al cerrar y control oculto en la columna actual. La prueba anterior de trece secciones conserva su fecha y bundle; no se presenta como una nueva ejecución completa sobre esta ampliación.
 
 ![Bandeja: actual y controles nuevos](comparison-preview/inbox-es-desktop.png)
 

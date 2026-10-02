@@ -1,0 +1,131 @@
+{
+  "kind": "incremental_real_component_review_with_synthetic_csv",
+  "checkedAt": "2026-10-02T05:10:33.200Z",
+  "newSection": "migrations",
+  "providerCalls": false,
+  "modelCalls": false,
+  "persistentWrites": false,
+  "counts": {
+    "sourceRows": 4,
+    "reviewable": 1,
+    "excluded": 3
+  },
+  "catalogWording": "Final count wording reviewed in both locales; logical build snapshot preceded this text-only correction.",
+  "reviews": [
+    {
+      "locale": "es",
+      "width": 1280,
+      "height": 800,
+      "alerts": [],
+      "apiCalls": [],
+      "countsCorrect": true,
+      "currentHidden": true,
+      "currentOverflow": false,
+      "fileCleared": true,
+      "fontsReady": true,
+      "localeResolved": true,
+      "newOverflow": false,
+      "parentOverflow": false,
+      "reviewCleared": true,
+      "rowCount": 4,
+      "consoleErrors": []
+    },
+    {
+      "locale": "es",
+      "width": 390,
+      "height": 844,
+      "alerts": [],
+      "apiCalls": [],
+      "countsCorrect": true,
+      "currentHidden": true,
+      "currentOverflow": false,
+      "fileCleared": true,
+      "fontsReady": true,
+      "localeResolved": true,
+      "newOverflow": false,
+      "parentOverflow": false,
+      "reviewCleared": true,
+      "rowCount": 4,
+      "consoleErrors": []
+    },
+    {
+      "locale": "en",
+      "width": 1280,
+      "height": 800,
+      "alerts": [],
+      "apiCalls": [],
+      "countsCorrect": true,
+      "currentHidden": true,
+      "currentOverflow": false,
+      "fileCleared": true,
+      "fontsReady": true,
+      "localeResolved": true,
+      "newOverflow": false,
+      "parentOverflow": false,
+      "reviewCleared": true,
+      "rowCount": 4,
+      "consoleErrors": []
+    },
+    {
+      "locale": "en",
+      "width": 390,
+      "height": 844,
+      "alerts": [],
+      "apiCalls": [],
+      "countsCorrect": true,
+      "currentHidden": true,
+      "currentOverflow": false,
+      "fileCleared": true,
+      "fontsReady": true,
+      "localeResolved": true,
+      "newOverflow": false,
+      "parentOverflow": false,
+      "reviewCleared": true,
+      "rowCount": 4,
+      "consoleErrors": []
+    }
+  ],
+  "isolation": {
+    "localServer": "isolated",
+    "apiAndWriteRoutes": "blocked",
+    "privateFiles": "not_served",
+    "externalConnections": "blocked_by_csp",
+    "hostStatus": 403,
+    "bundleSha256": "117579f82df7dc090fd04885ec0257a1c6f17069b42c3aa00c0b27b56a813fec",
+    "results": [
+      {
+        "method": "GET",
+        "route": "/api/conversations",
+        "status": 403
+      },
+      {
+        "method": "POST",
+        "route": "/api/whatsapp/send",
+        "status": 403
+      },
+      {
+        "method": "GET",
+        "route": "/.env.local",
+        "status": 404
+      },
+      {
+        "method": "GET",
+        "route": "/.claude/secrets.env",
+        "status": 404
+      },
+      {
+        "method": "GET",
+        "route": "/assets/%2e%2e/%2e%2e/.env.local",
+        "status": 404
+      }
+    ]
+  },
+  "sourceHashes": {
+    "src/lib/migrations/contact-preview.ts": "3c3e273fca433ff9aa0fc9ceffc14f1aa6b4ed417c1cd00d023306e49daa5882",
+    "src/lib/migrations/contact-preview.test.ts": "18cb8cf47225e8da44d4abff715c92a0df54369c0cc6a171447deb09da91fb99",
+    "src/components/contacts/migration-preview.tsx": "0718f31908b099d4b497916224e011fd3a25d7a44364b3775b04f31df8b19461",
+    "src/components/contacts/migration-preview.test.tsx": "1899e829b0b6db8da5f1e1771f6bf7bb3b6cf5883c3dd234d8ae343aa2de9e3c",
+    "src/components/contacts/import-modal.tsx": "1c8222d934d7712534978bbf221810093b720bfc095b897bf814ee339e1ac1d7",
+    "src/lib/i18n/messages/contacts.ts": "18aa265e23da425753e6a8949b659d13c174ec913ecebc621c34aaa3a76eff6e"
+  }
+}

@@ -19,6 +19,7 @@ import { ReturnCaseHistory } from '@/components/returns/case-history';
 import { AppInstallation } from '@/components/settings/app-installation';
 import { TemplateAiDraft } from '@/components/templates/template-ai-draft';
 import { CommslayerReleaseReview } from '@/components/landing/v4/commslayer-release-review';
+import { MigrationPreview } from '@/components/contacts/migration-preview';
 import BroadcastBuilder from '@/components/broadcasts/broadcast-builder';
 import AutomationLogsPage from '@/app/(dashboard)/automatizaciones/[id]/registros/page';
 import { MessageEvidence } from '@/components/inbox/message-evidence';
@@ -32,7 +33,7 @@ import { ids, now, selected, improved, locale, copy, report } from './fixtures';
 
 const pages = [['inbox', 'Bandeja', 'Inbox'], ['rules', 'Reglas', 'Rules'], ['documents', 'Documentos', 'Documents'],
   ['reports', 'Reportes', 'Reports'], ['flows', 'Flujos', 'Flows'], ['returns', 'Postventa', 'After-sales'], ['connections', 'Acciones HTTP', 'HTTP actions'],
-  ['orders', 'Acciones de pedidos', 'Order actions'], ['templates', 'Plantillas', 'Templates'], ['campaigns', 'Campañas', 'Campaigns'], ['automations', 'Automatizaciones', 'Automations'], ['mobile', 'Avisos móviles', 'Mobile notifications'], ['release', 'Lanzamiento', 'Launch']];
+  ['orders', 'Acciones de pedidos', 'Order actions'], ['templates', 'Plantillas', 'Templates'], ['campaigns', 'Campañas', 'Campaigns'], ['automations', 'Automatizaciones', 'Automations'], ['mobile', 'Avisos móviles', 'Mobile notifications'], ['release', 'Lanzamiento', 'Launch'], ['migrations','Migraciones','Migrations']];
 const automationParams = Promise.resolve({ id: ids.flow });
 const noChange = () => {};
 const selectedCases = [ids.conversation];
@@ -93,6 +94,7 @@ function App() {
           {page === 'campaigns' && <BroadcastBuilder />}
           {page === 'mobile' && <AppInstallation />}
           {page === 'release' && <CommslayerReleaseReview />}
+          {page === 'migrations' && <MigrationPreview />}
         </div>}
       </main>
     </div>

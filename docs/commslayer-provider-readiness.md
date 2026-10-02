@@ -12,7 +12,7 @@ La salud comprueba conectividad del servicio; no acredita una llamada, importaci
 
 El par estable `BROWSER_PUSH_VAPID_PUBLIC_KEY` / `BROWSER_PUSH_VAPID_PRIVATE_KEY` se guardó en el servicio vigente de Render a las 04:43 UTC. La lectura de configuración de las 04:48 UTC comprobó presencia y correspondencia P-256; no hay grupos de entorno vinculados. Las claves privadas no se incluyen en el repositorio, informes ni salida de diagnóstico. Se usaron actualizaciones individuales, sin reemplazar el conjunto de variables.
 
-Guardar las variables no prueba que un despliegue iniciado anteriormente las haya incorporado. El siguiente despliegue posterior a su guardado permite cargar la configuración; la entrega física sigue necesitando registro voluntario y permiso del dispositivo. No se registró un dispositivo ni se contactó FCM, Mozilla o Apple como QA.
+Guardar las variables no prueba que un despliegue iniciado anteriormente las haya incorporado. El despliegue posterior `c3300ebdf853cec223de182aef4587f3ca8c2f1c` terminó LIVE a las 04:55:28 UTC; salud de revisión exacta HTTP 200 a las 04:56:18 UTC. La configuración conserva el par válido y el flag apagado. GET `/api/pwa/notifications` devolvió 404 a las 04:56:20 UTC, sin registro de dispositivos o entrega de claves. La entrega física sigue necesitando registro voluntario y permiso del dispositivo. No se registró un dispositivo ni se contactó FCM, Mozilla o Apple como QA.
 
 Con el flag apagado, tanto la ruta cron como el despachador devuelven deshabilitado antes de consultar o reclamar avisos. Configurar el par no activa envíos, suscripciones ni decisiones comerciales. [Contrato completo](browser-push-notices.md).
 

@@ -2,6 +2,33 @@ import type { Namespace } from "./types";
 
 /** Contacts area: list, detail, form, tags, segments and CSV import. */
 export const contacts = {
+  migrationTitle: {es:'Revisar migración',en:'Review migration'},
+  migrationScope: {es:'Vista previa local de CSV, hasta 2 MB y 5.000 filas. No importa contactos ni historial.',en:'Local CSV preview, up to 2 MB and 5,000 rows. Does not import contacts or history.'},
+  migrationProvider: {es:'Herramienta de origen',en:'Source tool'},
+  migrationAccount: {es:'Cuenta de origen',en:'Source account'},
+  migrationFile: {es:'Archivo CSV',en:'CSV file'},
+  migrationField_sourceId: {es:'ID de origen',en:'Source ID'},
+  migrationField_phone: {es:'Teléfono internacional (+)',en:'International phone (+)'},
+  migrationField_name: {es:'Nombre',en:'Name'},
+  migrationField_email: {es:'Correo',en:'Email'},
+  migrationField_company: {es:'Empresa',en:'Company'},
+  migrationReview: {es:'Revisar archivo',en:'Review file'},
+  migrationError_size: {es:'El archivo supera 2 MB.',en:'The file exceeds 2 MB.'},
+  migrationError_csv: {es:'Revisa el CSV: UTF-8, comillas y el mismo número de columnas por fila.',en:'Check CSV: UTF-8, quotes and the same column count per row.'},
+  migrationError_limits: {es:'Máximo 5.000 filas, 64 columnas y 4.096 caracteres por celda.',en:'Maximum 5,000 rows, 64 columns and 4,096 characters per cell.'},
+  migrationError_mapping: {es:'Selecciona ID y teléfono. Cada columna corresponde a un solo campo.',en:'Select ID and phone. Each column maps to one field.'},
+  migrationError_source: {es:'Indica la herramienta y cuenta de origen.',en:'Provide the source tool and account.'},
+  migrationCounts: {es:'Para revisar: {ready} · Excluidas: {excluded}',en:'For review: {ready} · Excluded: {excluded}'},
+  migrationIdentityScope: {es:'El ID conserva su origen. No vincula canales, prueba consentimiento ni comprueba contactos existentes.',en:'IDs retain their source. This does not link channels, prove consent or check existing contacts.'},
+  migrationStatus: {es:'Revisión',en:'Review'},
+  migrationReviewable: {es:'Para revisar',en:'For review'},
+  migrationIssue_source_id_missing: {es:'Falta ID de origen',en:'Missing source ID'},
+  migrationIssue_phone_invalid: {es:'Teléfono inválido o sin país',en:'Invalid phone or missing country'},
+  migrationIssue_email_invalid: {es:'Correo inválido',en:'Invalid email'},
+  migrationIssue_source_conflict: {es:'ID con datos distintos',en:'ID with conflicting data'},
+  migrationIssue_phone_conflict: {es:'Teléfono con distintos IDs',en:'Phone with different IDs'},
+  migrationIssue_duplicate: {es:'Fila repetida',en:'Duplicate row'},
+  migrationSample: {es:'Primeras 25 de {count} filas; los conteos incluyen todo el archivo.',en:'First 25 of {count} rows; counts include the entire file.'},
   // Union entre canales: la misma persona escribiendo por WhatsApp y por
   // Instagram es UN cliente. Cuando esta bien es la mitad de lo que hace bueno
   // al agente; cuando esta mal, le muestra a alguien los pedidos de otro.

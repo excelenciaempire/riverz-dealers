@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Upload, FileText, Loader2, CheckCircle, XCircle, Download } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
+import { MigrationPreview } from './migration-preview';
 
 interface ImportModalProps {
   open: boolean;
@@ -291,7 +292,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
       if (failed > 0) {
         toast.error(t('contacts.importFailedToast', { count: failed }));
       }
-    } catch (err: unknown) {
+    } catch {
       const message = t('contacts.importFailed');
       toast.error(message);
     } finally {
@@ -310,6 +311,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
         </DialogHeader>
 
         <div className="space-y-4">
+          <MigrationPreview />
           {/* Template + upload */}
           {!result && (
             <button

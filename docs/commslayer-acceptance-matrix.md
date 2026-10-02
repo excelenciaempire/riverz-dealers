@@ -46,6 +46,8 @@ Esta matriz separa construcción, comprobaciones y condiciones de disponibilidad
 
 M1–M5 tienen un [paquete privado de revisión](commslayer-release-materials.md). Material ilustrativo, pricing con fecha, fichas y changelog preparados no equivalen a publicación externa, testimonial autorizado ni resultados de clientes. Las demos públicas actuales permanecen mientras se compara el conjunto nuevo.
 
-X1–X5 tienen en el plan un presupuesto propio y selección de proveedores/permiso: portal, conectores de migración, voz humana/WhatsApp Calling, canales adicionales y suscripciones. La sección 9 dice expresamente que no condicionan las mejoras centrales y no están comprometidos antes de comprobar las APIs. No se cambian a “completos” por construir el núcleo. La expansión a Estados Unidos mantiene sus decisiones comerciales; configuración local de Shopify no acredita distribución o revisión del Partner Dashboard.
+X1–X5 tienen en el plan un presupuesto propio y selección de proveedores/permiso: portal, conectores de migración, voz humana/WhatsApp Calling, canales adicionales y suscripciones. La instrucción más reciente de terminar todo se aplica incluyendo su construcción, con dependencias reales conservadas. X2 inicia con preparación CSV local; no se declaran los paquetes “completos” por construir el núcleo o una vista previa. La expansión a Estados Unidos mantiene sus decisiones comerciales; configuración local de Shopify no acredita distribución o revisión del Dev Dashboard.
 
 La matriz no declara esos paquetes, pruebas físicas, publicaciones o decisiones ejecutados. Cualquier declaración del 100 % debe identificar cuál alcance terminó y conservar estos límites.
+
+La sección 12 cuenta con [evaluación privada de expansión](commslayer-us-expansion-review.md) y [ficha técnica de seguridad ES/EN](commslayer-security-review-pack.md). Son documentos preparados, sin cambio de oferta, distribución, términos legales o certificación.
