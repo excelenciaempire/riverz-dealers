@@ -1,0 +1,364 @@
+{
+  "scope": "X2 first native contacts connector: Chatwoot read-only extraction and separate reviewed contact import; history/attachments and other providers remain in construction",
+  "verifiedAt": "2026-10-02T06:42:47.933131+00:00",
+  "tests": {
+    "passed": 320,
+    "files": 14
+  },
+  "typecheck": {
+    "passed": true,
+    "heapMegabytes": 4096
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "builds": {
+    "normal": true,
+    "comparison": true
+  },
+  "sourceHashes": {
+    "package.json": "babc7f491dcd9323f09260488c43a1f04779ef8e14d02bb756fdf053fde24687",
+    "scripts/check-native-contact-migration-schema.cjs": "4aedf17660ecdc1fe92b8c153e0e85de4ce66adbf1d0b6a3c02a5d644212dc2e",
+    "scripts/comparison/fixtures.jsx": "c35245db01bc88d3c4468161923dd04aabce0a4a00786444082ef1d206ca91fc",
+    "src/app/api/contacts/migrations/native/route.test.ts": "64332a90b870b9cd9a8420e959bdcfccf6d1ca63a3731e9ccaeb13e85e7cd263",
+    "src/app/api/contacts/migrations/native/route.ts": "b235f165d50b41317ecd9eb276312b8e71621c196fb04ac53d9a01caa04d69ba",
+    "src/app/api/cron/contact-migrations/route.test.ts": "8976867464e0631d258a7f1abedebe1df81a3c9c6aa48c56a175410b9eb9803b",
+    "src/app/api/cron/contact-migrations/route.ts": "8d93b3e7f40f20ff2cfd81097fe9836a596f8e007400db0df8f32b631f34c090",
+    "src/app/api/cron/pii-purge/route.ts": "4d192443583094d767c63ba64ec2d10fce6c294dcfd72e0f373b279412d9d537",
+    "src/components/contacts/migration-import-review.tsx": "856215169d4d510dc207f6d9496e5ae167146d5087409665e8da13e40b26248a",
+    "src/components/contacts/migration-preview.test.tsx": "83bd49508a45e9085ada6ee23dc71653fbc01d25d681a1f35cf43833d1acfeb4",
+    "src/components/contacts/migration-preview.tsx": "7d8007d95910fafb30136bd2222e06e7016de6316bc88876b6cc10c85073b96b",
+    "src/components/contacts/native-migration.tsx": "9b8001e18eda765fcc60bb2ba73128bbfcf3a1dd358d6f9769b075bf2d480300",
+    "src/lib/cron/schedule.ts": "22ca1fe0e40a94093b3b0e52d807855c0c85d0835653c2575b10ed9a2f41655b",
+    "src/lib/i18n/messages/admin.ts": "66b4fa2a407a2ec64c77cdbb73d26b8d6b76086b2d17aad9c9841839e327b885",
+    "src/lib/i18n/messages/contacts.ts": "30d85c4a8edad346d8a65c68a6624d3eed283c939a59ca45121929c97af2eccd",
+    "src/lib/migrations/contact-import.test.ts": "9545612aaf0d4c96edb662638a06420e2e3314f63c1fcb8d0100dc6ef077ac2d",
+    "src/lib/migrations/contact-import.ts": "4ddf6390d4b11eebaacbfd4afcdf0eceb2426baacf0e728e801cfc3446341fe1",
+    "src/lib/migrations/limited-json.ts": "d2c52fd0e91ef488dd2d529675e88484c33062b8451da99d5a8a876dc7c7a75b",
+    "src/lib/migrations/native-contact-schema.test.ts": "8a7b2521b4cbf63de587b81da64505daafe0cabc28527b6af162d9168b8532e3",
+    "src/lib/migrations/native-contact-source.test.ts": "ec75054a7aa2297da081573fcc7473dac7a0ef04f5511527b943ae05607e94fc",
+    "src/lib/migrations/native-contact-source.ts": "51fd2cdfea163a40c9a0bf4e0d83a12570a176afd1871a1d72adc4363d2eb20b",
+    "src/lib/migrations/native-contact-worker.test.ts": "295ad5018923ff6d67b52fa5a01299b9404790106f4825aa70668a16ade8c464",
+    "src/lib/migrations/native-contact-worker.ts": "10a1090a39e2a082624710ca222a5d99f653c3e548720b6c9d60a8671dc7f479",
+    "src/lib/migrations/native-credentials.test.ts": "a52e9fbd57c8b758d900262ca7eb5357bd9339c0f384dbd06d7a553e63fb83eb",
+    "src/lib/migrations/native-credentials.ts": "6da717165b6b3a38c43dea4d59194b28271b178c65a3d648d212056f23edbb0c",
+    "src/lib/migrations/native-source-contract.ts": "0b35f65d41d2dd25cd1e06b91f89ca3ef286951a866cbfddc8f1247a99d0aa7a",
+    "src/lib/migrations/providers/chatwoot-client.test.ts": "221d338baf4087dd11e369d1b96746fca2f5f62a81115dd49295b08ccaac7f90",
+    "src/lib/migrations/providers/chatwoot-client.ts": "25150830eccfa74e3ee31a6d27bf7b678611521e21b1c413eb7f50dfd5ec5cff",
+    "src/lib/migrations/providers/chatwoot.test.ts": "b6a8463f5a22e795f9ad13add3ec47997e3e0091bcae1c080625bd16f6766bed",
+    "src/lib/migrations/providers/chatwoot.ts": "4fe4aaa285fa206c00a5279d96c180c8d24baa634f1416c9aab88f1dcdd13941",
+    "src/lib/security/public-json-request.test.ts": "a414fed4d24f874ef7c37ba09a5eab5e4407c3a6ee508a1c3eec354dac13b2a0",
+    "src/lib/security/public-json-request.ts": "2bbb2ab2dc4988ac5c7fcd86525555c03f71fe068f3a977b84f44f84e14eeb7a",
+    "supabase/migrations/361_native_contact_migration_jobs.sql": "7c1847d17304d6bdc0808231ee8cac84431fbd5892245b969449d9ee6740772c",
+    "supabase/migrations/362_native_contact_review_authority.sql": "2e2562f32a5998f33a8c11edef1f3c31ccdf6bc143a36bddbbc92144d9114615"
+  },
+  "schema": {
+    "migrations": [
+      361,
+      362
+    ],
+    "installedOnceEach": true,
+    "metadataAndNullContextsOnly": true,
+    "privateReady": true,
+    "fixedInvoker": true,
+    "credentialsTableNoDirectServiceRead": true,
+    "realQueueClaims": 0,
+    "realProviderReads": 0,
+    "realContactImports": 0,
+    "realPrivacySweeps": 0
+  },
+  "nativeReview": {
+    "bundleGeneratedAt": "2026-10-02T06:37:11.471594+00:00",
+    "reviews": [
+      {
+        "name": "EsDesktop",
+        "value": {
+          "alerts": [],
+          "approved": true,
+          "blocked": true,
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/native"
+            }
+          ],
+          "cancelled": true,
+          "counts": true,
+          "currentHidden": true,
+          "fontFamily": "\"Inter Tight\", \"Inter Tight Fallback\"",
+          "fonts": "loaded",
+          "locale": "es",
+          "nativeCount": 1,
+          "noUnapprovedWrite": true,
+          "overflow": false,
+          "queued": true,
+          "ready": true,
+          "recovered": true,
+          "resumed": true,
+          "saved": true,
+          "storageLeaks": false,
+          "tokenCleared": true,
+          "tokenRemoved": true
+        },
+        "screenshot": "docs/comparison-preview/migration-native-es-desktop.png"
+      },
+      {
+        "name": "EnDesktop",
+        "value": {
+          "alerts": [],
+          "approved": true,
+          "blocked": true,
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/native"
+            }
+          ],
+          "cancelled": true,
+          "counts": true,
+          "currentHidden": true,
+          "fontFamily": "\"Inter Tight\", \"Inter Tight Fallback\"",
+          "fonts": "loaded",
+          "locale": "en",
+          "nativeCount": 1,
+          "noUnapprovedWrite": true,
+          "overflow": false,
+          "queued": true,
+          "ready": true,
+          "recovered": true,
+          "resumed": true,
+          "saved": true,
+          "storageLeaks": false,
+          "tokenCleared": true,
+          "tokenRemoved": true
+        },
+        "screenshot": "docs/comparison-preview/migration-native-en-desktop.png"
+      },
+      {
+        "name": "EsMobile",
+        "value": {
+          "alerts": [],
+          "approved": true,
+          "blocked": true,
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/native"
+            }
+          ],
+          "cancelled": true,
+          "counts": true,
+          "currentHidden": true,
+          "fontFamily": "\"Inter Tight\", \"Inter Tight Fallback\"",
+          "fonts": "loaded",
+          "locale": "es",
+          "nativeCount": 1,
+          "noUnapprovedWrite": true,
+          "overflow": false,
+          "queued": true,
+          "ready": true,
+          "recovered": true,
+          "resumed": true,
+          "saved": true,
+          "storageLeaks": false,
+          "tokenCleared": true,
+          "tokenRemoved": true
+        },
+        "screenshot": "docs/comparison-preview/migration-native-es-mobile.png"
+      },
+      {
+        "name": "EnMobile",
+        "value": {
+          "alerts": [],
+          "approved": true,
+          "blocked": true,
+          "calls": [
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations"
+            },
+            {
+              "method": "GET",
+              "path": "/api/contacts/migrations/native"
+            },
+            {
+              "method": "POST",
+              "path": "/api/contacts/migrations/native"
+            }
+          ],
+          "cancelled": true,
+          "counts": true,
+          "currentHidden": true,
+          "fontFamily": "\"Inter Tight\", \"Inter Tight Fallback\"",
+          "fonts": "loaded",
+          "locale": "en",
+          "nativeCount": 1,
+          "noUnapprovedWrite": true,
+          "overflow": false,
+          "queued": true,
+          "ready": true,
+          "recovered": true,
+          "resumed": true,
+          "saved": true,
+          "storageLeaks": false,
+          "tokenCleared": true,
+          "tokenRemoved": true
+        },
+        "screenshot": "docs/comparison-preview/migration-native-en-mobile.png"
+      }
+    ],
+    "diagnostics": {
+      "priorIterationConsoleEntries": [
+        {
+          "level": "error",
+          "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted \u2014 the behavior is unsupported and could change in a future version. 0",
+          "timestamp": "2026-10-02T06:25:24.234Z",
+          "source": "console"
+        },
+        {
+          "level": "error",
+          "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted \u2014 the behavior is unsupported and could change in a future version. 1",
+          "timestamp": "2026-10-02T06:27:51.925Z",
+          "source": "console"
+        }
+      ],
+      "entriesAfterCorrectedBundle": [],
+      "recordedNetworkEntries": []
+    }
+  },
+  "isolation": {
+    "localServer": "isolated",
+    "apiAndWriteRoutes": "blocked",
+    "privateFiles": "not_served",
+    "externalConnections": "blocked_by_csp",
+    "hostStatus": 403,
+    "bundleSha256": "91b9992aae25c5dc67391267d38dec3c59e490cd21d7e356391b922a168d26e0",
+    "results": [
+      {
+        "method": "GET",
+        "route": "/api/conversations",
+        "status": 403
+      },
+      {
+        "method": "POST",
+        "route": "/api/whatsapp/send",
+        "status": 403
+      },
+      {
+        "method": "GET",
+        "route": "/.env.local",
+        "status": 404
+      },
+      {
+        "method": "GET",
+        "route": "/.claude/secrets.env",
+        "status": 404
+      },
+      {
+        "method": "GET",
+        "route": "/assets/%2e%2e/%2e%2e/.env.local",
+        "status": 404
+      }
+    ]
+  },
+  "reviewedCssMatchesFinalBuild": true,
+  "limits": [
+    "Only projected Chatwoot contacts fetched by the native connector; six CSV provider labels do not represent six native connectors",
+    "No source snapshot or completeness guarantee during concurrent source changes",
+    "Missing/invalid international phones are excluded; email-only contact import is not implemented",
+    "Native cancellation erases its fetched set, not independently prepared reviews or confirmed contacts",
+    "Two-hour access expiry; physical abandoned data purge follows daily sweep",
+    "Browser calls are answered by fictional fixtures in memory, not real APIs",
+    "Historical console errors from the duplicate-key iteration remain in evidence; no new entries after the corrected bundle",
+    "Message/attachment projection is tested foundation, not a completed history or file importer"
+  ]
+}

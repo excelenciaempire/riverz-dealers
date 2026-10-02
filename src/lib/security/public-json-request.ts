@@ -20,6 +20,30 @@ export interface PublicJsonRequest {
 
 /** A single bounded JSON exchange, with pinned public DNS and verified TLS. */
 export async function requestPublicJson(input: PublicJsonRequest): Promise<{ status: number; data: unknown }> {
+  return exchangePublicJson(input);
+}
+
+/** Dedicated read-only provider exchange. Generic HTTP actions retain their
+ * existing credential/header contract; this cannot issue provider writes. */
+export async function requestChatwootJson(input:{url:string;token:string}):Promise<{status:number;data:unknown}>{
+  if(!input||typeof input!=='object'||Object.keys(input).some(key=>!['url','token'].includes(key))||
+    typeof input.token!=='string'||!input.token.length||input.token.length>4096||!/^[\x21-\x7e]+$/.test(input.token))throw new PublicJsonError('http_input_invalid');
+  const url=typeof input.url==='string'&&input.url.length<=2048?isPublicHttpsUrl(input.url):null;
+  if(!url)throw new PublicJsonError('http_destination_forbidden');
+  const resource=/^\/api\/v1\/accounts\/[1-9][0-9]{0,15}\/(contacts(?:\/[1-9][0-9]{0,15}\/conversations)?|conversations(?:\/[1-9][0-9]{0,15}(?:\/messages)?)?)$/.exec(url.pathname)?.[1];
+  if(!resource)throw new PublicJsonError('http_destination_forbidden');
+  const allowed=resource==='contacts'?['page','sort','include_contact_inboxes']:resource==='conversations'?['page','status','assignee_type']:resource.endsWith('/messages')?['before']:[];
+  const params=url.searchParams;
+  if([...params].some(([key])=>!allowed.includes(key))||allowed.some(key=>params.getAll(key).length>1)||
+    params.has('page')&&(!/^[1-9][0-9]{0,9}$/.test(params.get('page')!)||Number(params.get('page'))>2147483647)||
+    params.has('before')&&(!/^[1-9][0-9]{0,9}$/.test(params.get('before')!)||Number(params.get('before'))>2147483647)||
+    params.has('sort')&&!['name','-name','email','-email','phone_number','-phone_number','last_activity_at','-last_activity_at'].includes(params.get('sort')!)||
+    params.has('include_contact_inboxes')&&params.get('include_contact_inboxes')!=='false'||
+    params.has('status')&&params.get('status')!=='all'||params.has('assignee_type')&&params.get('assignee_type')!=='all')throw new PublicJsonError('http_input_invalid');
+  return exchangePublicJson({url:url.href,method:'GET'},input.token);
+}
+
+async function exchangePublicJson(input:PublicJsonRequest,chatwootToken?:string):Promise<{status:number;data:unknown}>{
   const url = typeof input.url === 'string' && input.url.length <= 2048 ? isPublicHttpsUrl(input.url) : null;
   if (!url || url.href.length > 2048) throw new PublicJsonError('http_destination_forbidden');
   if (!['GET', 'POST'].includes(input.method) || (input.method === 'GET' && input.body !== undefined)
@@ -45,6 +69,7 @@ export async function requestPublicJson(input: PublicJsonRequest): Promise<{ sta
   }
   if (credential) headers[credential.kind === 'bearer' ? 'authorization' : (credential.header ?? 'x-api-key')] =
     credential.kind === 'bearer' ? `Bearer ${credential.value}` : credential.value;
+  if(chatwootToken)headers.api_access_token=chatwootToken;
   if (input.idempotencyKey) headers['idempotency-key'] = input.idempotencyKey;
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 8_000);
   let onAbort: (() => void) | undefined, dispatched = false;

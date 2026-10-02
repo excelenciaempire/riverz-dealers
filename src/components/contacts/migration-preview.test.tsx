@@ -16,6 +16,6 @@ describe('Migration review remains private and does not import on file selection
     state.locale=locale;const html=renderToStaticMarkup(<MigrationPreview />);
     expect(html).toContain(contacts.migrationTitle[locale]);expect(html).toContain(contacts.migrationScope[locale]);
     expect(html).toContain('type="file"');expect(html).not.toContain('contacts.migration');expect(html).not.toContain('type="submit"');
-    expect(html).not.toContain('https://');expect(html).not.toContain('source_id');
+    expect(html).toContain(contacts.nativeTitle[locale]);expect(html).toContain('type="password"');expect(html).not.toContain('source_id');
   });
 });

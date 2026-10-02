@@ -96,11 +96,13 @@ async function cronHandler(request: Request) {
     failed++
     log.error('contact migration retention failed')
   }
+  const nativeMigrationRetention = await admin.rpc('purge_native_contact_migrations')
+  if (nativeMigrationRetention.error) { failed++; log.error('native contact migration retention failed') }
 
   // 207 si algún workspace falló, para que el monitor de Render lo marque.
   const status = failed > 0 ? 207 : 200
   return NextResponse.json(
-    { candidates: targets.length, purged, failed, graceDays, retencion, migrationPreviewsCleared: migrationRetention.error ? null : migrationRetention.data, results },
+    { candidates: targets.length, purged, failed, graceDays, retencion, migrationPreviewsCleared: migrationRetention.error ? null : migrationRetention.data, nativeMigrationStagingCleared: nativeMigrationRetention.error ? null : nativeMigrationRetention.data, results },
     { status },
   )
 }

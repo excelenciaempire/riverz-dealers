@@ -7,10 +7,10 @@ import {useFetchWithCsrf} from '@/lib/api/fetch-with-csrf';
 import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
 import {contactMigrationSnapshot,contactMigrationResults,type ContactMigrationPreparation,type ContactMigrationSnapshot,type ContactMigrationResults} from '@/lib/migrations/contact-import-contract';
 
-type Props={input:Omit<ContactMigrationPreparation,'id'>|null;onImported?:()=>void};
+type Props={input:Omit<ContactMigrationPreparation,'id'>|null;initialReview?:ContactMigrationSnapshot|null;onImported?:()=>void};
 const codes=['invalid','notFound','changed','expired','readOnly','limit','unavailable'] as const;
 /** Confirmation is a separate, reversible review step. No implicit import on upload. */
-export function MigrationImportReview({input,onImported}:Props){
+export function MigrationImportReview({input,initialReview,onImported}:Props){
   const t=useT(),fmt=useFormat(),fetch=useFetchWithCsrf(),{workspace}=useWorkspace();
   const [snapshot,setSnapshot]=useState<ContactMigrationSnapshot|null>(null),[report,setReport]=useState<ContactMigrationResults|null>(null);
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[approved,setApproved]=useState(false),[recovery,setRecovery]=useState('');
@@ -21,9 +21,10 @@ export function MigrationImportReview({input,onImported}:Props){
     requestVersion.current++;requestController.current?.abort();attempt.current='';
     setSnapshot(null);setReport(null);setApproved(false);setBusy(false);setError('');setRecovery('');
     if(!workspaceId)return;
+    if(initialReview?.workspace_id===workspaceId){const parsed=contactMigrationSnapshot.safeParse(initialReview);if(parsed.success){setSnapshot(parsed.data);setRecovery(parsed.data.id);}}
     try{const id=localStorage.getItem(`riverz:migration:${workspaceId}`);if(id&&/^[0-9a-f-]{36}$/i.test(id))setRecovery(id);}catch{/* Receipt recovery remains available by its visible ID. */}
     return()=>{requestVersion.current++;requestController.current?.abort();};
-  },[workspaceId]);
+  },[workspaceId,initialReview]);
   if(!SHOW_RIVERZ_IMPROVEMENTS)return null;
   function remember(id:string){setRecovery(id);try{localStorage.setItem(`riverz:migration:${workspaceId}`,id);}catch{/* No contact fields are stored in the browser. */}}
   async function run(operation:'prepare'|'confirm'|'page'|'report'|'recover',after=0){

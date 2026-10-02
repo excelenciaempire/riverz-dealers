@@ -5,6 +5,7 @@ import {useFormat} from '@/hooks/use-format';
 import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
 import {MIGRATION_FIELDS,MIGRATION_PROVIDERS,MIGRATION_MAX_BYTES,MigrationPreviewError,readMigrationCsv,previewContactMigration,type MigrationProvider,type MigrationMapping} from '@/lib/migrations/contact-preview';
 import {MigrationImportReview} from './migration-import-review';
+import {NativeMigration} from './native-migration';
 
 const emptyMapping=():MigrationMapping=>({sourceId:-1,phone:-1,name:-1,email:-1,company:-1});
 export function MigrationPreview({onImported}:{onImported?:()=>void}={}) {
@@ -13,6 +14,7 @@ export function MigrationPreview({onImported}:{onImported?:()=>void}={}) {
   const [data,setData]=useState<ReturnType<typeof readMigrationCsv>|null>(null),[mapping,setMapping]=useState<MigrationMapping>(emptyMapping);
   const [csv,setCsv]=useState('');
   const [generation,setGeneration]=useState(0);
+  const [nativeGeneration,setNativeGeneration]=useState(0);
   const [preview,setPreview]=useState<ReturnType<typeof previewContactMigration>|null>(null),[error,setError]=useState(''),[reading,setReading]=useState(false);
   useEffect(()=>()=>{version.current++;},[]);
   if(!SHOW_RIVERZ_IMPROVEMENTS)return null;
@@ -34,9 +36,10 @@ export function MigrationPreview({onImported}:{onImported?:()=>void}={}) {
     catch(cause){setError(cause instanceof MigrationPreviewError?cause.code:'csv');}
   }
   const inputClass='min-w-0 w-full rounded border border-border bg-card p-2 text-sm';
-  return <details className="rounded-lg border border-border p-3" onToggle={event=>{if(event.target!==event.currentTarget)return;if(!event.currentTarget.open){invalidate();setData(null);setCsv('');setMapping(emptyMapping());if(fileInput.current)fileInput.current.value='';}}}>
+  return <details className="rounded-lg border border-border p-3" onToggle={event=>{if(event.target!==event.currentTarget)return;if(!event.currentTarget.open){invalidate();setNativeGeneration(value=>value+1);setData(null);setCsv('');setMapping(emptyMapping());if(fileInput.current)fileInput.current.value='';}}}>
     <summary className="cursor-pointer text-sm font-medium">{t('contacts.migrationTitle')}</summary>
     <div className="mt-3 space-y-3">
+      <NativeMigration key={`native:${nativeGeneration}`} onImported={onImported}/>
       <p className="text-xs text-muted-foreground">{t('contacts.migrationScope')}</p>
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="space-y-1 text-xs">{t('contacts.migrationProvider')}<select className={inputClass} value={provider} onChange={event=>{invalidate();setProvider(event.target.value as MigrationProvider);}}>{MIGRATION_PROVIDERS.map(value=><option key={value} value={value}>{value==='kommo'?'Kommo':value==='leadsales'?'Leadsales':value==='manychat'?'ManyChat':value==='chatwoot'?'Chatwoot':value==='gorgias'?'Gorgias':'Zendesk'}</option>)}</select></label>
@@ -52,7 +55,7 @@ export function MigrationPreview({onImported}:{onImported?:()=>void}={}) {
         <div className="max-h-64 overflow-auto rounded border border-border"><table className="w-full text-left text-xs"><thead><tr><th className="p-2">{t('contacts.migrationField_sourceId')}</th><th className="p-2">{t('contacts.colPhone')}</th><th className="p-2">{t('contacts.migrationStatus')}</th></tr></thead><tbody>{preview.rows.slice(0,25).map(row=><tr key={row.row} className="border-t border-border"><td className="max-w-28 break-all p-2">{row.sourceId||'—'}</td><td className="whitespace-nowrap p-2">{row.phone||'—'}</td><td className="p-2">{row.issues.length?row.issues.map(issue=>t(`contacts.migrationIssue_${issue}`)).join(' · '):t('contacts.migrationReviewable')}</td></tr>)}</tbody></table></div>
         {preview.rows.length>25&&<p className="text-xs text-muted-foreground">{t('contacts.migrationSample',{count:fmt.number(preview.rows.length)})}</p>}
       </div>}
-      <MigrationImportReview key={generation} input={preview?{provider,account,csv,mapping}:null} onImported={onImported}/>
+      <MigrationImportReview key={`csv:${generation}`} input={preview?{provider,account,csv,mapping}:null} onImported={onImported}/>
     </div>
   </details>;
 }

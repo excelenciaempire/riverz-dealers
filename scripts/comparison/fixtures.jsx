@@ -35,7 +35,19 @@ const caseAnswer = { gap_id: ids.flow, question: copy('¿Podemos reservar la tal
 let policySnapshot = { product_id: ids.product, revision: 1, changed_at: now, policy: { mode: 'allow', window_days: 15, starts_at: 'delivery',
   remedies: ['exchange', 'replacement'], conditions: copy('Revisar que el producto no tenga uso.', 'Check that the product is unused.') } };
 const migrationJobs=new Map();
+const nativeMigrationJobs=new Map();
 function reply(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
+function prepareSyntheticMigration(input){
+  const previous=migrationJobs.get(input.id);
+  if(previous){if(previous.input!==JSON.stringify(input))return reply({code:'changed'},409);return reply(previous.snapshot);}
+  try{
+    const preview=previewContactMigration({...input,...readMigrationCsv(input.csv)});
+    const rows=preview.rows.map(row=>({...row,state:row.issues.length?'excluded':'new',contact_id:null}));
+    const snapshot={id:input.id,workspace_id:ids.workspace,actor_id:ids.user,provider:input.provider,account:input.account,revision:'a'.repeat(64),state:'prepared',
+      prepared_at:now,expires_at:'2026-10-01T14:30:00Z',completed_at:null,counts:{total:rows.length,new:preview.reviewable,existing:0,excluded:preview.excluded,created:0},rows:rows.slice(0,25),next:rows.length>25?26:null};
+    migrationJobs.set(input.id,{input:JSON.stringify(input),snapshot,rows,results:null});return reply(snapshot);
+  }catch{return reply({code:'invalid'},400);}
+}
 /** The browser fetch is replaced before any product component mounts. No credentials or server calls. */
 export async function fixtureFetch(input, init = {}) {
   const url = new URL(typeof input === 'string' ? input : input.url, location.origin);
@@ -44,20 +56,31 @@ export async function fixtureFetch(input, init = {}) {
   window.__comparisonCalls ??= []; window.__comparisonCalls.push({ path, method: init.method ?? 'GET' });
   const body = typeof init.body === 'string' ? JSON.parse(init.body) : {};
   const method = init.method ?? 'GET';
-  const editable = path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || path==='/api/contacts/migrations'&&method==='POST';
+  const editable = path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || ['/api/contacts/migrations','/api/contacts/migrations/native'].includes(path)&&method==='POST';
   if (method !== 'GET' && !editable) return reply({ error: copy('Operación bloqueada en la comparación local.', 'Operation blocked in the local comparison.') }, 503);
   // Synthetic in-memory receipts only. These are not database/import evidence.
+  if(path==='/api/contacts/migrations/native'){
+    if(method==='POST'&&body.action==='start'){
+      const {id,provider,origin,accountId}=body.input;
+      const snapshot={id,workspace_id:ids.workspace,actor_id:ids.user,source:{provider,origin:new URL(origin).origin,accountId},state:'queued',total:null,collected:0,
+        created_at:now,expires_at:'2026-10-01T16:00:00Z',updated_at:now,error:null,rows:[],next:null};
+      nativeMigrationJobs.set(id,snapshot);return reply(snapshot);
+    }
+    const job=nativeMigrationJobs.get(method==='POST'?body.input?.id:url.searchParams.get('id'));if(!job)return reply({code:'notFound'},404);
+    if(method==='POST'&&body.action==='cancel'){Object.assign(job,{state:'cancelled',rows:[],next:null});return reply(job);}
+    if(method==='POST'&&body.action==='review'){
+      if(job.state!=='ready')return reply({code:'changed'},409);
+      const csv='sourceId,phone,name,email,company\n1,+573001112233,Fixture A,,\n2,+573001112244,Fixture B,,\n3,,Fixture C,person@example.test,';
+      return prepareSyntheticMigration({id:body.input.reviewId,provider:'chatwoot',account:`${job.source.origin}#${job.source.accountId}`,csv,mapping:{sourceId:0,phone:1,name:2,email:3,company:4}});
+    }
+    if(method==='GET'&&['queued','fetching'].includes(job.state))Object.assign(job,{state:'ready',total:3,collected:3,rows:[
+      {sourceId:'1',phone:'+573001112233',name:'Fixture A',email:'',company:''},{sourceId:'2',phone:'+573001112244',name:'Fixture B',email:'',company:''},
+      {sourceId:'3',phone:'',name:'Fixture C',email:'person@example.test',company:''}]});
+    return reply(job);
+  }
   if(path==='/api/contacts/migrations'){
     if(method==='POST'&&body.action==='prepare'){
-      const input=body.input,previous=migrationJobs.get(input.id);
-      if(previous){if(previous.input!==JSON.stringify(input))return reply({code:'changed'},409);return reply(previous.snapshot);}
-      try{
-        const preview=previewContactMigration({...input,...readMigrationCsv(input.csv)});
-        const rows=preview.rows.map(row=>({...row,state:row.issues.length?'excluded':'new',contact_id:null}));
-        const snapshot={id:input.id,workspace_id:ids.workspace,actor_id:ids.user,provider:input.provider,account:input.account,revision:'a'.repeat(64),state:'prepared',
-          prepared_at:now,expires_at:'2026-10-01T14:30:00Z',completed_at:null,counts:{total:rows.length,new:preview.reviewable,existing:0,excluded:preview.excluded,created:0},rows:rows.slice(0,25),next:rows.length>25?26:null};
-        migrationJobs.set(input.id,{input:JSON.stringify(input),snapshot,rows,results:null});return reply(snapshot);
-      }catch{return reply({code:'invalid'},400);}
+      return prepareSyntheticMigration(body.input);
     }
     const job=migrationJobs.get(method==='POST'?body.input?.id:url.searchParams.get('id'));
     if(!job)return reply({code:'notFound'},404);

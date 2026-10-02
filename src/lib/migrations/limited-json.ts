@@ -1,7 +1,7 @@
 import {ContactMigrationError} from './contact-import';
 /** Actual streamed bytes, not a trusted Content-Length. No unbounded request.json(). */
-export async function readMigrationJson(request:Request):Promise<unknown>{
-  const max=13*1024*1024;
+export async function readMigrationJson(request:Request,max=13*1024*1024):Promise<unknown>{
+  if(!Number.isInteger(max)||max<1||max>13*1024*1024)throw new ContactMigrationError('invalid');
   if(!/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type')??''))throw new ContactMigrationError('invalid');
   const length=request.headers.get('content-length');
   if(length!==null&&(!/^\d+$/.test(length)||Number(length)>max)){await request.body?.cancel().catch(()=>undefined);throw new ContactMigrationError('invalid');}

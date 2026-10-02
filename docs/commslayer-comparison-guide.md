@@ -49,6 +49,8 @@ La sección añadida de migraciones tiene [cuatro revisiones propias / ocho pane
 
 La ampliación persistente tiene [cuatro revisiones adicionales / ocho paneles](migration-contact-import-qa.json) sobre su bundle final: preparación, casilla obligatoria, confirmación y recuperación. Sus dos POST y dos GET por revisión pertenecen al adaptador ficticio en memoria; no fueron solicitudes de importación a un comercio. Los resultados de base de datos se validan aparte con PGlite y el esquema real se comprueba solo mediante metadatos e identidades nulas.
 
+La misma sección incluye ahora [extracción de contactos de Chatwoot](migration-native-chatwoot.md), con formulario privado y revisión independiente. La comparación responde la extracción con tres contactos ficticios, dos importables y uno excluido por teléfono; no consulta Chatwoot ni acredita una migración real. El recorrido conserva casilla, comprobante y recuperación; cerrar limpia el token. Su QA final se registra aparte del de CSV y las trece secciones anteriores.
+
 ![Bandeja: actual y controles nuevos](comparison-preview/inbox-es-desktop.png)
 
 ![Reglas y sus versiones](comparison-preview/rules-es-desktop.png)
@@ -56,3 +58,5 @@ La ampliación persistente tiene [cuatro revisiones adicionales / ocho paneles](
 ![Campañas conservadas en ambas variantes](comparison-preview/campaigns-es-desktop.png)
 
 ![Automatizaciones y filtros nuevos](comparison-preview/automations-es-desktop.png)
+
+La [QA nativa final de Chatwoot](migration-native-chatwoot-qa.json) registra cuatro revisiones propias, ocho paneles ES/EN/escritorio/móvil. Los cuatro POST y tres GET por revisión se responden con fixtures; no consultan la fuente ni importan clientes reales. Los errores de claves duplicadas de la iteración inicial permanecen en la evidencia histórica; no hay entradas nuevas después del bundle corregido.

@@ -28,7 +28,7 @@ vi.mock('node:https', () => ({ request: (url: URL, options: RequestOptions, call
   options.signal?.addEventListener('abort', () => { if (!closed) { closed = true; outgoing.emit('error', new Error('SECRET_ABORT')); h.response?.emit('aborted'); } }, { once: true });
   return outgoing;
 } }));
-import { requestPublicJson, type PublicJsonRequest } from './public-json-request';
+import { requestPublicJson, requestChatwootJson, type PublicJsonRequest } from './public-json-request';
 beforeEach(() => {
   h.calls = []; h.response = null; h.mode = 'ok'; h.status = 200; h.content = '{}'; h.headers = {}; h.destroyed.mockReset();
   h.dns.mockReset().mockResolvedValue([{ address: '8.8.8.8', family: 4 }]);
@@ -37,6 +37,26 @@ afterEach(() => vi.useRealTimers());
 const input = (patch: Partial<PublicJsonRequest> = {}): PublicJsonRequest => ({ url: 'https://integration.test/query', method: 'GET', ...patch });
 const unsafeHeaders: Record<string, string>[] = [{ 'content-type': 'text/html' }, { 'content-encoding': 'gzip' }, { 'content-length': '131073' }];
 describe('bounded public JSON transport', () => {
+  it('supports a dedicated Chatwoot read with its fixed token header, public DNS and verified TLS',async()=>{
+    await requestChatwootJson({url:'https://source.example.test/api/v1/accounts/7/contacts?page=1&include_contact_inboxes=false',token:'FIXTURE_TOKEN'});
+    expect(h.calls).toHaveLength(1);expect(h.calls[0].options).toMatchObject({method:'GET',rejectUnauthorized:true,headers:{api_access_token:'FIXTURE_TOKEN'}});
+    expect(h.calls[0].options.headers).not.toHaveProperty('authorization');expect(h.calls[0].body).toBeUndefined();expect(h.dns).toHaveBeenCalledOnce();
+  });
+  it.each(['/api/v1/accounts/7/conversations?status=all&page=1&assignee_type=all','/api/v1/accounts/7/conversations/11','/api/v1/accounts/7/conversations/11/messages?before=42','/api/v1/accounts/7/contacts/8/conversations'])('allows only the documented read resource %s',async path=>{
+    await requestChatwootJson({url:'https://source.example.test'+path,token:'FIXTURE_TOKEN'});expect(h.calls[0].options.method).toBe('GET');
+  });
+  it.each(['/api/v1/profile','/api/v1/accounts/7/campaigns','/api/v1/accounts/7/conversations/11/messages?after=0','/api/v1/accounts/7/contacts?page=1&page=2',
+    '/api/v1/accounts/7/contacts?sort=bogus','/api/v1/accounts/7/conversations?status=open','/api/v1/accounts/7/contacts?include_contact_inboxes=true','/api/v1/accounts/7/contacts?page=2147483648'])('rejects unscoped or malformed provider reads %s before DNS',async path=>{
+    await expect(requestChatwootJson({url:'https://source.example.test'+path,token:'FIXTURE_TOKEN'})).rejects.toBeInstanceOf(Error);expect(h.dns).not.toHaveBeenCalled();expect(h.calls).toHaveLength(0);
+  });
+  it.each([{method:'POST'},{headers:{cookie:'PRIVATE'}},{token:'x\r\nHost: private'},{token:'x'.repeat(4097)}])('refuses injected writes, headers or invalid provider credentials',async extra=>{
+    await expect(requestChatwootJson({url:'https://source.example.test/api/v1/accounts/7/contacts',token:'FIXTURE_TOKEN',...extra} as {url:string;token:string})).rejects.toMatchObject({code:'http_input_invalid'});expect(h.calls).toHaveLength(0);
+  });
+  it('never follows a provider redirect or exposes its error body and token',async()=>{
+    h.status=302;h.headers.location='https://foreign.example.test';h.content='PRIVATE_TOKEN_IN_ERROR';
+    const error=await requestChatwootJson({url:'https://source.example.test/api/v1/accounts/7/contacts',token:'FIXTURE_TOKEN'}).catch(error=>error);
+    expect(error).toMatchObject({code:'http_status_failed',status:302});expect(error.message).not.toMatch(/PRIVATE|FIXTURE|foreign/);expect(h.calls).toHaveLength(1);
+  });
   it('pins DNS, preserves hostname/TLS checks and sends exact UTF-8 JSON once', async () => {
     h.dns.mockResolvedValue([{ address: '2606:4700::1111', family: 6 }, { address: '8.8.8.8', family: 4 }]);
     h.content = '{"result":"Atención"}'; const body = '{"question":"Atención"}';
