@@ -1,0 +1,1376 @@
+{
+  "checkedAt": "2026-10-02T04:37:55.171Z",
+  "kind": "fictional_fixture_ui_check_not_provider_acceptance",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844
+    }
+  },
+  "results": [
+    {
+      "locale": "es",
+      "viewport": "desktop",
+      "checks": [
+        {
+          "page": "inbox",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "rules",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "documents",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "reports",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "flows",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "returns",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "orders",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "connections",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "templates",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "campaigns",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": "es",
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": "es",
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "automations",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "mobile",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "release",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        }
+      ]
+    },
+    {
+      "locale": "es",
+      "viewport": "mobile",
+      "checks": [
+        {
+          "page": "inbox",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "rules",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "documents",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "reports",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "flows",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "returns",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "orders",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "connections",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "templates",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "campaigns",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": "es",
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": "es",
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "automations",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "mobile",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "release",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        }
+      ]
+    },
+    {
+      "locale": "en",
+      "viewport": "desktop",
+      "checks": [
+        {
+          "page": "inbox",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "rules",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "documents",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "reports",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "flows",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "returns",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "orders",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "connections",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "templates",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "campaigns",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": "en",
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": "en",
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "automations",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "mobile",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "release",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        }
+      ]
+    },
+    {
+      "locale": "en",
+      "viewport": "mobile",
+      "checks": [
+        {
+          "page": "inbox",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "rules",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "documents",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "reports",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "flows",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "returns",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "orders",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "connections",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "templates",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "campaigns",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": "en",
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": "en",
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "automations",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "mobile",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        },
+        {
+          "page": "release",
+          "frames": [
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "current",
+              "untranslated": []
+            },
+            {
+              "alerts": [],
+              "currency": null,
+              "font": "\"Inter Tight\", \"Inter Tight Fallback\"",
+              "loaded": true,
+              "overflow": false,
+              "stage": "comparison",
+              "untranslated": []
+            }
+          ],
+          "outerOverflow": false,
+          "consoleErrors": []
+        }
+      ]
+    }
+  ],
+  "isolation": {
+    "localServer": "isolated",
+    "apiAndWriteRoutes": "blocked",
+    "privateFiles": "not_served",
+    "externalConnections": "blocked_by_csp",
+    "hostStatus": 403,
+    "bundleSha256": "334341004a96ec1f80919ae40306164281f7ac2db7f4e835148ff273e755be6a",
+    "results": [
+      {
+        "method": "GET",
+        "route": "/api/conversations",
+        "status": 403
+      },
+      {
+        "method": "POST",
+        "route": "/api/whatsapp/send",
+        "status": 403
+      },
+      {
+        "method": "GET",
+        "route": "/.env.local",
+        "status": 404
+      },
+      {
+        "method": "GET",
+        "route": "/.claude/secrets.env",
+        "status": 404
+      },
+      {
+        "method": "GET",
+        "route": "/assets/%2e%2e/%2e%2e/.env.local",
+        "status": 404
+      }
+    ]
+  },
+  "sourceBase": "5a068332c2aeafb96b06473550006221052dee41 plus the owned private comparison/release files"
+}
