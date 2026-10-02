@@ -22,6 +22,11 @@ describe('dealer automation integration', () => {
       template_name: '',
     });
     expect(en.suggested_template_body).toContain('look forward');
+    for (const recipe of listTemplates('en')) {
+      expect(recipe.steps[0].step_config).toMatchObject({
+        variables: { '1': '{{vars.customer_name}}' },
+      });
+    }
     expect(
       validateStepsForActivation(
         en.steps.map((s) => ({

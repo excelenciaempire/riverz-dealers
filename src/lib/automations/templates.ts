@@ -111,7 +111,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     category: 'ventas', icon: 'repeat-2', tags: [],
     trigger_type: 'dealer_follow_up_due', trigger_config: { stop_on_inbound: true },
     suggested_template_body: 'Hola {{customer_name}}, ¿sigues buscando carro? Estoy disponible para ayudarte a revisar opciones y coordinar una visita.',
-    steps: [{step_type: 'send_template', step_config: {template_name: '', language: 'es', variables: {}}}],
+    steps: [{step_type: 'send_template', step_config: {template_name: '', language: 'es', variables: {'1':'{{vars.customer_name}}'}}}],
   },
   'dealer-recordatorio-cita': {
     slug: 'dealer-recordatorio-cita', name: 'Recordatorio de cita',
