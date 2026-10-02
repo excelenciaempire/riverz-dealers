@@ -19,6 +19,7 @@ import { INBOX_CAPABILITIES } from './inbox'
 import { INTEGRATION_CAPABILITIES } from './integrations'
 import { HTTP_ACTION_CAPABILITIES } from './http-actions'
 import { RETURN_LOGISTICS_CAPABILITIES } from './return-logistics'
+import { PRODUCT_RETURN_POLICY_CAPABILITIES } from './product-return-policy'
 import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview'
 import { MESSAGING_CAPABILITIES } from './messaging'
 import { METRICS_CAPABILITIES } from './metrics'
@@ -56,6 +57,7 @@ export const ALL_CAPABILITIES: Capability[] = [
   ...WEBCHAT_CAPABILITIES,
   ...(SHOW_RIVERZ_IMPROVEMENTS ? HTTP_ACTION_CAPABILITIES : []),
   ...(SHOW_RIVERZ_IMPROVEMENTS ? RETURN_LOGISTICS_CAPABILITIES : []),
+  ...(SHOW_RIVERZ_IMPROVEMENTS ? PRODUCT_RETURN_POLICY_CAPABILITIES : []),
 ]
 
 export function findCapability(key: string): AnyCapability | undefined {

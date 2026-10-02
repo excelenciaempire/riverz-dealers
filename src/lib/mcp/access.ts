@@ -20,7 +20,7 @@ export async function userAccess(db: SupabaseClient, userId: string, workspaceId
 const SECTIONS: Record<string, string> = {
   conversaciones: '/bandeja', conversacion: '/bandeja', mensajes: '/bandeja',
   contactos: '/contactos', contacto: '/contactos', etiquetas: '/contactos', segmentos: '/contactos',
-  metricas: '/panel', plantillas: '/plantillas', campanas: '/campanas', pedidos: '/pedidos',
+  metricas: '/panel', plantillas: '/plantillas', campanas: '/campanas', pedidos: '/pedidos', productos: '/productos',
   automatizaciones: '/automatizaciones', aprobaciones: '/aprobaciones',
 };
 

@@ -35,6 +35,8 @@ import { CURRENCY_OPTIONS } from '@/lib/products/currency';
 import { useT, useLocale } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { localizePath, canonicalizePath } from '@/lib/i18n/routes';
+import { ProductReturnPolicyEditor } from '@/components/returns/product-policy-editor';
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 
 interface Product {
   id: string;
@@ -538,6 +540,7 @@ export default function ProductDetailPage() {
         </p>
       </div>
 
+      {SHOW_RIVERZ_IMPROVEMENTS&&<ProductReturnPolicyEditor key={product.id} productId={product.id}/>}
       {/* Media gallery */}
       <section className="mb-7">
         {sincronizado && (
