@@ -87,8 +87,20 @@ propia en las variables de entorno; nunca apuntar este fork a la DB de ecommerce
 `render.yaml` define `riverz-dealers` y un worker de voz independiente. Las URLs,
 claves de Supabase, proyecto de telemetría y secretos no se heredan del despliegue
 de Riverz. El chequeo `check-dealers-schema.cjs` bloquea el build en Render si no
-están las tablas y la función de control de automatizaciones. No se aprovisionó un servicio de Render ni una DB de producción
-en esta tarea.
+están las tablas y la función de control de automatizaciones.
+
+La configuración de producción usa `https://riverz-dealers.onrender.com` y el
+proyecto Supabase independiente `evsgprtgbmmtqfaamtze` (`riverz-dealers`, Frankfurt).
+Las 399 migraciones están registradas en su historial. La reconstrucción desde
+cero conserva el seed de Pilar sólo cuando ese workspace existe (077) y crea
+`voice_system_prompt` antes de otorgarle permisos (129).
+Los secretos de cifrado y cron son propios de Dealers. Las claves de proveedores
+de IA, scraping, correo y la aplicación Meta existente se configuran en Render;
+no se copian contactos, canales conectados ni credenciales de la DB ecommerce.
+La aplicación Meta conserva sus callbacks actuales: no se cambian los webhooks
+de Riverz ecommerce al publicar Dealers. La conexión de canales requiere su
+configuración correspondiente. La telemetría Latitude está desactivada hasta
+configurar un proyecto propio.
 
 La app conserva otras superficies del proyecto base (operador de cuenta, voz,
 integraciones, landing antiguas y documentación legal). La adaptación del

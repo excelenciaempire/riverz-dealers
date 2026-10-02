@@ -94,8 +94,8 @@ INSERT INTO workspace_checkout_config (
   transfer_discount_label,
   payment_methods,
   offers
-) VALUES (
-  '522a68ae-568d-4dd9-92e5-2c8f633f1761',
+) SELECT
+  '522a68ae-568d-4dd9-92e5-2c8f633f1761'::uuid,
   true,
   'ARS',
   '48310065791076',
@@ -107,5 +107,7 @@ INSERT INTO workspace_checkout_config (
     {"key":"2u_1_gratis","label":"2 unidades + 1 gratis","qty":3,"total":69900,"compare_at":210000},
     {"key":"3u_1_gratis","label":"3 unidades + 1 gratis","qty":4,"total":99900,"compare_at":280000}
   ]'::jsonb
+WHERE EXISTS (
+  SELECT 1 FROM workspaces WHERE id = '522a68ae-568d-4dd9-92e5-2c8f633f1761'::uuid
 )
 ON CONFLICT (workspace_id) DO NOTHING;

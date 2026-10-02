@@ -38,6 +38,9 @@ GRANT SELECT (
 
 -- ai_agents — modo de envío proactivo + configuración de voz
 -- (migraciones 113/114/115/116). Ninguna es secreta.
+-- Production originally created this column manually. Ensure it exists before
+-- granting it when replaying migrations into an independent empty database.
+ALTER TABLE public.ai_agents ADD COLUMN IF NOT EXISTS voice_system_prompt text;
 GRANT SELECT (
   proactive_send_mode,
   voice_enabled, voice_provider, voice_id, voice_greeting, voice_objectives,

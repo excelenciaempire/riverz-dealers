@@ -18,7 +18,9 @@ La demo usa datos de ejemplo en memoria. Permite crear y editar vehículos, opor
 2. Copia `.env.local.example` a `.env.local` y configura las claves de ese proyecto, la URL de Dealers y las integraciones que usarás.
 3. Ejecuta `npm run dev` y abre `/panel` después de iniciar sesión.
 
-El despliegue está preparado para Render en `render.yaml`. [Arquitectura, reglas y límites del MVP](docs/dealers.md).
+Producción: [Riverz Dealers](https://riverz-dealers.onrender.com), con una base
+Supabase independiente. La configuración de Render está en `render.yaml`.
+[Arquitectura, reglas y límites del MVP](docs/dealers.md).
 
 La agenda permite reprogramar citas. En Automatizaciones están las recetas de
 seguimiento y recordatorio de citas confirmadas; selecciona una plantilla
@@ -34,6 +36,8 @@ aprobada antes de activarlas. Respetan pausas, opt-out, cierre y reprogramación
 ## English
 
 Riverz Dealers is an independent vehicle-sales version of Riverz CRM: vehicle inventory, buyer opportunities, appointments and daily follow-up, with English and Spanish UI.
+
+Production: [Riverz Dealers](https://riverz-dealers.onrender.com), backed by its own Supabase project.
 
 Run `npm ci`, then `npm run demo`, and open `http://localhost:3000/demo-dealers`. Sample data stays in memory and resets on reload. For real accounts, configure a separate Supabase project and the environment variables before deploying to Render.
 

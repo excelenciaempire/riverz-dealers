@@ -37,7 +37,7 @@ services:
       - key: LATITUDE_PROJECT_SLUG
         sync: false
       - key: LATITUDE_TRACING_ENABLED
-        value: 'true'
+        value: 'false'
       # Supabase + OAuth secrets se gestionan en el dashboard Render
       # como "Environment Variables" para no exponer en el repo.
       - key: NEXT_PUBLIC_SUPABASE_URL
