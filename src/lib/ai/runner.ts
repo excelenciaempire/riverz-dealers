@@ -1,5 +1,6 @@
 import { isDealerDeployment } from '@/lib/dealers/config';
 import { verifiedDealerPrices, type DealerQuoteEvidence } from '@/lib/dealers/quote-evidence';
+import { dealerQuoteText } from '@/lib/dealers/quote-text';
 import { withLatitudeTrace } from '@/lib/observability/latitude';
 import { loadHttpAssistantTools } from './http-actions';
 import { CASE_REASON_TOOL } from './case-reason-tool';
@@ -3255,7 +3256,7 @@ export async function guardasDeSalida(
   // complemento, el total por transferencia. Sin esto, "a domicilio suma
   // $1.990" no salía y la conversación quedaba esperando a una persona.
   if (!dealer) trustedPrices.push(...montosDeReglas(g.reglasCrudas));
-  const invalidPrices = unauthorizedQuotedPrices(limpio, trustedPrices, {
+  const invalidPrices = unauthorizedQuotedPrices(dealer ? dealerQuoteText(limpio,g.inboundText,g.dealerQuotes??[]) : limpio, trustedPrices, {
     priceQuestion: g.priceIntegrity.priceQuestion,
   });
   if (invalidPrices.length > 0) {
@@ -3329,7 +3330,7 @@ export async function guardasDeSalida(
     if (!reescrita) throw new Error(`respuesta_prohibida: ${primero.motivos.join(' | ')}`);
     // La reescritura pasa por la misma guarda de precios que la original: se
     // le pidió no agregar ninguno, y si igual lo hizo, no sale.
-    if (unauthorizedQuotedPrices(reescrita, trustedPrices, { priceQuestion: g.priceIntegrity.priceQuestion }).length > 0) {
+    if (unauthorizedQuotedPrices(dealer ? dealerQuoteText(reescrita,g.inboundText,g.dealerQuotes??[]) : reescrita, trustedPrices, { priceQuestion: g.priceIntegrity.priceQuestion }).length > 0) {
       throw new Error(`respuesta_prohibida: ${primero.motivos.join(' | ')} (la reescritura trajo un precio no autorizado)`);
     }
     const segundo = await verificar(reescrita);

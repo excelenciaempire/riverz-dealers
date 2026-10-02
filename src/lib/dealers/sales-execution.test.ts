@@ -3,6 +3,18 @@ import { demoData } from './demo';
 import { salesActions, salesMetrics } from './sales-execution';
 import { activityInput, appointmentUpdate } from './validation';
 describe('dealer daily execution', () => {
+  it('asks the seller to record an elapsed appointment without inventing a no-show', () => {
+    const d = demoData(),
+      a = d.appointments[0];
+    a.starts_at = new Date(Date.now() - 7200000).toISOString();
+    a.ends_at = new Date(Date.now() - 3600000).toISOString();
+    const o = d.opportunities.find((o) => o.id === a.opportunity_id)!;
+    o.follow_up_paused = false;
+    expect(salesActions(d).find((x) => x.opportunity.id === o.id)?.reason).toBe(
+      'record_outcome'
+    );
+    expect(a.status).toBe('confirmed');
+  });
   it('prioritizes fresh buyers and excludes closed, paused and opted-out buyers', () => {
     const d = demoData();
     d.appointments = [];

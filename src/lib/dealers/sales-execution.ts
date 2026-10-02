@@ -8,7 +8,8 @@ export interface SalesAction {
     | 'recover_no_show'
     | 'visit_recap'
     | 'follow_up'
-    | 'next_step';
+    | 'next_step'
+    | 'record_outcome';
   priority: number;
   at: string;
 }
@@ -41,6 +42,13 @@ export function salesActions(
         return action('new_lead', 0);
       if (latest?.status === 'requested' && Date.parse(latest.ends_at) > now)
         return action('confirm_visit', 1, latest.starts_at);
+      // Only the seller can classify attendance; an elapsed slot is not a no-show.
+      if (
+        latest &&
+        ['requested', 'confirmed'].includes(latest.status) &&
+        Date.parse(latest.ends_at) <= now
+      )
+        return action('record_outcome', 3, latest.ends_at);
       if (
         latest?.status === 'confirmed' &&
         Date.parse(latest.starts_at) > now &&

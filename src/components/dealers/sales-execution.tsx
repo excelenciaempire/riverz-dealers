@@ -37,6 +37,19 @@ export function SalesExecution({
     [buyer, setBuyer] = useState<Opportunity | null>(null);
   const actions = salesActions(data),
     metrics = salesMetrics(data);
+  const [limit, setLimit] = useState(50);
+  const [activityAt, setActivityAt] = useState(0);
+  function openActivity(o: Opportunity | null) {
+    setActivityAt(Date.now());
+    setBuyer(o);
+  }
+  const scheduled =
+    buyer?.next_follow_up_at && Date.parse(buyer.next_follow_up_at) > activityAt
+      ? new Date(buyer.next_follow_up_at)
+      : null;
+  const localScheduled = scheduled
+    ? `${scheduled.getFullYear()}-${String(scheduled.getMonth() + 1).padStart(2, '0')}-${String(scheduled.getDate()).padStart(2, '0')}T${String(scheduled.getHours()).padStart(2, '0')}:${String(scheduled.getMinutes()).padStart(2, '0')}`
+    : '';
   const name = (id: string) =>
     data.contacts.find((c) => c.id === id)?.name || t('dealers.anonymous');
   async function submit(e: FormEvent<HTMLFormElement>) {
@@ -66,40 +79,53 @@ export function SalesExecution({
         </span>
       </div>
       <div className="space-y-3">
-        {actions.slice(0, full ? 50 : 6).map(({ opportunity: o, reason }) => (
-          <article key={o.id} className="bg-card rounded-xl border p-4">
-            <div className="flex flex-wrap justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-medium">{name(o.contact_id)}</h3>
-                <p className="text-muted-foreground mt-1 text-xs">
-                  {t(`dealers.action_${reason}`)}
-                </p>
+        {actions
+          .slice(0, full ? limit : 6)
+          .map(({ opportunity: o, reason }) => (
+            <article key={o.id} className="bg-card rounded-xl border p-4">
+              <div className="flex flex-wrap justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-medium">{name(o.contact_id)}</h3>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    {t(`dealers.action_${reason}`)}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      reason.includes('visit') ||
+                      reason === 'confirm_visit' ||
+                      reason === 'record_outcome'
+                        ? onAppointments()
+                        : onOpportunity(o)
+                    }
+                  >
+                    {t('dealers.review')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => openActivity(o)}
+                  >
+                    {t('dealers.logActivity')}
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    reason.includes('visit') || reason === 'confirm_visit'
-                      ? onAppointments()
-                      : onOpportunity(o)
-                  }
-                >
-                  {t('dealers.review')}
-                </Button>
-                <Button size="sm" disabled={busy} onClick={() => setBuyer(o)}>
-                  {t('dealers.logActivity')}
-                </Button>
-              </div>
-            </div>
-          </article>
-        ))}
+            </article>
+          ))}
         {!actions.length && (
           <p className="text-muted-foreground rounded-xl border border-dashed p-6 text-sm">
             {t('dealers.emptyActions')}
           </p>
         )}
       </div>
+      {full && actions.length > limit && (
+        <Button variant="outline" onClick={() => setLimit((n) => n + 50)}>
+          {t('dealers.moreActions')}
+        </Button>
+      )}
       {full && (
         <>
           <label className="grid max-w-md gap-2 text-xs">
@@ -108,7 +134,7 @@ export function SalesExecution({
               className={input}
               value=""
               onChange={(e) =>
-                setBuyer(
+                openActivity(
                   data.opportunities.find((o) => o.id === e.target.value) ??
                     null
                 )
@@ -256,6 +282,7 @@ export function SalesExecution({
                 <input
                   name="next_follow_up_at"
                   type="datetime-local"
+                  defaultValue={localScheduled}
                   className={input}
                 />
               </label>
@@ -263,6 +290,7 @@ export function SalesExecution({
                 {t('dealers.follow_up_note')}
                 <input
                   name="follow_up_note"
+                  defaultValue={buyer.follow_up_note}
                   maxLength={1000}
                   className={input}
                 />

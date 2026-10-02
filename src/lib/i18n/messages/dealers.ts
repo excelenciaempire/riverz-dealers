@@ -1,6 +1,11 @@
 import type { Namespace } from './types';
 export const dealers = {
   bdc: { es: 'BDC · Seguimiento', en: 'BDC · Follow-up' },
+  action_record_outcome: {
+    es: 'La cita terminó: registra si hubo visita, ausencia o cancelación.',
+    en: 'The appointment ended: record a visit, no show or cancellation.',
+  },
+  moreActions: { es: 'Ver más prioridades', en: 'Show more priorities' },
   actionQueue: { es: 'Prioridades de hoy', en: 'Today’s priorities' },
   fiveMinuteGoal: {
     es: 'Objetivo: primer contacto en 5 min',

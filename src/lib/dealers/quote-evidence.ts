@@ -3,6 +3,7 @@ export interface DealerQuoteEvidence {
   id: string;
   price: number;
   currency: string;
+  year?: number;
 }
 /** Evidence comes from server tool results, never from model-supplied prices. */
 export function dealerQuoteEvidence(
@@ -29,6 +30,9 @@ export function dealerQuoteEvidence(
         id: v.id,
         price: v.price,
         currency: v.currency,
+        ...(typeof (v as DealerQuoteEvidence).year === 'number'
+          ? { year: v.year }
+          : {}),
       }));
   } catch {
     return [];
