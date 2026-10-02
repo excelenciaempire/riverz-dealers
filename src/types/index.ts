@@ -799,6 +799,8 @@ export interface BroadcastRecipient {
 export type AutomationTriggerType =
   | 'dealer_follow_up_due'
   | 'dealer_appointment_reminder'
+  | 'dealer_no_show'
+  | 'dealer_post_visit'
   | 'new_message_received'
   | 'first_inbound_message'
   | 'keyword_match'

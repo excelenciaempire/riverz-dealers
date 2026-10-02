@@ -1,3 +1,4 @@
+import { dealerQuoteEvidence, type DealerQuoteEvidence } from '@/lib/dealers/quote-evidence';
 import { traceTool } from '@/lib/observability/latitude';
 import { DEALER_SYSTEM, dealerToolset, isDealerTool, runDealerTool } from '@/lib/dealers/agent-tools';
 import { isDealerDeployment } from '@/lib/dealers/config';
@@ -2566,6 +2567,7 @@ export async function runWithTools(
    * un pedido, o en que no consultó nada.
    */
   herramientas: string[]
+  dealerQuotes?: DealerQuoteEvidence[]
   /** True if we exhausted AGENTIC_LOOP_MAX_ITERS still asking for tools
    *  and had to force a final no-tools call. The caller may want to
    *  swap in a fallback message if the model returned empty text. */
@@ -2586,6 +2588,7 @@ export async function runWithTools(
   let cacheWrite1hTokens = 0
   let completionTokens = 0
   const herramientas: string[] = []
+  const dealerQuotes: DealerQuoteEvidence[] = []
   let iter = 0
 
   // El system prompt se manda cacheable.
@@ -2701,6 +2704,7 @@ export async function runWithTools(
         cacheWrite1hTokens,
         iterations: iter,
         herramientas,
+        ...(isDealerDeployment() ? { dealerQuotes } : {}),
         truncated: false,
       }
     }
@@ -2736,6 +2740,7 @@ export async function runWithTools(
           args.otherStore ?? null
         )
         if (observation) observation.status=publicToolStatus(result)
+        dealerQuotes.push(...dealerQuoteEvidence(block.name, result))
       } catch(error) { if (observation) observation.status='threw';throw error }
       toolResults.push({
         type: 'tool_result',
@@ -2769,6 +2774,7 @@ export async function runWithTools(
       cacheWrite1hTokens,
       iterations: iter + 1,
       herramientas,
+      ...(isDealerDeployment() ? { dealerQuotes } : {}),
       truncated: true,
     }
   }
@@ -2791,6 +2797,7 @@ export async function runWithTools(
     cacheWrite1hTokens,
     iterations: iter + 1,
     herramientas,
+    ...(isDealerDeployment() ? { dealerQuotes } : {}),
     truncated: true,
   }
 }

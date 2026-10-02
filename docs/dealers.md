@@ -8,12 +8,12 @@ campañas y automatizaciones. El proceso del vendedor de carros añade:
 1. Un inventario de **unidades concretas**: inventario/VIN, marca, modelo, año,
    kilometraje o millaje, precio y moneda, fotos y disponibilidad.
 2. Una oportunidad abierta por comprador, con varios vehículos de interés,
-   presupuesto, preferencias, plazo, financiamiento y vehículo a cambio.
+   presupuesto, preferencias, motivo, objeción, tipo de comprador, plazo, financiamiento y vehículo a cambio.
 3. Visitas y pruebas de manejo que relacionan comprador, vehículo y vendedor.
 4. Seguimiento con fecha, contexto y pausa explícita, visible en el panel diario.
 
 `/panel` muestra el día de ventas. `/concesionario` (inglés: `/dealer`) incluye
-las vistas de vehículos, oportunidades y citas. Desde una conversación se puede
+las vistas de vehículos, oportunidades, citas y BDC. La guía de fuentes y decisiones está en [dealer-sales-playbook.md](dealer-sales-playbook.md). Desde una conversación se puede
 consultar la oportunidad y abrir su ficha; desde una oportunidad se abre la
 conversación más reciente del comprador.
 
@@ -66,6 +66,12 @@ El panel mantiene una **lista de tareas para el vendedor**. La migración
 `dealer_appointment_reminder`, durante las 24 horas anteriores a una cita
 confirmada. La galería de Dealers ofrece ambas recetas en español e inglés.
 Nacen pausadas; el vendedor elige una plantilla aprobada antes de activarlas.
+La migración `377_dealer_sales_execution.sql` agrega actividad del vendedor,
+captura automática de oportunidades para nuevos contactos, contexto BDC y
+preparación de citas. Añade `dealer_no_show` y `dealer_post_visit`: una acción
+acotada tras un resultado registrado, invalidada por contacto posterior,
+respuesta del comprador o nueva cita. Registrar actividad no envía mensajes
+ni realiza llamadas. Las métricas distinguen llamadas conectadas de intentos.
 
 El cron existente revisa los eventos cada minuto. Una clave única por
 automatización, comprador y fecha impide duplicar los eventos. Antes de enviar,
@@ -81,7 +87,7 @@ automáticamente un envío cuyo resultado quedó incierto.
 
 Usar un proyecto Supabase independiente de Riverz ecommerce. Aplicar las
 migraciones de la base siguiendo la configuración de Supabase del proyecto y
-después `375_dealers.sql` y `376_dealer_automations.sql`. Configurar las credenciales de ese proyecto y una URL
+después las migraciones `375`–`377`. Configurar las credenciales de ese proyecto y una URL
 propia en las variables de entorno; nunca apuntar este fork a la DB de ecommerce.
 
 `render.yaml` define `riverz-dealers` y un worker de voz independiente. Las URLs,
@@ -91,7 +97,7 @@ están las tablas y la función de control de automatizaciones.
 
 La configuración de producción usa `https://riverz-dealers.onrender.com` y el
 proyecto Supabase independiente `evsgprtgbmmtqfaamtze` (`riverz-dealers`, Frankfurt).
-Las 399 migraciones están registradas en su historial. La reconstrucción desde
+La base inicial contiene 399 migraciones; la ejecución comercial añade la 377. La reconstrucción desde
 cero conserva el seed de Pilar sólo cuando ese workspace existe (077) y crea
 `voice_system_prompt` antes de otorgarle permisos (129).
 Los secretos de cifrado y cron son propios de Dealers. Las claves de proveedores

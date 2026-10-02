@@ -69,6 +69,36 @@ function database({
   return { db: { from, rpc } as unknown as SupabaseClient, from, rpc, ops, d };
 }
 describe('dealer conversation tools', () => {
+  it('lets the simulator search real inventory without a stored buyer and never write', async () => {
+    const f = database({ missingContact: true });
+    const ctx = {
+      db: f.db,
+      workspaceId: 'fixed-workspace',
+      contactId: '',
+      simulacion: true,
+    };
+    const result = JSON.parse(
+      await runDealerTool('dealer_search_vehicles', {}, ctx)
+    );
+    expect(result.ok).toBe(true);
+    expect(f.from).not.toHaveBeenCalledWith('contacts');
+    expect(
+      JSON.parse(
+        await runDealerTool('dealer_save_buyer', { preferences: 'SUV' }, ctx)
+      ).simulated
+    ).toBe(true);
+    expect(
+      JSON.parse(
+        await runDealerTool(
+          'dealer_request_appointment',
+          { customer_agreed: false },
+          ctx
+        )
+      ).ok
+    ).toBe(false);
+    expect(f.rpc).not.toHaveBeenCalled();
+    expect(f.ops.some((o) => o.method === 'insert')).toBe(false);
+  });
   it('defaults this fork to dealers and allows explicit legacy regression mode', () => {
     vi.stubEnv('NEXT_PUBLIC_RIVERZ_VERTICAL', 'dealers');
     expect(isDealerDeployment()).toBe(true);

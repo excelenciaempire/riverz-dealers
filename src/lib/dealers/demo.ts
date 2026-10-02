@@ -5,6 +5,7 @@ import {
   opportunityInput,
   appointmentInput,
   appointmentUpdate,
+  activityInput,
   uuid,
 } from './validation';
 export function demoData(): DealerData {
@@ -238,6 +239,19 @@ export function mutateDemo(
           created_at,
           seller_id: d.seller_id,
         };
+    if (
+      ['completed', 'no_show'].includes(input.status) &&
+      Date.parse(input.starts_at) > Date.now()
+    )
+      throw new DealerError('past');
+    if (
+      old &&
+      (old.starts_at !== input.starts_at || old.location !== input.location)
+    ) {
+      input.customer_confirmed = false;
+      input.vehicle_prepared = false;
+      input.directions_sent = false;
+    }
     if (['requested', 'confirmed'].includes(input.status)) {
       if (
         d.vehicles.find((v) => v.id === input.vehicle_id)?.status !==
@@ -267,6 +281,38 @@ export function mutateDemo(
         throw new DealerError('conflict');
     }
     d.appointments = [...d.appointments.filter((a) => a.id !== id), input];
+  } else if (entity === 'activity') {
+    const input = activityInput(raw),
+      o = d.opportunities.find((o) => o.id === input.opportunity_id);
+    if (
+      !o ||
+      ['won', 'lost'].includes(o.stage) ||
+      d.contacts.find((c) => c.id === o.contact_id)?.opted_out
+    )
+      throw new DealerError('closed');
+    d.activities = [
+      ...(d.activities ?? []),
+      {
+        id,
+        workspace_id,
+        opportunity_id: o.id,
+        actor_id: d.seller_id,
+        kind: input.kind,
+        note: input.note,
+        created_at,
+      },
+    ];
+    if (input.kind === 'call_connected')
+      o.first_contact_at = o.first_contact_at ?? created_at;
+    if (
+      ['call_connected', 'message_sent', 'video_sent', 'visit_recap'].includes(
+        input.kind
+      )
+    )
+      o.last_contact_at = created_at;
+    o.next_follow_up_at = input.next_follow_up_at;
+    o.follow_up_note = input.follow_up_note;
+    o.follow_up_paused = !input.next_follow_up_at;
   } else throw new DealerError('invalid');
   return d;
 }

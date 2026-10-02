@@ -12,6 +12,8 @@ import { isDealerDeployment } from '@/lib/dealers/config'
 export type TemplateSlug =
   | 'dealer-seguimiento'
   | 'dealer-recordatorio-cita'
+  | 'dealer-recuperar-ausencia'
+  | 'dealer-despues-visita'
   | 'carrito-abandonado'
   | 'pago-rechazado'
   | 'pago-pendiente'
@@ -107,7 +109,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     slug: 'dealer-seguimiento', name: 'Seguimiento de comprador',
     description: 'Contacta al comprador al vencer la fecha de seguimiento. Se detiene si se pausa o cierra la oportunidad.',
     category: 'ventas', icon: 'repeat-2', tags: [],
-    trigger_type: 'dealer_follow_up_due', trigger_config: {},
+    trigger_type: 'dealer_follow_up_due', trigger_config: { stop_on_inbound: true },
     suggested_template_body: 'Hola {{customer_name}}, ¿sigues buscando carro? Estoy disponible para ayudarte a revisar opciones y coordinar una visita.',
     steps: [{step_type: 'send_template', step_config: {template_name: '', language: 'es', variables: {}}}],
   },
@@ -115,9 +117,21 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     slug: 'dealer-recordatorio-cita', name: 'Recordatorio de cita',
     description: 'Recuerda una cita confirmada dentro de las próximas 24 horas. Se detiene al cancelar o reprogramar.',
     category: 'recordatorios', icon: 'package-check', tags: [],
-    trigger_type: 'dealer_appointment_reminder', trigger_config: {},
+    trigger_type: 'dealer_appointment_reminder', trigger_config: { stop_on_inbound: true },
     suggested_template_body: 'Hola {{customer_name}}, te esperamos para ver el {{vehicle}} el {{appointment_at}} en {{appointment_location}}. ¿Necesitas reprogramar?',
-    steps: [{step_type: 'send_template', step_config: {template_name: '', language: 'es', variables: {}}}],
+    steps: [{step_type: 'send_template', step_config: {template_name: '', language: 'es', variables: {'1':'{{vars.customer_name}}','2':'{{vars.vehicle}}','3':'{{vars.appointment_at}}','4':'{{vars.appointment_location}}'}}}],
+  },
+  'dealer-recuperar-ausencia': {
+    slug:'dealer-recuperar-ausencia',name:'Recuperar cita perdida',description:'Un mensaje tras una ausencia registrada, durante 24 horas. Se detiene al contactar al comprador o agendar otra cita.',
+    category:'ventas',icon:'repeat-2',tags:[],trigger_type:'dealer_no_show',trigger_config:{stop_on_inbound:true},
+    suggested_template_body:'Hola {{customer_name}}, no pudimos vernos para revisar el {{vehicle}}. ¿Necesitas otro horario o tienes alguna duda que podamos resolver primero?',
+    steps:[{step_type:'send_template',step_config:{template_name:'',language:'es',variables:{'1':'{{vars.customer_name}}','2':'{{vars.vehicle}}'}}}],
+  },
+  'dealer-despues-visita': {
+    slug:'dealer-despues-visita',name:'Después de la visita',description:'Un mensaje tras una visita completada, durante 24 horas. Invita a resolver dudas; se detiene al registrar contacto o cerrar la oportunidad.',
+    category:'ventas',icon:'package-check',tags:[],trigger_type:'dealer_post_visit',trigger_config:{stop_on_inbound:true},
+    suggested_template_body:'Hola {{customer_name}}, gracias por venir a conocer el {{vehicle}}. ¿Qué duda necesitas resolver para decidir tu siguiente paso?',
+    steps:[{step_type:'send_template',step_config:{template_name:'',language:'es',variables:{'1':'{{vars.customer_name}}','2':'{{vars.vehicle}}'}}}],
   },
   'novedad-entrega': {
     slug: 'novedad-entrega', name: 'Novedad de entrega',
@@ -586,6 +600,8 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
 export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
   'dealer-seguimiento',
   'dealer-recordatorio-cita',
+  'dealer-recuperar-ausencia',
+  'dealer-despues-visita',
   'carrito-abandonado',
   'pago-rechazado',
   'pago-pendiente',
@@ -607,6 +623,8 @@ export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
 const SUGGESTED_BODIES_EN: Partial<Record<TemplateSlug, string>> = {
   'dealer-seguimiento': 'Hi {{customer_name}}, are you still looking for a car? I can help you explore options and arrange a visit.',
   'dealer-recordatorio-cita': 'Hi {{customer_name}}, we look forward to showing you the {{vehicle}} at {{appointment_at}} in {{appointment_location}}. Do you need to reschedule?',
+  'dealer-recuperar-ausencia':'Hi {{customer_name}}, we missed you for the {{vehicle}} visit. Would another time help, or is there a question we can answer first?',
+  'dealer-despues-visita':'Hi {{customer_name}}, thanks for coming to see the {{vehicle}}. What would you like clarified before your next step?',
   'novedad-entrega': 'Hi {{recipient_name}}, your order has a recorded delivery issue.\n\n{{order_items}}\nReason: {{incident_reason}}\nTracking number: {{tracking_number}}\nTrack it here: {{tracking_url}}\n\nAre the delivery details correct, or do you need to change anything?',
   'pago-pendiente-mercadopago': 'Hi {{customer_name}}, your {{total_price}} {{currency}} payment is still pending. View your voucher and payment instructions here: {{payment_url}}. If you have already paid, send us your receipt here.',
   'carrito-abandonado':

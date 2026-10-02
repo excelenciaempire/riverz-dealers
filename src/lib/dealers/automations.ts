@@ -4,6 +4,8 @@ import { isDealerDeployment } from './config';
 export const DEALER_EVENTS = [
   'dealer_follow_up_due',
   'dealer_appointment_reminder',
+  'dealer_no_show',
+  'dealer_post_visit',
 ] as const;
 export class DealerAutomationStopped extends Error {
   constructor() {

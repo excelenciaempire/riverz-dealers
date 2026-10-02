@@ -31,9 +31,12 @@ import { RASMIAW_CAPABILITIES } from './rasmiaw'
 import { VOICE_CAPABILITIES } from './voice'
 import { WORKSPACE_CAPABILITIES } from './workspace'
 import { WEBCHAT_CAPABILITIES } from './webchat'
+import { DEALER_CAPABILITIES } from './dealers'
+import { isDealerDeployment } from '@/lib/dealers/config'
 import type { AnyCapability, Capability, CapabilitySchema } from './types'
 
 export const ALL_CAPABILITIES: Capability[] = [
+  ...(isDealerDeployment() ? DEALER_CAPABILITIES : []),
   ...HEALTH_CAPABILITIES,
   ...METRICS_CAPABILITIES,
   ...MESSAGING_CAPABILITIES,

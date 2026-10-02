@@ -75,7 +75,7 @@ const FULFILLED: AutomationTriggerType[] = [
 export const DATA_POINTS: DataPoint[] = [
   ...['vehicle','appointment_at','appointment_location'].map((key):DataPoint => ({
     id:`dealer_${key}`, labelKey:`dealers.${key}`, group:'contact', valueKind:'text',
-    triggers:['dealer_appointment_reminder'], usableInConditions:true,
+    triggers:['dealer_appointment_reminder','dealer_no_show','dealer_post_visit'], usableInConditions:true,
     templateVarKey:key, condition:{kind:'var',varKey:key},
   })),
   ...[

@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
 import { REGLAS_POR_DEFECTO, sembrarReglasPorDefecto } from './reglas-por-defecto'
 
+it('seeds vehicle, appointment and financing rules on an independent dealer deployment',async()=>{
+  vi.stubEnv('NEXT_PUBLIC_RIVERZ_VERTICAL','dealers');
+  try {
+    const f=db([]);await sembrarReglasPorDefecto(f.cliente,'dealer');
+    expect(f.escrituras[0]).toHaveLength(4);
+    expect(f.escrituras[0].map(r=>(r as {clave:string}).clave)).toEqual(['dealer_inventario','dealer_descubrimiento','dealer_cita','dealer_finanzas']);
+  } finally {vi.unstubAllEnvs();}
+});
+
 /**
  * Un asistente nacia con CERO reglas.
  *

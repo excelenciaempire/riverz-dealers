@@ -16,6 +16,7 @@ import { ESTILO_HUMANO_PANEL } from '@/lib/ai/estilo-humano'
 import { preguntasDe } from './preguntas'
 import { specDe } from './roster'
 import type { Encargo, SubagentId } from './types'
+import { dealerOperatorContext } from '@/lib/dealers/operator-context'
 
 /**
  * Cómo se escribe en Riverz.
@@ -83,6 +84,7 @@ export function promptSubagente(id: SubagentId): string {
   const spec = specDe(id)
   return [
     BASE_SUBAGENTE,
+    dealerOperatorContext(),
     '',
     `TU DOMINIO: ${spec.id}`,
     spec.alcance,

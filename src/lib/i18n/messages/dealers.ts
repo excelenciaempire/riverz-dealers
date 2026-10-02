@@ -1,10 +1,133 @@
 import type { Namespace } from './types';
 export const dealers = {
+  bdc: { es: 'BDC · Seguimiento', en: 'BDC · Follow-up' },
+  actionQueue: { es: 'Prioridades de hoy', en: 'Today’s priorities' },
+  fiveMinuteGoal: {
+    es: 'Objetivo: primer contacto en 5 min',
+    en: 'Goal: first contact within 5 min',
+  },
+  action_new_lead: {
+    es: 'Comprador nuevo: responde y conoce qué busca.',
+    en: 'New buyer: respond and understand their needs.',
+  },
+  action_confirm_visit: {
+    es: 'Revisa disponibilidad y confirma el horario solicitado.',
+    en: 'Check availability and confirm the requested time.',
+  },
+  action_prepare_visit: {
+    es: 'Confirma asistencia, envía indicaciones y prepara el vehículo.',
+    en: 'Confirm attendance, send directions and prepare the vehicle.',
+  },
+  action_recover_no_show: {
+    es: 'No asistió: pregunta si necesita otro horario.',
+    en: 'Missed visit: ask whether another time would help.',
+  },
+  action_visit_recap: {
+    es: 'Después de la visita: resuelve la duda pendiente y acuerda el siguiente paso.',
+    en: 'After the visit: resolve the remaining concern and agree on the next step.',
+  },
+  action_follow_up: {
+    es: 'El seguimiento acordado ya está pendiente.',
+    en: 'The agreed follow-up is now due.',
+  },
+  action_next_step: {
+    es: 'Acuerda y registra el siguiente paso.',
+    en: 'Agree on and record the next step.',
+  },
+  review: { es: 'Revisar', en: 'Review' },
+  logActivity: { es: 'Registrar actividad', en: 'Log activity' },
+  emptyActions: { es: 'No hay acciones pendientes.', en: 'No actions due.' },
+  funnel30: {
+    es: 'Compradores de los últimos 30 días',
+    en: 'Buyers from the last 30 days',
+  },
+  metric_leads: { es: 'Compradores', en: 'Buyers' },
+  metric_connected: { es: 'Llamadas conectadas', en: 'Connected calls' },
+  metric_booked: { es: 'Con cita', en: 'With appointment' },
+  metric_attended: { es: 'Con visita completada', en: 'With completed visit' },
+  metric_won: { es: 'Ventas registradas', en: 'Recorded sales' },
+  slaEvidence: {
+    es: 'Primeras llamadas en 5 min: {onTime}/{total} conectadas',
+    en: 'First calls within 5 min: {onTime}/{total} connected',
+  },
+  showEvidence: {
+    es: 'Asistencia: {shows}/{total} citas con resultado',
+    en: 'Attendance: {shows}/{total} appointments with outcomes',
+  },
+  coach_discovery: { es: 'Descubrimiento', en: 'Discovery' },
+  coach_discovery_body: {
+    es: 'Contesta su pregunta primero. Averigua por qué quiere cambiar de carro, sus tres prioridades y cuándo quiere comprar. Aprovecha lo que ya dijo y consulta vehículos disponibles en su moneda.',
+    en: 'Answer their question first. Learn why they want a different car, their three priorities and purchase timing. Use what they already shared and check available vehicles in their currency.',
+  },
+  coach_objections: { es: 'Objeciones', en: 'Objections' },
+  coach_objections_body: {
+    es: 'Reconoce la preocupación. «¿Qué necesitarías aclarar para decidir?» Relaciona la respuesta con un beneficio comprobable. Practica una objeción al día; no inventes descuentos ni urgencia.',
+    en: 'Acknowledge the concern. “What would you need clarified to decide?” Connect your answer to a verified benefit. Practice one objection daily; avoid invented discounts or urgency.',
+  },
+  coach_visit: { es: 'Cita y financiamiento', en: 'Visit and financing' },
+  coach_visit_body: {
+    es: 'Acuerda vehículo, lugar, horario y zona horaria. Confirma el calendario antes de prometer una cita. Revisa asistencia, indicaciones y preparación. El vendedor o responsable financiero decide sobre crédito y trade-in.',
+    en: 'Agree on vehicle, location, time and timezone. Check the calendar before promising an appointment. Review attendance, directions and preparation. The seller or finance manager decides on credit and trade-in.',
+  },
+  activityHistory: { es: 'Actividad reciente', en: 'Recent activity' },
+  activityKind: { es: 'Resultado de la actividad', en: 'Activity outcome' },
+  call_connected: { es: 'Llamada conectada', en: 'Connected call' },
+  call_no_answer: { es: 'Llamada sin respuesta', en: 'Unanswered call' },
+  message_sent: { es: 'Mensaje enviado', en: 'Message sent' },
+  video_sent: {
+    es: 'Video personalizado enviado',
+    en: 'Personalized video sent',
+  },
+  finance_handoff: { es: 'Derivación a financiamiento', en: 'Finance handoff' },
+  visit_recap: {
+    es: 'Seguimiento después de visita',
+    en: 'Post-visit follow-up',
+  },
+  activityEvidence: {
+    es: 'Registra una acción realizada. Sin próxima fecha, el seguimiento automático queda pausado.',
+    en: 'Record an action you completed. Without a next date, automated follow-up is paused.',
+  },
+  unknownPreferences: {
+    es: 'Preferencias por conocer',
+    en: 'Preferences to discover',
+  },
+  buying_reason: { es: 'Motivo de compra', en: 'Buying motivation' },
+  objection: {
+    es: 'Duda u objeción pendiente',
+    en: 'Pending concern or objection',
+  },
+  buyer_type: { es: 'Tipo de comprador', en: 'Buyer type' },
+  lead_source: { es: 'Origen del interesado', en: 'Lead source' },
+  unknown: { es: 'Por conocer', en: 'Unknown' },
+  first_time: { es: 'Primer carro', en: 'First car' },
+  replacement: { es: 'Cambio de carro', en: 'Replacement' },
+  additional: { es: 'Carro adicional', en: 'Additional car' },
+  preparation: { es: 'Preparación', en: 'Preparation' },
+  customer_confirmed: {
+    es: 'Comprador confirmó asistencia',
+    en: 'Buyer confirmed attendance',
+  },
+  vehicle_prepared: { es: 'Vehículo preparado', en: 'Vehicle prepared' },
+  directions_sent: { es: 'Indicaciones enviadas', en: 'Directions sent' },
+  triggerNoShow: {
+    es: 'Cita marcada como no asistió',
+    en: 'Appointment marked no show',
+  },
+  triggerPostVisit: { es: 'Visita completada', en: 'Completed visit' },
   vehicle: { es: 'Vehículo', en: 'Vehicle' },
-  appointment_at: { es: 'Fecha y zona horaria de la cita', en: 'Appointment date and timezone' },
+  appointment_at: {
+    es: 'Fecha y zona horaria de la cita',
+    en: 'Appointment date and timezone',
+  },
   appointment_location: { es: 'Lugar de la cita', en: 'Appointment location' },
-  triggerFollowUp: { es: 'Seguimiento de comprador pendiente', en: 'Buyer follow-up due' },
-  triggerReminder: { es: 'Cita confirmada en las próximas 24 h', en: 'Confirmed appointment within 24 hours' },
+  triggerFollowUp: {
+    es: 'Seguimiento de comprador pendiente',
+    en: 'Buyer follow-up due',
+  },
+  triggerReminder: {
+    es: 'Cita confirmada en las próximas 24 h',
+    en: 'Confirmed appointment within 24 hours',
+  },
   assistantInventoryHint: {
     es: 'El asistente consulta tus vehículos disponibles en tiempo real.',
     en: 'The assistant checks your available vehicles in real time.',

@@ -37,16 +37,21 @@ beforeAll(async () => {
     CREATE TABLE workspaces(id uuid PRIMARY KEY,owner_id uuid REFERENCES auth.users(id),timezone text DEFAULT 'America/New_York');
     CREATE TABLE workspace_members(workspace_id uuid REFERENCES workspaces(id),user_id uuid REFERENCES auth.users(id));
     CREATE TABLE contacts(id uuid PRIMARY KEY,workspace_id uuid REFERENCES workspaces(id),opted_out boolean DEFAULT false);
+    CREATE TABLE conversations(id uuid PRIMARY KEY,workspace_id uuid,contact_id uuid);
+    CREATE TABLE messages(id uuid PRIMARY KEY,conversation_id uuid,sender_type text,created_at timestamptz DEFAULT now());
     CREATE FUNCTION is_workspace_member(p_workspace uuid) RETURNS boolean LANGUAGE sql SECURITY DEFINER AS $$ SELECT EXISTS(SELECT 1 FROM workspace_members WHERE workspace_id=p_workspace AND user_id=auth.uid()) $$;
     INSERT INTO auth.users VALUES('${user}'); INSERT INTO workspaces(id,owner_id) VALUES('${ws}','${user}'),('${other}','${user}');
     INSERT INTO workspace_members VALUES('${ws}','${user}'); INSERT INTO contacts VALUES('${contact}','${ws}',false),('${foreign}','${other}',false);
-    GRANT USAGE ON SCHEMA public,auth TO authenticated; GRANT SELECT ON contacts,workspace_members TO authenticated;`);
+    GRANT USAGE ON SCHEMA public,auth TO authenticated; GRANT SELECT,UPDATE ON contacts TO authenticated; GRANT SELECT ON workspace_members TO authenticated;`);
   await db.exec(readFileSync('supabase/migrations/375_dealers.sql', 'utf8'));
   await db.exec(`CREATE TABLE automations(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),workspace_id uuid,trigger_type text,is_active boolean DEFAULT false,deleted_at timestamptz);
     CREATE TABLE automation_event_jobs(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),workspace_id uuid,automation_id uuid,contact_id uuid,
       event_type text CHECK(event_type IN ('tag_added','time_based')),event_key text,context jsonb,expires_at timestamptz,UNIQUE(automation_id,contact_id,event_key));`);
   await db.exec(
     readFileSync('supabase/migrations/376_dealer_automations.sql', 'utf8')
+  );
+  await db.exec(
+    readFileSync('supabase/migrations/377_dealer_sales_execution.sql', 'utf8')
   );
 }, 30000);
 afterAll(async () => {
@@ -374,5 +379,148 @@ describe.sequential('durable dealer automation events', () => {
       ])
     ).rejects.toThrow('permission denied');
     await db.exec('RESET ROLE');
+  });
+});
+
+describe.sequential('seller activity and appointment execution', () => {
+  const buyer = '40000000-0000-4000-8000-000000000003';
+  let o: string, a: string;
+  it('keeps buyer context and activity timestamps inside an atomic tenant save', async () => {
+    await db.query('INSERT INTO contacts VALUES($1,$2,false)', [buyer, ws]);
+    o = (await db.query<{id:string}>('SELECT id FROM dealer_opportunities WHERE contact_id=$1',[buyer])).rows[0].id;
+    await db.exec(`SET ROLE authenticated; SET app.uid='${user}';`);
+    await db.query('SELECT dealer_log_activity($1,$2,$3,$4,$5,$6)', [
+      ws,
+      o,
+      'call_no_answer',
+      'No answer',
+      new Date(Date.now() + 3600000).toISOString(),
+      'Send video',
+    ]);
+    expect(
+      (
+        await db.query<{ first_contact_at: string | null }>(
+          'SELECT first_contact_at FROM dealer_opportunities WHERE id=$1',
+          [o]
+        )
+      ).rows[0].first_contact_at
+    ).toBeNull();
+    await db.query('SELECT dealer_log_activity($1,$2,$3,$4,$5,$6)', [
+      ws,
+      o,
+      'call_connected',
+      'Needs family car',
+      new Date(Date.now() + 7200000).toISOString(),
+      'Discuss options',
+    ]);
+    expect(
+      (
+        await db.query<{ first_contact_at: string | null }>(
+          'SELECT first_contact_at FROM dealer_opportunities WHERE id=$1',
+          [o]
+        )
+      ).rows[0].first_contact_at
+    ).not.toBeNull();
+    await expect(
+      db.query('SELECT dealer_log_activity($1,$2,$3,$4,$5,$6)', [
+        other,
+        o,
+        'call_connected',
+        '',
+        null,
+        '',
+      ])
+    ).rejects.toThrow('dealer_reference');
+    await expect(
+      db.query('UPDATE dealer_activities SET note=$1 WHERE opportunity_id=$2', [
+        'forged',
+        o,
+      ])
+    ).rejects.toThrow('permission denied');
+    await db.exec('RESET ROLE');
+  });
+  it('resets preparation after a reschedule and rejects a future no-show outcome', async () => {
+    const v = await vehicle('EXECUTION');
+    a = (await appointment(o, v, 36)).rows[0].id;
+    await db.query(
+      'UPDATE dealer_appointments SET customer_confirmed=true,vehicle_prepared=true,directions_sent=true WHERE id=$1',
+      [a]
+    );
+    await expect(
+      db.query("UPDATE dealer_appointments SET status='no_show' WHERE id=$1", [
+        a,
+      ])
+    ).rejects.toThrow('dealer_past');
+    await db.query(
+      "UPDATE dealer_appointments SET starts_at=starts_at+interval '1 hour',ends_at=ends_at+interval '1 hour' WHERE id=$1",
+      [a]
+    );
+    expect(
+      (
+        await db.query(
+          'SELECT customer_confirmed,vehicle_prepared,directions_sent FROM dealer_appointments WHERE id=$1',
+          [a]
+        )
+      ).rows[0]
+    ).toEqual({
+      customer_confirmed: false,
+      vehicle_prepared: false,
+      directions_sent: false,
+    });
+  });
+  it('enqueues one bounded missed-visit recovery and invalidates it after seller contact', async () => {
+    // An already-ended recorded visit is distinct from a scheduled future visit.
+    await db.query(
+      "UPDATE dealer_appointments SET status='cancelled' WHERE id=$1",
+      [a]
+    );
+    await db.query(
+      "UPDATE dealer_appointments SET starts_at=now()-interval '2 hours',ends_at=now()-interval '1 hour',status='no_show' WHERE id=$1",
+      [a]
+    );
+    await db.query(
+      'UPDATE dealer_opportunities SET follow_up_paused=false,last_contact_at=null WHERE id=$1',
+      [o]
+    );
+    await db.query(
+      "INSERT INTO automations(workspace_id,trigger_type,is_active) VALUES($1,'dealer_no_show',true)",
+      [ws]
+    );
+    await db.query('SELECT enqueue_dealer_automation_events()');
+    const jobs = (
+      await db.query<{ context: { vars: Record<string, unknown> } }>(
+        "SELECT context FROM automation_event_jobs WHERE event_type='dealer_no_show' AND contact_id=$1",
+        [buyer]
+      )
+    ).rows;
+    expect(jobs).toHaveLength(1);
+    const allowed = () =>
+      db.query<{ ok: boolean }>(
+        'SELECT dealer_automation_allowed($1,$2,$3,$4::jsonb) AS ok',
+        [ws, buyer, 'dealer_no_show', JSON.stringify(jobs[0].context.vars)]
+      );
+    expect((await allowed()).rows[0].ok).toBe(true);
+    const cv='50000000-0000-4000-8000-000000000003',msg='60000000-0000-4000-8000-000000000003';
+    await db.query('INSERT INTO conversations VALUES($1,$2,$3)',[cv,ws,buyer]);
+    await db.query("INSERT INTO messages(id,conversation_id,sender_type) VALUES($1,$2,'customer')",[msg,cv]);
+    expect((await allowed()).rows[0].ok).toBe(false);
+    await db.query('DELETE FROM messages WHERE id=$1',[msg]);
+    await db.query('SELECT enqueue_dealer_automation_events()');
+    expect(
+      (
+        await db.query(
+          "SELECT id FROM automation_event_jobs WHERE event_type='dealer_no_show' AND contact_id=$1",
+          [buyer]
+        )
+      ).rows
+    ).toHaveLength(1);
+    await db.query(
+      'UPDATE dealer_opportunities SET last_contact_at=now() WHERE id=$1',
+      [o]
+    );
+    expect((await allowed()).rows[0].ok).toBe(false);
+    await db.query("UPDATE dealer_opportunities SET stage='lost' WHERE id=$1", [
+      o,
+    ]);
   });
 });

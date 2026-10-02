@@ -10,6 +10,9 @@ import {
 } from './validation';
 import { checkDb } from './server';
 export const DEALER_SYSTEM = `Especialización obligatoria: Riverz Dealers, asistente personal de un vendedor de vehículos.
+Contesta primero la pregunta del comprador y después haz UNA pregunta relevante. Usa lo que ya compartió; no repitas el cuestionario. Empieza ofreciendo ayuda, identifica motivo de compra, 1–3 necesidades esenciales y plazo, sin interrogar ni exigir información de crédito.
+Ante una objeción (precio, distancia, desconfianza, "lo voy a pensar") reconoce su preocupación, explica un beneficio comprobable y pregunta qué necesitaría resolver. No presiones, no inventes escasez ni promociones. Para un primer comprador explica los pasos y ofrece revisión humana del financiamiento, sin garantizar aprobación, entrada cero ni cuotas.
+Resume al vendedor las preferencias, motivo, objeción y siguiente paso. Propón alternativas sólo del inventario consultado. Una visita vale por conocer el vehículo y resolver dudas: no afirmes que está preparado ni que hay una valoración de trade-in sin confirmación del vendedor.
 Tu objetivo es entender presupuesto, preferencias, cuándo desea comprar, interés en financiamiento y vehículo a cambio; consultar inventario EN VIVO y avanzar a una cita con el vendedor.
 No crees pedidos, carritos ni checkouts. No prometas aprobación de crédito, cuotas, descuentos, precio de trade-in ni disponibilidad sin evidencia. El vendedor revisa financiamiento y trade-in.
 Antes de ofrecer un vehículo usa dealer_search_vehicles. Nunca ofrezcas unidades reservadas o vendidas. Compara presupuesto y precio en la MISMA moneda; si no conoces la moneda, pregúntala.
@@ -45,6 +48,12 @@ export const DEALER_TOOLS: Anthropic.Tool[] = [
         buying_timeframe: { type: 'string' },
         financing: { type: 'boolean' },
         trade_in: { type: 'string' },
+        buying_reason: { type: 'string', maxLength: 1000 },
+        objection: { type: 'string', maxLength: 1000 },
+        buyer_type: {
+          type: 'string',
+          enum: ['unknown', 'first_time', 'replacement', 'additional'],
+        },
         vehicle_ids: {
           type: 'array',
           items: { type: 'string', format: 'uuid' },
@@ -115,14 +124,6 @@ export async function runDealerTool(
     if (!isDealerTool(name)) throw new DealerError('invalid');
     const b = object(raw),
       { db, workspaceId, contactId } = ctx;
-    const contact = await db
-      .from('contacts')
-      .select('id,opted_out')
-      .eq('workspace_id', workspaceId)
-      .eq('id', contactId)
-      .maybeSingle();
-    checkDb(contact.error);
-    if (!contact.data) throw new DealerError('reference');
     if (name === 'dealer_search_vehicles') {
       let q = db
         .from('dealer_vehicles')
@@ -166,6 +167,55 @@ export async function runDealerTool(
         checked_at: new Date().toISOString(),
       });
     }
+    // The test panel has a simulated buyer, never a stored contact. Read-only
+    // inventory stays real; simulated mutations cannot create buyer records.
+    if (ctx.simulacion && !contactId) {
+      const simulatedId = '00000000-0000-4000-8000-000000000001';
+      if (name === 'dealer_save_buyer') {
+        opportunityInput({
+          ...b,
+          contact_id: simulatedId,
+          stage: 'inquiry',
+          currency: b.currency ?? 'USD',
+          financing: b.financing ?? false,
+          follow_up_paused: false,
+          vehicle_ids: b.vehicle_ids ?? [],
+        });
+        if (b.budget != null && b.currency == null)
+          throw new DealerError('invalid');
+      } else {
+        if (b.customer_agreed !== true) throw new DealerError('invalid');
+        const input = appointmentInput({
+          ...b,
+          opportunity_id: simulatedId,
+          status: 'requested',
+        });
+        const vehicle = await db
+          .from('dealer_vehicles')
+          .select('id,status')
+          .eq('workspace_id', workspaceId)
+          .eq('id', input.vehicle_id)
+          .maybeSingle();
+        checkDb(vehicle.error);
+        if (vehicle.data?.status !== 'available')
+          throw new DealerError('unavailable');
+      }
+      return JSON.stringify({
+        ok: true,
+        simulated: true,
+        ...(name === 'dealer_request_appointment'
+          ? { status: 'requested', seller_confirmation_required: true }
+          : {}),
+      });
+    }
+    const contact = await db
+      .from('contacts')
+      .select('id,opted_out')
+      .eq('workspace_id', workspaceId)
+      .eq('id', contactId)
+      .maybeSingle();
+    checkDb(contact.error);
+    if (!contact.data) throw new DealerError('reference');
     if (contact.data.opted_out) throw new DealerError('closed');
     const prior = await db
       .from('dealer_opportunities')
@@ -195,6 +245,9 @@ export async function runDealerTool(
         buying_timeframe: b.buying_timeframe ?? old?.buying_timeframe ?? '',
         financing: b.financing ?? old?.financing ?? false,
         trade_in: b.trade_in ?? old?.trade_in ?? '',
+        buying_reason: b.buying_reason ?? old?.buying_reason ?? '',
+        objection: b.objection ?? old?.objection ?? '',
+        buyer_type: b.buyer_type ?? old?.buyer_type ?? 'unknown',
         next_follow_up_at: old?.next_follow_up_at ?? null,
         follow_up_note: old?.follow_up_note ?? '',
         follow_up_paused: old?.follow_up_paused ?? false,

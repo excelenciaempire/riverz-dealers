@@ -43,6 +43,12 @@ export interface Opportunity {
   buying_timeframe: string;
   financing: boolean;
   trade_in: string;
+  buying_reason?: string;
+  objection?: string;
+  buyer_type?: 'unknown' | 'first_time' | 'replacement' | 'additional';
+  lead_source?: string;
+  first_contact_at?: string | null;
+  last_contact_at?: string | null;
   next_follow_up_at: string | null;
   follow_up_note: string;
   follow_up_paused: boolean;
@@ -59,6 +65,9 @@ export interface Appointment {
   location: string;
   kind: 'visit' | 'test_drive';
   status: (typeof APPOINTMENT_STATUSES)[number];
+  customer_confirmed?: boolean;
+  vehicle_prepared?: boolean;
+  directions_sent?: boolean;
   created_at: string;
 }
 export interface DealerContact {
@@ -68,6 +77,7 @@ export interface DealerContact {
   opted_out: boolean;
 }
 export interface DealerData {
+  activities?: DealerActivity[];
   vehicles: Vehicle[];
   opportunities: Opportunity[];
   appointments: Appointment[];
@@ -75,6 +85,23 @@ export interface DealerData {
   contacts: DealerContact[];
   timezone: string;
   seller_id: string;
+}
+export const ACTIVITY_KINDS = [
+  'call_connected',
+  'call_no_answer',
+  'message_sent',
+  'video_sent',
+  'finance_handoff',
+  'visit_recap',
+] as const;
+export interface DealerActivity {
+  id: string;
+  workspace_id: string;
+  opportunity_id: string;
+  actor_id: string;
+  kind: (typeof ACTIVITY_KINDS)[number];
+  note: string;
+  created_at: string;
 }
 export function vehicleTitle(v: Pick<Vehicle, 'year' | 'make' | 'model'>) {
   return `${v.year} ${v.make} ${v.model}`;

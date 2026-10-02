@@ -15,6 +15,7 @@ import { CUANDO_PREGUNTAR } from './fleet/preguntas'
 import { secureSystemPrompt } from '@/lib/ai/input-security'
 import { ESTILO_HUMANO_PANEL } from '@/lib/ai/estilo-humano'
 import { IMAGE_CONTEXT_PROMPT } from './images'
+import { dealerOperatorContext } from '@/lib/dealers/operator-context'
 
 /**
  * Lo que puede ejecutar, que es siempre lo mismo.
@@ -30,7 +31,7 @@ export function systemPrompt(): string {
   // El mismo bloque de preguntas que lee el equipo. Este camino es el del
   // Operador sin flota, y la regla vale igual: lo que no está en la cuenta se
   // pregunta una vez, al final, con la respuesta ya propuesta.
-  return secureSystemPrompt(`${BASE.replace('{{MODO}}', MODO_SEGURO)}\n\n${CUANDO_PREGUNTAR}\n\n${IMAGE_CONTEXT_PROMPT}`)
+  return secureSystemPrompt(`${BASE.replace('{{MODO}}', MODO_SEGURO)}\n\n${CUANDO_PREGUNTAR}\n\n${IMAGE_CONTEXT_PROMPT}\n\n${dealerOperatorContext()}`)
 }
 
 const BASE = `Eres Riverz Operator: operas la cuenta de un comercio de e-commerce junto a la persona que te habla.

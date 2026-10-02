@@ -95,6 +95,7 @@ const navGroups: NavGroup[] = [
       { href: "/concesionario?view=vehicles", label: "dealers.vehicles", icon: CarFront },
       { href: "/concesionario?view=opportunities", label: "dealers.opportunities", icon: Users },
       { href: "/concesionario?view=appointments", label: "dealers.appointments", icon: LayoutTemplate },
+      { href: "/concesionario?view=bdc", label: "dealers.bdc", icon: PhoneCall },
       { href: "/bandeja", label: "nav.inbox", icon: Inbox },
       { href: "/contactos", label: "nav.contacts", icon: Users },
     ],

@@ -14,6 +14,7 @@
     'dealer_opportunities',
     'dealer_interests',
     'dealer_appointments',
+    'dealer_activities',
   ]) {
     const res = await fetch(`${url}/rest/v1/${table}?select=*&limit=0`, {
       headers,

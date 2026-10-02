@@ -1,3 +1,5 @@
+import { isDealerDeployment } from '@/lib/dealers/config';
+import { verifiedDealerPrices, type DealerQuoteEvidence } from '@/lib/dealers/quote-evidence';
 import { withLatitudeTrace } from '@/lib/observability/latitude';
 import { loadHttpAssistantTools } from './http-actions';
 import { CASE_REASON_TOOL } from './case-reason-tool';
@@ -3218,6 +3220,7 @@ export async function guardasDeSalida(
     reglasCrudas: Regla[];
     inboundText: string;
     priceIntegrity: { priceQuestion: boolean; priceVerified: boolean };
+    dealerQuotes?: DealerQuoteEvidence[];
     transferDiscount?: number | null;
     billingContext?: { conversacion?: string; canal?: string; superficie?: string };
     handoffContext: Record<string, unknown> | null;
@@ -3228,11 +3231,13 @@ export async function guardasDeSalida(
   // corte entero.
   const limpio = humanizarTexto(crudo);
 
-  const trustedPrices =
-    g.priceIntegrity.priceQuestion && !g.priceIntegrity.priceVerified
+  const dealer = isDealerDeployment();
+  const trustedPrices = dealer
+    ? await verifiedDealerPrices(db, agent.workspace_id, g.dealerQuotes ?? [])
+    : g.priceIntegrity.priceQuestion && !g.priceIntegrity.priceVerified
       ? []
       : authorizedPrices(g.products);
-  if (typeof g.transferDiscount === 'number' && g.transferDiscount > 0) {
+  if (!dealer && typeof g.transferDiscount === 'number' && g.transferDiscount > 0) {
     trustedPrices.push(g.transferDiscount);
   }
   // EL IMPORTE DEL PEDIDO QUE YA EXISTE TAMBIÉN ES UN PRECIO AUTORIZADO.
@@ -3245,11 +3250,11 @@ export async function guardasDeSalida(
   // responde una persona", y la persona contestó doce horas después con el
   // mismo número. El total del pedido, y ese total con el beneficio anunciado,
   // salen del contexto de la automatización, no del modelo.
-  trustedPrices.push(...preciosDelPedidoEnRecuperacion(g.handoffContext));
+  if (!dealer) trustedPrices.push(...preciosDelPedidoEnRecuperacion(g.handoffContext));
   // Y lo que el comercio escribió en sus reglas: el envío a domicilio, un
   // complemento, el total por transferencia. Sin esto, "a domicilio suma
   // $1.990" no salía y la conversación quedaba esperando a una persona.
-  trustedPrices.push(...montosDeReglas(g.reglasCrudas));
+  if (!dealer) trustedPrices.push(...montosDeReglas(g.reglasCrudas));
   const invalidPrices = unauthorizedQuotedPrices(limpio, trustedPrices, {
     priceQuestion: g.priceIntegrity.priceQuestion,
   });
@@ -3257,7 +3262,7 @@ export async function guardasDeSalida(
     // La consulta sólo dijo “¿precio?” y no pudimos asociarla a un producto.
     // No se escala por una cifra que el modelo eligió listar: se recupera con
     // una pregunta concreta y el catálogo, sin citar ningún importe.
-    if (g.priceIntegrity.priceQuestion && !g.productMatch) {
+    if (!dealer && g.priceIntegrity.priceQuestion && !g.productMatch) {
       return {
         texto: replyForUnidentifiedPrice(
           agent.language,
@@ -3830,6 +3835,7 @@ async function generateReply(
     reglasCrudas,
     inboundText: origen.inboundText,
     priceIntegrity,
+    dealerQuotes: result.dealerQuotes,
     transferDiscount: shopify?.config?.transfer_discount_amount,
     handoffContext,
   });

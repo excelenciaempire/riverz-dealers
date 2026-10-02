@@ -38,6 +38,7 @@ import type { SubagentId, SubagentSpec } from './types'
  * un click. Excluirla no protegía nada; sólo le impedía al equipo ofrecerse.
  */
 export const SIN_DUENO: Record<string, string> = {
+  ...(ALL_CAPABILITIES.some(c=>c.key==='dealers.estado') ? {'dealers.estado':'mira el proceso comercial del dealer: la usa el orquestador'} : {}),
   'operacion.estado': 'mira la cuenta entera, no un dominio: la usa el orquestador',
   'metricas.resumen': 'mira la cuenta entera, no un dominio: la usa el orquestador',
   'metricas.cortes': 'mira la cuenta entera, no un dominio: la usa el orquestador',

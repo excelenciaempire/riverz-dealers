@@ -45,6 +45,34 @@ beforeEach(() => {
   h.read.mockResolvedValue(demoData());
 });
 describe('dealer API authorization', () => {
+  it('logs an immutable seller activity in the session workspace, stripping forged author fields', async () => {
+    const o = demoData().opportunities[0];
+    const res = await POST(
+      new Request('http://app/api/dealers', {
+        method: 'POST',
+        body: JSON.stringify({
+          entity: 'activity',
+          data: {
+            opportunity_id: o.id,
+            kind: 'call_connected',
+            note: 'Needs SUV',
+            actor_id: 'attacker',
+            workspace_id: 'attacker',
+          },
+        }),
+      })
+    );
+    expect(res.status).toBe(201);
+    expect(h.rpc).toHaveBeenCalledWith(
+      'dealer_log_activity',
+      expect.objectContaining({
+        p_workspace: 'fixed-workspace',
+        p_opportunity: o.id,
+        p_kind: 'call_connected',
+      })
+    );
+    expect(h.rpc.mock.calls[0][1]).not.toHaveProperty('actor_id');
+  });
   it('requires a signed-in user for reads', async () => {
     h.context.mockRejectedValue(new DealerError('unauthorized', 401));
     expect((await GET(new Request('http://app/api/dealers'))).status).toBe(401);

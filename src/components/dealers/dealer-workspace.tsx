@@ -37,7 +37,14 @@ import {
 } from '@/lib/dealers/types';
 import { demoData, mutateDemo } from '@/lib/dealers/demo';
 import { DealerError } from '@/lib/dealers/validation';
-const tabs = ['today', 'vehicles', 'opportunities', 'appointments'] as const;
+import { SalesExecution } from './sales-execution';
+const tabs = [
+  'today',
+  'vehicles',
+  'opportunities',
+  'appointments',
+  'bdc',
+] as const;
 type Tab = (typeof tabs)[number];
 type Editor =
   | { entity: 'vehicle'; row?: Vehicle }
@@ -170,6 +177,7 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
             ? e.message
             : t('dealers.err_failed')
       );
+      if (entity === 'activity') throw e;
     } finally {
       setBusy(false);
     }
@@ -257,7 +265,39 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {activeAppointment(a) && (
+            <details className="text-xs">
+              <summary className="cursor-pointer">
+                {t('dealers.preparation')}
+              </summary>
+              <div className="mt-2 grid gap-2">
+                {(
+                  [
+                    'customer_confirmed',
+                    'vehicle_prepared',
+                    'directions_sent',
+                  ] as const
+                ).map((k) => (
+                  <label key={k} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={a[k] ?? false}
+                      disabled={busy}
+                      onChange={(e) =>
+                        void save(
+                          'appointment',
+                          { [k]: e.target.checked },
+                          a.id
+                        )
+                      }
+                    />
+                    {t(`dealers.${k}`)}
+                  </label>
+                ))}
+              </div>
+            </details>
+          )}
           {activeAppointment(a) && (
             <Button
               variant="outline"
@@ -379,6 +419,15 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
         <>
           {view === 'today' && (
             <>
+              <SalesExecution
+                data={data}
+                busy={busy}
+                onSave={save}
+                onOpportunity={(o) =>
+                  setEditor({ entity: 'opportunity', row: o })
+                }
+                onAppointments={() => switchView('appointments')}
+              />
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {[
                   {
@@ -465,7 +514,19 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
               </div>
             </>
           )}
-          {view !== 'today' && (
+          {view === 'bdc' && (
+            <SalesExecution
+              data={data}
+              busy={busy}
+              onSave={save}
+              onOpportunity={(o) =>
+                setEditor({ entity: 'opportunity', row: o })
+              }
+              onAppointments={() => switchView('appointments')}
+              full
+            />
+          )}
+          {view !== 'today' && view !== 'bdc' && (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap gap-2">
                 <label className="relative">
@@ -777,6 +838,10 @@ function DealerEditor({
             buying_timeframe: get('buying_timeframe'),
             financing: f.has('financing'),
             trade_in: get('trade_in'),
+            buying_reason: get('buying_reason'),
+            objection: get('objection'),
+            buyer_type: get('buyer_type'),
+            lead_source: get('lead_source'),
             next_follow_up_at: date('next_follow_up_at'),
             follow_up_note: get('follow_up_note'),
             follow_up_paused: f.has('follow_up_paused'),
@@ -886,6 +951,16 @@ function DealerEditor({
                 {field('buying_timeframe', o?.buying_timeframe)}
               </div>
               {field('preferences', o?.preferences)}
+              {field('buying_reason', o?.buying_reason)}
+              <div className="grid grid-cols-2 gap-3">
+                {select(
+                  'buyer_type',
+                  o?.buyer_type || 'unknown',
+                  states(['unknown', 'first_time', 'replacement', 'additional'])
+                )}
+                {field('lead_source', o?.lead_source)}
+              </div>
+              {field('objection', o?.objection)}
               {check('financing', o?.financing || false)}
               {field('trade_in', o?.trade_in)}
               <fieldset className="rounded-lg border p-3">

@@ -72,6 +72,7 @@ export async function readDealerData(
     interests,
     contacts,
     workspace,
+    activities,
   ] = await Promise.all([
     rows('dealer_vehicles'),
     rows('dealer_opportunities'),
@@ -79,6 +80,7 @@ export async function readDealerData(
     rows('dealer_interests', 'opportunity_id,vehicle_id,workspace_id'),
     rows('contacts', 'id,name,phone,opted_out'),
     db.from('workspaces').select('timezone').eq('id', workspaceId).single(),
+    rows('dealer_activities'),
   ]);
   checkDb(workspace.error);
   return {
@@ -87,6 +89,7 @@ export async function readDealerData(
     appointments,
     interests,
     contacts,
+    activities,
     timezone: workspace.data?.timezone || 'UTC',
     seller_id: sellerId,
   };

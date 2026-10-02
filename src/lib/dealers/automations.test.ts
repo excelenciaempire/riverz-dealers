@@ -13,6 +13,8 @@ describe('dealer automation integration', () => {
     expect(listTemplates().map((t) => t.slug)).toEqual([
       'dealer-seguimiento',
       'dealer-recordatorio-cita',
+      'dealer-recuperar-ausencia',
+      'dealer-despues-visita',
     ]);
     const en = getTemplate('dealer-recordatorio-cita', 'en')!;
     expect(en.steps[0].step_config).toMatchObject({

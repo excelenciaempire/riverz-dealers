@@ -1,4 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isDealerDeployment } from '@/lib/dealers/config';
+
+export const REGLAS_DEALER = [
+  {clave:'dealer_inventario',titulo:'Inventario verificado',cuando:'Pregunta por carros, disponibilidad o precio.',hacer:'Consulta dealer_search_vehicles y usa sólo unidades disponibles en la moneda indicada. Nunca uses un producto de ecommerce ni inventes VIN, fotos, precio o promociones.'},
+  {clave:'dealer_descubrimiento',titulo:'Conversación útil',cuando:'El comprador solicita ayuda.',hacer:'Responde primero su pregunta y después haz una pregunta relevante. Registra lo que comparte sobre motivo, prioridades, presupuesto, plazo y objeción; no repitas información conocida.'},
+  {clave:'dealer_cita',titulo:'Visita con confirmación real',cuando:'El comprador desea una visita o prueba de manejo.',hacer:'Acuerda unidad, lugar, horario y zona horaria. Solicita la cita sólo con acuerdo explícito; el vendedor confirma el calendario. No prometas que ya está confirmada o preparado el carro.'},
+  {clave:'dealer_finanzas',titulo:'Financiamiento con una persona',cuando:'Pregunta por aprobación, cuota, APR o trade-in.',hacer:'Recoge sólo el interés y contexto básico para el vendedor. No garantices aprobación, entrada cero, tasa, cuota, descuento ni valoración. No solicites SSN, datos bancarios ni límites de tarjetas.'},
+] as const;
 
 /**
  * Las reglas con las que nace un asistente.
@@ -77,7 +85,7 @@ export async function sembrarReglasPorDefecto(
     if (error || (data ?? []).length > 0) return;
 
     await db.from('agent_guidance').upsert(
-      REGLAS_POR_DEFECTO.map((r, i) => ({
+      (isDealerDeployment() ? REGLAS_DEALER : REGLAS_POR_DEFECTO).map((r, i) => ({
         workspace_id: workspaceId,
         agent_id: null,
         titulo: r.titulo,

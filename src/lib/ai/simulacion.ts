@@ -392,6 +392,7 @@ export async function simularRespuesta(
       reglasCrudas,
       inboundText: input.message,
       priceIntegrity: { priceQuestion, priceVerified },
+      dealerQuotes: result.dealerQuotes,
       transferDiscount: shopify?.config?.transfer_discount_amount,
       handoffContext: automationContext?.retention_handoff ? null : automationContext,
     });

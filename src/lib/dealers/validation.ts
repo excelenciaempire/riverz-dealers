@@ -1,4 +1,9 @@
-import { APPOINTMENT_STATUSES, STAGES, VEHICLE_STATUSES } from './types';
+import {
+  ACTIVITY_KINDS,
+  APPOINTMENT_STATUSES,
+  STAGES,
+  VEHICLE_STATUSES,
+} from './types';
 export class DealerError extends Error {
   constructor(
     public code: string,
@@ -114,6 +119,25 @@ export function opportunityInput(value: unknown) {
     buying_timeframe: text(b.buying_timeframe ?? '', 300),
     financing: boolean(b.financing),
     trade_in: text(b.trade_in ?? '', 500),
+    ...(Object.hasOwn(b, 'buying_reason')
+      ? { buying_reason: text(b.buying_reason, 1000) }
+      : {}),
+    ...(Object.hasOwn(b, 'objection')
+      ? { objection: text(b.objection, 1000) }
+      : {}),
+    ...(Object.hasOwn(b, 'lead_source')
+      ? { lead_source: text(b.lead_source, 200) }
+      : {}),
+    ...(Object.hasOwn(b, 'buyer_type')
+      ? {
+          buyer_type: choice(b.buyer_type, [
+            'unknown',
+            'first_time',
+            'replacement',
+            'additional',
+          ]),
+        }
+      : {}),
     next_follow_up_at: b.next_follow_up_at
       ? instant(b.next_follow_up_at)
       : null,
@@ -148,8 +172,23 @@ export function appointmentStatus(value: unknown) {
 /** Appointment identities are immutable; only schedule and presentation may change. */
 export function appointmentUpdate(value: unknown) {
   const b = object(value);
+  const preparation = Object.fromEntries(
+    ['customer_confirmed', 'vehicle_prepared', 'directions_sent']
+      .filter((k) => Object.hasOwn(b, k))
+      .map((k) => [k, boolean(b[k])])
+  );
+  if (
+    !Object.hasOwn(b, 'status') &&
+    !Object.hasOwn(b, 'starts_at') &&
+    !Object.hasOwn(b, 'ends_at') &&
+    !Object.keys(preparation).length
+  )
+    throw new DealerError('invalid');
   if (!Object.hasOwn(b, 'starts_at') && !Object.hasOwn(b, 'ends_at'))
-    return { status: appointmentStatus(b) };
+    return {
+      ...(Object.hasOwn(b, 'status') ? { status: appointmentStatus(b) } : {}),
+      ...preparation,
+    };
   const parsed = appointmentInput({
     ...b,
     opportunity_id: '00000000-0000-4000-8000-000000000001',
@@ -161,5 +200,18 @@ export function appointmentUpdate(value: unknown) {
     location: parsed.location,
     kind: parsed.kind,
     status: parsed.status,
+  };
+}
+export function activityInput(value: unknown) {
+  const b = object(value),
+    next_at = b.next_follow_up_at ? instant(b.next_follow_up_at) : null;
+  if (next_at && Date.parse(next_at) <= Date.now())
+    throw new DealerError('invalid');
+  return {
+    opportunity_id: uuid(b.opportunity_id),
+    kind: choice(b.kind, ACTIVITY_KINDS),
+    note: text(b.note ?? ''),
+    next_follow_up_at: next_at,
+    follow_up_note: text(b.follow_up_note ?? '', 1000, !!next_at),
   };
 }

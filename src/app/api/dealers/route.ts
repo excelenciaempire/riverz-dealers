@@ -13,6 +13,7 @@ import {
   opportunityInput,
   appointmentInput,
   appointmentUpdate,
+  activityInput,
   DealerError,
 } from '@/lib/dealers/validation';
 export async function GET(req: Request) {
@@ -84,6 +85,19 @@ export async function POST(req: Request) {
       const result = await q.select('id').single();
       checkDb(result.error);
       savedId = result.data?.id ?? null;
+    } else if (b.entity === 'activity') {
+      if (id) throw new DealerError('invalid');
+      const d = activityInput(b.data);
+      const result = await ctx.db.rpc('dealer_log_activity', {
+        p_workspace: ctx.workspaceId,
+        p_opportunity: d.opportunity_id,
+        p_kind: d.kind,
+        p_note: d.note,
+        p_next_at: d.next_follow_up_at,
+        p_next_note: d.follow_up_note,
+      });
+      checkDb(result.error);
+      savedId = result.data;
     } else throw new DealerError('invalid');
     return NextResponse.json({ id: savedId }, { status: id ? 200 : 201 });
   } catch (e) {

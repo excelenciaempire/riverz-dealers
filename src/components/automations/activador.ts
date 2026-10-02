@@ -81,7 +81,9 @@ export const TRIGGER_OPTIONS: {
 if (isDealerDeployment())
   TRIGGER_OPTIONS.push(
     { value: 'dealer_follow_up_due', label: 'dealers.triggerFollowUp' },
-    { value: 'dealer_appointment_reminder', label: 'dealers.triggerReminder' }
+    { value: 'dealer_appointment_reminder', label: 'dealers.triggerReminder' },
+    { value: 'dealer_no_show', label: 'dealers.triggerNoShow' },
+    { value: 'dealer_post_visit', label: 'dealers.triggerPostVisit' }
   );
 
 // Nombres para los activadores que NO se ofrecen (heredados / por cron). Sin
