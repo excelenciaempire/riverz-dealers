@@ -42,6 +42,7 @@ let policySnapshot = { product_id: ids.product, revision: 1, changed_at: now, po
   remedies: ['exchange', 'replacement'], conditions: copy('Revisar que el producto no tenga uso.', 'Check that the product is unused.') } };
 const migrationJobs=new Map();
 const nativeMigrationJobs=new Map();
+const externalMigrationJobs=new Map();
 const historyMigrationJobs=new Map();
 function reply(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 function prepareSyntheticMigration(input){
@@ -63,7 +64,7 @@ export async function fixtureFetch(input, init = {}) {
   window.__comparisonCalls ??= []; window.__comparisonCalls.push({ path, method: init.method ?? 'GET' });
   const body = typeof init.body === 'string' ? JSON.parse(init.body) : {};
   const method = init.method ?? 'GET';
-  const editable = path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || (path.endsWith('/help-portal')||path.startsWith('/api/help-portals/'))&&method==='POST' || ['/api/contacts/migrations','/api/contacts/migrations/native','/api/contacts/migrations/history'].includes(path)&&method==='POST';
+    const editable = path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || (path.endsWith('/help-portal')||path.startsWith('/api/help-portals/'))&&method==='POST' || ['/api/contacts/migrations','/api/contacts/migrations/native','/api/contacts/migrations/external','/api/contacts/migrations/history'].includes(path)&&method==='POST';
   if (method !== 'GET' && !editable) return reply({ error: copy('Operación bloqueada en la comparación local.', 'Operation blocked in the local comparison.') }, 503);
   // Synthetic in-memory receipts only. These are not database/import evidence.
   if(path==='/api/widget/help-portal')return reply({portal:publicHelpPortal(url.searchParams.get('locale')??locale),orders:[{id:ids.product,reference:'#EXAMPLE-1001',status:'paid',observed_at:now}]});
@@ -112,7 +113,25 @@ export async function fixtureFetch(input, init = {}) {
     if(method==='GET'&&['queued','fetching'].includes(job.state))Object.assign(job,{state:'ready',revision:'b'.repeat(64),contacts_collected:2,conversations:1,messages:3,files:1});
     return reply(job);
   }
-  if(path==='/api/contacts/migrations/native'){
+    if(path==='/api/contacts/migrations/external'){
+      if(method==='POST'&&body.action==='start'){
+        const {id,source}=body.input;
+        const snapshot={id,workspace_id:ids.workspace,actor_id:ids.user,source,state:'queued',total:null,collected:0,created_at:now,expires_at:'2026-10-02T14:00:00Z',updated_at:now,error:null,rows:[],next:null};
+        externalMigrationJobs.set(id,snapshot);return reply(snapshot);
+      }
+      const job=externalMigrationJobs.get(method==='POST'?body.input?.id:url.searchParams.get('id'));if(!job)return reply({code:'notFound'},404);
+      if(method==='POST'&&body.action==='cancel'){Object.assign(job,{state:'cancelled',rows:[],next:null});return reply(job);}
+      const selected=job.source.provider==='manychat'?job.source.subscriberIds:[1,2,3];
+      const rows=selected.map((id,index)=>({sourceId:String(id),phone:index<2?`+5730011122${String(33+index).padStart(2,'0')}`:'',name:`Fixture ${index+1}`,email:'',company:''}));
+      if(method==='POST'&&body.action==='review'){
+        if(job.state!=='ready')return reply({code:'changed'},409);
+        const csv=['sourceId,phone,name,email,company',...rows.map(row=>Object.values(row).join(','))].join('\n');
+        return prepareSyntheticMigration({id:body.input.reviewId,provider:job.source.provider,account:`${job.source.origin}#${job.source.accountId}`,csv,mapping:{sourceId:0,phone:1,name:2,email:3,company:4}});
+      }
+      if(method==='GET'&&['queued','fetching'].includes(job.state))Object.assign(job,{state:'ready',total:rows.length,collected:rows.length,rows:rows.slice(0,25),next:rows.length>25?25:null});
+      return reply(job);
+    }
+    if(path==='/api/contacts/migrations/native'){
     if(method==='POST'&&body.action==='start'){
       const {id,provider,origin,accountId}=body.input;
       const snapshot={id,workspace_id:ids.workspace,actor_id:ids.user,source:{provider,origin:new URL(origin).origin,accountId},state:'queued',total:null,collected:0,

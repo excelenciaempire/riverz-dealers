@@ -23,6 +23,24 @@ export async function requestPublicJson(input: PublicJsonRequest): Promise<{ sta
   return exchangePublicJson(input);
 }
 
+/** Fixed provider GET resources. Redirects are never followed, and credentials
+ * cannot be sent to a caller-supplied unrelated host, path or query. */
+export async function requestExternalContactJson(input:{provider:'kommo'|'manychat';url:string;token:string}){
+  if(!input||Object.keys(input).some(key=>!['provider','url','token'].includes(key))||typeof input.token!=='string'||!input.token.length||input.token.length>4096||!/^[\x21-\x7e]+$/.test(input.token))throw new PublicJsonError('http_input_invalid');
+  const url=typeof input.url==='string'&&input.url.length<=2048?isPublicHttpsUrl(input.url):null;
+  if(!url||url.port||url.hash)throw new PublicJsonError('http_destination_forbidden');
+  const params=url.searchParams;
+  if(input.provider==='kommo'){
+    if(!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.kommo\.com$/.test(url.hostname)||url.pathname!=='/api/v4/contacts')throw new PublicJsonError('http_destination_forbidden');
+    if([...params].some(([key])=>!['page','limit','order[id]'].includes(key))||['page','limit','order[id]'].some(key=>params.getAll(key).length!==1)||
+      !/^[1-9][0-9]{0,2}$/.test(params.get('page')??'')||Number(params.get('page'))>201||params.get('limit')!=='25'||params.get('order[id]')!=='asc')throw new PublicJsonError('http_input_invalid');
+  }else if(input.provider==='manychat'){
+    if(url.hostname!=='api.manychat.com'||!['/fb/page/getInfo','/fb/subscriber/getInfo'].includes(url.pathname))throw new PublicJsonError('http_destination_forbidden');
+    if(url.pathname==='/fb/page/getInfo'?[...params].length!==0:[...params].length!==1||params.getAll('subscriber_id').length!==1||! /^[1-9][0-9]{0,15}$/.test(params.get('subscriber_id')??'')||Number(params.get('subscriber_id'))>Number.MAX_SAFE_INTEGER)throw new PublicJsonError('http_input_invalid');
+  }else throw new PublicJsonError('http_input_invalid');
+  return exchangePublicJson({url:url.href,method:'GET',credential:{kind:'bearer',value:input.token}});
+}
+
 /** Dedicated read-only provider exchange. Generic HTTP actions retain their
  * existing credential/header contract; this cannot issue provider writes. */
 export async function requestChatwootJson(input:{url:string;token:string}):Promise<{status:number;data:unknown}>{

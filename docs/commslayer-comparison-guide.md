@@ -61,3 +61,5 @@ La misma sección incluye ahora [extracción de contactos de Chatwoot](migration
 ![Automatizaciones y filtros nuevos](comparison-preview/automations-es-desktop.png)
 
 La [QA nativa final de Chatwoot](migration-native-chatwoot-qa.json) registra cuatro revisiones propias, ocho paneles ES/EN/escritorio/móvil. Los cuatro POST y tres GET por revisión se responden con fixtures; no consultan la fuente ni importan clientes reales. Los errores de claves duplicadas de la iteración inicial permanecen en la evidencia histórica; no hay entradas nuevas después del bundle corregido.
+
+La misma sección añade [Kommo y ManyChat](migration-native-external.md). Su [QA independiente](migration-native-external-qa.json) registra cuatro recorridos y ocho paneles: extracción, revisión separada, casilla obligatoria, cancelación de Kommo y selección explícita de ManyChat. Cinco POST y dos GET por recorrido son fixtures en memoria; no se confirma ninguna importación ni se accede a una cuenta real. El panel actual conserva apagadas las adiciones. La prueba histórica de trece secciones y el portal mantienen sus fechas y bundles originales.

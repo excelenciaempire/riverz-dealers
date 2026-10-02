@@ -8,6 +8,10 @@ const review=()=>({id,workspace_id:ws,actor_id:actor,provider:'chatwoot',account
 const rpc=vi.fn(),db={rpc} as unknown as SupabaseClient;
 beforeEach(()=>{rpc.mockReset();rpc.mockResolvedValue({data:review(),error:null});});
 describe('Contact import service derives and validates authority',()=>{
+ it('prepares external reviews through their independent locked source, without trusting provider/account overrides',async()=>{
+  await prepareContactMigration(db,ws,actor,input,ws,'external');expect(rpc.mock.calls[0][0]).toBe('prepare_external_contact_review');expect(rpc.mock.calls[0][1]).toMatchObject({p_job_id:ws,p_id:id,p_workspace_id:ws,p_actor_id:actor});expect(rpc.mock.calls[0][1]).not.toHaveProperty('p_provider');
+  rpc.mockResolvedValue({data:null,error:{message:'external_contact_migration_changed'}});await expect(prepareContactMigration(db,ws,actor,input,ws,'external')).rejects.toThrow('changed');
+ });
  it('prepares native reviews through the atomic source authority RPC, using server-only scope',async()=>{
   await prepareContactMigration(db,ws,actor,input,ws);expect(rpc.mock.calls[0][0]).toBe('prepare_native_contact_review');expect(rpc.mock.calls[0][1]).toMatchObject({p_job_id:ws,p_id:id,p_workspace_id:ws,p_actor_id:actor});
   expect(rpc.mock.calls[0][1]).not.toHaveProperty('p_provider');await expect(prepareContactMigration(db,ws,actor,input,'bad')).rejects.toThrow('invalid');

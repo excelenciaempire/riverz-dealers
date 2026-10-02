@@ -28,7 +28,7 @@ vi.mock('node:https', () => ({ request: (url: URL, options: RequestOptions, call
   options.signal?.addEventListener('abort', () => { if (!closed) { closed = true; outgoing.emit('error', new Error('SECRET_ABORT')); h.response?.emit('aborted'); } }, { once: true });
   return outgoing;
 } }));
-import { requestPublicJson, requestChatwootJson, type PublicJsonRequest } from './public-json-request';
+import { requestPublicJson, requestChatwootJson, requestExternalContactJson, PublicJsonError, type PublicJsonRequest } from './public-json-request';
 beforeEach(() => {
   h.calls = []; h.response = null; h.mode = 'ok'; h.status = 200; h.content = '{}'; h.headers = {}; h.destroyed.mockReset();
   h.dns.mockReset().mockResolvedValue([{ address: '8.8.8.8', family: 4 }]);
@@ -37,6 +37,27 @@ afterEach(() => vi.useRealTimers());
 const input = (patch: Partial<PublicJsonRequest> = {}): PublicJsonRequest => ({ url: 'https://integration.test/query', method: 'GET', ...patch });
 const unsafeHeaders: Record<string, string>[] = [{ 'content-type': 'text/html' }, { 'content-encoding': 'gzip' }, { 'content-length': '131073' }];
 describe('bounded public JSON transport', () => {
+  it.each([
+    {provider:'kommo' as const,url:'https://fixture.kommo.com/api/v4/contacts?page=1&limit=25&order%5Bid%5D=asc'},
+    {provider:'manychat' as const,url:'https://api.manychat.com/fb/page/getInfo'},
+    {provider:'manychat' as const,url:'https://api.manychat.com/fb/subscriber/getInfo?subscriber_id=42'},
+  ])('allows fixed external GET resources with a bearer and pinned TLS: $url',async input=>{
+    await requestExternalContactJson({...input,token:'FIXTURE_TOKEN'});expect(h.calls).toHaveLength(1);
+    expect(h.calls[0].options).toMatchObject({method:'GET',rejectUnauthorized:true,headers:{authorization:'Bearer FIXTURE_TOKEN'}});expect(h.calls[0].body).toBeUndefined();
+  });
+  it.each([
+    {provider:'kommo' as const,url:'https://fixture.kommo.com.evil.test/api/v4/contacts?page=1&limit=25&order%5Bid%5D=asc'},
+    {provider:'kommo' as const,url:'https://fixture.kommo.com/api/v4/leads?page=1&limit=25&order%5Bid%5D=asc'},
+    {provider:'kommo' as const,url:'https://fixture.kommo.com/api/v4/contacts?page=1&limit=250&order%5Bid%5D=asc'},
+    {provider:'kommo' as const,url:'https://fixture.kommo.com/api/v4/contacts?page=1&page=2&limit=25&order%5Bid%5D=asc'},
+    {provider:'kommo' as const,url:'https://fixture.kommo.com/api/v4/contacts?page=202&limit=25&order%5Bid%5D=asc'},
+    {provider:'manychat' as const,url:'https://api.manychat.com/fb/subscriber/sendContent?subscriber_id=42'},
+    {provider:'manychat' as const,url:'https://api.manychat.com/fb/page/getInfo?token=secret'},
+    {provider:'manychat' as const,url:'https://api.manychat.com/fb/subscriber/getInfo?subscriber_id=42&subscriber_id=43'},
+    {provider:'manychat' as const,url:'https://api.manychat.com/fb/subscriber/getInfo?subscriber_id=9007199254740992'},
+  ])('rejects external scope/route/query injection before DNS: $url',async input=>{
+    await expect(requestExternalContactJson({...input,token:'FIXTURE_TOKEN'})).rejects.toBeInstanceOf(PublicJsonError);expect(h.dns).not.toHaveBeenCalled();expect(h.calls).toHaveLength(0);
+  });
   it('supports a dedicated Chatwoot read with its fixed token header, public DNS and verified TLS',async()=>{
     await requestChatwootJson({url:'https://source.example.test/api/v1/accounts/7/contacts?page=1&include_contact_inboxes=false',token:'FIXTURE_TOKEN'});
     expect(h.calls).toHaveLength(1);expect(h.calls[0].options).toMatchObject({method:'GET',rejectUnauthorized:true,headers:{api_access_token:'FIXTURE_TOKEN'}});

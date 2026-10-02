@@ -100,6 +100,8 @@ async function cronHandler(request: Request) {
   }
   const nativeMigrationRetention = await admin.rpc('purge_native_contact_migrations')
   if (nativeMigrationRetention.error) { failed++; log.error('native contact migration retention failed') }
+  const externalMigrationRetention=await admin.rpc('purge_external_contact_migrations')
+  if(externalMigrationRetention.error){failed++;log.error('external contact migration retention failed')}
   const historyRetention=await admin.rpc('purge_native_history_archives')
   if(historyRetention.error){failed++;log.error('native history archive retention failed')}
   let archiveObjectsCleared:number|null=null
@@ -110,7 +112,7 @@ async function cronHandler(request: Request) {
   // 207 si algún workspace falló, para que el monitor de Render lo marque.
   const status = failed > 0 ? 207 : 200
   return NextResponse.json(
-    { candidates: targets.length, purged, failed, graceDays, retencion, migrationPreviewsCleared: migrationRetention.error ? null : migrationRetention.data, nativeMigrationStagingCleared: nativeMigrationRetention.error ? null : nativeMigrationRetention.data, historyArchivesCleared:historyRetention.error?null:historyRetention.data,archiveObjectsCleared,helpPortalVisitsCleared, results },
+    { candidates: targets.length, purged, failed, graceDays, retencion, migrationPreviewsCleared: migrationRetention.error ? null : migrationRetention.data, nativeMigrationStagingCleared: nativeMigrationRetention.error ? null : nativeMigrationRetention.data,externalMigrationStagingCleared:externalMigrationRetention.error?null:externalMigrationRetention.data, historyArchivesCleared:historyRetention.error?null:historyRetention.data,archiveObjectsCleared,helpPortalVisitsCleared, results },
     { status },
   )
 }

@@ -50,6 +50,8 @@ X1–X5 tienen en el plan un presupuesto propio y selección de proveedores/perm
 
 X1 tiene el [centro de ayuda y seguimiento protegido](help-portal-reviewed-sources.md) construido y validado: fuentes compartidas/versionadas, marca de la tienda, pedidos del visitante firmado y métricas de adopción/contacto evitado declarado. Su [QA propia](help-portal-qa.json) registra 151 pruebas y ocho revisiones nativas con fixtures. No acredita entregas físicas, causalidad comercial o publicación de artículos de clientes. X2–X5 no se declaran completos.
 
+X2 incorpora [listado nativo de Kommo y selección de ManyChat](migration-native-external.md), con cola privada, credenciales vinculadas al negocio/actor/cuenta/selección y preparación de revisión bajo bloqueo transaccional. La selección de ManyChat no representa exportación de toda la cuenta; el listado de Kommo no es un snapshot atómico. Los siguientes conectores y X3–X5 continúan abiertos. [QA y capturas de esta ampliación](migration-native-external-qa.json).
+
 La matriz conserva separadas construcción, pruebas físicas, publicaciones y decisiones comerciales. Cualquier declaración del 100 % debe identificar cuál alcance terminó y conservar estos límites.
 
 La sección 12 cuenta con [evaluación privada de expansión](commslayer-us-expansion-review.md) y [ficha técnica de seguridad ES/EN](commslayer-security-review-pack.md). Son documentos preparados, sin cambio de oferta, distribución, términos legales o certificación.

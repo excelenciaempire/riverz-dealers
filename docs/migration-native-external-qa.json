@@ -1,0 +1,465 @@
+{
+  "date": "2026-10-02",
+  "scope": "X2 Kommo contacts and selected ManyChat subscribers; no live account requests/imports or AI",
+  "tests": {
+    "passed": 331,
+    "files": 17,
+    "finalLog": "tmp/external-final-331-tests.log",
+    "initialFailure": {
+      "failed": 5,
+      "total": 214,
+      "reason": "The test beforeEach returned its mock function; Vitest invoked it as cleanup after rejection cases. Changed setup to a void block and reran successfully."
+    }
+  },
+  "schema": {
+    "migration": 367,
+    "installedOnce": true,
+    "privateTable": true,
+    "privateProbe": true,
+    "fixedInvoker": true,
+    "nullContextRestDenials": 3,
+    "customersRead": false,
+    "jobsCreated": false,
+    "purgeExecuted": false
+  },
+  "nativeReviews": [
+    {
+      "name": "EsDesktop",
+      "result": {
+        "locale": "es",
+        "currentHidden": true,
+        "kommo": {
+          "queued": true,
+          "tokenRemoved": true,
+          "reviewPrepared": true,
+          "confirmInitiallyDisabled": true,
+          "confirmAfterCheckbox": true,
+          "cancelled": true,
+          "reviewRemoved": true
+        },
+        "manychat": {
+          "noEditableOrigin": true,
+          "selectedScope": true,
+          "queued": true,
+          "tokenRemoved": true,
+          "reviewPrepared": true,
+          "confirmInitiallyDisabled": true,
+          "excluded": true
+        },
+        "alerts": [],
+        "storage": [
+          {
+            "key": "riverz:history-migration:10000000-0000-4000-8000-000000000001",
+            "value": "a8ec4110-87f6-4e5f-aea0-bc81683569a7"
+          },
+          {
+            "key": "riverz:external-migration:10000000-0000-4000-8000-000000000001",
+            "value": "d77253d2-7974-4b1c-8b6e-df4b852fec2c"
+          },
+          {
+            "key": "riverz:migration:10000000-0000-4000-8000-000000000001",
+            "value": "6c24b166-5ad9-44e0-a053-94add67f4f6a"
+          },
+          {
+            "key": "riverz:native-migration:10000000-0000-4000-8000-000000000001",
+            "value": "327fc495-b631-427e-98a7-76a5601ce1e8"
+          },
+          {
+            "key": "riverz.locale",
+            "value": "es"
+          }
+        ],
+        "secretPersisted": false,
+        "calls": [
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          }
+        ],
+        "overflow": false
+      },
+      "screenshot": "docs/comparison-preview/migration-external-es-desktop.png"
+    },
+    {
+      "name": "EnDesktop",
+      "result": {
+        "locale": "en",
+        "currentHidden": true,
+        "kommo": {
+          "queued": true,
+          "tokenRemoved": true,
+          "reviewPrepared": true,
+          "confirmInitiallyDisabled": true,
+          "confirmAfterCheckbox": true,
+          "cancelled": true,
+          "reviewRemoved": true
+        },
+        "manychat": {
+          "noEditableOrigin": true,
+          "selectedScope": true,
+          "queued": true,
+          "tokenRemoved": true,
+          "reviewPrepared": true,
+          "confirmInitiallyDisabled": true,
+          "excluded": true
+        },
+        "alerts": [],
+        "storage": [
+          {
+            "key": "riverz:history-migration:10000000-0000-4000-8000-000000000001",
+            "value": "a8ec4110-87f6-4e5f-aea0-bc81683569a7"
+          },
+          {
+            "key": "riverz:external-migration:10000000-0000-4000-8000-000000000001",
+            "value": "adda3643-591c-423a-acc7-2209c1601e9a"
+          },
+          {
+            "key": "riverz:migration:10000000-0000-4000-8000-000000000001",
+            "value": "2281525f-8ee8-4c0a-9804-c1cdd85996b5"
+          },
+          {
+            "key": "riverz:native-migration:10000000-0000-4000-8000-000000000001",
+            "value": "327fc495-b631-427e-98a7-76a5601ce1e8"
+          },
+          {
+            "key": "riverz.locale",
+            "value": "en"
+          }
+        ],
+        "secretPersisted": false,
+        "calls": [
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          }
+        ],
+        "overflow": false
+      },
+      "screenshot": "docs/comparison-preview/migration-external-en-desktop.png"
+    },
+    {
+      "name": "EsMobile",
+      "result": {
+        "locale": "es",
+        "currentHidden": true,
+        "kommo": {
+          "queued": true,
+          "tokenRemoved": true,
+          "reviewPrepared": true,
+          "confirmInitiallyDisabled": true,
+          "confirmAfterCheckbox": true,
+          "cancelled": true,
+          "reviewRemoved": true
+        },
+        "manychat": {
+          "noEditableOrigin": true,
+          "selectedScope": true,
+          "queued": true,
+          "tokenRemoved": true,
+          "reviewPrepared": true,
+          "confirmInitiallyDisabled": true,
+          "excluded": true
+        },
+        "alerts": [],
+        "storage": [
+          {
+            "key": "riverz:history-migration:10000000-0000-4000-8000-000000000001",
+            "value": "a8ec4110-87f6-4e5f-aea0-bc81683569a7"
+          },
+          {
+            "key": "riverz:external-migration:10000000-0000-4000-8000-000000000001",
+            "value": "e916382d-4f85-4bc7-91e7-cd21b5b18e5a"
+          },
+          {
+            "key": "riverz:migration:10000000-0000-4000-8000-000000000001",
+            "value": "fb601b11-180d-4f4d-9a5e-7a41f1a63043"
+          },
+          {
+            "key": "riverz:native-migration:10000000-0000-4000-8000-000000000001",
+            "value": "327fc495-b631-427e-98a7-76a5601ce1e8"
+          },
+          {
+            "key": "riverz.locale",
+            "value": "es"
+          }
+        ],
+        "secretPersisted": false,
+        "calls": [
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          }
+        ],
+        "overflow": false
+      },
+      "screenshot": "docs/comparison-preview/migration-external-es-mobile.png"
+    },
+    {
+      "name": "EnMobile",
+      "result": {
+        "locale": "en",
+        "currentHidden": true,
+        "kommo": {
+          "queued": true,
+          "tokenRemoved": true,
+          "reviewPrepared": true,
+          "confirmInitiallyDisabled": true,
+          "confirmAfterCheckbox": true,
+          "cancelled": true,
+          "reviewRemoved": true
+        },
+        "manychat": {
+          "noEditableOrigin": true,
+          "selectedScope": true,
+          "queued": true,
+          "tokenRemoved": true,
+          "reviewPrepared": true,
+          "confirmInitiallyDisabled": true,
+          "excluded": true
+        },
+        "alerts": [],
+        "storage": [
+          {
+            "key": "riverz:history-migration:10000000-0000-4000-8000-000000000001",
+            "value": "a8ec4110-87f6-4e5f-aea0-bc81683569a7"
+          },
+          {
+            "key": "riverz:external-migration:10000000-0000-4000-8000-000000000001",
+            "value": "8ce3cd7e-ff79-4e93-b6e5-8de95e799722"
+          },
+          {
+            "key": "riverz:migration:10000000-0000-4000-8000-000000000001",
+            "value": "912e7dbe-bf95-4807-a3ee-e6d45ecf15ad"
+          },
+          {
+            "key": "riverz:native-migration:10000000-0000-4000-8000-000000000001",
+            "value": "327fc495-b631-427e-98a7-76a5601ce1e8"
+          },
+          {
+            "key": "riverz.locale",
+            "value": "en"
+          }
+        ],
+        "secretPersisted": false,
+        "calls": [
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "GET"
+          },
+          {
+            "path": "/api/contacts/migrations/external",
+            "method": "POST"
+          }
+        ],
+        "overflow": false
+      },
+      "screenshot": "docs/comparison-preview/migration-external-en-mobile.png"
+    }
+  ],
+  "console": [
+    {
+      "level": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 0",
+      "timestamp": "2026-10-02T06:25:24.234Z",
+      "source": "console"
+    },
+    {
+      "level": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 1",
+      "timestamp": "2026-10-02T06:27:51.925Z",
+      "source": "console"
+    }
+  ],
+  "sourceFiles": 30,
+  "builds": {
+    "normal": {
+      "exitCode": 0,
+      "log": "tmp/external-normal-build-final.log"
+    },
+    "comparison": {
+      "exitCode": 0,
+      "log": "tmp/external-comparison-build-final.log"
+    }
+  },
+  "limitations": [
+    "Kommo listing is observed, not an atomic source snapshot.",
+    "ManyChat consults at most 100 explicitly selected IDs, not a whole-account export.",
+    "Source selection IDs remain in private terminal metadata for 30 days; fetched fields and tokens are erased on cancel/expiry.",
+    "No commercial provider account authorization, delivery or migration result is asserted.",
+    "X2 other native connectors and X3–X5 remain open; public UI remains off."
+  ],
+  "lint": {
+    "fullChangedSource": {
+      "errors": 0,
+      "warnings": 0,
+      "log": "tmp/external-lint.log"
+    },
+    "finalServerClient": {
+      "errors": 0,
+      "warnings": 0,
+      "log": "tmp/external-final-client-lint.log"
+    }
+  },
+  "publicUiEnabled": false,
+  "frozenProof": {
+    "source": {
+      "package.json": "620c5b6af72e96309b10b8f5dc900e678b80829c6abd47501a3ddea4c06224a6",
+      "scripts/comparison/fixtures.jsx": "abaa9a73e3fd39d7d5374cf26774592f0666f73df7efc73841a03593da6a38d6",
+      "src/app/api/cron/contact-migrations/route.test.ts": "d155e7972e53e0321852926416bbe492847a01a9d69159f172239d083d076b08",
+      "src/app/api/cron/contact-migrations/route.ts": "c8451931f5bb206fd6f3e68169272e0fc731d28ed34ffc8cee5e22bef152bbe8",
+      "src/app/api/cron/pii-purge/route.ts": "f6acf2e8197af253360044eae43cc19c9192f09c13c709da28cfdaf983449d6f",
+      "src/components/contacts/migration-preview.test.tsx": "f0b3cd5e1c5c02d00f1cc059819eea6448aa04827f23ed50eb02b36ff2a9572b",
+      "src/components/contacts/migration-preview.tsx": "122dc21d675bd33eb4b75e51c543c1d54c20b2b6cb698a35393aa5b341d36b4e",
+      "src/lib/i18n/messages/contacts.ts": "c46538024ad665f3210d9ed920b86eedb0048f277079b8d556522fa7e01a3c9f",
+      "src/lib/migrations/contact-import.test.ts": "c2b0abd75b61c7a1db64e9045c1dd9bc23516e956f31a0dd76107dac41852cf7",
+      "src/lib/migrations/contact-import.ts": "6449ceedf56d9073786843fa05e38ae364337f5e9d52bccb7203f163c378a7c2",
+      "src/lib/security/public-json-request.test.ts": "7d7444b6cdfb977a0b60fb110e08fbf34d05bd4bdaf5cbb55956f14c84e5bd6b",
+      "src/lib/security/public-json-request.ts": "977ff7d4de9443897f7aa50201d25cfc35f492bf804d98d2975ee8899383a0d1",
+      "scripts/check-external-contact-migration-schema.cjs": "4ccfd02b32d95f19ad20a8ed17bcf138458cec3799a7fc7e75c0e36567dc1aea",
+      "src/app/api/contacts/migrations/external/route.test.ts": "3c4f2d15c49fec89db78b7ca6ed758cc0acde6dc1f6d2b99c13e9bc55a443b11",
+      "src/app/api/contacts/migrations/external/route.ts": "49f3a662850f2df185273763bde6f2eb94f85a1ce5671b723e9b537bbc39d6fc",
+      "src/components/contacts/external-migration.test.tsx": "9653f46634e55a1543242031768c8b75cb387d80e35316b812fbd3e563e55541",
+      "src/components/contacts/external-migration.tsx": "b9a0bd1c18600a2f79d1339abeb606927f7fa979fd09ab218ec441ee39797268",
+      "src/lib/migrations/external-contact-schema.test.ts": "4736ae95ff86b2d790a623f22a2be4a9c2c6c7e76b594e85eef67c2cc5eed7d7",
+      "src/lib/migrations/external-contact-source.test.ts": "9fb62d4da7172e1d0a044479eea608b0aea424d72b92acc7116d5bad40b714c3",
+      "src/lib/migrations/external-contact-source.ts": "384510ee08affa1c849bca470c271f2e1b8aa5bc7da5f072a7127efd4abd8971",
+      "src/lib/migrations/external-contact-worker.test.ts": "e4b5632a3dc31cafbb6a37dd873a1aa8881da47acf6f9337857167eb90c9aec8",
+      "src/lib/migrations/external-contact-worker.ts": "6fe9af13dadfd4aa6f6b2c0c7cd96fb83698445d2e5363f3047026b19c23a440",
+      "src/lib/migrations/external-credentials.test.ts": "b952f197a6a28ee32748f3362c1f9cfd6e83ed13d352da00e85d848f7a042000",
+      "src/lib/migrations/external-credentials.ts": "f91d16faac02b8150f5c3502845691d3a8d709723dd552a31d7b2f7e5adea9b5",
+      "src/lib/migrations/external-source-contract.ts": "5acb931085b1b020ce322c49fcca781941b6844cc11967c193ac964543364835",
+      "src/lib/migrations/providers/external-client.test.ts": "bc97464a6355ca370e0e297423208a477e9842bc09bd081dabcb800185d3a073",
+      "src/lib/migrations/providers/external-client.ts": "a01d87146ddf1a65deaf087260e6f71bd5bdaefa1acf7920f3977aa5177cbb05",
+      "src/lib/migrations/providers/external-contacts.test.ts": "76f9936894d805a23b815b8760c1bb12500abff3bfc5e33d3687aa8007bad45f",
+      "src/lib/migrations/providers/external-contacts.ts": "875bb057f47c6c745612100650d51854366377f63197227ddd52e83f10b57858",
+      "supabase/migrations/367_external_contact_migrations.sql": "0bfa06db3fa551c18be376c21ddcc3510863e60b39a79f7a4d7cd03341c23d21"
+    },
+    "finalComparisonCss": {
+      "0y7fmymffc1f-.css": "a9ebecb14064ea8dd75f94623210eda384a7b55a0dda3b2d684cf2a51bd9c6df",
+      "0ydpypn-7ctjk.css": "932d47c5b5820b2dd6a9a39a5a25bd6a26ab6e94db2b45fe9f2ff99727087666",
+      "1ag9sf8mxyftp.css": "23edb94a56b20a7702105ed107fbcd0494740b8765c87e91376c686cf606e0cf",
+      "1bliujhpm9e2n.css": "162a497f498c1d1bf1baaf2e307f93fccd9f0308ee25ad57e62e5eb98fd1906a",
+      "24hrtzo5s_sl1.css": "918623f67958b347bcd22eb9cc2010cf26a434083cf47bd9517aad84a1ae229e",
+      "2rmecej376eld.css": "69b419d05a7eb4a71904be8d7b6f9cd719fe55ef6bf0881feca4652b0dcd4c5e",
+      "3s7aa-p955seo.css": "25f2e876fb87c418429be603ca585b0d52e15a51be6d59166a7856c45ee82448"
+    },
+    "activePreviewCssMatches": true,
+    "earlierNormalCssMatches": true,
+    "initialMetadataAssertion": "Compared the entire generated CSS folder, including one historical unused file; corrected to manifest-referenced active assets."
+  },
+  "bundle": {
+    "kind": "real_components_with_fictional_fixtures",
+    "externalActions": false,
+    "rootCredentialsLoaded": false,
+    "styles": [
+      "0y7fmymffc1f-.css",
+      "0ydpypn-7ctjk.css",
+      "1ag9sf8mxyftp.css",
+      "1bliujhpm9e2n.css",
+      "24hrtzo5s_sl1.css",
+      "2rmecej376eld.css",
+      "3s7aa-p955seo.css"
+    ],
+    "fontClasses": [
+      "inter_tight_fa226055-module__1fYypW__variable",
+      "fraunces_9a096d75-module__DGh9ka__variable",
+      "martian_mono_27ee911d-module__4pa5XW__variable",
+      "instrument_serif_1bcd226e-module__F5bloW__variable",
+      "instrument_sans_313c338b-module__a4khDq__variable",
+      "geist_mono_aa0f1355-module__XhKG7W__variable"
+    ],
+    "bundleSha256": "e582151de6570b8520adbe1b79d311c7a5f3b88bb4d8ab89670369b1c896e246"
+  }
+}
