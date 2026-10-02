@@ -1,0 +1,13 @@
+# Reportes y verificación de casos
+
+Los reportes de resoluciones y los cortes del Panel usan al usuario autenticado vigente, no la identidad de una llave MCP ni un identificador enviado como argumento. El propietario o un miembro actual con rol de administrador/asesor necesita acceso a Panel y Bandeja. Un buzón Gmail, Outlook o Zoho permanece privado para quien conectó ese buzón, también frente a otro administrador o al propietario del negocio.
+
+El alcance se obtiene primero como identificadores de casos. Se comprueban negocio activo, contacto del mismo negocio, conexión y canal coherentes y caso no eliminado. Después se leen únicamente nombres, categorías, historial y motivos de ese alcance, en lotes limitados. Antes de devolver el reporte se vuelve a comprobar el alcance; una revocación o cambio lo vuelve indisponible. No se transforma en un reporte vacío exitoso.
+
+Los historiales completos conservan la definición anterior: una respuesta humana anterior a la ventana impide contar la resolución como exclusiva de IA, incluso si esa respuesta fue eliminada posteriormente. Se conserva su metadato de intervención, sin recuperar el cuerpo. Los mensajes de IA eliminados no acreditan una respuesta. La ventana incluye su inicio y excluye su final; se cuentan casos, no mensajes como resoluciones. Cerrar, satisfacer, ejecutar un flujo o emitir una respuesta no sustituyen la revisión explícita del equipo.
+
+La revisión y su retirada usan un escritor transaccional. Bloquea el negocio, la membresía, el caso, contacto, conexión y evidencia; vuelve a comprobar permisos, estado de lectura comercial, intervención humana y mensaje más reciente antes de guardar. Una retirada basada en un mensaje viejo no elimina la revisión actual. Una repetición idéntica sobre la misma evidencia no duplica eventos. El registro privado conserva decisiones y retiradas con actor y fecha; no envía mensajes ni mueve dinero.
+
+Los cortes por asesor, canal y tiempos conservan su estructura. Las consultas fallidas no se convierten en ceros. Los estados de IA en cola o desconocidos se separan de las abstenciones reales. Los volúmenes del Operador se restringen a los casos visibles; los pedidos sin caso se admiten únicamente fuera de los canales de correo personal. Los contactos nuevos siguen siendo un agregado del negocio. Los importes conservan las definiciones y límites de [pedidos](order-summary-evidence.md).
+
+La validación usa PostgreSQL embebido y solicitudes simuladas; no modifica verificaciones de clientes reales. El cambio corrige las fuentes de reportes actuales y no habilita controles nuevos en producción. La duración de una revisión no se presenta como tiempo de resolución cuando no existe evidencia del inicio y final del episodio.

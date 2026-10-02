@@ -51,9 +51,9 @@ async function fetchAllRows<T>(
     if (error) throw error as Error
     const rows = data ?? []
     out.push(...rows)
-    if (rows.length < PAGE) break
+    if (rows.length < PAGE) return out
   }
-  return out
+  throw new Error('dashboard_source_limit')
 }
 
 /**
@@ -69,7 +69,7 @@ async function fetchAllRows<T>(
  * acá cuenta salientes con `neq customer` y paginada, la del MCP contaba sólo
  * `agent|bot` y sin paginar.
  */
-export type MetricsScope = { workspaceId: string } | null
+export type MetricsScope = { workspaceId: string; visibleCaseIds?: ReadonlySet<string> } | null
 
 /**
  * Consulta de mensajes ya recortada. El tipado de postgrest-js no puede
@@ -107,6 +107,7 @@ function messagesQuery<T = never>(
         .from('messages')
         .select(`${columns}, conversations!inner(workspace_id)`, opts)
         .eq('conversations.workspace_id', scope.workspaceId)
+        .is('deleted_at', null)
     : db.from('messages').select(columns, opts)
   return q as unknown as MsgQuery<T>
 }
@@ -146,8 +147,8 @@ export async function loadMetrics(
     resolvedCur,
     resolvedPrev,
     connections,
-    rangeRows,
-    prevRows,
+    rawRangeRows,
+    rawPrevRows,
   ] = await Promise.all([
     scoped(db.from('contacts').select('id', { count: 'exact', head: true }), scope).gte('created_at', s).lt('created_at', e),
     scoped(db.from('contacts').select('id', { count: 'exact', head: true }), scope).gte('created_at', ps).lt('created_at', pe),
@@ -175,6 +176,16 @@ export async function loadMetrics(
         .range(from, to),
     ),
   ])
+
+  const rangeRows = scope?.visibleCaseIds ? rawRangeRows.filter(row => row.conversation_id && scope.visibleCaseIds!.has(row.conversation_id)) : rawRangeRows
+  const prevRows = scope?.visibleCaseIds ? rawPrevRows.filter(row => row.conversation_id && scope.visibleCaseIds!.has(row.conversation_id)) : rawPrevRows
+  let resolvedCounts = { current: resolvedCur.count ?? 0, previous: resolvedPrev.count ?? 0 }
+  if (scope?.visibleCaseIds) {
+    const closed = (start: string, end: string) => fetchAllRows<{ id: string }>((from, to) => db.from('conversations').select('id')
+      .eq('workspace_id', scope.workspaceId).eq('status', 'closed').is('deleted_at', null).gte('closed_at', start).lt('closed_at', end).order('id').range(from, to))
+    const [current, previous] = await Promise.all([closed(s, e), closed(ps, pe)])
+    resolvedCounts = { current: current.filter(row => scope.visibleCaseIds!.has(row.id)).length, previous: previous.filter(row => scope.visibleCaseIds!.has(row.id)).length }
+  }
 
   // A failed query is unavailable data, never a real zero. Message KPIs and
   // channel volumes share one paginated snapshot instead of separate counts.
@@ -216,7 +227,7 @@ export async function loadMetrics(
   return {
     conversations: { current: convIds.size, previous: prevConvIds.size },
     newContacts: { current: newContactsCur.count ?? 0, previous: newContactsPrev.count ?? 0 },
-    resolved: { current: resolvedCur.count ?? 0, previous: resolvedPrev.count ?? 0 },
+    resolved: resolvedCounts,
     messagesSent: { current: rangeRows.length - receivedCur, previous: prevRows.length - receivedPrev },
     messagesReceived: { current: receivedCur, previous: receivedPrev },
     channelMix,

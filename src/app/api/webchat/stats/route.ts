@@ -122,7 +122,7 @@ export async function GET() {
   const outcomes = await readOutcomes(admin, workspaceId, {
     start: since,
     end: new Date().toISOString(),
-  });
+  }, user.id);
   const verified = summarizeCases(
     outcomes.cases.filter((c) => c.channel === 'webchat')
   );

@@ -15,6 +15,7 @@
 import { leerAtribucion } from '@/lib/attribution/informe'
 import { leerCortes } from '@/lib/dashboard/cortes'
 import { loadMetrics } from '@/lib/dashboard/queries'
+import { summarizeOrders, type SummaryOrder } from '@/lib/dashboard/order-summary'
 import { daysAgoStart, previousRange } from '@/lib/dashboard/date-utils'
 import { workspaceTimezone } from '@/lib/workspaces/timezone'
 import type { Artefacto } from '@/lib/operator/artifacts'
@@ -22,9 +23,46 @@ import { translate } from '@/lib/i18n/translate'
 import { windowDays } from './predicates'
 import { cifras, lista, loc, numero, plata, tieneCampos, tile, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
+import { gapCapabilityActor } from '@/lib/ai/gap-knowledge-actions'
+import { assertDashboardScope, visibleDashboardCases } from '@/lib/dashboard/access'
+
+async function summaryRows<T>(query: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
+  const rows: T[] = []
+  for (let from = 0; from < 500_000; from += 1000) {
+    const result = await query(from, from + 999)
+    if (result.error || !Array.isArray(result.data)) throw new Error('metrics_summary_unavailable')
+    rows.push(...result.data)
+    if (result.data.length < 1000) return rows
+  }
+  throw new Error('metrics_summary_limit')
+}
+
+async function summaryExtras(ctx: CapabilityContext, range: { start: Date; end: Date }, visible: Set<string>) {
+  const [replies, orders] = await Promise.all([
+    summaryRows<{ status: string; conversation_id: string | null }>((from, to) => ctx.db.from('ai_replies').select('status,conversation_id')
+      .eq('workspace_id', ctx.workspaceId).gte('created_at', range.start.toISOString()).lt('created_at', range.end.toISOString())
+      .order('id').range(from, to)),
+    summaryRows<SummaryOrder & { conversation_id: string | null; channel: string | null }>((from, to) => ctx.db.from('orders').select('total_price,currency,financial_status,status,conversation_id,channel')
+      .eq('workspace_id', ctx.workspaceId).gte('created_at', range.start.toISOString()).lt('created_at', range.end.toISOString())
+      .order('id').range(from, to)),
+  ])
+  const scopedReplies = replies.filter(row => row.conversation_id && visible.has(row.conversation_id))
+  const scopedOrders = orders.filter(row => row.conversation_id ? visible.has(row.conversation_id) : row.channel !== null && !['gmail', 'outlook', 'zoho'].includes(row.channel))
+  return {
+    ia: {
+      respondio: scopedReplies.filter(r => r.status === 'sent').length,
+      se_abstuvo: scopedReplies.filter(r => r.status === 'skipped').length,
+      fallo: scopedReplies.filter(r => r.status === 'failed').length,
+      otros_estados: scopedReplies.filter(r => !['sent', 'skipped', 'failed'].includes(r.status)).length,
+    },
+    pedidos: summarizeOrders(scopedOrders),
+  }
+}
 
 async function resumen(ctx: CapabilityContext, args: Record<string, unknown>) {
   const dias = windowDays(args.dias)
+  const actorId = gapCapabilityActor(ctx)
+  const visible = await visibleDashboardCases(ctx.db, ctx.workspaceId, actorId)
   const tz = await workspaceTimezone(ctx.db, ctx.workspaceId)
 
   // Días CALENDARIO en la zona del comercio, no una ventana rodante de N×24 h:
@@ -33,25 +71,12 @@ async function resumen(ctx: CapabilityContext, args: Record<string, unknown>) {
   const range = { start: daysAgoStart(tz, dias - 1), end: new Date() }
   const prev = previousRange(range)
 
-  const [bundle, ia, pedidos] = await Promise.all([
-    loadMetrics(ctx.db, tz, range, prev, { workspaceId: ctx.workspaceId }),
-    ctx.db
-      .from('ai_replies')
-      .select('status')
-      .eq('workspace_id', ctx.workspaceId)
-      .gte('created_at', range.start.toISOString()),
-    ctx.db
-      .from('orders')
-      .select('total_price, currency')
-      .eq('workspace_id', ctx.workspaceId)
-      .gte('created_at', range.start.toISOString()),
+  const [bundle, current, previous] = await Promise.all([
+    loadMetrics(ctx.db, tz, range, prev, { workspaceId: ctx.workspaceId, visibleCaseIds: visible }),
+    summaryExtras(ctx, range, visible),
+    summaryExtras(ctx, prev, visible),
   ])
-
-  const replies = (ia.data ?? []) as { status: string }[]
-  const ords = (pedidos.data ?? []) as {
-    total_price: number | string | null
-    currency: string | null
-  }[]
+  await assertDashboardScope(ctx.db, ctx.workspaceId, actorId, visible)
 
   // `actual` y `anterior` van juntos porque un número solo no dice nada: 40
   // conversaciones es bueno o malo según si la semana pasada fueron 10. Y van
@@ -75,18 +100,10 @@ async function resumen(ctx: CapabilityContext, args: Record<string, unknown>) {
     mensajes_entrantes: par(bundle.messagesReceived),
     mensajes_salientes: par(bundle.messagesSent),
     por_canal: bundle.channelMix,
-    ia: {
-      respondio: replies.filter((r) => r.status === 'sent').length,
-      se_abstuvo: replies.filter((r) => r.status === 'skipped').length,
-      fallo: replies.filter((r) => r.status === 'failed').length,
-    },
-    pedidos: {
-      cantidad: ords.length,
-      facturado: Number(
-        ords.reduce((a, o) => a + (Number(o.total_price) || 0), 0).toFixed(2),
-      ),
-      moneda: ords[0]?.currency ?? null,
-    },
+    criterio_cierre: 'closed_status_not_verified_resolution',
+    periodo_anterior: { desde: prev.start.toISOString(), hasta: prev.end.toISOString() },
+    ia: { ...current.ia, anterior: previous.ia },
+    pedidos: { ...current.pedidos, anterior: previous.pedidos },
   }
 }
 
@@ -107,7 +124,7 @@ async function cortes(ctx: CapabilityContext, args: Record<string, unknown>) {
   const desde = daysAgoStart(tz, dias - 1)
   const hasta = new Date()
 
-  const c = await leerCortes(ctx.db, ctx.workspaceId, { desde, hasta }, tz)
+  const c = await leerCortes(ctx.db, ctx.workspaceId, { desde, hasta }, tz, gapCapabilityActor(ctx))
 
   return {
     periodo: { dias, desde: desde.toISOString(), hasta: hasta.toISOString(), zona_horaria: tz },
@@ -373,9 +390,9 @@ export const METRICS_CAPABILITIES: Capability[] = [
   {
     key: 'metricas.resumen',
     description:
-      'Cómo viene la cuenta en un período: conversaciones, contactos nuevos, mensajes que entraron y salieron, mezcla por canal, cuántas contestó la IA, pedidos y facturación. Cada cifra viene con la del período anterior para poder comparar. Es el "¿cómo vamos?".',
+      'Cómo viene la cuenta: volumen, cierres (no resoluciones verificadas), actividad de IA y pedidos, con período anterior. Importes de pedidos guardados como pagados, separados por moneda; no son caja neta ni verificación en vivo. facturado es null cuando no hay un total único seguro; usar por_moneda y revisar importes_no_disponibles. Es el "¿cómo vamos?".',
     descriptionEn:
-      'How the account is doing over a period: conversations, new contacts, messages in and out, channel mix, how many the AI answered, orders and revenue. Every figure comes with the previous period to compare against. The "how are we doing?".',
+      'Account volume, closures (not verified resolutions), AI activity and orders, with the previous period. Stored paid-order amounts are separated by currency; they are not net cash or a live provider check. facturado is null without a safe single total; use por_moneda and check importes_no_disponibles. The "how are we doing?".',
     risk: 'lectura',
     schema: {
       type: 'object',

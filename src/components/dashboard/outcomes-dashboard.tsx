@@ -12,6 +12,7 @@ import { DetalleAtribucion } from './detalle-atribucion';
 import { Button } from '@/components/ui/button';
 import type { OutcomeReport } from '@/lib/dashboard/outcomes';
 import type { Atribucion } from '@/lib/dashboard/use-attribution';
+import { OutcomeEvidence } from './outcome-evidence';
 
 export function OutcomesDashboard({
   data,
@@ -107,6 +108,7 @@ export function OutcomesDashboard({
         abierto={salesOpen}
         onAbierto={setSalesOpen}
       />
+      {data && <OutcomeEvidence report={data} />}
     </section>
   );
 }

@@ -12,6 +12,7 @@
  * está apagado, se está absteniendo, y el motivo dice por qué.
  */
 import { readOutcomes } from './outcomes-query';
+import { assertDashboardScope, visibleDashboardCases } from './access';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BusinessHours } from '@/lib/ai/types';
 import {
@@ -37,6 +38,7 @@ export interface CorteAgente {
   respondio: number;
   seAbstuvo: number;
   fallo: number;
+  otrosEstados: number;
   /** El motivo más repetido de abstención, que es el que hay que mirar. */
   motivo: string | null;
 }
@@ -122,7 +124,8 @@ async function todas<T>(
   for (let desde = 0; ; desde += PAGINA) {
     const { data, error } = await hacer(desde, desde + PAGINA - 1);
     if (error) throw error as Error;
-    const lote = data ?? [];
+    if (!Array.isArray(data)) throw new Error('dashboard_source_unavailable');
+    const lote = data;
     filas.push(...lote);
     if (lote.length < PAGINA) break;
   }
@@ -141,12 +144,21 @@ export async function leerCortes(
   workspaceId: string,
   rango: { desde: Date; hasta: Date },
   /** La zona del workspace: los días y el horario se cortan acá, no en UTC. */
-  tz = 'UTC'
+  tz: string,
+  actorId: string
 ): Promise<Cortes> {
   const desde = rango.desde.toISOString();
   const hasta = rango.hasta.toISOString();
 
-  const [convRes, iaRes, agentesRes, outcomes, msgRes] = await Promise.all([
+  const visible = await visibleDashboardCases(db, workspaceId, actorId);
+  const ids = [...visible];
+  const batches = Array.from({ length: Math.ceil(ids.length / 100) }, (_, index) => ids.slice(index * 100, index * 100 + 100));
+  const convRes: Array<{ id: string; channel: string | null; status: string; needs_human_at: string | null;
+    needs_human_reason: string | null; assigned_agent_id: string | null; csat: number | null; created_at: string }> = [];
+  const iaRes: Array<{ agent_id: string | null; conversation_id: string | null; status: string; skip_reason: string | null }> = [];
+  const msgRes: Array<{ conversation_id: string | null; sender_type: string | null; created_at: string; origin: string | null }> = [];
+  for (const batch of batches) {
+    const [conversations, replies, messages] = await Promise.all([
     todas<{
       id: string;
       channel: string | null;
@@ -163,8 +175,10 @@ export async function leerCortes(
           'id, channel, status, needs_human_at, needs_human_reason, assigned_agent_id, csat, created_at'
         )
         .eq('workspace_id', workspaceId)
+        .in('id', batch)
+        .is('deleted_at', null)
         .gte('last_message_at', desde)
-        .lte('last_message_at', hasta)
+        .lt('last_message_at', hasta)
         .order('id', { ascending: true })
         .range(d, h)
     ),
@@ -178,17 +192,12 @@ export async function leerCortes(
         .from('ai_replies')
         .select('agent_id, conversation_id, status, skip_reason')
         .eq('workspace_id', workspaceId)
+        .in('conversation_id', batch)
         .gte('created_at', desde)
-        .lte('created_at', hasta)
+        .lt('created_at', hasta)
         .order('id', { ascending: true })
         .range(d, h)
     ),
-    db
-      .from('ai_agents')
-      .select('id, name, is_active, business_hours')
-      .eq('workspace_id', workspaceId)
-      .is('deleted_at', null),
-    readOutcomes(db, workspaceId, { start: desde, end: hasta }),
     // Los mensajes del rango, para medir quién contestó primero.
     //
     // `messages` no tiene `workspace_id` —cuelga de la conversación (migración
@@ -209,12 +218,23 @@ export async function leerCortes(
           'conversation_id, sender_type, created_at, origin, conversations!inner(workspace_id)'
         )
         .eq('conversations.workspace_id', workspaceId)
+        .in('conversation_id', batch)
+        .is('deleted_at', null)
         .gte('created_at', desde)
-        .lte('created_at', hasta)
-        .order('created_at', { ascending: true })
+        .lt('created_at', hasta)
+        .order('created_at', { ascending: true }).order('id')
         .range(d, h)
     ),
+    ]);
+    if (conversations.some(c => !batch.includes(c.id)) || [...replies, ...messages].some(row => !row.conversation_id || !batch.includes(row.conversation_id))) throw new Error('dashboard_source_unavailable');
+    convRes.push(...conversations); iaRes.push(...replies); msgRes.push(...messages);
+  }
+  const [agentesRes, outcomes] = await Promise.all([
+    db.from('ai_agents').select('id,name,is_active,business_hours').eq('workspace_id', workspaceId).is('deleted_at', null),
+    readOutcomes(db, workspaceId, { start: desde, end: hasta }, actorId),
   ]);
+  if (agentesRes.error || !Array.isArray(agentesRes.data)) throw new Error('dashboard_source_unavailable');
+  await assertDashboardScope(db, workspaceId, actorId, visible);
 
   const convs = convRes;
   const ias = iaRes;
@@ -266,16 +286,18 @@ export async function leerCortes(
       respondio: 0,
       seAbstuvo: 0,
       fallo: 0,
+      otrosEstados: 0,
       motivo: null,
       motivos: new Map<string, number>(),
     };
     if (r.status === 'sent') a.respondio += 1;
     else if (r.status === 'failed') a.fallo += 1;
-    else {
+    else if (r.status === 'skipped') {
       a.seAbstuvo += 1;
       if (r.skip_reason)
         a.motivos.set(r.skip_reason, (a.motivos.get(r.skip_reason) ?? 0) + 1);
     }
+    else a.otrosEstados += 1;
     porAgente.set(id, a);
   }
 

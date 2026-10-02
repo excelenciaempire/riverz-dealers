@@ -14,6 +14,7 @@ function fixture(fail = false) {
           return q;
         },
         eq: () => q,
+        is: () => q,
         gte: (_k: string, v: string) => {
           start = v;
           return q;
@@ -69,4 +70,12 @@ it('does not turn failed counts into zero activity', async () => {
   await expect(
     loadMetrics(fixture(true).db as never, 'UTC', range, prev)
   ).rejects.toEqual({ message: 'unavailable' });
+});
+it('excludes other private case activity from service reports', async () => {
+  const { db } = fixture();
+  const result = await loadMetrics(db as never, 'UTC', range, prev, { workspaceId: 'w', visibleCaseIds: new Set(['c0']) });
+  expect(result.conversations).toEqual({ current: 1, previous: 1 });
+  expect(result.messagesReceived).toEqual({ current: 1, previous: 1 });
+  expect(result.messagesSent).toEqual({ current: 0, previous: 0 });
+  expect(result.channelMix.reduce((total, channel) => total + channel.inbound + channel.outbound, 0)).toBe(1);
 });

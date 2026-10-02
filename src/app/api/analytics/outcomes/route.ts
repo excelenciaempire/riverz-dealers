@@ -5,8 +5,9 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
-import { readOutcomes, readThread } from '@/lib/dashboard/outcomes-query';
-import { OUTCOME_CATEGORIES } from '@/lib/dashboard/outcomes';
+import { readOutcomes } from '@/lib/dashboard/outcomes-query';
+import { DashboardAccessError } from '@/lib/dashboard/access';
+import { dashboardHeaders, outcomeBody, outcomeDecision, outcomeRange } from '@/lib/dashboard/http';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,83 +24,46 @@ async function context() {
 async function error(key: string, status: number) {
   return NextResponse.json(
     { error: translate(await getLocale(), `dashboard.${key}`) },
-    { status }
+    { status, headers: dashboardHeaders }
   );
 }
 
 export async function GET(request: Request) {
   const ctx = await context();
   if (!ctx) return error('outcomeUnauthorized', 401);
-  const url = new URL(request.url);
-  const start = Date.parse(url.searchParams.get('start') ?? '');
-  const end = Date.parse(url.searchParams.get('end') ?? '');
-  if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end)
-    return error('outcomeInvalid', 400);
+  const range = outcomeRange(request);
+  if (!range) return error('outcomeInvalid', 400);
   try {
     return NextResponse.json(
-      await readOutcomes(ctx.admin, ctx.workspaceId, {
-        start: new Date(start).toISOString(),
-        end: new Date(end).toISOString(),
-      }),
-      { headers: { 'Cache-Control': 'no-store' } }
+      await readOutcomes(ctx.admin, ctx.workspaceId, range, ctx.userId),
+      { headers: dashboardHeaders }
     );
   } catch (err) {
-    console.error('[outcomes] read failed', err);
+    if (err instanceof DashboardAccessError) return error('outcomeForbidden', 403);
+    console.error('[outcomes] read failed');
     return error('outcomeLoadFailed', 502);
   }
 }
 
 export async function PATCH(request: Request) {
   const block = await csrfGuard(request);
-  if (block) return block;
+  if (block) { block.headers.set('Cache-Control', dashboardHeaders['Cache-Control']); return block; }
   const ctx = await context();
   if (!ctx) return error('outcomeUnauthorized', 401);
-  const body = await request.json().catch(() => null);
-  const uuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (
-    !body ||
-    typeof body.conversationId !== 'string' ||
-    !uuid.test(body.conversationId) ||
-    typeof body.lastMessageId !== 'string' ||
-    !uuid.test(body.lastMessageId) ||
-    (body.category !== null && !OUTCOME_CATEGORIES.includes(body.category))
-  )
-    return error('outcomeInvalid', 400);
+  if (new URL(request.url).search) return error('outcomeInvalid', 400);
+  const parsed = outcomeDecision.safeParse(await outcomeBody(request));
+  if (!parsed.success) return error('outcomeInvalid', 400);
+  const body = parsed.data;
   try {
-    const thread = await readThread(
-      ctx.admin,
-      ctx.workspaceId,
-      body.conversationId
-    );
-    if (!thread) return error('outcomeNotFound', 404);
-    if (
-      body.category !== null &&
-      (thread.state === 'human' || thread.lastMessageId !== body.lastMessageId)
-    )
-      return error('outcomeChanged', 409);
-    const result =
-      body.category === null
-        ? await ctx.admin
-            .from('conversation_outcomes')
-            .delete()
-            .eq('workspace_id', ctx.workspaceId)
-            .eq('conversation_id', thread.id)
-        : await ctx.admin.from('conversation_outcomes').upsert(
-            {
-              conversation_id: thread.id,
-              workspace_id: ctx.workspaceId,
-              last_message_id: thread.lastMessageId,
-              category: body.category,
-              verified_by: ctx.userId,
-              verified_at: new Date().toISOString(),
-            },
-            { onConflict: 'conversation_id' }
-          );
-    if (result.error) throw result.error;
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error('[outcomes] update failed', err);
+    const result = await ctx.admin.rpc('write_dashboard_outcome', { p_workspace_id: ctx.workspaceId, p_actor_id: ctx.userId,
+      p_conversation_id: body.conversationId, p_last_message_id: body.lastMessageId, p_category: body.category });
+    if (result.error?.message === 'dashboard_outcome_not_found') return error('outcomeNotFound', 404);
+    if (result.error?.message === 'dashboard_outcome_changed') return error('outcomeChanged', 409);
+    if (result.error?.message === 'subscription_read_only') return error('outcomeReadOnly', 402);
+    if (result.error || result.data?.ok !== true) throw new Error('outcome_save_unavailable');
+    return NextResponse.json({ ok: true }, { headers: dashboardHeaders });
+  } catch {
+    console.error('[outcomes] update failed');
     return error('outcomeSaveFailed', 502);
   }
 }

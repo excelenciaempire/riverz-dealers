@@ -40,6 +40,23 @@ const review: OutcomeVerification = {
 };
 
 describe('verified resolutions', () => {
+  it('keeps recorded human intervention even when that reply is later removed', () => {
+    const removed = { ...customer, id: 'human', sender_type: 'agent', status: 'sent', deleted_at: '2026-09-01T11:00:00Z' };
+    expect(evaluateCase(conversation, [customer, ai, removed], review)?.state).toBe('human');
+  });
+  it('measures the first customer message to the current team review with explicit source dates', () => {
+    expect(evaluateCase(conversation, [customer, ai], review)).toMatchObject({ firstCustomerAt: customer.created_at, verificationSeconds: 120 });
+    expect(summarizeCases([evaluateCase(conversation, [customer, ai], review)!]).verificationTiming).toEqual({ samples: 1, unavailable: 0, medianSeconds: 120, basis: 'first_customer_to_current_team_review' });
+  });
+  it('does not invent a duration for unreviewed cases or legacy cases without timing evidence', () => {
+    const unreviewed = evaluateCase(conversation, [customer, ai])!;
+    expect(unreviewed.verificationSeconds).toBeNull();
+    const old = { ...evaluateCase(conversation, [customer, ai], review)!, verificationSeconds: undefined };
+    expect(summarizeCases([old, unreviewed]).verificationTiming).toMatchObject({ samples: 0, unavailable: 1, medianSeconds: null });
+  });
+  it.each(['invalid', '2026-09-01T09:00:00Z'])('rejects a verification date that cannot support the reviewed response: %s', verified_at => {
+    expect(evaluateCase(conversation, [customer, ai], { ...review, verified_at })?.state).toBe('review');
+  });
   it('does not infer resolution from silence, closure, or absence of assignment', () => {
     for (const status of ['open', 'resolved', 'closed'])
       expect(
