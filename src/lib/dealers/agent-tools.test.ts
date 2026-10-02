@@ -110,6 +110,23 @@ describe('dealer conversation tools', () => {
       )
     );
     expect(result).toEqual({ ok: false, error: 'invalid' });
+    for (const prior of [true, false]) {
+      const buyer = database({ prior });
+      expect(
+        JSON.parse(
+          await runDealerTool(
+            'dealer_save_buyer',
+            { budget: 20000 },
+            {
+              db: buyer.db,
+              workspaceId: buyer.d.vehicles[0].workspace_id,
+              contactId: buyer.d.contacts[0].id,
+            }
+          )
+        )
+      ).toEqual({ ok: false, error: 'invalid' });
+      expect(buyer.rpc).not.toHaveBeenCalled();
+    }
   });
   it('searches only current available inventory inside the fixed workspace', async () => {
     const f = database();

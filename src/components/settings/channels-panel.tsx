@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useDeferredLoad } from '@/hooks/use-deferred-load';
 import { toast } from 'sonner';
 import {
   CheckCircle2,
@@ -226,9 +227,7 @@ export function ChannelsPanel() {
     setConnections((data ?? []) as ChannelConnection[]);
   }, [workspace, t]);
 
-  useEffect(() => {
-    void fetchConnections();
-  }, [fetchConnections]);
+  useDeferredLoad(fetchConnections);
 
   const handleConnect = useCallback(
     (channel: Channel) => {

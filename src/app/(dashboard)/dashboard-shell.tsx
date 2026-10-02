@@ -17,6 +17,7 @@ import { SaldoProvider } from "@/hooks/use-saldo";
 import type { Vistazo } from "@/lib/wallet/puerta";
 import { COMMERCE_CHANGE_KEY, selectedCommerceInBrowser } from "@/lib/auth/commerce-cookies";
 import { AppInstallationCapture } from '@/components/settings/app-installation';
+import { useStorageValue } from '@/hooks/use-storage-value';
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -43,26 +44,18 @@ function DashboardShellInner({
   // Desktop-only: collapse the sidebar to a slim icon-only rail to give
   // the main content more room. Persisted to localStorage so each user's
   // last choice survives reloads.
-  const [collapsed, setCollapsed] = useState(false);
-  useEffect(() => {
-    try {
-      setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === "1");
-    } catch {
-      // localStorage may be disabled (Safari private mode, embedded
-      // contexts) — silently fall back to expanded.
-    }
-  }, []);
+  const savedCollapsed = useStorageValue(COLLAPSE_KEY, '0') === '1';
+  const [collapsedOverride, setCollapsed] = useState<boolean | null>(null);
+  const collapsed = collapsedOverride ?? savedCollapsed;
   const toggleCollapsed = useCallback(() => {
-    setCollapsed((prev) => {
-      const next = !prev;
+      const next = !collapsed;
+      setCollapsed(next);
       try {
         window.localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
       } catch {
         // No-op — see read above.
       }
-      return next;
-    });
-  }, []);
+  }, [collapsed]);
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
   const openSidebar = useCallback(() => setSidebarOpen(true), []);

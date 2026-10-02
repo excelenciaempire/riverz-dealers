@@ -17,6 +17,10 @@ export default defineConfig({
     },
   },
   test: {
+    // Reuse a bounded thread pool; spawning a fork per file stalls on Windows
+    // and unrestricted workers exceed CI memory for the inherited large suite.
+    pool: 'threads',
+    maxWorkers: 2,
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     // Dummy secrets — encryption.ts / webhook-signature.ts read these

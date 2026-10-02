@@ -78,15 +78,20 @@ export function ShopifyContactPanel({
   const t = useT();
   const fmt = useFormat();
   const [data, setData] = useState<ShopifyResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const contactKey = `${contactEmail ?? ''}:${contactPhone ?? ''}`;
+  const [loading, setLoading] = useState(Boolean(contactEmail || contactPhone));
+  const [seenContact, setSeenContact] = useState(contactKey);
+  if (seenContact !== contactKey) {
+    setSeenContact(contactKey);
+    setData(null);
+    setLoading(Boolean(contactEmail || contactPhone));
+  }
 
   useEffect(() => {
     if (!contactEmail && !contactPhone) {
-      setLoading(false);
       return;
     }
     let cancelled = false;
-    setLoading(true);
     const params = new URLSearchParams();
     if (contactEmail) params.set('email', contactEmail);
     if (contactPhone) params.set('phone', contactPhone);

@@ -2,6 +2,10 @@ import type { Namespace } from "./types";
 
 /** Automations: list/gallery, builder canvas, trigger/step config, detail + run logs. */
 export const automations = {
+  'tpl_dealer-seguimiento_name': { es: 'Seguimiento de comprador', en: 'Buyer follow-up' },
+  'tpl_dealer-seguimiento_desc': { es: 'Contacta al comprador en la fecha de seguimiento. Respeta pausas y oportunidades cerradas.', en: 'Contact the buyer when follow-up is due. Respects pauses and closed opportunities.' },
+  'tpl_dealer-recordatorio-cita_name': { es: 'Recordatorio de cita', en: 'Appointment reminder' },
+  'tpl_dealer-recordatorio-cita_desc': { es: 'Recuerda una cita confirmada durante las 24 horas anteriores. Respeta cancelaciones y reprogramaciones.', en: 'Remind the buyer within 24 hours of a confirmed appointment. Respects cancellations and rescheduling.' },
   historyStatus: { es: 'Resultado', en: 'Result' },
   historyAll: { es: 'Todos', en: 'All' },
   historyFromUtc: { es: 'Desde (UTC)', en: 'From (UTC)' },

@@ -1,5 +1,10 @@
 import type { Namespace } from './types';
 export const dealers = {
+  vehicle: { es: 'Vehículo', en: 'Vehicle' },
+  appointment_at: { es: 'Fecha y zona horaria de la cita', en: 'Appointment date and timezone' },
+  appointment_location: { es: 'Lugar de la cita', en: 'Appointment location' },
+  triggerFollowUp: { es: 'Seguimiento de comprador pendiente', en: 'Buyer follow-up due' },
+  triggerReminder: { es: 'Cita confirmada en las próximas 24 h', en: 'Confirmed appointment within 24 hours' },
   assistantInventoryHint: {
     es: 'El asistente consulta tus vehículos disponibles en tiempo real.',
     en: 'The assistant checks your available vehicles in real time.',
@@ -22,6 +27,7 @@ export const dealers = {
   vehicles: { es: 'Vehículos', en: 'Vehicles' },
   opportunities: { es: 'Oportunidades', en: 'Opportunities' },
   appointments: { es: 'Citas', en: 'Appointments' },
+  reschedule: { es: 'Reprogramar', en: 'Reschedule' },
   available: { es: 'Disponible', en: 'Available' },
   reserved: { es: 'Reservado', en: 'Reserved' },
   sold: { es: 'Vendido', en: 'Sold' },

@@ -7,8 +7,11 @@ import type {
 import type { Locale } from '@/lib/i18n/config'
 import { retentionTemplateSeeds, retentionTriggerConfig } from './retention-plan'
 import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview'
+import { isDealerDeployment } from '@/lib/dealers/config'
 
 export type TemplateSlug =
+  | 'dealer-seguimiento'
+  | 'dealer-recordatorio-cita'
   | 'carrito-abandonado'
   | 'pago-rechazado'
   | 'pago-pendiente'
@@ -100,6 +103,22 @@ export interface AutomationTemplateDefinition {
  * el merchant registre el template en Meta con el cuerpo correcto.
  */
 export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefinition> = {
+  'dealer-seguimiento': {
+    slug: 'dealer-seguimiento', name: 'Seguimiento de comprador',
+    description: 'Contacta al comprador al vencer la fecha de seguimiento. Se detiene si se pausa o cierra la oportunidad.',
+    category: 'ventas', icon: 'repeat-2', tags: [],
+    trigger_type: 'dealer_follow_up_due', trigger_config: {},
+    suggested_template_body: 'Hola {{customer_name}}, ¿sigues buscando carro? Estoy disponible para ayudarte a revisar opciones y coordinar una visita.',
+    steps: [{step_type: 'send_template', step_config: {template_name: '', language: 'es', variables: {}}}],
+  },
+  'dealer-recordatorio-cita': {
+    slug: 'dealer-recordatorio-cita', name: 'Recordatorio de cita',
+    description: 'Recuerda una cita confirmada dentro de las próximas 24 horas. Se detiene al cancelar o reprogramar.',
+    category: 'recordatorios', icon: 'package-check', tags: [],
+    trigger_type: 'dealer_appointment_reminder', trigger_config: {},
+    suggested_template_body: 'Hola {{customer_name}}, te esperamos para ver el {{vehicle}} el {{appointment_at}} en {{appointment_location}}. ¿Necesitas reprogramar?',
+    steps: [{step_type: 'send_template', step_config: {template_name: '', language: 'es', variables: {}}}],
+  },
   'novedad-entrega': {
     slug: 'novedad-entrega', name: 'Novedad de entrega',
     description: 'Solicita la corrección de datos tras una novedad registrada en Shopify. Las respuestas continúan con el asistente actual; una respuesta no confirma una corrección en la transportadora.',
@@ -565,6 +584,8 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
  * here is excluded from the gallery; old slugs remain readable for compatibility.
  */
 export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
+  'dealer-seguimiento',
+  'dealer-recordatorio-cita',
   'carrito-abandonado',
   'pago-rechazado',
   'pago-pendiente',
@@ -584,6 +605,8 @@ export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
  * merchant's locale so an English merchant doesn't seed Spanish defaults.
  */
 const SUGGESTED_BODIES_EN: Partial<Record<TemplateSlug, string>> = {
+  'dealer-seguimiento': 'Hi {{customer_name}}, are you still looking for a car? I can help you explore options and arrange a visit.',
+  'dealer-recordatorio-cita': 'Hi {{customer_name}}, we look forward to showing you the {{vehicle}} at {{appointment_at}} in {{appointment_location}}. Do you need to reschedule?',
   'novedad-entrega': 'Hi {{recipient_name}}, your order has a recorded delivery issue.\n\n{{order_items}}\nReason: {{incident_reason}}\nTracking number: {{tracking_number}}\nTrack it here: {{tracking_url}}\n\nAre the delivery details correct, or do you need to change anything?',
   'pago-pendiente-mercadopago': 'Hi {{customer_name}}, your {{total_price}} {{currency}} payment is still pending. View your voucher and payment instructions here: {{payment_url}}. If you have already paid, send us your receipt here.',
   'carrito-abandonado':
@@ -629,6 +652,7 @@ export function getTemplate(
   locale: Locale = 'es',
 ): AutomationTemplateDefinition | null {
   if (!Object.prototype.hasOwnProperty.call(AUTOMATION_TEMPLATES, slug)) return null
+  if (slug.startsWith('dealer-') !== isDealerDeployment()) return null
   if (slug === 'novedad-entrega' && !SHOW_RIVERZ_IMPROVEMENTS) return null
   const t = AUTOMATION_TEMPLATES[slug as TemplateSlug]
   return t ? localizeTemplate(t, locale) : null

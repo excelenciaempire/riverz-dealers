@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/hooks/use-workspace';
+import { useDeferredLoad } from '@/hooks/use-deferred-load';
 import { useT } from '@/hooks/use-locale';
 import type { Tag } from '@/types';
 
@@ -76,9 +77,7 @@ export function TagsPanel() {
     setLoading(false);
   }, [supabase, t]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useDeferredLoad(load);
 
   async function handleDelete() {
     if (!deleteTarget) return;

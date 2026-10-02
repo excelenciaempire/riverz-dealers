@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useDeferredLoad } from '@/hooks/use-deferred-load';
 import { toast } from "sonner";
 import {
   Building2,
@@ -41,9 +42,9 @@ export function WorkspacePanel() {
   const fetchWithCsrf = useFetchWithCsrf();
   const t = useT();
   const fmt = useFormat();
-  const [name, setName] = useState("");
+  const [name, setName] = useState(workspace?.name ?? "");
   const [saving, setSaving] = useState(false);
-  const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
+  const [timezone, setTimezone] = useState(workspace?.timezone ?? DEFAULT_TIMEZONE);
   const [savingTz, setSavingTz] = useState(false);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -72,12 +73,15 @@ export function WorkspacePanel() {
   } | null>(null);
   const [savingInvite, setSavingInvite] = useState(false);
 
-  useEffect(() => {
+  const workspaceSnapshot = workspace ? `${workspace.id}:${workspace.name}:${workspace.timezone}` : '';
+  const [seenWorkspace, setSeenWorkspace] = useState(workspaceSnapshot);
+  if (workspaceSnapshot !== seenWorkspace) {
+    setSeenWorkspace(workspaceSnapshot);
     if (workspace) {
       setName(workspace.name);
       setTimezone(workspace.timezone ?? DEFAULT_TIMEZONE);
     }
-  }, [workspace]);
+  }
 
   const fetchMembersAndInvites = useCallback(async () => {
     if (!workspace) return;
@@ -110,9 +114,7 @@ export function WorkspacePanel() {
     setInvites((invitesRes.data ?? []) as WorkspaceInvite[]);
   }, [workspace]);
 
-  useEffect(() => {
-    void fetchMembersAndInvites();
-  }, [fetchMembersAndInvites]);
+  useDeferredLoad(fetchMembersAndInvites);
 
   const handleRename = useCallback(async () => {
     if (!workspace) return;

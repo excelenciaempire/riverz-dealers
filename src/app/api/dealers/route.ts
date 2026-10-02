@@ -12,7 +12,7 @@ import {
   vehicleInput,
   opportunityInput,
   appointmentInput,
-  appointmentStatus,
+  appointmentUpdate,
   DealerError,
 } from '@/lib/dealers/validation';
 export async function GET(req: Request) {
@@ -70,20 +70,17 @@ export async function POST(req: Request) {
       checkDb(result.error);
       savedId = result.data;
     } else if (b.entity === 'appointment') {
-      const input = id
-        ? { status: appointmentStatus(b.data) }
-        : {
-            ...appointmentInput(b.data),
-            workspace_id: ctx.workspaceId,
-            seller_id: ctx.userId,
-          };
       const q = id
         ? ctx.db
             .from('dealer_appointments')
-            .update(input)
+            .update(appointmentUpdate(b.data))
             .eq('workspace_id', ctx.workspaceId)
             .eq('id', id)
-        : ctx.db.from('dealer_appointments').insert(input);
+        : ctx.db.from('dealer_appointments').insert({
+            ...appointmentInput(b.data),
+            workspace_id: ctx.workspaceId,
+            seller_id: ctx.userId,
+          });
       const result = await q.select('id').single();
       checkDb(result.error);
       savedId = result.data?.id ?? null;

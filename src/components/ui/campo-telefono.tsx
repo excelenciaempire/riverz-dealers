@@ -216,6 +216,11 @@ export function CampoTelefono({
   );
   const [abierto, setAbierto] = useState(false);
   const [busca, setBusca] = useState("");
+  const [vistoAbierto, setVistoAbierto] = useState(abierto);
+  if (vistoAbierto !== abierto) {
+    setVistoAbierto(abierto);
+    if (!abierto) setBusca('');
+  }
   const buscador = useRef<HTMLInputElement>(null);
   /** Lo último que pasó por acá. Distingue "lo tecleó la persona" de "llegó de afuera". */
   const [visto, setVisto] = useState<string>(value);
@@ -249,7 +254,6 @@ export function CampoTelefono({
 
   useEffect(() => {
     if (abierto) requestAnimationFrame(() => buscador.current?.focus());
-    else setBusca("");
   }, [abierto]);
 
   const paises = useMemo(() => {

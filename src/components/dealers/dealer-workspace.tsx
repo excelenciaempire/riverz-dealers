@@ -257,24 +257,36 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
             </p>
           </div>
         </div>
-        <label className="flex items-center gap-2">
-          <span className="sr-only">{t('dealers.status')}</span>
-          <select
-            className={`${inputClass} w-auto`}
-            aria-label={`${t('dealers.status')} ${o ? buyer(o) : ''}`}
-            value={a.status}
-            disabled={busy}
-            onChange={(e) =>
-              void save('appointment', { status: e.target.value }, a.id)
-            }
-          >
-            {APPOINTMENT_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {t(`dealers.${s}`)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="flex items-center gap-2">
+          {activeAppointment(a) && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => setEditor({ entity: 'appointment', row: a })}
+            >
+              {t('dealers.reschedule')}
+            </Button>
+          )}
+          <label className="flex items-center gap-2">
+            <span className="sr-only">{t('dealers.status')}</span>
+            <select
+              className={`${inputClass} w-auto`}
+              aria-label={`${t('dealers.status')} ${o ? buyer(o) : ''}`}
+              value={a.status}
+              disabled={busy}
+              onChange={(e) =>
+                void save('appointment', { status: e.target.value }, a.id)
+              }
+            >
+              {APPOINTMENT_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {t(`dealers.${s}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </article>
     );
   }
@@ -773,21 +785,26 @@ function DealerEditor({
           editor.row?.id
         );
       else
-        await onSave('appointment', {
-          opportunity_id: get('opportunity_id'),
-          vehicle_id: get('vehicle_id'),
-          starts_at: date('starts_at'),
-          ends_at: date('ends_at'),
-          location: get('location'),
-          kind: get('kind'),
-          status: get('status'),
-        });
+        await onSave(
+          'appointment',
+          {
+            opportunity_id: get('opportunity_id'),
+            vehicle_id: get('vehicle_id'),
+            starts_at: date('starts_at'),
+            ends_at: date('ends_at'),
+            location: get('location'),
+            kind: get('kind'),
+            status: get('status'),
+          },
+          editor.row?.id
+        );
     } catch {
       toast.error(t('dealers.err_invalid'));
     }
   }
   const v = editor.entity === 'vehicle' ? editor.row : undefined,
-    o = editor.entity === 'opportunity' ? editor.row : undefined;
+    o = editor.entity === 'opportunity' ? editor.row : undefined,
+    a = editor.entity === 'appointment' ? editor.row : undefined;
   const defaultStart = new Date(Date.now() + 86400000).toISOString(),
     defaultEnd = new Date(Date.now() + 88200000).toISOString();
   return (
@@ -911,7 +928,7 @@ function DealerEditor({
             <>
               {select(
                 'opportunity_id',
-                '',
+                a?.opportunity_id || '',
                 data.opportunities
                   .filter(
                     (o) =>
@@ -924,25 +941,29 @@ function DealerEditor({
                     label:
                       data.contacts.find((c) => c.id === o.contact_id)?.name ||
                       t('dealers.anonymous'),
-                  }))
+                  })),
+                true,
+                !!a
               )}
               {select(
                 'vehicle_id',
-                '',
+                a?.vehicle_id || '',
                 data.vehicles
                   .filter((v) => v.status === 'available')
-                  .map((v) => ({ value: v.id, label: vehicleTitle(v) }))
+                  .map((v) => ({ value: v.id, label: vehicleTitle(v) })),
+                true,
+                !!a
               )}
               <div className="grid grid-cols-2 gap-3">
                 {field(
                   'starts_at',
-                  localDate(defaultStart),
+                  localDate(a?.starts_at || defaultStart),
                   'datetime-local',
                   true
                 )}
                 {field(
                   'ends_at',
-                  localDate(defaultEnd),
+                  localDate(a?.ends_at || defaultEnd),
                   'datetime-local',
                   true
                 )}
@@ -952,12 +973,16 @@ function DealerEditor({
                   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                 })}
               </p>
-              {field('location', '', 'text', true)}
+              {field('location', a?.location || '', 'text', true)}
               <div className="grid grid-cols-2 gap-3">
-                {select('kind', 'test_drive', states(['visit', 'test_drive']))}
+                {select(
+                  'kind',
+                  a?.kind || 'test_drive',
+                  states(['visit', 'test_drive'])
+                )}
                 {select(
                   'status',
-                  'confirmed',
+                  a?.status || 'confirmed',
                   states(['requested', 'confirmed'])
                 )}
               </div>

@@ -65,6 +65,7 @@ import type { ContactSegment } from '@/lib/segments/types'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import { assignedTemplateVariant, recordExperimentExposure } from './template-ab-attribution'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { assertDealerAutomationAllowed, DealerAutomationStopped } from '@/lib/dealers/automations'
 import { requireRiverzoficialTemplateItems } from './riverzoficial-template-context'
 import { riverzFlowSkipReason } from './riverzoficial-context-gate'
 import { supersededCancellationReason } from './order-event-guard'
@@ -688,7 +689,8 @@ async function avisoDePago(
 function motivoDelDisparador(trigger: AutomationTriggerType): SendReason {
   return trigger === 'shopify_abandoned_checkout' ||
     trigger === 'payment_rejected' ||
-    trigger === 'customer_inactive'
+      trigger === 'customer_inactive'
+      || trigger === 'dealer_follow_up_due'
     ? 'rescate'
     : 'transaccional'
 }
@@ -1018,6 +1020,13 @@ function exigirQueHayaSalido(): never {
 
 async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string> {
   const db = supabaseAdmin()
+  try {
+    await assertDealerAutomationAllowed(db, args.automation.workspace_id, args.contactId,
+      args.automation.trigger_type, args.context.vars)
+  } catch (error) {
+    if (error instanceof DealerAutomationStopped) throw new StopSessionSequence(error.message)
+    throw error
+  }
   const pendingReminder = isPendingReminder(args.automation.trigger_type,
     args.automation.trigger_config as Record<string, unknown>, args.context.vars)
   if (args.contactId && ['send_message','send_template'].includes(step.step_type) &&

@@ -3,8 +3,7 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 vi.mock('./encryption',()=>({decrypt:()=> 'test-token'}));
 import {requestOptIn,sendToSubscriber,type MarketingOptin} from './marketing-optin';
 function database(allowed:boolean|null) {
- let chain:object;
- chain=new Proxy({}, {get:(_target,key)=>key==='then'?(resolve:(value:unknown)=>unknown)=>Promise.resolve({data:[],count:0}).then(resolve):()=>chain});
+ const chain:object=new Proxy({}, {get:(_target,key)=>key==='then'?(resolve:(value:unknown)=>unknown)=>Promise.resolve({data:[],count:0}).then(resolve):()=>chain});
  return {from:()=>chain,rpc:vi.fn().mockResolvedValue(allowed===null?{error:{message:'unavailable'}}:{data:allowed})} as unknown as SupabaseClient;
 }
 const optin={id:'optin',workspace_id:'workspace',status:'active',notification_messages_token:'permission',next_eligible_at:null,token_expiry_timestamp:null} as MarketingOptin;

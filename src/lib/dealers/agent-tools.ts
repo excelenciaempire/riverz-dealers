@@ -201,7 +201,7 @@ export async function runDealerTool(
         vehicle_ids:
           b.vehicle_ids ?? interests.data?.map((i) => i.vehicle_id) ?? [],
       });
-      if (b.budget != null && b.currency == null && !old)
+      if (b.budget != null && b.currency == null)
         throw new DealerError('invalid');
       if (ctx.simulacion) return JSON.stringify({ ok: true, simulated: true });
       const result = await db.rpc('dealer_save_opportunity', {

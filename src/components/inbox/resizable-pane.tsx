@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/hooks/use-locale";
+import { useStorageValue } from '@/hooks/use-storage-value';
 
 interface ResizablePaneProps {
   /** Pane content. */
@@ -40,27 +41,12 @@ export function ResizablePane({
   className,
 }: ResizablePaneProps) {
   const t = useT();
-  const [width, setWidth] = useState(defaultWidth);
+  const savedWidth = Number(useStorageValue(storageKey, String(defaultWidth)));
+  const [widthOverride, setWidth] = useState<number | null>(null);
+  const [seenKey, setSeenKey] = useState(storageKey);
+  if (seenKey !== storageKey) { setSeenKey(storageKey); setWidth(null); }
+  const width = widthOverride ?? (Number.isFinite(savedWidth) ? Math.min(maxWidth, Math.max(minWidth, savedWidth)) : defaultWidth);
   const [dragging, setDragging] = useState(false);
-  // Hydration guard: localStorage isn't available on the server and
-  // reading it during the initial render would mismatch what the server
-  // sent. Wait until the first effect runs to pull the stored value.
-  const hydratedRef = useRef(false);
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = Number(raw);
-        if (Number.isFinite(parsed)) {
-          setWidth(Math.min(maxWidth, Math.max(minWidth, parsed)));
-        }
-      }
-    } catch {
-      // localStorage unavailable — fall back to default.
-    }
-    hydratedRef.current = true;
-  }, [storageKey, minWidth, maxWidth]);
 
   const persist = useCallback(
     (next: number) => {

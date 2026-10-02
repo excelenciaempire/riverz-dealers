@@ -105,6 +105,29 @@ describe('dealer API authorization', () => {
       expect.objectContaining({ p_workspace: 'fixed-workspace', p_id: null })
     );
   });
+  it('reschedules with validated dates while stripping immutable appointment identities', async () => {
+    const a = demoData().appointments[0];
+    const response = await POST(
+      new Request('http://app/api/dealers', {
+        method: 'POST',
+        body: JSON.stringify({
+          entity: 'appointment',
+          id: a.id,
+          data: { ...a, seller_id: 'attacker' },
+        }),
+      })
+    );
+    expect(response.status).toBe(200);
+    expect(h.update).toHaveBeenCalledWith({
+      starts_at: a.starts_at,
+      ends_at: a.ends_at,
+      location: a.location,
+      kind: a.kind,
+      status: a.status,
+    });
+    expect(h.eq).toHaveBeenCalledWith('workspace_id', 'fixed-workspace');
+    expect(h.eq).toHaveBeenCalledWith('id', a.id);
+  });
   it('does not report success for malformed JSON or failed writes', async () => {
     expect(
       (

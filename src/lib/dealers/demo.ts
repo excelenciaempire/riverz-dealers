@@ -4,8 +4,7 @@ import {
   vehicleInput,
   opportunityInput,
   appointmentInput,
-  appointmentStatus,
-  object,
+  appointmentUpdate,
   uuid,
 } from './validation';
 export function demoData(): DealerData {
@@ -231,7 +230,7 @@ export function mutateDemo(
       : undefined;
     if (editId && !old) throw new DealerError('reference');
     const input = old
-      ? { ...old, status: appointmentStatus(object(raw)) }
+      ? { ...old, ...appointmentUpdate(raw) }
       : {
           ...appointmentInput(raw),
           id,

@@ -1,7 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { isDealerDeployment } from '@/lib/dealers/config';
+import { useDeferredLoad } from './use-deferred-load';
 
 /**
  * Estado de onboarding del workspace. El sidebar y el Inicio lo usan
@@ -130,7 +132,7 @@ export function useSetupStatus(): SetupStatus {
           .eq('status', 'active')
           .limit(1),
         supabase
-          .from('shopify_products')
+          .from(isDealerDeployment() ? 'dealer_vehicles' : 'shopify_products')
           .select('id')
           .in('workspace_id', workspaceIds)
           .limit(1),
@@ -223,9 +225,7 @@ export function useSetupStatus(): SetupStatus {
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useDeferredLoad(load);
 
   return { ...status, refresh: load };
 }

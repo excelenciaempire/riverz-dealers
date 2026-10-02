@@ -73,6 +73,11 @@ const FULFILLED: AutomationTriggerType[] = [
 ]
 
 export const DATA_POINTS: DataPoint[] = [
+  ...['vehicle','appointment_at','appointment_location'].map((key):DataPoint => ({
+    id:`dealer_${key}`, labelKey:`dealers.${key}`, group:'contact', valueKind:'text',
+    triggers:['dealer_appointment_reminder'], usableInConditions:true,
+    templateVarKey:key, condition:{kind:'var',varKey:key},
+  })),
   ...[
     ['incident_reason', 'automations.dpIncidentReason'],
     ['incident_status', 'automations.dpIncidentStatus'],
@@ -729,6 +734,9 @@ export function allTemplateDataPoints(): DataPoint[] {
 
 /** Valor de ejemplo realista por campo (para el `example` que Meta exige). */
 export const TEMPLATE_VAR_SAMPLES: Record<string, string> = {
+  vehicle: '2023 Toyota Camry',
+  appointment_at: '2026-10-12 10:00 (America/New_York)',
+  appointment_location: 'Showroom',
   payment_url: 'https://www.mercadopago.com/',
   payment_expiration: '2026-09-30 18:00',
   payment_method: 'efecty',

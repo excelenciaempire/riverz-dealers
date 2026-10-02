@@ -49,6 +49,8 @@ workspace, incluso en llamadas con service role. Un trigger valida el comprador.
 
 Las citas pendientes o confirmadas bloquean solapamientos por vendedor o
 vehículo. Se usa un lock transaccional por vendedor y un bloqueo del vehículo.
+La agenda permite reprogramar una cita existente sin cambiar comprador,
+vehículo ni vendedor; vuelve a comprobar disponibilidad y conflictos.
 Una unidad reservada o vendida no se puede agendar. Las fechas se guardan en UTC;
 el formulario y la agenda muestran explícitamente la zona horaria del navegador.
 
@@ -58,22 +60,34 @@ sus citas pendientes. El opt-out del contacto pausa seguimientos y cancela citas
 Cambiar una oportunidad a venta no marca automáticamente todos los vehículos
 de interés como vendidos: el vendedor marca la unidad vendida en el inventario.
 
-El seguimiento de Dealers es una **lista de tareas para el vendedor**. No envía
-recordatorios externos ni mensajes automáticos. Las campañas y automatizaciones
-heredadas conservan sus propias reglas; no se crearon disparadores automáticos
-específicos de Dealers en este MVP.
+El panel mantiene una **lista de tareas para el vendedor**. La migración
+`376_dealer_automations.sql` añade dos disparadores al motor de automatizaciones:
+`dealer_follow_up_due`, al vencer la fecha de seguimiento, y
+`dealer_appointment_reminder`, durante las 24 horas anteriores a una cita
+confirmada. La galería de Dealers ofrece ambas recetas en español e inglés.
+Nacen pausadas; el vendedor elige una plantilla aprobada antes de activarlas.
+
+El cron existente revisa los eventos cada minuto. Una clave única por
+automatización, comprador y fecha impide duplicar los eventos. Antes de enviar,
+incluso después de una espera, se comprueban el workspace, el comprador,
+el opt-out, la pausa, la etapa y la fecha original. Cancelar o reprogramar
+invalida un recordatorio pendiente; cerrar la oportunidad o vender/reservar
+el vehículo detiene los mensajes vinculados. Se conservan las barreras de
+envío, ventanas, cupos y logs de Riverz. Los eventos de seguimiento vencen
+tras un día; los recordatorios vencen al comenzar la cita. No se repite
+automáticamente un envío cuyo resultado quedó incierto.
 
 ## Puesta en servicio
 
 Usar un proyecto Supabase independiente de Riverz ecommerce. Aplicar las
 migraciones de la base siguiendo la configuración de Supabase del proyecto y
-después `375_dealers.sql`. Configurar las credenciales de ese proyecto y una URL
+después `375_dealers.sql` y `376_dealer_automations.sql`. Configurar las credenciales de ese proyecto y una URL
 propia en las variables de entorno; nunca apuntar este fork a la DB de ecommerce.
 
 `render.yaml` define `riverz-dealers` y un worker de voz independiente. Las URLs,
 claves de Supabase, proyecto de telemetría y secretos no se heredan del despliegue
 de Riverz. El chequeo `check-dealers-schema.cjs` bloquea el build en Render si no
-están las tablas. No se aprovisionó un servicio de Render ni una DB de producción
+están las tablas y la función de control de automatizaciones. No se aprovisionó un servicio de Render ni una DB de producción
 en esta tarea.
 
 La app conserva otras superficies del proyecto base (operador de cuenta, voz,
@@ -95,7 +109,6 @@ simulación y exclusión del checkout. La suite heredada se ejecuta en modo
 ecommerce para conservar sus comprobaciones originales; Dealers es el modo
 predeterminado de la aplicación y se prueba explícitamente.
 
-La comprobación amplia del repositorio original detectó un fallo heredado en
-`src/lib/capabilities/contrato.test.ts`: la receta `novedad-entrega` devuelve un
-artefacto nulo. Los archivos de esa receta y su renderizador no fueron
-modificados para Dealers. No se considera aprobada la suite heredada completa.
+La prueba de contrato respeta las recetas ocultas por despliegue y comprueba
+que la receta `novedad-entrega` no pueda previsualizarse si su flag está apagado.
+La suite completa se ejecuta con dos workers para limitar la memoria.

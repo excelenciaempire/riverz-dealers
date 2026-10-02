@@ -145,3 +145,21 @@ export function appointmentInput(value: unknown) {
 export function appointmentStatus(value: unknown) {
   return choice(object(value).status, APPOINTMENT_STATUSES);
 }
+/** Appointment identities are immutable; only schedule and presentation may change. */
+export function appointmentUpdate(value: unknown) {
+  const b = object(value);
+  if (!Object.hasOwn(b, 'starts_at') && !Object.hasOwn(b, 'ends_at'))
+    return { status: appointmentStatus(b) };
+  const parsed = appointmentInput({
+    ...b,
+    opportunity_id: '00000000-0000-4000-8000-000000000001',
+    vehicle_id: '00000000-0000-4000-8000-000000000002',
+  });
+  return {
+    starts_at: parsed.starts_at,
+    ends_at: parsed.ends_at,
+    location: parsed.location,
+    kind: parsed.kind,
+    status: parsed.status,
+  };
+}

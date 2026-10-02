@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useDeferredLoad } from '@/hooks/use-deferred-load';
 import { toast } from "sonner";
 import { Loader2, Plus, MoreHorizontal, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -82,13 +83,14 @@ export function CommentToDmPanel() {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const { workspace } = useWorkspace();
+  const workspaceId = workspace?.id;
   const [rules, setRules] = useState<RuleRow[] | null>(null);
   const [editing, setEditing] = useState<RuleRow | "new" | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const qs = workspace?.id ? `?workspace_id=${workspace.id}` : "";
+    const qs = workspaceId ? `?workspace_id=${workspaceId}` : "";
     const res = await fetch(`/api/comment-to-dm${qs}`);
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -97,11 +99,9 @@ export function CommentToDmPanel() {
       return;
     }
     setRules((json.rules ?? []) as RuleRow[]);
-  }, [t, workspace?.id]);
+  }, [t, workspaceId]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useDeferredLoad(load);
 
   async function toggleActive(rule: RuleRow, next: boolean) {
     if (!workspace?.id) {

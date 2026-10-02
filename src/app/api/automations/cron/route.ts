@@ -6,6 +6,7 @@ import { assertCronAuth } from '@/lib/auth/cron'
 import { withCronRun } from "@/lib/cron/heartbeat";
 import { serverError } from '@/lib/api/errors'
 import { drainAutomationEvents, enqueueScheduledAutomations } from '@/lib/automations/event-worker'
+import { enqueueDealerAutomations } from '@/lib/dealers/automations'
 
 /**
  * Drain due `automation_pending_executions` rows. Hit every minute by
@@ -35,6 +36,7 @@ async function cronHandler(request: Request) {
   let scheduled: number
   try {
     scheduled = await enqueueScheduledAutomations(admin)
+    scheduled += await enqueueDealerAutomations(admin)
     events = await drainAutomationEvents(admin)
   } catch (error) { return serverError(error) }
   const { data: due, error } = await admin

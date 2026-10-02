@@ -536,21 +536,30 @@ function AudiencePreview({ audience }: { audience: AudienceConfig }) {
     is_shopify_customer: boolean;
     tags: string[];
   }> | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [seenAudience, setSeenAudience] = useState(audience);
+  if (seenAudience !== audience) {
+    setSeenAudience(audience);
+    setLoading(true);
+    setContacts(null);
+  }
 
   useEffect(() => {
-    setLoading(true);
+    const controller = new AbortController();
     fetchWithCsrf('/api/broadcasts/audience-preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ audience, limit: 12 }),
+      signal: controller.signal,
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { contacts?: typeof contacts } | null) => {
+        if (controller.signal.aborted) return;
         setContacts(d?.contacts ?? []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, [audience, fetchWithCsrf]);
 
   if (loading) {

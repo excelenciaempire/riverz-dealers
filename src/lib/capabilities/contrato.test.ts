@@ -1,16 +1,20 @@
-import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
 
-import { ROSTER, SIN_DUENO } from '@/lib/operator/fleet/roster'
-import { KINDS_ARTEFACTO } from '@/lib/operator/artifacts'
-import { AUTOMATION_TEMPLATES } from '@/lib/automations/templates'
-import type { PasoArtefacto } from '@/lib/operator/artifacts'
-import { ALL_CAPABILITIES } from './registry'
+import { ROSTER, SIN_DUENO } from '@/lib/operator/fleet/roster';
+import { KINDS_ARTEFACTO } from '@/lib/operator/artifacts';
+import { AUTOMATION_TEMPLATES, getTemplate } from '@/lib/automations/templates';
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
+import type { PasoArtefacto } from '@/lib/operator/artifacts';
+import { ALL_CAPABILITIES } from './registry';
 
 /** Cuenta el árbol entero, ramas incluidas. */
 function contar(pasos: PasoArtefacto[]): number {
-  return pasos.reduce((n, p) => n + 1 + contar(p.si ?? []) + contar(p.no ?? []), 0)
+  return pasos.reduce(
+    (n, p) => n + 1 + contar(p.si ?? []) + contar(p.no ?? []),
+    0
+  );
 }
 
 /**
@@ -28,35 +32,35 @@ function contar(pasos: PasoArtefacto[]): number {
  *     propósito. Una capacidad sin dueño no la puede llamar nadie.
  */
 
-const DIR = 'src/lib/capabilities'
+const DIR = 'src/lib/capabilities';
 
 const fuentes = readdirSync(DIR)
   .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
-  .map((f) => [f, readFileSync(join(DIR, f), 'utf8')] as const)
+  .map((f) => [f, readFileSync(join(DIR, f), 'utf8')] as const);
 
 describe('el contrato de una capacidad', () => {
   it('todo lo que escribe sabe decir qué haría', () => {
-    const mudas = ALL_CAPABILITIES.filter((c) => c.risk !== 'lectura' && !c.preview).map(
-      (c) => c.key,
-    )
-    expect(mudas).toEqual([])
-  })
+    const mudas = ALL_CAPABILITIES.filter(
+      (c) => c.risk !== 'lectura' && !c.preview
+    ).map((c) => c.key);
+    expect(mudas).toEqual([]);
+  });
 
   it('una lectura no propone nada, así que no necesita vista previa', () => {
-    const sobra = ALL_CAPABILITIES.filter((c) => c.risk === 'lectura' && c.preview).map(
-      (c) => c.key,
-    )
-    expect(sobra).toEqual([])
-  })
+    const sobra = ALL_CAPABILITIES.filter(
+      (c) => c.risk === 'lectura' && c.preview
+    ).map((c) => c.key);
+    expect(sobra).toEqual([]);
+  });
 
   it('cada una es de alguien del equipo', () => {
-    const prefijos = ROSTER.flatMap((s) => s.capacidades)
+    const prefijos = ROSTER.flatMap((s) => s.capacidades);
     const huerfanas = ALL_CAPABILITIES.filter(
-      (c) => !SIN_DUENO[c.key] && !prefijos.some((p) => c.key.startsWith(p)),
-    ).map((c) => c.key)
-    expect(huerfanas).toEqual([])
-  })
-})
+      (c) => !SIN_DUENO[c.key] && !prefijos.some((p) => c.key.startsWith(p))
+    ).map((c) => c.key);
+    expect(huerfanas).toEqual([]);
+  });
+});
 
 /**
  * Ninguna vista previa devuelve una excusa.
@@ -67,40 +71,52 @@ describe('el contrato de una capacidad', () => {
  */
 describe('las vistas previas', () => {
   const NEGACION =
-    /^(no |nada |todav[íi]a no|ese |esa |eso |falta|hace falta|primero |sin |«?…»? (no|todav))/i
+    /^(no |nada |todav[íi]a no|ese |esa |eso |falta|hace falta|primero |sin |«?…»? (no|todav))/i;
 
   it('describen lo que pasaría, nunca por qué no se puede', () => {
-    const malas: string[] = []
+    const malas: string[] = [];
     for (const [archivo, src] of fuentes) {
-      const lineas = src.split('\n')
+      const lineas = src.split('\n');
       for (const m of src.matchAll(
-        /^(\s*)(?:async )?(preview\w*)\(|^async function (preview\w+)\(/gm,
+        /^(\s*)(?:async )?(preview\w*)\(|^async function (preview\w+)\(/gm
       )) {
-        const ini = src.slice(0, m.index).split('\n').length - 1
-        const sangria = (m[1] ?? '').length
-        let fin = ini + 1
+        const ini = src.slice(0, m.index).split('\n').length - 1;
+        const sangria = (m[1] ?? '').length;
+        let fin = ini + 1;
         while (fin < lineas.length) {
-          const l = lineas[fin]
-          if (l.trim() && l.length - l.trimStart().length <= sangria && l.trim().startsWith('}')) break
-          fin++
+          const l = lineas[fin];
+          if (
+            l.trim() &&
+            l.length - l.trimStart().length <= sangria &&
+            l.trim().startsWith('}')
+          )
+            break;
+          fin++;
         }
         for (let n = ini; n <= Math.min(fin, lineas.length - 1); n++) {
-          const r = lineas[n].match(/\breturn (?:\(e as Error\)\.message|[`'"](.+))/)
-          if (!r) continue
+          const r = lineas[n].match(
+            /\breturn (?:\(e as Error\)\.message|[`'"](.+))/
+          );
+          if (!r) continue;
           if (r[1] === undefined) {
-            malas.push(`${archivo}:${n + 1} devuelve el mensaje de una excepción`)
-            continue
+            malas.push(
+              `${archivo}:${n + 1} devuelve el mensaje de una excepción`
+            );
+            continue;
           }
-          const plano = r[1].replace(/\$\{[^}]*\}/g, '…').trim().replace(/[`'"]$/, '')
+          const plano = r[1]
+            .replace(/\$\{[^}]*\}/g, '…')
+            .trim()
+            .replace(/[`'"]$/, '');
           if (NEGACION.test(plano) || /no se puede/i.test(plano)) {
-            malas.push(`${archivo}:${n + 1} «${plano.slice(0, 60)}»`)
+            malas.push(`${archivo}:${n + 1} «${plano.slice(0, 60)}»`);
           }
         }
       }
     }
-    expect(malas).toEqual([])
-  })
-})
+    expect(malas).toEqual([]);
+  });
+});
 
 /**
  * Un tipo de pieza que nadie produce es un dibujo que no se ve nunca.
@@ -132,31 +148,56 @@ describe('las piezas que el banco sabe dibujar', () => {
     'plantillas.enviar_a_meta',
     'campanas.crear',
     'flujos.editar',
-  ]
+  ];
 
   it('lo que deja una pieza sabe dibujarla', () => {
     const mudas = DEJAN_PIEZA.filter(
-      (k) => !ALL_CAPABILITIES.find((c) => c.key === k)?.artifact,
-    )
-    expect(mudas).toEqual([])
-  })
+      (k) => !ALL_CAPABILITIES.find((c) => c.key === k)?.artifact
+    );
+    expect(mudas).toEqual([]);
+  });
 
   it('una lista para usar se dibuja entera, con sus ramas', () => {
     // Las semillas de una receta se guardan planas, apuntando a su condición
     // padre por índice. El dibujo necesita el árbol.
-    const cap = ALL_CAPABILITIES.find((c) => c.key === 'automatizaciones.crear_desde_receta')!
-    const ctx = { workspaceId: 'ws', locale: 'es' } as never
+    const cap = ALL_CAPABILITIES.find(
+      (c) => c.key === 'automatizaciones.crear_desde_receta'
+    )!;
+    const ctx = { workspaceId: 'ws', locale: 'es' } as never;
     for (const [slug, receta] of Object.entries(AUTOMATION_TEMPLATES)) {
-      const art = cap.artifact!(ctx, { receta: slug }, undefined)
-      expect(art, slug).toBeTruthy()
-      expect(art!.kind, slug).toBe('automatizacion')
-      const { pasos } = art as { pasos: PasoArtefacto[] }
+      const art = cap.artifact!(ctx, { receta: slug }, undefined);
+      // A rollout-disabled recipe cannot be created or previewed. Its
+      // definition remains in the catalog for the comparison deployment.
+      if (!getTemplate(slug, 'es')) {
+        expect(art, slug).toBeNull();
+        continue;
+      }
+      expect(art, slug).toBeTruthy();
+      expect(art!.kind, slug).toBe('automatizacion');
+      const { pasos } = art as { pasos: PasoArtefacto[] };
       // El tronco tiene al menos un paso, y ninguna semilla se pierde en el
       // camino de lista plana a árbol.
-      expect(pasos.length, slug).toBeGreaterThan(0)
-      expect(contar(pasos), slug).toBe(receta.steps.length)
+      expect(pasos.length, slug).toBeGreaterThan(0);
+      expect(contar(pasos), slug).toBe(receta.steps.length);
     }
-  })
+  });
+
+  it('la receta de novedades respeta su activación en ambos idiomas', async () => {
+    const cap = ALL_CAPABILITIES.find(
+      (c) => c.key === 'automatizaciones.crear_desde_receta'
+    )!;
+    for (const locale of ['es', 'en'] as const) {
+      const ctx = { workspaceId: 'ws', locale } as never;
+      const args = { receta: 'novedad-entrega' };
+      if (SHOW_RIVERZ_IMPROVEMENTS) {
+        expect(cap.artifact!(ctx, args, undefined)).toBeTruthy();
+        await expect(cap.preview!(ctx, args)).resolves.toBeTruthy();
+      } else {
+        expect(cap.artifact!(ctx, args, undefined)).toBeNull();
+        await expect(cap.preview!(ctx, args)).rejects.toThrow();
+      }
+    }
+  });
 
   it('todas tienen quién las produzca', () => {
     // Se busca en las capacidades y en los constructores que usan: el árbol de
@@ -164,21 +205,21 @@ describe('las piezas que el banco sabe dibujar', () => {
     const juntas = [
       ...fuentes.map(([, s]) => s),
       ...['ai-steps.ts', 'ai-patches.ts'].map((f) =>
-        readFileSync(join('src/lib/automations', f), 'utf8'),
+        readFileSync(join('src/lib/automations', f), 'utf8')
       ),
-    ].join('\n')
+    ].join('\n');
     const sinProductor = [...KINDS_ARTEFACTO].filter(
-      (k) => !juntas.includes(`kind: '${k}'`),
-    )
-    expect(sinProductor).toEqual([])
-  })
-})
+      (k) => !juntas.includes(`kind: '${k}'`)
+    );
+    expect(sinProductor).toEqual([]);
+  });
+});
 
 describe('lo que el panel del Operador puede mostrar', () => {
   // El resumen ya tiene su panel propio. El Operador puede leerlo y explicarlo,
   // pero duplicar esas métricas en el lienzo confunde qué pantalla es la fuente
   // de verdad.
-  const SIN_VISTA_EN_OPERADOR = new Set(['metricas.resumen'])
+  const SIN_VISTA_EN_OPERADOR = new Set(['metricas.resumen']);
 
   /**
    * TODA capacidad dibuja algo.
@@ -194,21 +235,21 @@ describe('lo que el panel del Operador puede mostrar', () => {
       // Una LECTURA se dibuja desde su resultado (`vista`); lo que ESCRIBE se
       // dibuja desde sus argumentos (`artifact`), porque tiene que verse antes
       // de aprobarlo. No son intercambiables.
-      const dibuja = c.risk === 'lectura' ? c.vista : c.artifact
-      return !dibuja && !SIN_VISTA_EN_OPERADOR.has(c.key)
-    }).map((c) => c.key)
-    expect(mudas).toEqual([])
-  })
+      const dibuja = c.risk === 'lectura' ? c.vista : c.artifact;
+      return !dibuja && !SIN_VISTA_EN_OPERADOR.has(c.key);
+    }).map((c) => c.key);
+    expect(mudas).toEqual([]);
+  });
 
   it('una lectura no dibuja con `artifact`, y al revés', () => {
     // Los dos hooks reciben cosas distintas: `artifact` los argumentos, `vista`
     // el resultado. Cruzarlos compila y devuelve un dibujo vacío.
     const cruzadas = ALL_CAPABILITIES.filter((c) =>
-      c.risk === 'lectura' ? Boolean(c.artifact) : Boolean(c.vista),
-    ).map((c) => c.key)
-    expect(cruzadas).toEqual([])
-  })
-})
+      c.risk === 'lectura' ? Boolean(c.artifact) : Boolean(c.vista)
+    ).map((c) => c.key);
+    expect(cruzadas).toEqual([]);
+  });
+});
 
 describe('una vista no puede romperse con lo que le llegue', () => {
   /**
@@ -219,21 +260,33 @@ describe('una vista no puede romperse con lo que le llegue', () => {
    * nada". Una cuenta sin pedidos, una consulta sin resultados y una tabla que
    * volvió `null` tienen que dibujar algo o devolver `null` a propósito.
    */
-  const VACIOS: unknown[] = [null, undefined, {}, [], { filas: null }, { datos: [] }]
+  const VACIOS: unknown[] = [
+    null,
+    undefined,
+    {},
+    [],
+    { filas: null },
+    { datos: [] },
+  ];
 
   it('sobrevive a un resultado vacío', () => {
-    const ctx = { db: null, workspaceId: 'w', actor: { type: 'operator' as const }, locale: 'es' as const }
-    const rotas: string[] = []
+    const ctx = {
+      db: null,
+      workspaceId: 'w',
+      actor: { type: 'operator' as const },
+      locale: 'es' as const,
+    };
+    const rotas: string[] = [];
     for (const cap of ALL_CAPABILITIES) {
-      if (!cap.vista) continue
+      if (!cap.vista) continue;
       for (const v of VACIOS) {
         try {
-          cap.vista(ctx as never, {}, v)
+          cap.vista(ctx as never, {}, v);
         } catch {
-          rotas.push(`${cap.key} ← ${JSON.stringify(v) ?? 'undefined'}`)
+          rotas.push(`${cap.key} ← ${JSON.stringify(v) ?? 'undefined'}`);
         }
       }
     }
-    expect(rotas).toEqual([])
-  })
-})
+    expect(rotas).toEqual([]);
+  });
+});

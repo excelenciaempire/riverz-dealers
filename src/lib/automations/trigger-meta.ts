@@ -11,6 +11,8 @@ export interface TriggerMeta {
 }
 
 export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
+  dealer_follow_up_due: { label: '', labelKey: 'dealers.triggerFollowUp', pillClass: 'border-primary/30 bg-primary/10 text-primary' },
+  dealer_appointment_reminder: { label: '', labelKey: 'dealers.triggerReminder', pillClass: 'border-primary/30 bg-primary/10 text-primary' },
   new_message_received: {
     label: 'Nuevo mensaje',
     pillClass: 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300',

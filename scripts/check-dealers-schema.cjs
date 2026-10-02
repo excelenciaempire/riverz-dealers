@@ -24,6 +24,21 @@
         `Apply dealer migration 375 before deploying (${table}, HTTP ${res.status}).`
       );
   }
+  const guard = await fetch(`${url}/rest/v1/rpc/dealer_automation_allowed`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      p_workspace: null,
+      p_contact: null,
+      p_event: 'dealer_follow_up_due',
+      p_vars: {},
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!guard.ok || (await guard.json()) !== false)
+    throw new Error(
+      `Apply dealer automation migration 376 before deploying (HTTP ${guard.status}).`
+    );
   console.log('Dealer schema verified.');
 })().catch((error) => {
   console.error(error.message);

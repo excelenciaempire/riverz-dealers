@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "./use-workspace";
+import { useDeferredLoad } from './use-deferred-load';
 import type { MessageSnippet } from "@/types";
 
 /**
@@ -27,9 +28,7 @@ export function useSnippets() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+  useDeferredLoad(reload);
 
   const create = useCallback(
     async (shortcut: string, body: string, title?: string): Promise<{ error?: string }> => {

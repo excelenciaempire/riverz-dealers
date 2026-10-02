@@ -42,12 +42,16 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [seenOpen, setSeenOpen] = useState(open);
+  if (seenOpen !== open) {
+    setSeenOpen(open);
+    if (open) { setQuery(''); setActiveIdx(0); }
+  }
 
   useEffect(() => {
     if (open) {
-      setQuery("");
-      setActiveIdx(0);
-      requestAnimationFrame(() => inputRef.current?.focus());
+      const frame = requestAnimationFrame(() => inputRef.current?.focus());
+      return () => cancelAnimationFrame(frame);
     }
   }, [open]);
 
@@ -67,9 +71,6 @@ export function CommandPalette({
       .slice(0, 30);
   }, [items, query]);
 
-  useEffect(() => {
-    setActiveIdx(0);
-  }, [query]);
 
   if (!open) return null;
 
@@ -117,7 +118,7 @@ export function CommandPalette({
           <input
             ref={inputRef}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); setActiveIdx(0); }}
             onKeyDown={onKeyDown}
             placeholder={t("flows.palettePlaceholder")}
             className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
