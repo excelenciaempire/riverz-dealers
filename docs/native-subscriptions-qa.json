@@ -1,0 +1,1065 @@
+{
+  "observedAt": "2026-10-02T15:54:10.490Z",
+  "scope": "private_real_components_fictional_data",
+  "publicUiEnabled": false,
+  "externalActions": false,
+  "providerCalls": false,
+  "emailRequested": false,
+  "aiUsage": false,
+  "billingChanged": false,
+  "tests": {
+    "files": 20,
+    "passed": 452,
+    "log": "native-subscriptions-final-regression.log"
+  },
+  "typecheck": "passed",
+  "builds": {
+    "normal": "passed",
+    "comparison": "passed"
+  },
+  "lint": {
+    "ownedFiles": "passed",
+    "repositoryWideCleanNotClaimed": true,
+    "existingChannelsPanelBaseline": "pre-existing set-state-in-effect error and seven warnings recorded separately"
+  },
+  "schema": {
+    "migration": "374_native_subscriptions.sql",
+    "installedOnce": true,
+    "ready": true,
+    "privateProbe": true,
+    "fixedInvoker": true,
+    "privateTables": true,
+    "serviceRoleReady": true,
+    "nullActorDenied": true,
+    "probeOnly": true,
+    "noCustomerProviderOrPurgeOperation": true
+  },
+  "isolation": {
+    "apiAndWriteRoutes": "blocked",
+    "privateFiles": "not_served",
+    "externalConnections": "blocked_by_csp",
+    "hostRejected": true,
+    "rootCredentialsLoaded": false
+  },
+  "initialDiagnostics": [
+    "Browser status unavailable then preview_open metadata available; evaluate disconnected. Later status and DOM evaluate worked in same hidden tab.",
+    "Preview asset copy attempted during Next compilation failed ENOENT; final copy waited for complete build."
+  ],
+  "nativeQa": "passed",
+  "nativeSubscriptions": [
+    {
+      "at": "2026-10-02T15:55:05.632Z",
+      "before": {
+        "currentCalls": [],
+        "currentText": "La base actual se conserva\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nLas herramientas actuales del pedido se conservan. Recharge añade suscripciones y cambios revisados dentro del caso.",
+        "improvedCalls": []
+      },
+      "checks": {
+        "acceptanceNotObservation": true,
+        "closeClearsPending": true,
+        "controlsFit": true,
+        "doubleClickOnePost": true,
+        "editClearsBothReviews": true,
+        "exactReviewedChange": true,
+        "fontsLoaded": true,
+        "lostAckLocksDraft": true,
+        "newChangeNeedsFreshReviews": true,
+        "noCredentialReturned": true,
+        "noEmailOrRevenueClaim": true,
+        "noHorizontalOverflow": true,
+        "noNewRuntimeErrors": true,
+        "noProviderFetchOnMount": true,
+        "noTranslationKeys": true,
+        "pendingStorageIdsOnly": true,
+        "publicControlHidden": true,
+        "readbackIsSeparate": true,
+        "receiptWorksWhenPaused": true,
+        "recoveryDoesNotExecute": true,
+        "reviewAllowsApply": true,
+        "twoReviewsRequired": true
+      },
+      "errors": [],
+      "final": {
+        "flags": {
+          "aiUsage": false,
+          "billingChanged": false,
+          "emailRequested": false,
+          "providerCalled": false,
+          "synthetic": true
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          }
+        ],
+        "text": "Suscripciones · Recharge\nConsultar suscripciones\n\nfixture-store.myshopify.com\n\nSuscripción de ejemplo\n\n#111 · Activa\n\nCantidad\n3\nPrecio unitario en Recharge\n12.50\nFrecuencia de entrega / cobro\n1 / 1 meses\nPróxima fecha de cobro\n2026-10-20\nCambiar cantidad\nCambiar frecuencia\nMover próximo cobro\nSaltar una entrega\nCancelar suscripción\nCantidad\nRevisar cambio\n\nEstado antes del cambio\n\nCantidad\n3\nPrecio unitario en Recharge\n12.50\nFrecuencia de entrega / cobro\n1 / 1 meses\nPróxima fecha de cobro\n2026-10-20\n\nCambio solicitado\n\nCambiar cantidad\n\n4\n\nRevisé con el cliente el efecto sobre cobros y entregas. Cambiar la frecuencia puede recalcular fechas y saltos; reactivar puede programar nuevos cobros.\nConfirmo este cambio para la suscripción #111 de fixture-store.myshopify.com.\nAplicar cambio confirmado"
+      },
+      "finalReceipt": {
+        "attemptId": "07ce470e-0562-4229-b41e-daf2f726cc51",
+        "before": {
+          "addressId": 33,
+          "cancellationComments": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "chargeIntervalFrequency": "1",
+          "customerId": 22,
+          "id": 111,
+          "isPrepaid": false,
+          "isSkippable": true,
+          "nextChargeScheduledAt": "2026-10-20",
+          "orderIntervalFrequency": 1,
+          "orderIntervalUnit": "month",
+          "price": "12.50",
+          "productId": "444",
+          "quantity": 2,
+          "status": "active",
+          "title": "Suscripción de ejemplo",
+          "updatedAt": "2026-10-01T14:00:00Z",
+          "variantId": "555",
+          "variantTitle": null
+        },
+        "causalityVerified": false,
+        "change": {
+          "quantity": 3,
+          "type": "quantity"
+        },
+        "connectionId": "10000000-0000-4000-8000-000000000008",
+        "conversationId": "10000000-0000-4000-8000-000000000003",
+        "createdAt": "2026-10-02T15:54:59.392Z",
+        "desiredStateObserved": true,
+        "emailRequested": false,
+        "orderId": "10000000-0000-4000-8000-000000000006",
+        "providerAccepted": true,
+        "revision": "10000000-0000-4000-8000-000000000007",
+        "snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "state": "observed",
+        "subscriptionId": 111,
+        "updatedAt": "2026-10-02T15:54:59.392Z"
+      },
+      "firstReceipt": {
+        "attemptId": "07ce470e-0562-4229-b41e-daf2f726cc51",
+        "before": {
+          "addressId": 33,
+          "cancellationComments": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "chargeIntervalFrequency": "1",
+          "customerId": 22,
+          "id": 111,
+          "isPrepaid": false,
+          "isSkippable": true,
+          "nextChargeScheduledAt": "2026-10-20",
+          "orderIntervalFrequency": 1,
+          "orderIntervalUnit": "month",
+          "price": "12.50",
+          "productId": "444",
+          "quantity": 2,
+          "status": "active",
+          "title": "Suscripción de ejemplo",
+          "updatedAt": "2026-10-01T14:00:00Z",
+          "variantId": "555",
+          "variantTitle": null
+        },
+        "causalityVerified": false,
+        "change": {
+          "quantity": 3,
+          "type": "quantity"
+        },
+        "connectionId": "10000000-0000-4000-8000-000000000008",
+        "conversationId": "10000000-0000-4000-8000-000000000003",
+        "createdAt": "2026-10-02T15:54:59.392Z",
+        "desiredStateObserved": false,
+        "emailRequested": false,
+        "orderId": "10000000-0000-4000-8000-000000000006",
+        "providerAccepted": true,
+        "revision": "10000000-0000-4000-8000-000000000007",
+        "snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "state": "accepted",
+        "subscriptionId": 111,
+        "updatedAt": "2026-10-02T15:54:59.392Z"
+      },
+      "locale": "es",
+      "viewport": {
+        "frameWidth": 701,
+        "height": 1000,
+        "width": 1440
+      }
+    },
+    {
+      "at": "2026-10-02T15:55:35.393Z",
+      "before": {
+        "currentCalls": [],
+        "currentText": "The current foundation is preserved\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nCurrent order tools are preserved. Recharge adds subscriptions and reviewed changes inside the case.",
+        "improvedCalls": []
+      },
+      "checks": {
+        "acceptanceNotObservation": true,
+        "closeClearsPending": true,
+        "controlsFit": true,
+        "doubleClickOnePost": true,
+        "editClearsBothReviews": true,
+        "exactReviewedChange": true,
+        "fontsLoaded": true,
+        "lostAckLocksDraft": true,
+        "newChangeNeedsFreshReviews": true,
+        "noCredentialReturned": true,
+        "noEmailOrRevenueClaim": true,
+        "noHorizontalOverflow": true,
+        "noNewRuntimeErrors": true,
+        "noProviderFetchOnMount": true,
+        "noTranslationKeys": true,
+        "pendingStorageIdsOnly": true,
+        "publicControlHidden": true,
+        "readbackIsSeparate": true,
+        "receiptWorksWhenPaused": true,
+        "recoveryDoesNotExecute": true,
+        "reviewAllowsApply": true,
+        "twoReviewsRequired": true
+      },
+      "errors": [],
+      "final": {
+        "flags": {
+          "aiUsage": false,
+          "billingChanged": false,
+          "emailRequested": false,
+          "providerCalled": false,
+          "synthetic": true
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          }
+        ],
+        "text": "Subscriptions · Recharge\nLoad subscriptions\n\nfixture-store.myshopify.com\n\nExample subscription\n\n#111 · Active\n\nQuantity\n3\nRecharge unit price\n12.50\nDelivery / charge frequency\n1 / 1 months\nNext charge date\n2026-10-20\nChange quantity\nChange frequency\nMove next charge\nSkip one delivery\nCancel subscription\nQuantity\nReview change\n\nState before the change\n\nQuantity\n3\nRecharge unit price\n12.50\nDelivery / charge frequency\n1 / 1 months\nNext charge date\n2026-10-20\n\nRequested change\n\nChange quantity\n\n4\n\nI reviewed the billing and delivery effects with the customer. Changing frequency may recalculate dates and skips; reactivation may schedule new charges.\nI confirm this change for subscription #111 at fixture-store.myshopify.com.\nApply confirmed change"
+      },
+      "finalReceipt": {
+        "attemptId": "4e8fdc87-6d30-495c-a4c2-2961ff957fff",
+        "before": {
+          "addressId": 33,
+          "cancellationComments": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "chargeIntervalFrequency": "1",
+          "customerId": 22,
+          "id": 111,
+          "isPrepaid": false,
+          "isSkippable": true,
+          "nextChargeScheduledAt": "2026-10-20",
+          "orderIntervalFrequency": 1,
+          "orderIntervalUnit": "month",
+          "price": "12.50",
+          "productId": "444",
+          "quantity": 2,
+          "status": "active",
+          "title": "Example subscription",
+          "updatedAt": "2026-10-01T14:00:00Z",
+          "variantId": "555",
+          "variantTitle": null
+        },
+        "causalityVerified": false,
+        "change": {
+          "quantity": 3,
+          "type": "quantity"
+        },
+        "connectionId": "10000000-0000-4000-8000-000000000008",
+        "conversationId": "10000000-0000-4000-8000-000000000003",
+        "createdAt": "2026-10-02T15:55:31.384Z",
+        "desiredStateObserved": true,
+        "emailRequested": false,
+        "orderId": "10000000-0000-4000-8000-000000000006",
+        "providerAccepted": true,
+        "revision": "10000000-0000-4000-8000-000000000007",
+        "snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "state": "observed",
+        "subscriptionId": 111,
+        "updatedAt": "2026-10-02T15:55:31.384Z"
+      },
+      "firstReceipt": {
+        "attemptId": "4e8fdc87-6d30-495c-a4c2-2961ff957fff",
+        "before": {
+          "addressId": 33,
+          "cancellationComments": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "chargeIntervalFrequency": "1",
+          "customerId": 22,
+          "id": 111,
+          "isPrepaid": false,
+          "isSkippable": true,
+          "nextChargeScheduledAt": "2026-10-20",
+          "orderIntervalFrequency": 1,
+          "orderIntervalUnit": "month",
+          "price": "12.50",
+          "productId": "444",
+          "quantity": 2,
+          "status": "active",
+          "title": "Example subscription",
+          "updatedAt": "2026-10-01T14:00:00Z",
+          "variantId": "555",
+          "variantTitle": null
+        },
+        "causalityVerified": false,
+        "change": {
+          "quantity": 3,
+          "type": "quantity"
+        },
+        "connectionId": "10000000-0000-4000-8000-000000000008",
+        "conversationId": "10000000-0000-4000-8000-000000000003",
+        "createdAt": "2026-10-02T15:55:31.384Z",
+        "desiredStateObserved": false,
+        "emailRequested": false,
+        "orderId": "10000000-0000-4000-8000-000000000006",
+        "providerAccepted": true,
+        "revision": "10000000-0000-4000-8000-000000000007",
+        "snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "state": "accepted",
+        "subscriptionId": 111,
+        "updatedAt": "2026-10-02T15:55:31.384Z"
+      },
+      "locale": "en",
+      "viewport": {
+        "frameWidth": 701,
+        "height": 1000,
+        "width": 1440
+      }
+    },
+    {
+      "at": "2026-10-02T15:56:02.392Z",
+      "before": {
+        "currentCalls": [],
+        "currentText": "La base actual se conserva\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nLas herramientas actuales del pedido se conservan. Recharge añade suscripciones y cambios revisados dentro del caso.",
+        "improvedCalls": []
+      },
+      "checks": {
+        "acceptanceNotObservation": true,
+        "closeClearsPending": true,
+        "controlsFit": true,
+        "doubleClickOnePost": true,
+        "editClearsBothReviews": true,
+        "exactReviewedChange": true,
+        "fontsLoaded": true,
+        "lostAckLocksDraft": true,
+        "newChangeNeedsFreshReviews": true,
+        "noCredentialReturned": true,
+        "noEmailOrRevenueClaim": true,
+        "noHorizontalOverflow": true,
+        "noNewRuntimeErrors": true,
+        "noProviderFetchOnMount": true,
+        "noTranslationKeys": true,
+        "pendingStorageIdsOnly": true,
+        "publicControlHidden": true,
+        "readbackIsSeparate": true,
+        "receiptWorksWhenPaused": true,
+        "recoveryDoesNotExecute": true,
+        "reviewAllowsApply": true,
+        "twoReviewsRequired": true
+      },
+      "errors": [],
+      "final": {
+        "flags": {
+          "aiUsage": false,
+          "billingChanged": false,
+          "emailRequested": false,
+          "providerCalled": false,
+          "synthetic": true
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          }
+        ],
+        "text": "Suscripciones · Recharge\nConsultar suscripciones\n\nfixture-store.myshopify.com\n\nSuscripción de ejemplo\n\n#111 · Activa\n\nCantidad\n3\nPrecio unitario en Recharge\n12.50\nFrecuencia de entrega / cobro\n1 / 1 meses\nPróxima fecha de cobro\n2026-10-20\nCambiar cantidad\nCambiar frecuencia\nMover próximo cobro\nSaltar una entrega\nCancelar suscripción\nCantidad\nRevisar cambio\n\nEstado antes del cambio\n\nCantidad\n3\nPrecio unitario en Recharge\n12.50\nFrecuencia de entrega / cobro\n1 / 1 meses\nPróxima fecha de cobro\n2026-10-20\n\nCambio solicitado\n\nCambiar cantidad\n\n4\n\nRevisé con el cliente el efecto sobre cobros y entregas. Cambiar la frecuencia puede recalcular fechas y saltos; reactivar puede programar nuevos cobros.\nConfirmo este cambio para la suscripción #111 de fixture-store.myshopify.com.\nAplicar cambio confirmado"
+      },
+      "finalReceipt": {
+        "attemptId": "fc26d5da-7fbc-46a2-afa1-36824322b0ed",
+        "before": {
+          "addressId": 33,
+          "cancellationComments": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "chargeIntervalFrequency": "1",
+          "customerId": 22,
+          "id": 111,
+          "isPrepaid": false,
+          "isSkippable": true,
+          "nextChargeScheduledAt": "2026-10-20",
+          "orderIntervalFrequency": 1,
+          "orderIntervalUnit": "month",
+          "price": "12.50",
+          "productId": "444",
+          "quantity": 2,
+          "status": "active",
+          "title": "Suscripción de ejemplo",
+          "updatedAt": "2026-10-01T14:00:00Z",
+          "variantId": "555",
+          "variantTitle": null
+        },
+        "causalityVerified": false,
+        "change": {
+          "quantity": 3,
+          "type": "quantity"
+        },
+        "connectionId": "10000000-0000-4000-8000-000000000008",
+        "conversationId": "10000000-0000-4000-8000-000000000003",
+        "createdAt": "2026-10-02T15:55:49.390Z",
+        "desiredStateObserved": true,
+        "emailRequested": false,
+        "orderId": "10000000-0000-4000-8000-000000000006",
+        "providerAccepted": true,
+        "revision": "10000000-0000-4000-8000-000000000007",
+        "snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "state": "observed",
+        "subscriptionId": 111,
+        "updatedAt": "2026-10-02T15:55:49.390Z"
+      },
+      "firstReceipt": {
+        "attemptId": "fc26d5da-7fbc-46a2-afa1-36824322b0ed",
+        "before": {
+          "addressId": 33,
+          "cancellationComments": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "chargeIntervalFrequency": "1",
+          "customerId": 22,
+          "id": 111,
+          "isPrepaid": false,
+          "isSkippable": true,
+          "nextChargeScheduledAt": "2026-10-20",
+          "orderIntervalFrequency": 1,
+          "orderIntervalUnit": "month",
+          "price": "12.50",
+          "productId": "444",
+          "quantity": 2,
+          "status": "active",
+          "title": "Suscripción de ejemplo",
+          "updatedAt": "2026-10-01T14:00:00Z",
+          "variantId": "555",
+          "variantTitle": null
+        },
+        "causalityVerified": false,
+        "change": {
+          "quantity": 3,
+          "type": "quantity"
+        },
+        "connectionId": "10000000-0000-4000-8000-000000000008",
+        "conversationId": "10000000-0000-4000-8000-000000000003",
+        "createdAt": "2026-10-02T15:55:49.390Z",
+        "desiredStateObserved": false,
+        "emailRequested": false,
+        "orderId": "10000000-0000-4000-8000-000000000006",
+        "providerAccepted": true,
+        "revision": "10000000-0000-4000-8000-000000000007",
+        "snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "state": "accepted",
+        "subscriptionId": 111,
+        "updatedAt": "2026-10-02T15:55:49.390Z"
+      },
+      "locale": "es",
+      "viewport": {
+        "frameWidth": 350,
+        "height": 844,
+        "width": 390
+      }
+    },
+    {
+      "at": "2026-10-02T15:56:33.983Z",
+      "before": {
+        "currentCalls": [],
+        "currentText": "The current foundation is preserved\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nCurrent order tools are preserved. Recharge adds subscriptions and reviewed changes inside the case.",
+        "improvedCalls": []
+      },
+      "checks": {
+        "acceptanceNotObservation": true,
+        "closeClearsPending": true,
+        "controlsFit": true,
+        "doubleClickOnePost": true,
+        "editClearsBothReviews": true,
+        "exactReviewedChange": true,
+        "fontsLoaded": true,
+        "lostAckLocksDraft": true,
+        "newChangeNeedsFreshReviews": true,
+        "noCredentialReturned": true,
+        "noEmailOrRevenueClaim": true,
+        "noHorizontalOverflow": true,
+        "noNewRuntimeErrors": true,
+        "noProviderFetchOnMount": true,
+        "noTranslationKeys": true,
+        "pendingStorageIdsOnly": true,
+        "publicControlHidden": true,
+        "readbackIsSeparate": true,
+        "receiptWorksWhenPaused": true,
+        "recoveryDoesNotExecute": true,
+        "reviewAllowsApply": true,
+        "twoReviewsRequired": true
+      },
+      "errors": [],
+      "final": {
+        "flags": {
+          "aiUsage": false,
+          "billingChanged": false,
+          "emailRequested": false,
+          "providerCalled": false,
+          "synthetic": true
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/subscriptions"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/subscriptions"
+          }
+        ],
+        "text": "Subscriptions · Recharge\nLoad subscriptions\n\nfixture-store.myshopify.com\n\nExample subscription\n\n#111 · Active\n\nQuantity\n3\nRecharge unit price\n12.50\nDelivery / charge frequency\n1 / 1 months\nNext charge date\n2026-10-20\nChange quantity\nChange frequency\nMove next charge\nSkip one delivery\nCancel subscription\nQuantity\nReview change\n\nState before the change\n\nQuantity\n3\nRecharge unit price\n12.50\nDelivery / charge frequency\n1 / 1 months\nNext charge date\n2026-10-20\n\nRequested change\n\nChange quantity\n\n4\n\nI reviewed the billing and delivery effects with the customer. Changing frequency may recalculate dates and skips; reactivation may schedule new charges.\nI confirm this change for subscription #111 at fixture-store.myshopify.com.\nApply confirmed change"
+      },
+      "finalReceipt": {
+        "attemptId": "430d337b-2b84-41cc-a469-ad3b8f686c55",
+        "before": {
+          "addressId": 33,
+          "cancellationComments": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "chargeIntervalFrequency": "1",
+          "customerId": 22,
+          "id": 111,
+          "isPrepaid": false,
+          "isSkippable": true,
+          "nextChargeScheduledAt": "2026-10-20",
+          "orderIntervalFrequency": 1,
+          "orderIntervalUnit": "month",
+          "price": "12.50",
+          "productId": "444",
+          "quantity": 2,
+          "status": "active",
+          "title": "Example subscription",
+          "updatedAt": "2026-10-01T14:00:00Z",
+          "variantId": "555",
+          "variantTitle": null
+        },
+        "causalityVerified": false,
+        "change": {
+          "quantity": 3,
+          "type": "quantity"
+        },
+        "connectionId": "10000000-0000-4000-8000-000000000008",
+        "conversationId": "10000000-0000-4000-8000-000000000003",
+        "createdAt": "2026-10-02T15:56:21.383Z",
+        "desiredStateObserved": true,
+        "emailRequested": false,
+        "orderId": "10000000-0000-4000-8000-000000000006",
+        "providerAccepted": true,
+        "revision": "10000000-0000-4000-8000-000000000007",
+        "snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "state": "observed",
+        "subscriptionId": 111,
+        "updatedAt": "2026-10-02T15:56:21.383Z"
+      },
+      "firstReceipt": {
+        "attemptId": "430d337b-2b84-41cc-a469-ad3b8f686c55",
+        "before": {
+          "addressId": 33,
+          "cancellationComments": null,
+          "cancellationReason": null,
+          "cancelledAt": null,
+          "chargeIntervalFrequency": "1",
+          "customerId": 22,
+          "id": 111,
+          "isPrepaid": false,
+          "isSkippable": true,
+          "nextChargeScheduledAt": "2026-10-20",
+          "orderIntervalFrequency": 1,
+          "orderIntervalUnit": "month",
+          "price": "12.50",
+          "productId": "444",
+          "quantity": 2,
+          "status": "active",
+          "title": "Example subscription",
+          "updatedAt": "2026-10-01T14:00:00Z",
+          "variantId": "555",
+          "variantTitle": null
+        },
+        "causalityVerified": false,
+        "change": {
+          "quantity": 3,
+          "type": "quantity"
+        },
+        "connectionId": "10000000-0000-4000-8000-000000000008",
+        "conversationId": "10000000-0000-4000-8000-000000000003",
+        "createdAt": "2026-10-02T15:56:21.383Z",
+        "desiredStateObserved": false,
+        "emailRequested": false,
+        "orderId": "10000000-0000-4000-8000-000000000006",
+        "providerAccepted": true,
+        "revision": "10000000-0000-4000-8000-000000000007",
+        "snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "state": "accepted",
+        "subscriptionId": 111,
+        "updatedAt": "2026-10-02T15:56:21.383Z"
+      },
+      "locale": "en",
+      "viewport": {
+        "frameWidth": 350,
+        "height": 844,
+        "width": 390
+      }
+    }
+  ],
+  "screenshots": [
+    {
+      "review": "es-desktop",
+      "file": "comparison-preview/native-subscriptions-es-desktop.png",
+      "inspected": true
+    },
+    {
+      "review": "en-mobile",
+      "file": "comparison-preview/native-subscriptions-en-mobile.png",
+      "inspected": true
+    },
+    {
+      "review": "en-mobile-uncertain",
+      "file": "comparison-preview/native-subscriptions-en-mobile-uncertain.png",
+      "inspected": true
+    }
+  ],
+  "sources": [
+    {
+      "file": "scripts/check-native-reviews-schema.cjs",
+      "sha256": "8188cb64afdf153f746f06dde63472bf1c2492dc393b4dd4c127b4b0ce147340"
+    },
+    {
+      "file": "src/app/api/integrations/reviews/route.test.ts",
+      "sha256": "b010d46b372603114a10f1d4d055380f2a82fc6cbed5b3c21d6fb4fbf5f15fd1"
+    },
+    {
+      "file": "src/app/api/integrations/reviews/route.ts",
+      "sha256": "e4f99be5ef8715a5adf34647c56fe2016e1ae7fad933b7d2cc7953b64e2bdf35"
+    },
+    {
+      "file": "src/components/products/store-reviews.test.tsx",
+      "sha256": "a76bc17f84523325deebc2b68f316631c6e741c291573938b41ad9cc925ac5c2"
+    },
+    {
+      "file": "src/components/products/store-reviews.tsx",
+      "sha256": "00fee723984ea3bd13b56ea6795595518b9e18919fcf73c38d9f229720338dbc"
+    },
+    {
+      "file": "src/components/settings/review-settings.tsx",
+      "sha256": "83856470cdbdb2442f6acfc9134238f6b04b4b790917f57cbd6573da5208d0fd"
+    },
+    {
+      "file": "src/lib/integrations/expansion/review-schema.test.ts",
+      "sha256": "fc492112595afce1449c131820bc70f356214c37745f67ddc2b7e7a6149dec43"
+    },
+    {
+      "file": "src/lib/integrations/expansion/review-service.test.ts",
+      "sha256": "019e866149b5f198a9141d815161d1bd30f298eab23ca41a8aab0a0d20143cc3"
+    },
+    {
+      "file": "src/lib/integrations/expansion/review-service.ts",
+      "sha256": "f0737c253d1db9e2cdfd20b29a65bd83c8d882bd6f5275644084e7dbd4677416"
+    },
+    {
+      "file": "src/lib/integrations/expansion/review-ui-contract.ts",
+      "sha256": "6241c5888d329d4ff3e0d2db1bf22e82cd60b5ef61be034a355b807e3d0b2a6e"
+    },
+    {
+      "file": "supabase/migrations/373_native_store_reviews.sql",
+      "sha256": "36238be7626216399ce6fef0c4f75de0a58c64e528d0d3668d86c7a9615ddf32"
+    },
+    {
+      "file": "package.json",
+      "sha256": "307fbc53eead7a77aec9ed2d8c6338132448c45cddf91a35df59fa5431231cfe"
+    },
+    {
+      "file": "scripts/comparison/app.jsx",
+      "sha256": "7fce0f12700d7c050ad5ad4133024eaecaade60377acd6bba137a5b268c5fa70"
+    },
+    {
+      "file": "scripts/comparison/fixtures.jsx",
+      "sha256": "9797653eac65dfc97f22574f2777a09dab66c9ea1f8e71df4709c6de2f846c7c"
+    },
+    {
+      "file": "scripts/comparison/review.js",
+      "sha256": "e4e17ff6fdcf535b8d28774631b7ae833b3661a9c9e98d23a95cb055bf41c042"
+    },
+    {
+      "file": "src/app/(dashboard)/productos/page.tsx",
+      "sha256": "8a7cedacbacb51b01b0a802242fd9595804d4aea5446dc46d3d70ff1a4988ef6"
+    },
+    {
+      "file": "src/app/api/cron/pii-purge/route.ts",
+      "sha256": "09486be3eab5768ba581e7b4226f77ca1f628d3ab9616bf7bc51be8edbe2af02"
+    },
+    {
+      "file": "src/components/settings/channels-panel.tsx",
+      "sha256": "e4d93fb243afe5fd707026a92cc845221ca55cffcfe940b2cd18c61e6f97f67e"
+    },
+    {
+      "file": "src/lib/i18n/messages/settings.ts",
+      "sha256": "25a8835f7264842fa8d82682a5d66b916997a1644fbc30aba42d6f9ef2099aa1"
+    },
+    {
+      "file": "src/lib/integrations/expansion/judgeme-client.ts",
+      "sha256": "9445ba6e4080d1cdefa648b8977e98e47889b3399928ac46a039ac3c477e18a7"
+    },
+    {
+      "file": "src/lib/integrations/expansion/sms-service.test.ts",
+      "sha256": "9e1f1977188e36b95e3a54553f662728c82edc7aaddd4c4c5cc6927815ffe9f8"
+    },
+    {
+      "file": "src/lib/integrations/expansion/sms-service.ts",
+      "sha256": "e057a841548334593ffb604fbb6e06032648f95b05e32c5ec45916d0e3d8bde1"
+    },
+    {
+      "file": "src/lib/integrations/expansion/recharge-client.ts",
+      "sha256": "97d88584f435bc4ac142827d87e1d65430ce19a656bd210a6a31e9074810ca5e"
+    },
+    {
+      "file": "src/lib/integrations/expansion/recharge-client.test.ts",
+      "sha256": "d3ca14342982d190bbeb3fd1d57b6dc8c0ec24dcc21d1626085c6f26b3181281"
+    },
+    {
+      "file": "src/lib/integrations/expansion/subscription-ui-contract.ts",
+      "sha256": "f6db9aa3ed507c8e3bf618d092f1fc61dbcb0bd487cbf6c5a9afb89a63c65121"
+    },
+    {
+      "file": "src/lib/integrations/expansion/subscription-service.ts",
+      "sha256": "483a06f7583f9a42fed4b0ec43af8d6984239974bbdf0e7de3fed23d486cca0d"
+    },
+    {
+      "file": "src/lib/integrations/expansion/subscription-service.test.ts",
+      "sha256": "c2b72b13c51a1109b991aa2b5796dfadbd9644eb20e849036a070e68ebee2c9e"
+    },
+    {
+      "file": "src/lib/integrations/expansion/subscription-schema.test.ts",
+      "sha256": "1ce6033a2e270d8b85c986854c28fd9f3be88ff2abc2896931f0c70bb31e7b6c"
+    },
+    {
+      "file": "src/app/api/integrations/subscriptions/route.ts",
+      "sha256": "f22e3e930838edb9f482a45b51007476b999fc9fabacc17d8773f7300eed9770"
+    },
+    {
+      "file": "src/app/api/integrations/subscriptions/route.test.ts",
+      "sha256": "fc3713b2a87417481518289f280090401edacd8ca7a1b05e5b7888038b41c625"
+    },
+    {
+      "file": "src/components/inbox/subscription-case-tools.tsx",
+      "sha256": "f1a72bcf976ef20626034161e88c47e6dbfde7f81d0bbe8205e6ce27601d645e"
+    },
+    {
+      "file": "src/components/inbox/subscription-case-tools.test.tsx",
+      "sha256": "7c962fa8e1b2a7ce9b2ada0e860d5303535e47ff3ed5da63af7345fc068553bc"
+    },
+    {
+      "file": "src/components/settings/subscription-settings.tsx",
+      "sha256": "90a246fe8edd6ff9672e442fccdbaf16f98e52b11c72d76abe7263ef1f2088f8"
+    },
+    {
+      "file": "supabase/migrations/374_native_subscriptions.sql",
+      "sha256": "82c82aba31160a3770c8fea94ff2881c196cdd39e82647f0d6d1e875dfeaaaa0"
+    },
+    {
+      "file": "scripts/check-native-subscriptions-schema.cjs",
+      "sha256": "2d2af30d47552e66cf00f46506747a5db20438ff5104c2b3d5b8dacf73c8bb42"
+    }
+  ],
+  "styles": [
+    {
+      "file": "0y7fmymffc1f-.css",
+      "sha256": "a9ebecb14064ea8dd75f94623210eda384a7b55a0dda3b2d684cf2a51bd9c6df"
+    },
+    {
+      "file": "0ydpypn-7ctjk.css",
+      "sha256": "932d47c5b5820b2dd6a9a39a5a25bd6a26ab6e94db2b45fe9f2ff99727087666"
+    },
+    {
+      "file": "1bliujhpm9e2n.css",
+      "sha256": "162a497f498c1d1bf1baaf2e307f93fccd9f0308ee25ad57e62e5eb98fd1906a"
+    },
+    {
+      "file": "21rtznmd83uia.css",
+      "sha256": "36494c893a9698a87a9073917ae4fdee7aada2f7f63bdb75eac0b7602d00468d"
+    },
+    {
+      "file": "24hrtzo5s_sl1.css",
+      "sha256": "918623f67958b347bcd22eb9cc2010cf26a434083cf47bd9517aad84a1ae229e"
+    },
+    {
+      "file": "2rmecej376eld.css",
+      "sha256": "69b419d05a7eb4a71904be8d7b6f9cd719fe55ef6bf0881feca4652b0dcd4c5e"
+    },
+    {
+      "file": "3s7aa-p955seo.css",
+      "sha256": "25f2e876fb87c418429be603ca585b0d52e15a51be6d59166a7856c45ee82448"
+    }
+  ],
+  "bundleSha256": "e037b37f5e4cce70d7b02877ffc3987fa8f15ca5bc133844c84db24abbbba6bf",
+  "uncertainFollowup": {
+    "at": "2026-10-02T15:56:51.392Z",
+    "checks": {
+      "claimedAttemptCannotAbandon": true,
+      "freshReadKeepsSubscriptionBlocked": true,
+      "providerAcceptanceNotInvented": true,
+      "readbackDoesNotClearUncertainty": true,
+      "reconcileDoesNotExecute": true,
+      "unknownReceiptKeepsBlock": true
+    },
+    "flags": {
+      "aiUsage": false,
+      "billingChanged": false,
+      "emailRequested": false,
+      "providerCalled": false,
+      "synthetic": true
+    },
+    "receipt": {
+      "attemptId": "69d5a245-0e21-49c3-8915-94554c3c565c",
+      "before": {
+        "addressId": 33,
+        "cancellationComments": null,
+        "cancellationReason": null,
+        "cancelledAt": null,
+        "chargeIntervalFrequency": "1",
+        "customerId": 22,
+        "id": 111,
+        "isPrepaid": false,
+        "isSkippable": true,
+        "nextChargeScheduledAt": "2026-10-20",
+        "orderIntervalFrequency": 1,
+        "orderIntervalUnit": "month",
+        "price": "12.50",
+        "productId": "444",
+        "quantity": 3,
+        "status": "active",
+        "title": "Example subscription",
+        "updatedAt": "2026-10-01T14:00:00Z",
+        "variantId": "555",
+        "variantTitle": null
+      },
+      "causalityVerified": false,
+      "change": {
+        "quantity": 4,
+        "type": "quantity"
+      },
+      "connectionId": "10000000-0000-4000-8000-000000000008",
+      "conversationId": "10000000-0000-4000-8000-000000000003",
+      "createdAt": "2026-10-02T15:56:47.389Z",
+      "desiredStateObserved": true,
+      "emailRequested": false,
+      "orderId": "10000000-0000-4000-8000-000000000006",
+      "providerAccepted": false,
+      "revision": "10000000-0000-4000-8000-000000000007",
+      "snapshot": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "state": "uncertain",
+      "subscriptionId": 111,
+      "updatedAt": "2026-10-02T15:56:47.389Z"
+    },
+    "text": "Subscriptions · Recharge\nLoad subscriptions\n\nfixture-store.myshopify.com\n\nExample subscription\n\n#111 · Active\n\nQuantity\n3\nRecharge unit price\n12.50\nDelivery / charge frequency\n1 / 1 months\nNext charge date\n2026-10-20\n\nAn attempt needs checking. Check its result before making another change.\n\nCheck saved result"
+  },
+  "consoleEntries": [
+    {
+      "level": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 0",
+      "timestamp": "2026-10-02T06:25:24.234Z",
+      "source": "console"
+    },
+    {
+      "level": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 1",
+      "timestamp": "2026-10-02T06:27:51.925Z",
+      "source": "console"
+    }
+  ],
+  "noNewConsoleErrors": true
+}

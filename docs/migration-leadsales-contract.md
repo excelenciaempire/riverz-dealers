@@ -12,3 +12,5 @@ La investigación delegada con Firecrawl consultó trece búsquedas, una búsque
 | [Términos, sección 8.4](https://leadsales.io/terminos-y-condiciones/) describe campos y 100.000 solicitudes sin periodo técnico identificado. | No permite fijar una frecuencia segura ni interpretar el límite como diario o mensual. |
 
 Las fuentes comerciales y de ayuda difieren; eso no demuestra que la API no exista. La consulta pendiente al dueño pide únicamente la URL técnica/OpenAPI, sin secretos. Con ese contrato se valida autoridad de cuenta, lectura GET, paginación completa, límites y alcance de contactos/historial antes de conectar la cola privada y la revisión humana existentes. No se declara terminado Leadsales mediante un stub o el importador CSV.
+
+Leadsales es exclusivamente una fuente opcional de migraci?n de negocios que ya usan ese CRM. Riverz no lo utiliza como infraestructura ni requiere que su due?o abra una cuenta o entregue claves para continuar las mejoras. CSV est? construido; la ausencia del contrato t?cnico afecta ?nicamente el adaptador nativo de esa fuente. No se solicitar? de nuevo el enlace como condici?n para avanzar en trabajo independiente.

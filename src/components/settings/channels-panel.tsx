@@ -39,6 +39,7 @@ import { cn } from '@/lib/utils';
 import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
 import {SmsSettings} from './sms-settings';
 import {ReviewSettings} from './review-settings';
+import {SubscriptionSettings} from './subscription-settings';
 
 /**
  * One card per platform. Meta is one customer-facing connection; its Page and
@@ -804,6 +805,7 @@ export function ChannelsPanel() {
         {isAdmin && <WebhooksCard />}
         {SHOW_RIVERZ_IMPROVEMENTS&&isAdmin&&workspace&&<SmsSettings key={workspace.id} workspaceId={workspace.id}/>}
         {SHOW_RIVERZ_IMPROVEMENTS&&isAdmin&&workspace&&<ReviewSettings key={`reviews-${workspace.id}`} workspaceId={workspace.id}/>}
+        {SHOW_RIVERZ_IMPROVEMENTS&&isAdmin&&workspace&&<SubscriptionSettings key={`subscriptions-${workspace.id}`} workspaceId={workspace.id}/>}
       </ul>
     </div>
   );

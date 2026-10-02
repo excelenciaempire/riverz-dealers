@@ -7,6 +7,8 @@ import {SmsSettings} from '@/components/settings/sms-settings';
 import {SmsCaseTools} from '@/components/inbox/sms-case-tools';
 import {ReviewSettings} from '@/components/settings/review-settings';
 import {StoreReviewTools} from '@/components/products/store-reviews';
+import {SubscriptionSettings} from '@/components/settings/subscription-settings';
+import {NativeSubscriptionTools} from '@/components/inbox/subscription-case-tools';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'sonner';
@@ -44,7 +46,7 @@ import { ids, now, selected, improved, locale, copy, report } from './fixtures';
 
 const pages = [['inbox', 'Bandeja', 'Inbox'], ['rules', 'Reglas', 'Rules'], ['documents', 'Documentos', 'Documents'],
   ['reports', 'Reportes', 'Reports'], ['flows', 'Flujos', 'Flows'], ['returns', 'Postventa', 'After-sales'], ['connections', 'Acciones HTTP', 'HTTP actions'],
-  ['orders', 'Acciones de pedidos', 'Order actions'], ['templates', 'Plantillas', 'Templates'], ['campaigns', 'Campañas', 'Campaigns'], ['automations', 'Automatizaciones', 'Automations'], ['mobile', 'Avisos móviles', 'Mobile notifications'], ['release', 'Lanzamiento', 'Launch'], ['migrations','Migraciones','Migrations'],['help','Ayuda','Help'],['voice','Llamadas','Calls'],['voice-mailbox','Buzón','Voicemail'],['voice-whatsapp','Voz por WhatsApp','WhatsApp voice'],['sms','SMS','SMS'],['reviews','Reseñas','Reviews']];
+  ['orders', 'Acciones de pedidos', 'Order actions'], ['templates', 'Plantillas', 'Templates'], ['campaigns', 'Campañas', 'Campaigns'], ['automations', 'Automatizaciones', 'Automations'], ['mobile', 'Avisos móviles', 'Mobile notifications'], ['release', 'Lanzamiento', 'Launch'], ['migrations','Migraciones','Migrations'],['help','Ayuda','Help'],['voice','Llamadas','Calls'],['voice-mailbox','Buzón','Voicemail'],['voice-whatsapp','Voz por WhatsApp','WhatsApp voice'],['sms','SMS','SMS'],['reviews','Reseñas','Reviews'],['subscriptions','Suscripciones','Subscriptions']];
 const automationParams = Promise.resolve({ id: ids.flow });
 const noChange = () => {};
 function VoiceMailboxPreview() {
@@ -132,6 +134,7 @@ function App() {
             {page === 'voice-whatsapp' && <WhatsAppVoicePreview/>}
             {page === 'sms' && <SmsPreview/>}
             {page === 'reviews' && <><p className="text-sm">{copy('El catálogo y las reseñas de Mercado Libre se conservan. Judge.me añade un control plegado dentro de Productos.','The catalog and Mercado Libre reviews are preserved. Judge.me adds a collapsed control inside Products.')}</p>{improved&&<><ul className="list-none"><ReviewSettings workspaceId={ids.workspace}/></ul><StoreReviewTools workspaceId={ids.workspace}/></>}</>}
+            {page === 'subscriptions' && <><p className="text-sm">{copy('Las herramientas actuales del pedido se conservan. Recharge añade suscripciones y cambios revisados dentro del caso.','Current order tools are preserved. Recharge adds subscriptions and reviewed changes inside the case.')}</p>{improved&&<><ul className="list-none"><SubscriptionSettings workspaceId={ids.workspace}/></ul><NativeSubscriptionTools workspaceId={ids.workspace} conversationId={ids.conversation} orderId={ids.product}/></>}</>}
         </div>}
       </main>
     </div>

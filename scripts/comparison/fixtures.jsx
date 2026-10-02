@@ -135,6 +135,37 @@ function syntheticSmsRequest(body,url,method){
 }
 let syntheticReviewSettings={configured:true,connectionId:ids.flow,revision:ids.message,shopifyConnectionId:ids.product,shopDomain:'fixture-store.myshopify.com',enabled:false,dailyReplies:50,stores:[{id:ids.product,shopDomain:'fixture-store.myshopify.com'}]};
 const syntheticReviewReceipts=new Map();
+let syntheticSubscriptionSettings={configured:true,connectionId:ids.flow,revision:ids.message,shopifyConnectionId:ids.product,shopDomain:'fixture-store.myshopify.com',storeId:7,identifier:'fixture-store',enabled:false,dailyChanges:50,stores:[{id:ids.product,shopDomain:'fixture-store.myshopify.com'}]};
+const syntheticSubscriptionReceipts=new Map(),syntheticSubscriptionAbandoned=new Set();
+const syntheticSubscription={id:111,customerId:22,addressId:33,status:'active',quantity:2,price:'12.50',productId:'444',variantId:'555',title:copy('Suscripción de ejemplo','Example subscription'),variantTitle:null,orderIntervalFrequency:1,chargeIntervalFrequency:'1',orderIntervalUnit:'month',nextChargeScheduledAt:'2026-10-20',isPrepaid:false,isSkippable:true,updatedAt:now,cancellationReason:null,cancellationComments:null,cancelledAt:null};
+const syntheticSubscriptionRow={subscription:syntheticSubscription,snapshot:'a'.repeat(64),blocked:false,ownAttemptId:null,skipOptions:[{chargeId:66,date:'2026-10-20',otherItems:1}]};
+function syntheticSubscriptionRequest(body,url,method){
+ window.__comparisonSubscriptions={synthetic:true,providerCalled:false,aiUsage:false,billingChanged:false,emailRequested:false};
+ const view=url.searchParams.get('view'),input=body.input;
+ if(method==='GET'&&view==='settings')return reply(syntheticSubscriptionSettings);
+ if(method==='POST'&&body.action==='settings'){syntheticSubscriptionSettings={...syntheticSubscriptionSettings,enabled:input.enabled,dailyChanges:input.dailyChanges};return reply(syntheticSubscriptionSettings);}
+ if(method==='GET'&&view==='page')return syntheticSubscriptionSettings.enabled?reply({configured:true,enabled:true,connectionId:ids.flow,revision:ids.message,shopDomain:syntheticSubscriptionSettings.shopDomain,customerId:22,rows:[syntheticSubscriptionRow],complete:true}):reply({configured:false,enabled:false,rows:[]});
+ if(method==='GET'&&(view==='receipt'||view==='reconcile')){
+  const saved=syntheticSubscriptionReceipts.get(url.searchParams.get('attemptId'));if(!saved)return reply({code:'attemptNotFound'},404);
+  if(view==='reconcile'&&['accepted','uncertain'].includes(saved.state)){saved.desiredStateObserved=true;saved.state=saved.providerAccepted?'observed':'uncertain';if(saved.state==='observed')syntheticSubscriptionRow.blocked=false;window.__comparisonSubscriptionReceipt=structuredClone(saved);}return reply(saved);
+ }
+ if(method==='POST'&&body.action==='abandon'){
+  const saved=syntheticSubscriptionReceipts.get(input.attemptId);if(saved&&!['reviewed','canceled'].includes(saved.state))return reply({abandoned:false});syntheticSubscriptionAbandoned.add(input.attemptId);if(saved)saved.state='canceled';return reply({abandoned:true});
+ }
+ if(method==='POST'&&body.action==='preview'){
+  if(!syntheticSubscriptionSettings.enabled||syntheticSubscriptionRow.blocked||input.subscriptionId!==111)return reply({code:'notAllowed'},403);
+  return reply({connectionId:ids.flow,revision:ids.message,shopDomain:syntheticSubscriptionSettings.shopDomain,conversationId:ids.conversation,orderId:ids.product,subscriptionId:111,snapshot:'b'.repeat(64),before:syntheticSubscription,change:input.change,otherChargeItems:input.change.type==='skip'?1:0});
+ }
+ if(method==='POST'&&body.action==='execute'){
+  const old=syntheticSubscriptionReceipts.get(input.attemptId);if(old)return reply({receipt:old,recovered:true});
+  if(syntheticSubscriptionAbandoned.has(input.attemptId)||!syntheticSubscriptionSettings.enabled||syntheticSubscriptionRow.blocked||input.confirmed!==true||input.reviewedBillingEffects!==true||input.subscriptionId!==111||input.conversationId!==ids.conversation||input.orderId!==ids.product||input.connectionId!==ids.flow||input.revision!==ids.message||input.snapshot!=='b'.repeat(64))return reply({code:'notAllowed'},403);
+  const stamp=new Date().toISOString(),unknown=window.__comparisonUnknownSubscriptionAck===true,receipt={attemptId:input.attemptId,connectionId:ids.flow,revision:ids.message,snapshot:input.snapshot,conversationId:ids.conversation,orderId:ids.product,subscriptionId:111,before:structuredClone(syntheticSubscription),change:input.change,state:unknown?'uncertain':'accepted',providerAccepted:!unknown,desiredStateObserved:false,causalityVerified:false,emailRequested:false,createdAt:stamp,updatedAt:stamp};
+  syntheticSubscriptionReceipts.set(input.attemptId,receipt);syntheticSubscriptionRow.blocked=true;syntheticSubscriptionRow.ownAttemptId=input.attemptId;
+  const change=input.change;if(change.type==='quantity')syntheticSubscription.quantity=change.quantity;if(change.type==='date')syntheticSubscription.nextChargeScheduledAt=change.date;if(change.type==='cadence'){syntheticSubscription.orderIntervalUnit=change.unit;syntheticSubscription.orderIntervalFrequency=change.orderFrequency;syntheticSubscription.chargeIntervalFrequency=change.chargeFrequency;}if(change.type==='cancel'){syntheticSubscription.status='cancelled';syntheticSubscription.cancellationReason=change.reason;syntheticSubscription.cancellationComments=change.comments;syntheticSubscription.cancelledAt=stamp;}if(change.type==='activate')syntheticSubscription.status='active';if(change.type==='skip')syntheticSubscriptionRow.skipOptions=[];
+  window.__comparisonSubscriptionReceipt=structuredClone(receipt);if(window.__comparisonFailNextSubscriptionAck){window.__comparisonFailNextSubscriptionAck=false;throw new Error('Fictional subscription acknowledgement lost');}return reply({receipt,recovered:false});
+ }
+ return reply({code:'invalid'},400);
+}
 const syntheticReviewRows=[{id:42,title:copy('Excelente atención','Excellent service'),body:copy('Me ayudaron a elegir la talla y recibí el pedido a tiempo.','They helped me choose the size and my order arrived on time.'),rating:5,hidden:false,createdAt:now,updatedAt:now,productExternalId:123,productTitle:copy('Camiseta de ejemplo','Example T-shirt'),snapshot:'a'.repeat(64),reply:{blocked:false,state:null,ownAttemptId:null}}];
 function syntheticReviewRequest(body,url,method){
  window.__comparisonReviews={synthetic:true,providerCalled:false,aiUsage:false,publicReplyCreated:false,emailRequested:false};
@@ -161,12 +192,13 @@ export async function fixtureFetch(input, init = {}) {
   window.__comparisonCalls ??= []; window.__comparisonCalls.push({ path, method: init.method ?? 'GET' });
   const body = typeof init.body === 'string' ? JSON.parse(init.body) : {};
   const method = init.method ?? 'GET';
-  const editable = path==='/api/voice/connection'&&method==='PUT' || path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || (path.endsWith('/help-portal')||path.startsWith('/api/help-portals/'))&&method==='POST' || ['/api/contacts/migrations','/api/contacts/migrations/native','/api/contacts/migrations/external','/api/contacts/migrations/history','/api/voice/handoff','/api/voice/whatsapp','/api/integrations/sms','/api/integrations/reviews'].includes(path)&&method==='POST';
+  const editable = path==='/api/voice/connection'&&method==='PUT' || path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || (path.endsWith('/help-portal')||path.startsWith('/api/help-portals/'))&&method==='POST' || ['/api/contacts/migrations','/api/contacts/migrations/native','/api/contacts/migrations/external','/api/contacts/migrations/history','/api/voice/handoff','/api/voice/whatsapp','/api/integrations/sms','/api/integrations/reviews','/api/integrations/subscriptions'].includes(path)&&method==='POST';
   if (method !== 'GET' && !editable) return reply({ error: copy('Operación bloqueada en la comparación local.', 'Operation blocked in the local comparison.') }, 503);
   if(path==='/api/voice/handoff')return syntheticHumanRequest(body,url,method);
   if(path==='/api/voice/whatsapp')return syntheticWhatsAppRequest(body,url,method);
   if(path==='/api/integrations/sms')return syntheticSmsRequest(body,url,method);
   if(path==='/api/integrations/reviews')return syntheticReviewRequest(body,url,method);
+  if(path==='/api/integrations/subscriptions')return syntheticSubscriptionRequest(body,url,method);
   if(path==='/api/voice/connection'){if(method==='PUT'){syntheticVoiceConfig={...syntheticVoiceConfig,...body.config};window.__comparisonVoiceConfig=structuredClone(syntheticVoiceConfig);}return reply({config:syntheticVoiceConfig,status:'connected',ok:true});}
   if(path==='/api/voice/calls/'+ids.conversation&&method==='GET')return reply({call:{id:ids.conversation,workspace_id:ids.workspace,agent_id:ids.agent,contact_id:ids.product,conversation_id:ids.conversation,direction:'outbound',call_type:'manual',phone:'EXAMPLE',language:locale,status:'in_progress',outcome:null,outcome_details:null,summary:null,context:{},external_call_id:null,room_name:null,started_at:now,answered_at:now,ended_at:null,duration_seconds:17,cost:{total_usd:0},recording_url:null,created_at:now,city:null,attempt:1,max_attempts:1,upsell_amount:0,contact:{id:ids.product,name:copy('Cliente de ejemplo','Example customer'),phone:null},agent:{id:ids.agent,name:copy('Asistente de ejemplo','Example assistant')},...(selected.get('page')==='voice-mailbox'?{agent_id:null,agent:null,direction:'inbound',call_type:'inbound',status:'completed',ended_at:now,duration_seconds:20,outcome:'no_outcome',outcome_details:{mailbox_capture:'recording_requested',capture_seconds:20},context:{fallback_reason:'no_voice_agent',voice_mailbox:{enabled:true,maxSeconds:60,version:1}}}:{} )},transcript:[]});
 

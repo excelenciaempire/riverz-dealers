@@ -16,6 +16,7 @@ import Link from '@/components/i18n/locale-link'
 import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview'
 import {returnRefundReceipt,returnRefundContext} from '@/lib/returns/refund-link-contract'
 import { CustomerAddressRequests } from './customer-address-requests'
+import { SubscriptionCaseTools } from './subscription-case-tools'
 
 interface State { orders: { id:string; shopify_order_id:string }[]; history:CaseOrderOperation[]; locks:{ order_id:string; status:string }[]; actors:Record<string,string | null>; can_execute:boolean }
 interface Review { source_id:string; action_type:CaseOrderOperation['action']['type'] | 'financial'; fingerprint:string; preview:CaseOrderOperation['preview'] }
@@ -191,6 +192,7 @@ export function CaseOrderActions({ conversationId,shopifyOrderId }: { conversati
       {error && <p role="alert" className="text-destructive">{error}</p>}
       {!state && <Button variant="ghost" size="sm" onClick={() => void load().catch(e => setError(e.message))}>{t('inbox.actionRetry')}</Button>}
       {!!state?.locks.length && <p className="text-muted-foreground">{t('inbox.orderBusy')}</p>}
+      {SHOW_RIVERZ_IMPROVEMENTS && localOrderId && <SubscriptionCaseTools conversationId={conversationId} orderId={localOrderId}/>}
       {SHOW_RIVERZ_IMPROVEMENTS && localOrderId && <CustomerAddressRequests key={`${conversationId}-${localOrderId}`} conversationId={conversationId} orderId={localOrderId} onPrepared={async (operationId, requestId) => {
         const fresh = await load(), operation = fresh.history.find(value => value.id === operationId && value.order_id === localOrderId);
         if (!operation || operation.action.type !== 'address' || operation.preview.customer_request?.request_id !== requestId) throw new Error(t('inbox.orderUnavailable'));

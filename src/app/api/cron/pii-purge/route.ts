@@ -110,6 +110,8 @@ async function cronHandler(request: Request) {
   if(nativeSmsRetention.error){failed++;log.error('native SMS control retention failed')}
   const nativeReviewRetention=await admin.rpc('purge_native_store_reviews',{p_grace_days:Math.max(1,Math.min(365,Math.floor(graceDays)))})
   if(nativeReviewRetention.error){failed++;log.error('native store review control retention failed')}
+  const nativeSubscriptionRetention=await admin.rpc('purge_native_subscriptions',{p_grace_days:Math.max(1,Math.min(365,Math.floor(graceDays)))})
+  if(nativeSubscriptionRetention.error){failed++;log.error('native subscription control retention failed')}
   const historyRetention=await admin.rpc('purge_native_history_archives')
   if(historyRetention.error){failed++;log.error('native history archive retention failed')}
   let archiveObjectsCleared:number|null=null
@@ -120,7 +122,7 @@ async function cronHandler(request: Request) {
   // 207 si algún workspace falló, para que el monitor de Render lo marque.
   const status = failed > 0 ? 207 : 200
   return NextResponse.json(
-    { candidates: targets.length, purged, failed, graceDays, retencion, migrationPreviewsCleared: migrationRetention.error ? null : migrationRetention.data, nativeMigrationStagingCleared: nativeMigrationRetention.error ? null : nativeMigrationRetention.data,externalMigrationStagingCleared:externalMigrationRetention.error?null:externalMigrationRetention.data,voiceHumanControlsCleared:voiceHumanRetention.error?null:voiceHumanRetention.data,voiceWhatsAppControlsCleared:voiceWhatsAppRetention.error?null:voiceWhatsAppRetention.data,nativeSmsControlsCleared:nativeSmsRetention.error?null:nativeSmsRetention.data,nativeReviewControlsCleared:nativeReviewRetention.error?null:nativeReviewRetention.data, historyArchivesCleared:historyRetention.error?null:historyRetention.data,archiveObjectsCleared,helpPortalVisitsCleared, results },
+    { candidates: targets.length, purged, failed, graceDays, retencion, migrationPreviewsCleared: migrationRetention.error ? null : migrationRetention.data, nativeMigrationStagingCleared: nativeMigrationRetention.error ? null : nativeMigrationRetention.data,externalMigrationStagingCleared:externalMigrationRetention.error?null:externalMigrationRetention.data,voiceHumanControlsCleared:voiceHumanRetention.error?null:voiceHumanRetention.data,voiceWhatsAppControlsCleared:voiceWhatsAppRetention.error?null:voiceWhatsAppRetention.data,nativeSmsControlsCleared:nativeSmsRetention.error?null:nativeSmsRetention.data,nativeReviewControlsCleared:nativeReviewRetention.error?null:nativeReviewRetention.data,nativeSubscriptionControlsCleared:nativeSubscriptionRetention.error?null:nativeSubscriptionRetention.data, historyArchivesCleared:historyRetention.error?null:historyRetention.data,archiveObjectsCleared,helpPortalVisitsCleared, results },
     { status },
   )
 }

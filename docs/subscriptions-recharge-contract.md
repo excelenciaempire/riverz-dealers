@@ -28,7 +28,7 @@ Paginación por `next_cursor`/`previous_cursor` opacos; máximo 250 filas, 50 po
 | Próxima fecha | `POST /subscriptions/<id>/set_next_charge_date` / `write_subscriptions` | `{date:'YYYY-MM-DD'}`. La ruta no es `change_next_charge_date`. Fechas coincidentes en la misma dirección pueden fusionar cargos/cambiar su ID. |
 | Saltar ítem de cargo existente | `POST /charges/<id>/skip` / `write_orders` | `{purchase_item_ids:[subscriptionId]}`; comprobar que la línea pertenece a esa suscripción y dirección. No saltar todas las líneas de un cargo multiítem. |
 
-Las mutaciones devuelven una suscripción con HTTP 200, pero algunos ejemplos oficiales contradicen el estado/cantidad solicitados. Validar la identidad y hacer GET de estado actual: separar aceptación de cambio observado. `updated_at` no prueba por sí mismo una modificación de fecha derivada. No se atribuye ingreso retenido a una oferta o clic sin evidencia del resultado.
+Las mutaciones de suscripción devuelven una suscripción con HTTP 200; saltar un ítem devuelve un cargo. Algunos ejemplos oficiales contradicen el estado/cantidad solicitados. Validar la identidad y hacer GET de estado actual: separar aceptación de cambio observado. `updated_at` no prueba por sí mismo una modificación de fecha derivada. No se atribuye ingreso retenido a una oferta o clic sin evidencia del resultado.
 
 Los ejemplos de «skip futuro por dirección» contradicen `subscription_ids` y `purchase_item_ids`; no se implementa una equivalencia inventada. Se usa el cargo existente y el delivery_schedule para observar el ítem saltado y preservar los demás. Las guías también contradicen nombres de scopes de cargos y `commit`/`commit_update`: usar el endpoint/version fijados, no mezclar contratos.
 
