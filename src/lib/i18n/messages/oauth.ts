@@ -16,7 +16,10 @@ export const oauth: Namespace = {
   stepVerify: { es: 'Comprobar la conexión', en: 'Verify the connection' },
   reuseExisting: { es: 'Si ya tienes Riverz con esta dirección, abre esa conexión. Conserva tus demás servidores.', en: 'If Riverz already uses this address, open that connection. Keep your other servers.' },
   addClaudeExact: { es: 'El formulario lleva Riverz y su dirección. Si no aparecen: Personalizar → Conectores → + → Agregar conector personalizado; nombre Riverz y pega esta dirección.', en: 'The form includes Riverz and its address. If missing: Customize → Connectors → + → Add custom connector; name Riverz and paste this address.' },
-  addChatgptExact: { es: 'En ChatGPT, pulsa + → Crear MCP App (Create MCP App). Nombre: Riverz. En Conexión, pega esta dirección y elige OAuth.', en: 'In ChatGPT, select + → Create MCP App. Name: Riverz. Under Connection, paste this address and choose OAuth.' },
+  addChatgptExact: { es: 'Se abrirá Complementos. Pulsa Agregar, arriba a la derecha (o +), y elige Crear aplicación MCP, la tercera opción.', en: 'Plugins will open. Select Add in the top right (or +), then Create MCP App, the third option.' },
+  chatgptConnectionFields: { es: 'Nombre: Riverz. En Conexión, pega la dirección de abajo y elige OAuth.', en: 'Name: Riverz. Under Connection, paste the address below and choose OAuth.' },
+  chatgptMissingOption: { es: '¿No aparece Crear aplicación MCP?', en: 'Can’t see Create MCP App?' },
+  chatgptMissingOptionHelp: { es: 'En ChatGPT revisa Ajustes → Seguridad e inicio de sesión → Modo desarrollador. Si la opción sigue sin aparecer, esa cuenta o espacio no tiene habilitadas las conexiones personalizadas. Puedes conectar Claude desde aquí.', en: 'In ChatGPT check Settings → Security and login → Developer mode. If the option is still missing, custom connections are not enabled for that account or workspace. You can connect Claude here.' },
   addCodexExact: { es: 'En la app de escritorio: Ajustes → Servidores MCP → Añadir servidor → Streamable HTTP. Nombre: Riverz; pega esta dirección. Guarda, reinicia y pulsa Autenticar. Si existe la misma URL, reutiliza ese servidor.', en: 'In the desktop app: Settings → MCP servers → Add server → Streamable HTTP. Name: Riverz; paste this address. Save, restart and select Authenticate. Reuse a server with the same URL.' },
   signInNow: { es: 'En Claude elige Iniciar sesión ahora. En la ventana de Riverz, comprueba tu correo y cuenta y pulsa Autorizar.', en: 'In Claude choose Sign in now. In Riverz, check your email and account, then select Authorize.' },
   authorizeExact: { es: 'Revisa el aviso de confianza del asistente y crea la conexión. Cuando Riverz se abra, comprueba tu correo y cuenta y pulsa Autorizar.', en: 'Review the assistant’s trust notice and create the connection. When Riverz opens, check your email and account, then select Authorize.' },
@@ -146,8 +149,8 @@ export const oauth: Namespace = {
     en: 'Connect Riverz to {client} as an MCP server with OAuth. The server is {url}. Configure it for my user, preserve my other servers and, if Riverz already exists with this URL, reuse it. You can use these commands:\n{commands}\nHelp me complete browser authorization and verify the server connection. Do not display credentials in the chat.',
   },
   copyAndOpenChatgpt: {
-    es: 'Copiar URL y abrir ajustes de ChatGPT',
-    en: 'Copy URL and open ChatGPT settings',
+    es: 'Copiar dirección y abrir ChatGPT',
+    en: 'Copy address and open ChatGPT',
   },
   serverName: { es: 'Nombre', en: 'Name' },
   serverDescription: {

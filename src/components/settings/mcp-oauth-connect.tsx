@@ -31,11 +31,14 @@ export function McpOauthConnect() {
     try { await navigator.clipboard.writeText(value); setCopied(key); }
     catch { toast.error(t('oauth.copyFailed')); }
   }
+  function openClient(id: Provider) {
+    // Request clipboard access before the new tab takes focus.
+    if (id === 'chatgpt') void copy(MCP_URL, 'url');
+    window.open(CLIENTS[id].url, '_blank', 'noopener,noreferrer');
+  }
   async function start(id: Provider, open = true) {
     if (busy) return;
-    if (id === 'chatgpt' && open) void copy(MCP_URL, 'url');
-    // Start clipboard access while this page still has the user's focus.
-    if (open) window.open(CLIENTS[id].url, '_blank', 'noopener,noreferrer');
+    if (open) openClient(id);
     setProvider(id); setCheck(null); setStatus('waiting'); setBusy(true);
     try {
       const response = await fetchWithCsrf('/api/mcp/connection-check', {
@@ -71,9 +74,9 @@ export function McpOauthConnect() {
       <h3 className="text-sm font-medium">{t('oauth.connectTitle')}</h3>
       <div className="grid gap-3 sm:grid-cols-2">
         {(['chatgpt', 'claude'] as const).map(id => (
-          <Button key={id} className="h-12 justify-start gap-3" variant="outline" disabled={busy} onClick={() => void start(id)}>
+          <Button key={id} className="h-12 justify-start gap-3" variant="outline" disabled={busy} onClick={() => void start(id, id === 'claude')}>
             <Image src={CLIENTS[id].logo} alt="" width={24} height={24} unoptimized className="size-6 rounded-sm" />
-            {t('oauth.connectWith', { client: CLIENTS[id].name })}<ExternalLink className="ml-auto" />
+            {t('oauth.connectWith', { client: CLIENTS[id].name })}{id === 'claude' && <ExternalLink className="ml-auto" />}
           </Button>
         ))}
       </div>
@@ -85,11 +88,18 @@ export function McpOauthConnect() {
               <p className="font-medium">1. {t('oauth.stepAdd')}</p>
               <p className="text-muted-foreground">{t('oauth.reuseExisting')}</p>
               <p className="text-muted-foreground">{t(provider === 'claude' ? 'oauth.addClaudeExact' : provider === 'codex' ? 'oauth.addCodexExact' : 'oauth.addChatgptExact')}</p>
+              {provider === 'chatgpt' && <p className="text-muted-foreground">{t('oauth.chatgptConnectionFields')}</p>}
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <code className="min-w-0 break-all text-xs select-all">{MCP_URL}</code>
                 <Button size="sm" variant="outline" onClick={() => void copy(MCP_URL, 'url')}>{copied === 'url' ? <Check /> : <Copy />}{t('oauth.copyUrl')}</Button>
               </div>
-              {provider !== 'codex' && <a href={client.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline underline-offset-4">{t('oauth.openClient', { client: client.name })}<ExternalLink className="size-3" /></a>}
+              {provider !== 'codex' && <Button variant={provider === 'chatgpt' ? 'default' : 'outline'} disabled={busy || !check} onClick={() => openClient(provider)} className="h-auto min-h-9 whitespace-normal text-left">
+                {t(provider === 'chatgpt' ? 'oauth.copyAndOpenChatgpt' : 'oauth.openClient', { client: client.name })}<ExternalLink className="size-3" />
+              </Button>}
+              {provider === 'chatgpt' && <details className="text-xs">
+                <summary className="cursor-pointer text-muted-foreground">{t('oauth.chatgptMissingOption')}</summary>
+                <p className="mt-2 text-muted-foreground">{t('oauth.chatgptMissingOptionHelp')}</p>
+              </details>}
             </li>
             <li className="space-y-2">
               <p className="font-medium">2. {t('oauth.stepAuthorize')}</p>
