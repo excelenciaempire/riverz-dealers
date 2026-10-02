@@ -50,7 +50,7 @@
     "@opentelemetry/exporter-trace-otlp-http": "^0.213.0",
     "@sentry/node": "^10.74.0",
     "@sparticuz/chromium": "^153.0.0",
-    "@supabase/ssr": "^0.10.3",
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.106.0",
     "@tanstack/react-virtual": "^3.14.3",
     "class-variance-authority": "^0.7.1",
