@@ -1,0 +1,670 @@
+{
+  "observedAt": "2026-10-02T10:37:04.660Z",
+  "scope": "private_real_components_fictional_data",
+  "externalActions": false,
+  "microphoneRequested": false,
+  "providerCalls": false,
+  "publicUiEnabled": false,
+  "reviews": [
+    {
+      "review": "es-desktop",
+      "before": {
+        "alerts": [],
+        "checkbox": false,
+        "config": null,
+        "horizontalOverflow": false,
+        "language": "es",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": null,
+        "transfer": "+12025550100"
+      },
+      "current": {
+        "alerts": [],
+        "checkbox": null,
+        "config": null,
+        "horizontalOverflow": false,
+        "language": "es",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": null,
+        "transfer": "+12025550100"
+      },
+      "details": [
+        {
+          "bounds": {
+            "bottom": 421.74375915527344,
+            "height": 269.88751220703125,
+            "top": 151.8562469482422
+          },
+          "handoffRequests": 0,
+          "horizontalOverflow": false,
+          "mailboxNotePresent": false,
+          "panel": "current",
+          "recordingControlPresent": false,
+          "text": "Cliente de ejemplo\nEstado\nCompletada\nResultado\nSin resultado\nTipo\nEntrante\nDuraciÃ³n\n0:20\nFecha\n1 oct 2026, 10:00\n\nTranscripciÃ³n\n\nSin transcripciÃ³n.\n\nVer en bandeja\nCerrar",
+          "viewport": {
+            "height": 574,
+            "width": 621
+          }
+        },
+        {
+          "bounds": {
+            "bottom": 445.7312698364258,
+            "height": 317.8625183105469,
+            "top": 127.8687515258789
+          },
+          "handoffRequests": 0,
+          "horizontalOverflow": false,
+          "mailboxNotePresent": true,
+          "panel": "new",
+          "recordingControlPresent": false,
+          "text": "Cliente de ejemplo\nEstado\nCompletada\nResultado\nSin resultado\nTipo\nEntrante\nDuraciÃ³n\n0:20\nFecha\n1 oct 2026, 10:00\n\nBuzÃ³n de voz. El audio aparece cuando la grabaciÃ³n estÃ¡ disponible; no hay transcripciÃ³n ni devoluciÃ³n de llamada automÃ¡tica.\n\nTranscripciÃ³n\n\nSin transcripciÃ³n.\n\nVer en bandeja\nCerrar",
+          "viewport": {
+            "height": 574,
+            "width": 621
+          }
+        }
+      ],
+      "disabled": {
+        "fallback_language": "es",
+        "fallback_transfer_number": "+12025550100",
+        "fallback_voicemail_enabled": false,
+        "fallback_voicemail_seconds": 45
+      },
+      "externalActions": false,
+      "invalid": {
+        "alerts": [],
+        "checkbox": true,
+        "config": null,
+        "horizontalOverflow": false,
+        "language": "es",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": "121",
+        "transfer": "+12025550100"
+      },
+      "locale": "es",
+      "microphoneRequested": false,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/voice/connection"
+        },
+        {
+          "method": "PUT",
+          "path": "/api/voice/connection"
+        },
+        {
+          "method": "PUT",
+          "path": "/api/voice/connection"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/calls/10000000-0000-4000-8000-000000000003"
+        }
+      ],
+      "saved": {
+        "alerts": [],
+        "checkbox": true,
+        "config": {
+          "fallback_language": "es",
+          "fallback_transfer_number": "+12025550100",
+          "fallback_voicemail_enabled": true,
+          "fallback_voicemail_seconds": 45
+        },
+        "horizontalOverflow": false,
+        "language": "es",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "PUT",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": "45",
+        "transfer": "+12025550100"
+      },
+      "viewport": {
+        "height": 800,
+        "width": 1280
+      },
+      "screenshot": "docs/comparison-preview/voice-mailbox-es-desktop.png"
+    },
+    {
+      "review": "en-desktop",
+      "before": {
+        "alerts": [],
+        "checkbox": false,
+        "config": null,
+        "horizontalOverflow": false,
+        "language": "en",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": null,
+        "transfer": "+12025550100"
+      },
+      "current": {
+        "alerts": [],
+        "checkbox": null,
+        "config": null,
+        "horizontalOverflow": false,
+        "language": "en",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": null,
+        "transfer": "+12025550100"
+      },
+      "details": [
+        {
+          "bounds": {
+            "bottom": 414.99659729003906,
+            "height": 256.3931579589844,
+            "top": 158.6034393310547
+          },
+          "handoffRequests": 0,
+          "horizontalOverflow": false,
+          "mailboxNotePresent": false,
+          "panel": "current",
+          "recordingControlPresent": false,
+          "text": "Example customer\nStatus\nCompleted\nOutcome\nNo outcome\nType\nInbound\nDuration\n0:20\nDate\nOct 1, 2026, 10:00 AM\n\nTranscript\n\nNo transcript.\n\nView in inbox\nClose",
+          "viewport": {
+            "height": 574,
+            "width": 621
+          }
+        },
+        {
+          "bounds": {
+            "bottom": 430.1906280517578,
+            "height": 286.78125,
+            "top": 143.4093780517578
+          },
+          "handoffRequests": 0,
+          "horizontalOverflow": false,
+          "mailboxNotePresent": true,
+          "panel": "new",
+          "recordingControlPresent": false,
+          "text": "Example customer\nStatus\nCompleted\nOutcome\nNo outcome\nType\nInbound\nDuration\n0:20\nDate\nOct 1, 2026, 10:00 AM\n\nVoicemail. Audio appears when the recording is available; there is no transcription or automatic callback.\n\nTranscript\n\nNo transcript.\n\nView in inbox\nClose",
+          "viewport": {
+            "height": 574,
+            "width": 621
+          }
+        }
+      ],
+      "disabled": {
+        "fallback_language": "en",
+        "fallback_transfer_number": "+12025550100",
+        "fallback_voicemail_enabled": false,
+        "fallback_voicemail_seconds": 45
+      },
+      "externalActions": false,
+      "invalid": {
+        "alerts": [],
+        "checkbox": true,
+        "config": null,
+        "horizontalOverflow": false,
+        "language": "en",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": "121",
+        "transfer": "+12025550100"
+      },
+      "locale": "en",
+      "microphoneRequested": false,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/voice/connection"
+        },
+        {
+          "method": "PUT",
+          "path": "/api/voice/connection"
+        },
+        {
+          "method": "PUT",
+          "path": "/api/voice/connection"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/calls/10000000-0000-4000-8000-000000000003"
+        }
+      ],
+      "saved": {
+        "alerts": [],
+        "checkbox": true,
+        "config": {
+          "fallback_language": "en",
+          "fallback_transfer_number": "+12025550100",
+          "fallback_voicemail_enabled": true,
+          "fallback_voicemail_seconds": 45
+        },
+        "horizontalOverflow": false,
+        "language": "en",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "PUT",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": "45",
+        "transfer": "+12025550100"
+      },
+      "viewport": {
+        "height": 800,
+        "width": 1280
+      },
+      "screenshot": "docs/comparison-preview/voice-mailbox-en-desktop.png"
+    },
+    {
+      "review": "es-mobile",
+      "before": {
+        "alerts": [],
+        "checkbox": false,
+        "config": null,
+        "horizontalOverflow": false,
+        "language": "es",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": null,
+        "transfer": "+12025550100"
+      },
+      "current": {
+        "alerts": [],
+        "checkbox": null,
+        "config": null,
+        "horizontalOverflow": false,
+        "language": "es",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": null,
+        "transfer": "+12025550100"
+      },
+      "details": [
+        {
+          "bounds": {
+            "bottom": 452.5966033935547,
+            "height": 256.3931579589844,
+            "top": 196.2034454345703
+          },
+          "handoffRequests": 0,
+          "horizontalOverflow": false,
+          "mailboxNotePresent": false,
+          "panel": "current",
+          "recordingControlPresent": false,
+          "text": "Cliente de ejemplo\nEstado\nCompletada\nResultado\nSin resultado\nTipo\nEntrante\nDuraciÃ³n\n0:20\nFecha\n1 oct 2026, 10:00\n\nTranscripciÃ³n\n\nSin transcripciÃ³n.\n\nVer en bandeja\nCerrar",
+          "viewport": {
+            "height": 649,
+            "width": 350
+          }
+        },
+        {
+          "bounds": {
+            "bottom": 482.9787902832031,
+            "height": 317.15753173828125,
+            "top": 165.82125854492188
+          },
+          "handoffRequests": 0,
+          "horizontalOverflow": false,
+          "mailboxNotePresent": true,
+          "panel": "new",
+          "recordingControlPresent": false,
+          "text": "Cliente de ejemplo\nEstado\nCompletada\nResultado\nSin resultado\nTipo\nEntrante\nDuraciÃ³n\n0:20\nFecha\n1 oct 2026, 10:00\n\nBuzÃ³n de voz. El audio aparece cuando la grabaciÃ³n estÃ¡ disponible; no hay transcripciÃ³n ni devoluciÃ³n de llamada automÃ¡tica.\n\nTranscripciÃ³n\n\nSin transcripciÃ³n.\n\nVer en bandeja\nCerrar",
+          "viewport": {
+            "height": 649,
+            "width": 350
+          }
+        }
+      ],
+      "disabled": {
+        "fallback_language": "es",
+        "fallback_transfer_number": "+12025550100",
+        "fallback_voicemail_enabled": false,
+        "fallback_voicemail_seconds": 45
+      },
+      "externalActions": false,
+      "invalid": {
+        "alerts": [],
+        "checkbox": true,
+        "config": null,
+        "horizontalOverflow": false,
+        "language": "es",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": "121",
+        "transfer": "+12025550100"
+      },
+      "locale": "es",
+      "microphoneRequested": false,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/voice/connection"
+        },
+        {
+          "method": "PUT",
+          "path": "/api/voice/connection"
+        },
+        {
+          "method": "PUT",
+          "path": "/api/voice/connection"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/calls/10000000-0000-4000-8000-000000000003"
+        }
+      ],
+      "saved": {
+        "alerts": [],
+        "checkbox": true,
+        "config": {
+          "fallback_language": "es",
+          "fallback_transfer_number": "+12025550100",
+          "fallback_voicemail_enabled": true,
+          "fallback_voicemail_seconds": 45
+        },
+        "horizontalOverflow": false,
+        "language": "es",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "PUT",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": "45",
+        "transfer": "+12025550100"
+      },
+      "viewport": {
+        "height": 844,
+        "width": 390
+      },
+      "screenshot": "docs/comparison-preview/voice-mailbox-es-mobile.png"
+    },
+    {
+      "review": "en-mobile",
+      "before": {
+        "alerts": [],
+        "checkbox": false,
+        "config": null,
+        "horizontalOverflow": false,
+        "language": "en",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": null,
+        "transfer": "+12025550100"
+      },
+      "current": {
+        "alerts": [],
+        "checkbox": null,
+        "config": null,
+        "horizontalOverflow": false,
+        "language": "en",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": null,
+        "transfer": "+12025550100"
+      },
+      "details": [
+        {
+          "bounds": {
+            "bottom": 452.5966033935547,
+            "height": 256.3931579589844,
+            "top": 196.2034454345703
+          },
+          "handoffRequests": 0,
+          "horizontalOverflow": false,
+          "mailboxNotePresent": false,
+          "panel": "current",
+          "recordingControlPresent": false,
+          "text": "Example customer\nStatus\nCompleted\nOutcome\nNo outcome\nType\nInbound\nDuration\n0:20\nDate\nOct 1, 2026, 10:00 AM\n\nTranscript\n\nNo transcript.\n\nView in inbox\nClose",
+          "viewport": {
+            "height": 649,
+            "width": 350
+          }
+        },
+        {
+          "bounds": {
+            "bottom": 475.38465881347656,
+            "height": 301.9693298339844,
+            "top": 173.4153289794922
+          },
+          "handoffRequests": 0,
+          "horizontalOverflow": false,
+          "mailboxNotePresent": true,
+          "panel": "new",
+          "recordingControlPresent": false,
+          "text": "Example customer\nStatus\nCompleted\nOutcome\nNo outcome\nType\nInbound\nDuration\n0:20\nDate\nOct 1, 2026, 10:00 AM\n\nVoicemail. Audio appears when the recording is available; there is no transcription or automatic callback.\n\nTranscript\n\nNo transcript.\n\nView in inbox\nClose",
+          "viewport": {
+            "height": 649,
+            "width": 350
+          }
+        }
+      ],
+      "disabled": {
+        "fallback_language": "en",
+        "fallback_transfer_number": "+12025550100",
+        "fallback_voicemail_enabled": false,
+        "fallback_voicemail_seconds": 45
+      },
+      "externalActions": false,
+      "invalid": {
+        "alerts": [],
+        "checkbox": true,
+        "config": null,
+        "horizontalOverflow": false,
+        "language": "en",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": "121",
+        "transfer": "+12025550100"
+      },
+      "locale": "en",
+      "microphoneRequested": false,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/voice/connection"
+        },
+        {
+          "method": "PUT",
+          "path": "/api/voice/connection"
+        },
+        {
+          "method": "PUT",
+          "path": "/api/voice/connection"
+        },
+        {
+          "method": "GET",
+          "path": "/api/voice/calls/10000000-0000-4000-8000-000000000003"
+        }
+      ],
+      "saved": {
+        "alerts": [],
+        "checkbox": true,
+        "config": {
+          "fallback_language": "en",
+          "fallback_transfer_number": "+12025550100",
+          "fallback_voicemail_enabled": true,
+          "fallback_voicemail_seconds": 45
+        },
+        "horizontalOverflow": false,
+        "language": "en",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/voice/connection"
+          },
+          {
+            "method": "PUT",
+            "path": "/api/voice/connection"
+          }
+        ],
+        "seconds": "45",
+        "transfer": "+12025550100"
+      },
+      "viewport": {
+        "height": 844,
+        "width": 390
+      },
+      "screenshot": "docs/comparison-preview/voice-mailbox-en-mobile.png"
+    }
+  ],
+  "consoleEntries": [
+    {
+      "level": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted â€” the behavior is unsupported and could change in a future version. 0",
+      "timestamp": "2026-10-02T06:25:24.234Z",
+      "source": "console"
+    },
+    {
+      "level": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted â€” the behavior is unsupported and could change in a future version. 1",
+      "timestamp": "2026-10-02T06:27:51.925Z",
+      "source": "console"
+    }
+  ],
+  "historicalConsoleErrorsPreserved": 2,
+  "newConsoleErrors": 0,
+  "sourceSha256": [
+    {
+      "file": "src/app/api/internal/voice/context/route.ts",
+      "sha256": "fabc2322350054491299922a504416a76aa0de021620d744ad8a59d1b9831d58"
+    },
+    {
+      "file": "src/app/api/voice/calls/[id]/route.ts",
+      "sha256": "34d0fc46b11fab803be9d82b144409809e3079954a8082e0a970b03c13dc4fe3"
+    },
+    {
+      "file": "src/app/api/voice/connection/route.ts",
+      "sha256": "df44620ab1647f3ce7aa72dde413d231bbece613e2e409474bb72a3f63939ebc"
+    },
+    {
+      "file": "src/components/voice/call-detail.tsx",
+      "sha256": "28405d15c30432e9c172992eaccfaeaf1ee18a803f5f844ef18920fbbf84beb9"
+    },
+    {
+      "file": "src/components/voice/voice-fallback-settings.tsx",
+      "sha256": "811e4648d681873bee1458a453e508f13faa02a3eaf7f3db2575b1f885c2b4eb"
+    },
+    {
+      "file": "src/lib/i18n/messages/voice.ts",
+      "sha256": "5fe70b28c73c6fb428aa569bd19b8e575583f47e859740190af393155541d3f5"
+    },
+    {
+      "file": "src/lib/voice/inbound-fallback.test.ts",
+      "sha256": "c69e675c186317f66eb675cd2efaf75d173b8bb7a6d9e5a500d155b7af10a771"
+    },
+    {
+      "file": "src/lib/voice/inbound.ts",
+      "sha256": "fba8421a42ce325ddf904bc50009ac7f8efce726bc3fd54a0f3afb3209049210"
+    },
+    {
+      "file": "src/lib/voice/result.ts",
+      "sha256": "d63d358504e6c2feb7084e0890ecacf32d14c72ac2a027015a16ce6e0c152d04"
+    },
+    {
+      "file": "src/types/index.ts",
+      "sha256": "8eaf12273d234ef60c7e3712d5090064f8ac609ef6749caa2606d4dbbd2e7ff4"
+    },
+    {
+      "file": "src/app/api/voice/connection/mailbox.test.ts",
+      "sha256": "beb68707b9c01859df7e102741ac8152c7d4e12e3e38c2d21b1441cff7e254f1"
+    },
+    {
+      "file": "src/lib/voice/mailbox-audio.test.ts",
+      "sha256": "21a75877c0fd085ec06cf686080d9da178a1ad66dc0f7a93e77b74a1df487b5b"
+    },
+    {
+      "file": "src/lib/voice/mailbox-audio.ts",
+      "sha256": "3bf9d4e9e0754d09f5f1b4a4b34e69357a9d4cfe89436e40f3735f813f53b346"
+    },
+    {
+      "file": "src/lib/voice/mailbox-policy.test.ts",
+      "sha256": "a80466932786defda0866b59da199a45f4dbbf232cdf4ae46741662ea6a60fe2"
+    },
+    {
+      "file": "src/lib/voice/mailbox-policy.ts",
+      "sha256": "b8f8ebd1b32b08fb633ef3c2192041041c5a10d496630195a0bde00238f55981"
+    }
+  ],
+  "cssSha256": {
+    "0y7fmymffc1f-.css": "a9ebecb14064ea8dd75f94623210eda384a7b55a0dda3b2d684cf2a51bd9c6df",
+    "0ydpypn-7ctjk.css": "932d47c5b5820b2dd6a9a39a5a25bd6a26ab6e94db2b45fe9f2ff99727087666",
+    "1bliujhpm9e2n.css": "162a497f498c1d1bf1baaf2e307f93fccd9f0308ee25ad57e62e5eb98fd1906a",
+    "21rtznmd83uia.css": "36494c893a9698a87a9073917ae4fdee7aada2f7f63bdb75eac0b7602d00468d",
+    "24hrtzo5s_sl1.css": "918623f67958b347bcd22eb9cc2010cf26a434083cf47bd9517aad84a1ae229e",
+    "2rmecej376eld.css": "69b419d05a7eb4a71904be8d7b6f9cd719fe55ef6bf0881feca4652b0dcd4c5e",
+    "3s7aa-p955seo.css": "25f2e876fb87c418429be603ca585b0d52e15a51be6d59166a7856c45ee82448"
+  },
+  "bundleSha256": "db506639da72c24aeec9271818398ef472332953aa0374dbc790d987e9448bde",
+  "validation": {
+    "typescript": "pass",
+    "normalBuild": "pass",
+    "comparisonBuild": "pass",
+    "regressionTests": 345,
+    "regressionFiles": 40,
+    "pythonTests": 18,
+    "finalLint": "0 errors / 0 warnings",
+    "sourceFilesMatched": 15,
+    "cssFilesMatched": 7,
+    "privateIsolation": "pass"
+  }
+}

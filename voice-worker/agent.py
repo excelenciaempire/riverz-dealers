@@ -61,6 +61,8 @@ from riverz_api import RiverzAPI
 from tools import CallState, build_tools, hangup as _hangup
 from fallback_audio import FALLBACK_NOTICE_GZIP_BASE64
 from human_handoff import control_human_handoff
+from voice_mailbox import capture_mailbox, transfer_definitively_rejected
+from mailbox_audio import MAILBOX_NOTICE_GZIP_BASE64
 
 # Noise cancellation (BVCTelephony) mejora mucho el audio en telefonía, pero es un
 # plugin aparte y opcional; si no está instalado, seguimos sin él (fail-soft).
@@ -449,7 +451,8 @@ async def _finalize(
         "answered_at": call_state.answered_at,
         "ended_at": ended_at,
         "duration_seconds": duration,
-        "usage": _usage_dict(usage_collector),
+        "usage": ({"stt_seconds": 0, "llm_input_tokens": 0, "llm_output_tokens": 0, "tts_chars": 0}
+                  if (context or {}).get("mode") == "fallback" else _usage_dict(usage_collector)),
         "recording_url": call_state.recording_url,
         "error": error,
     }
@@ -926,19 +929,19 @@ def _build_session(context: dict, vad) -> AgentSession:
     return AgentSession(**kwargs)
 
 
-async def _start_recording(ctx: JobContext, context: dict, call_state: CallState) -> None:
+async def _start_recording(ctx: JobContext, context: dict, call_state: CallState) -> bool:
     """Inicia LiveKit Egress (audio-only) de la room a un bucket S3-compatible
     (Supabase Storage vía endpoint S3). Fail-soft: si faltan credenciales o falla,
     loguea y NO graba, sin romper la llamada."""
     rec = context.get("recording") or {}
     if not rec.get("enabled"):
-        return
+        return False
     bucket = os.getenv("RECORDING_S3_BUCKET")
     access = os.getenv("RECORDING_S3_ACCESS_KEY")
     secret = os.getenv("RECORDING_S3_SECRET_KEY")
     if not (bucket and access and secret):
         logger.warning("recording habilitado pero faltan credenciales S3; no se graba")
-        return
+        return False
     endpoint = os.getenv("RECORDING_S3_ENDPOINT") or None
     region = os.getenv("RECORDING_S3_REGION") or "auto"
     # Key determinística por call_id (el bucket ya es "voice-recordings") -> el
@@ -971,8 +974,44 @@ async def _start_recording(ctx: JobContext, context: dict, call_state: CallState
             f"{endpoint.rstrip('/')}/{bucket}/{key}" if endpoint else f"s3://{bucket}/{key}"
         )
         logger.info("egress iniciado (%s) -> %s", call_state.egress_id, key)
+        return bool(call_state.egress_id)
     except Exception:
         logger.warning("no se pudo iniciar egress; la llamada sigue sin grabación", exc_info=True)
+        return False
+
+
+async def _mailbox_notice(ctx: JobContext, language: str) -> None:
+    encoded = MAILBOX_NOTICE_GZIP_BASE64["en" if language == "en" else "es"]
+    pcm = gzip.decompress(base64.b64decode(encoded))
+    source = rtc.AudioSource(8000, 1)
+    track = rtc.LocalAudioTrack.create_audio_track("mailbox-disclosure", source)
+    try:
+        await ctx.room.local_participant.publish_track(track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE))
+        for offset in range(0, len(pcm), 320):
+            chunk = pcm[offset:offset+320]
+            await source.capture_frame(rtc.AudioFrame(data=chunk, sample_rate=8000, num_channels=1, samples_per_channel=len(chunk)//2))
+        await source.wait_for_playout()
+    finally:
+        await source.aclose()
+
+
+async def _run_mailbox(ctx: JobContext, context: dict, call_state: CallState) -> None:
+    async def record():
+        # A failed transfer might have started the existing room recording.
+        return bool(call_state.egress_id) or await _start_recording(ctx, context, call_state)
+    def connected():
+        customer = ctx.room.remote_participants.get(call_state.phone_identity)
+        return customer is not None and getattr(customer, "kind", None) == 3 and (getattr(customer, "attributes", {}) or {}).get("sip.callStatus") == "active"
+    def result_ready(result):
+        # Set the outcome BEFORE delete_room can trigger the finalizer.
+        call_state.outcome = "no_outcome"
+        call_state.outcome_details = {**result, "fallback_reason": context["fallback"].get("reason")}
+        call_state.status = "completed" if result["mailbox_capture"] == "recording_requested" else "failed"
+    await capture_mailbox(
+        policy=context["fallback"]["mailbox"], start_recording=record,
+        play_notice=lambda: _mailbox_notice(ctx, context.get("language") or "es"),
+        connected=connected, hangup=_hangup, result_ready=result_ready,
+    )
 
 
 async def _timeout_guard(session: AgentSession, context: dict, call_state: CallState) -> None:
@@ -1253,12 +1292,16 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
     if context.get("mode") == "fallback":
         fallback = context.get("fallback") or {}
         transfer_number = fallback.get("transfer_number")
+        transfer_rejected = False
         # This path never invokes an LLM or TTS provider. The fixed 8 kHz PCM
         # notice is embedded in the worker image and published straight into
         # the room before SIP REFER.
         ctx.add_shutdown_callback(
             lambda *_: _finalize(api, call_state, None, context, lk_api=ctx.api)
         )
+        if not transfer_number and fallback.get("mailbox"):
+            await _run_mailbox(ctx, context, call_state)
+            return
         await _start_recording(ctx, context, call_state)
         try:
             language = "en" if context.get("language") == "en" else "es"
@@ -1308,6 +1351,7 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
                 logger.info("fallback entrante transferido")
                 return
             except Exception as exc:
+                transfer_rejected = transfer_definitively_rejected(exc)
                 call_state.status = "failed"
                 call_state.outcome_details = {
                     "transferred": False,
@@ -1323,6 +1367,10 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
                 "fallback_reason": fallback.get("reason"),
                 "error": "fallback_number_missing",
             }
+
+        if fallback.get("mailbox") and transfer_rejected:
+            await _run_mailbox(ctx, context, call_state)
+            return
 
         await _hangup()
         return

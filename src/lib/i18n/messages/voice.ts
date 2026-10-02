@@ -1223,4 +1223,11 @@ export const voice = {
   numberAddrPostal: { es: 'Código postal', en: 'Postal code' },
   numberAddrSave: { es: 'Guardar dirección', en: 'Save address' },
   numberAddrSaved: { es: 'Dirección guardada', en: 'Address saved' },
+  mailboxTitle: {es:'Buzón de voz',en:'Voicemail'},
+  mailboxEnable: {es:'Grabar si la transferencia no está disponible',en:'Record when human transfer is unavailable'},
+  mailboxConsent: {es:'El aviso informa que se graba. Sin transcripción ni IA; telefonía y grabación conservan sus costes.',en:'The notice discloses recording. No transcription or AI; phone and recording costs still apply.'},
+  mailboxDuration: {es:'Máximo de grabación (segundos)',en:'Recording limit (seconds)'},
+  mailboxInvalid: {es:'Elige una duración entera entre 15 y 120 segundos.',en:'Choose a whole-number duration from 15 to 120 seconds.'},
+  mailboxRecordingNote: {es:'Buzón de voz. El audio aparece cuando la grabación está disponible; no hay transcripción ni devolución de llamada automática.',en:'Voicemail. Audio appears when the recording is available; there is no transcription or automatic callback.'},
+  fallbackUnavailable: {es:'No se pudo cargar o guardar la configuración.',en:'Could not load or save the settings.'},
 } satisfies Namespace;

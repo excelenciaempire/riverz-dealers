@@ -1326,6 +1326,10 @@ export interface VoiceConnectionConfig {
   fallback_transfer_number?: string;
   /** Language of the prerecorded inbound fallback notice. */
   fallback_language?: 'es' | 'en';
+  /** Opt-in recorded inbound fallback, after a missing/failed human transfer. */
+  fallback_voicemail_enabled?: boolean;
+  /** Bounded recording after the fixed disclosure/tone; 15–120 seconds. */
+  fallback_voicemail_seconds?: number;
   /** Segundos de espera antes de que el agente hable (0–10; sin apuro para el cliente). */
   greeting_delay_seconds?: number;
   /** Segundos de silencio del cliente antes de avisar "¿sigues ahí?" y luego colgar

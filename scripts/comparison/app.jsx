@@ -1,4 +1,5 @@
 import {CallDetail} from '@/components/voice/call-detail';
+import {VoiceFallbackSettings} from '@/components/voice/voice-fallback-settings';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'sonner';
@@ -36,9 +37,17 @@ import { ids, now, selected, improved, locale, copy, report } from './fixtures';
 
 const pages = [['inbox', 'Bandeja', 'Inbox'], ['rules', 'Reglas', 'Rules'], ['documents', 'Documentos', 'Documents'],
   ['reports', 'Reportes', 'Reports'], ['flows', 'Flujos', 'Flows'], ['returns', 'Postventa', 'After-sales'], ['connections', 'Acciones HTTP', 'HTTP actions'],
-  ['orders', 'Acciones de pedidos', 'Order actions'], ['templates', 'Plantillas', 'Templates'], ['campaigns', 'Campañas', 'Campaigns'], ['automations', 'Automatizaciones', 'Automations'], ['mobile', 'Avisos móviles', 'Mobile notifications'], ['release', 'Lanzamiento', 'Launch'], ['migrations','Migraciones','Migrations'],['help','Ayuda','Help'],['voice','Llamadas','Calls']];
+  ['orders', 'Acciones de pedidos', 'Order actions'], ['templates', 'Plantillas', 'Templates'], ['campaigns', 'Campañas', 'Campaigns'], ['automations', 'Automatizaciones', 'Automations'], ['mobile', 'Avisos móviles', 'Mobile notifications'], ['release', 'Lanzamiento', 'Launch'], ['migrations','Migraciones','Migrations'],['help','Ayuda','Help'],['voice','Llamadas','Calls'],['voice-mailbox','Buzón','Voicemail']];
 const automationParams = Promise.resolve({ id: ids.flow });
 const noChange = () => {};
+function VoiceMailboxPreview() {
+  const [callId,setCallId]=React.useState(null);
+  return <div className="space-y-4">
+    <VoiceFallbackSettings workspaceId={ids.workspace}/>
+    <button className="rounded-lg border px-3 py-2 text-xs" onClick={()=>setCallId(ids.conversation)}>{copy('Ver buzón de ejemplo','View example voicemail')}</button>
+    <CallDetail callId={callId} onClose={()=>setCallId(null)}/>
+  </div>;
+}
 const selectedCases = [ids.conversation];
 const reportRange = { start: report.range.start, end: report.range.end, previous_start: '2026-08-01T00:00:00Z', previous_end: report.range.start };
 const embedded = selected.get('embedded') === '1';
@@ -99,7 +108,8 @@ function App() {
           {page === 'mobile' && <AppInstallation />}
           {page === 'release' && <CommslayerReleaseReview />}
           {page === 'migrations' && <MigrationPreview />}
-          {page === 'voice' && <><p className="text-sm">{copy('Llamada de ejemplo en curso. Se conservan su ficha, grabación y transcripción.','Example call in progress. Its details, recording and transcript are preserved.')}</p><CallDetail callId={ids.conversation} onClose={noChange}/></>}
+            {page === 'voice' && <><p className="text-sm">{copy('Llamada de ejemplo en curso. Se conservan su ficha, grabación y transcripción.','Example call in progress. Its details, recording and transcript are preserved.')}</p><CallDetail callId={ids.conversation} onClose={noChange}/></>}
+            {page === 'voice-mailbox' && <VoiceMailboxPreview/>}
         </div>}
       </main>
     </div>

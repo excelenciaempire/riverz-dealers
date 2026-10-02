@@ -7,6 +7,11 @@ import { serverError } from '@/lib/api/errors';
 import { isVoiceAdmin } from '@/lib/voice/voice-connection-store';
 import { normalizeVoiceCapacity } from '@/lib/voice/capacity';
 import { isValidE164 } from '@/lib/whatsapp/phone-utils';
+import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
+import {z} from 'zod';
+import {getLocale} from '@/lib/i18n/server';
+import {translate} from '@/lib/i18n/translate';
+import {exigirMensualidad} from '@/lib/wallet/puerta';
 
 /**
  * Voice channel connection config (per workspace). Stores the merchant's DID,
@@ -91,12 +96,13 @@ export async function PUT(request: Request) {
 
   try {
     const admin = supabaseAdmin();
-    const { data: existing } = await admin
+    const { data: existing, error: readError } = await admin
       .from('channel_connections')
       .select('id, config')
       .eq('workspace_id', body.workspace_id)
       .eq('channel', 'voice')
       .maybeSingle();
+    if(readError)throw new Error('voice_config_unavailable');
 
     const prevConfig = ((existing as { config?: VoiceConnectionConfig } | null)
       ?.config ?? {}) as VoiceConnectionConfig;
@@ -113,6 +119,17 @@ export async function PUT(request: Request) {
     const owns = (key: keyof VoiceConnectionConfig) =>
       Object.prototype.hasOwnProperty.call(incoming, key);
     const cfg: VoiceConnectionConfig = { ...prevConfig, ...incoming };
+    if (owns('fallback_voicemail_enabled') || owns('fallback_voicemail_seconds')) {
+      const locale=await getLocale();
+      if (!SHOW_RIVERZ_IMPROVEMENTS) return NextResponse.json({error:translate(locale,'errAi.notFound')},{status:404,headers:{'Cache-Control':'private, no-store'}});
+      const enabled=z.boolean().safeParse(owns('fallback_voicemail_enabled')?incoming.fallback_voicemail_enabled:prevConfig.fallback_voicemail_enabled ?? false);
+      const duration=z.number().int().min(15).max(120).safeParse(owns('fallback_voicemail_seconds')?incoming.fallback_voicemail_seconds:prevConfig.fallback_voicemail_seconds ?? 60);
+      if (!enabled.success || !duration.success) return NextResponse.json({error:translate(locale,'voice.mailboxInvalid')},{status:400,headers:{'Cache-Control':'private, no-store'}});
+      cfg.fallback_voicemail_enabled=enabled.data;
+      cfg.fallback_voicemail_seconds=duration.data;
+      const blocked=await exigirMensualidad(admin,body.workspace_id);
+      if (blocked) return NextResponse.json({error:translate(locale,blocked.status===402?'voice.handoffError_readOnly':'voice.fallbackUnavailable')},{status:blocked.status,headers:{'Cache-Control':'private, no-store'}});
+    }
 
     // This route is shared by small, independent cards. Only normalize keys
     // the caller actually sent; an omitted checkbox must not turn another
@@ -183,20 +200,22 @@ export async function PUT(request: Request) {
     const status = cfg.phone_number ? 'connected' : 'pending';
 
     if (existing) {
-      await admin
+      const {error:writeError}=await admin
         .from('channel_connections')
         .update({ config: cfg, status, label: 'Voz' })
         .eq('id', (existing as { id: string }).id);
+      if(writeError)throw new Error('voice_config_write_failed');
     } else {
-      await admin.from('channel_connections').insert({
+      const {error:writeError}=await admin.from('channel_connections').insert({
         workspace_id: body.workspace_id,
         channel: 'voice',
         label: 'Voz',
         status,
         config: cfg,
       });
+      if(writeError)throw new Error('voice_config_write_failed');
     }
-    return NextResponse.json({ ok: true, config: cfg, status });
+    return NextResponse.json({ ok: true, config: cfg, status },{headers:{'Cache-Control':'private, no-store'}});
   } catch (err) {
     return serverError(err, 'save voice connection failed');
   }

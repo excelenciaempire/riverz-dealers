@@ -3,6 +3,10 @@ import type { VoiceCall } from '@/types';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { serverError } from '@/lib/api/errors';
+import {resolveWorkspaceIdForUser} from '@/lib/workspaces/resolve';
+import {isVoiceMailboxCall,readVoiceMailboxAudio,VoiceMailboxAudioError} from '@/lib/voice/mailbox-audio';
+import {getLocale} from '@/lib/i18n/server';
+import {translate} from '@/lib/i18n/translate';
 
 /**
  * GET /api/voice/calls/[id]
@@ -36,7 +40,13 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     if (!callRow) return NextResponse.json({ error: 'not_found' }, { status: 404 });
     const call = callRow as VoiceCall;
 
-    // Membership gate on the call's workspace.
+    const mailbox=isVoiceMailboxCall(call);
+    if(mailbox) {
+      call.recording_url=await readVoiceMailboxAudio(supabaseAdmin(),call,user.id,await resolveWorkspaceIdForUser(supabase,user.id));
+    }
+    // The new mailbox requires current section, contact and conversation
+    // authority above. Preserve the existing gate for ordinary calls.
+    if(!mailbox) {
     const { data: member } = await supabaseAdmin()
       .from('workspace_members')
       .select('id')
@@ -44,6 +54,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       .eq('user_id', user.id)
       .maybeSingle();
     if (!member) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
 
     // Reproducción de la grabación: el egress sube a un bucket PRIVADO
     // "voice-recordings" como `<call_id>.ogg`. Firmamos una URL de corta vida
@@ -58,7 +69,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     // determinista, así que preguntarle a Storage es la fuente de verdad.
     // Fail-soft: si no hay objeto, `createSignedUrl` devuelve error y se deja
     // como estaba.
-    {
+    if(!mailbox) {
       const { data: signed } = await supabaseAdmin()
         .storage.from('voice-recordings')
         .createSignedUrl(`${call.id}.ogg`, 60 * 60);
@@ -82,8 +93,12 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         .filter((t) => t.text.trim().length > 0);
     }
 
-    return NextResponse.json({ call, transcript });
+    return NextResponse.json({ call, transcript },{headers:{'Cache-Control':'private, no-store'}});
   } catch (err) {
+    if(err instanceof VoiceMailboxAudioError) {
+      const locale=await getLocale();
+      return NextResponse.json({error:translate(locale,err.code==='notFound'?'errAi.notFound':'voice.fallbackUnavailable')},{status:err.code==='notFound'?404:503,headers:{'Cache-Control':'private, no-store'}});
+    }
     return serverError(err, 'voice call detail failed');
   }
 }

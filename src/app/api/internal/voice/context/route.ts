@@ -76,6 +76,7 @@ export async function GET(request: Request) {
           fallback: {
             reason: resolved.reason,
             transfer_number: resolved.transferNumber,
+            ...(resolved.mailbox ? {mailbox:resolved.mailbox} : {}),
           },
           recording: { enabled: true },
         });

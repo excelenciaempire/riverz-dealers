@@ -17,6 +17,7 @@ import { voiceExecutionMeta } from '@/lib/voice/execution-context';
 import type { VoiceCall } from '@/types';
 import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
 import {HumanVoiceHandoff} from './human-handoff';
+import {isVoiceMailboxCapture} from '@/lib/voice/mailbox-policy';
 
 interface TranscriptTurn {
   role: 'agent' | 'customer';
@@ -118,6 +119,7 @@ export function CallDetail({ callId, onClose }: { callId: string | null; onClose
             </dl>
 
             {SHOW_RIVERZ_IMPROVEMENTS && call.outcome_details?.human_handoff_connected === true && <p className="text-muted-foreground text-xs">{t('voice.handoffTranscriptNote')}</p>}
+            {SHOW_RIVERZ_IMPROVEMENTS && isVoiceMailboxCapture(call,call) && <p className="text-muted-foreground text-xs">{t('voice.mailboxRecordingNote')}</p>}
 
             {/* Recording */}
             {call.recording_url && (

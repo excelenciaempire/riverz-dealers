@@ -34,6 +34,7 @@ El servidor escucha únicamente en loopback. El navegador de esta tarea permanec
 | Migraciones | Revisión local y persistente de contactos CSV, conteos existentes, confirmación explícita, comprobante y recuperación. El adaptador local simula escrituras; no extrae cuentas ni importa datos reales. |
 | Ayuda | Centro con marca y artículos revisados; vista del chat con pedidos ficticios y respuestas declaradas del visitante. Su edición se revisa dentro de Documentos. |
 | Llamadas | Ficha real en ambos lados; toma humana exclusiva, entrada explícita, silencio y cierre con audio simulado solo en la propuesta. |
+| Buzón | Configuración actual de respaldo en ambos lados; grabación opcional, duración y aviso en la propuesta. Ficha de ejemplo sin prometer un audio todavía ausente. |
 
 ## Límites de la comparación
 
@@ -69,3 +70,5 @@ La misma sección añade [Kommo y ManyChat](migration-native-external.md). Su [Q
 La misma sección incorpora [Gorgias/Zendesk por cursor](migration-native-cursors.md). La [QA independiente](migration-native-cursors-qa.json) registra cuatro recorridos ES/EN, escritorio/móvil, ocho paneles: token OAuth, cuenta sin ID inventado, extracción, revisión separada, casilla y cancelación. Los siete intercambios por recorrido son fixtures en memoria; no son solicitudes a fuentes ni importaciones reales. La evidencia anterior conserva sus fechas/bundles.
 
 La sección Llamadas usa la ficha real de Riverz en ambas variantes. La [toma humana construida](voice-human-handoff.md) añade controles dentro de ella, conservando metadatos y transcripción. [Cuatro revisiones / ocho paneles](voice-human-handoff-qa.json) ES/EN, escritorio/móvil, comprobaron preparación, entrada explícita, confirmación, silencio y cierre. Todo el transporte de toma humana es ficticio: no accede al SDK de medios, micrófono, telefonía o IA. La columna actual no realiza solicitudes de ese control. Las otras secciones conservan su evidencia histórica; no se presenta este recorrido como una repetición completa de todo el catálogo.
+
+La sección Buzón amplía el respaldo actual, con [QA independiente de cuatro recorridos / ocho paneles](voice-mailbox-qa.json). Ambas columnas preservan número e idioma de transferencia. La propuesta valida duración, guarda y desactiva una configuración ficticia, y explica en la ficha que el audio aparece cuando está disponible, sin transcripción o devolución automática. Sus GET/PUT son respuestas en memoria, no cambios de un comercio o grabaciones reales.

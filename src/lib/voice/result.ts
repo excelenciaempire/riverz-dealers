@@ -1,5 +1,6 @@
 import { settleVoiceMedia } from './media-billing';
 import {controlledVoiceSttSeconds} from './human-media-boundary';
+import {isVoiceMailboxCapture} from './mailbox-policy';
 /**
  * Voice AI — call result persistence.
  *
@@ -128,7 +129,9 @@ async function materializeTranscript(
   const connectionId = await voiceConnectionId(db, call.workspace_id);
 
   const directionLabel =
-    call.direction === 'inbound' ? 'Llamada entrante' : 'Llamada';
+    isVoiceMailboxCapture(call,payload)
+      ? call.language.startsWith('en') ? 'Voice message' : 'Mensaje de voz'
+      : call.direction === 'inbound' ? 'Llamada entrante' : 'Llamada';
   const subject = call.summary || payload.summary || directionLabel;
 
   const { data: convo, error: convErr } = await db
@@ -480,7 +483,8 @@ export async function persistCallResult(
   }
 
   // Settle before the finalization claim: a retried result can recover billing independently.
-  const sttSeconds = await controlledVoiceSttSeconds(db, call.id, payload.duration_seconds ?? 0, payload.usage?.stt_seconds);
+  const nonAiFallback = call.direction==='inbound' && call.agent_id===null && typeof call.context.fallback_reason==='string';
+  const sttSeconds = nonAiFallback ? 0 : await controlledVoiceSttSeconds(db, call.id, payload.duration_seconds ?? 0, payload.usage?.stt_seconds);
   const meteredCost = await settleVoiceMedia(
     db,
     call,
@@ -513,7 +517,8 @@ export async function persistCallResult(
   const agent = (agentRow as AiAgent | null) ?? null;
 
   const durationSeconds = payload.duration_seconds ?? null;
-  const cost = meteredCost ?? estimateCost({...payload.usage, stt_seconds: sttSeconds}, durationSeconds);
+  const usage = nonAiFallback ? {llm_input_tokens:0,llm_output_tokens:0,tts_chars:0} : payload.usage;
+  const cost = meteredCost ?? estimateCost({...usage, stt_seconds: sttSeconds}, durationSeconds);
   const connected =
     call.direction === 'inbound' || (payload.transcript?.length ?? 0) > 0;
 
@@ -530,7 +535,7 @@ export async function persistCallResult(
     summary: payload.summary ?? null,
   });
   // A successful human fallback intentionally has no AI-agent turn.
-  const mudo = payload.outcome !== 'transferred' && roto !== null;
+  const mudo = payload.outcome !== 'transferred' && !isVoiceMailboxCapture(call,payload) && roto !== null;
   const statusFinal = mudo ? 'failed' : payload.status;
   const errorFinal = mudo ? payload.error || roto : (payload.error ?? null);
   if (mudo) {

@@ -13,7 +13,9 @@ const state = vi.hoisted(() => ({
   motorOff: false,
   aiBlocking: false,
   inserted: null as Record<string, unknown> | null,
+  uiEnabled:false,
 }));
+vi.mock('@/lib/ui/improvements-preview',()=>({get SHOW_RIVERZ_IMPROVEMENTS(){return state.uiEnabled;}}));
 
 vi.mock('@/lib/db/paginate', () => ({
   selectAll: async () => [
@@ -89,6 +91,7 @@ beforeEach(() => {
   state.motorOff = false;
   state.aiBlocking = false;
   state.inserted = null;
+  state.uiEnabled=false;
 });
 
 describe('inbound fallback', () => {
@@ -157,5 +160,21 @@ describe('inbound fallback', () => {
       mode: 'fallback',
       transferNumber: null,
     });
+  });
+  it('keeps mailbox inactive in the current build even if stored config enables it',async()=>{
+    state.config.fallback_voicemail_enabled=true;state.agent=null;state.agents=[];
+    const result=await resolveInboundCall(db(),{did:'+12099793169',caller:'+13055550000'});
+    expect(result).toMatchObject({mode:'fallback',mailbox:null});expect(state.inserted?.context).not.toHaveProperty('voice_mailbox');
+  });
+  it('saves explicit mailbox consent and duration on the original inbound call',async()=>{
+    state.uiEnabled=true;state.config.fallback_voicemail_enabled=true;state.config.fallback_voicemail_seconds=45;state.agent=null;state.agents=[];
+    const result=await resolveInboundCall(db(),{did:'+12099793169',caller:'+13055550000'});
+    expect(result).toMatchObject({mode:'fallback',mailbox:{enabled:true,version:1,maxSeconds:45}});
+    expect(state.inserted?.context).toMatchObject({voice_mailbox:{enabled:true,version:1,maxSeconds:45}});
+  });
+  it('does not record or replace a healthy AI inbound call',async()=>{
+    state.uiEnabled=true;state.config.fallback_voicemail_enabled=true;
+    const result=await resolveInboundCall(db(),{did:'+12099793169',caller:'+13055550000'});
+    expect(result).toMatchObject({mode:'ai'});expect(state.inserted?.context).not.toHaveProperty('voice_mailbox');
   });
 });

@@ -20,6 +20,8 @@ import { withVoiceExecutionMeta } from './execution-context';
 import { motorApagado } from '@/lib/workspaces/motor';
 import { puertaDeIa } from '@/lib/wallet/puerta';
 import { voiceProviderHealth } from './provider-health';
+import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
+import {configuredVoiceMailbox,savedVoiceMailbox,type VoiceMailboxPolicy} from './mailbox-policy';
 
 function toE164(raw: string): string {
   const t = raw.trim();
@@ -101,6 +103,7 @@ export type InboundResolution =
       reason: string;
       transferNumber: string | null;
       language: 'es' | 'en';
+      mailbox: VoiceMailboxPolicy | null;
     }
   | { ok: false; reason: string };
 
@@ -170,6 +173,7 @@ export async function resolveInboundCall(
             reason: fallbackReason,
             transferNumber: cfg.fallback_transfer_number ?? null,
             language: cfg.fallback_language === 'en' ? 'en' : 'es',
+            mailbox: savedVoiceMailbox(call.context,SHOW_RIVERZ_IMPROVEMENTS),
           };
     }
   }
@@ -205,6 +209,7 @@ export async function resolveInboundCall(
                 ? 'no_voice_agent'
                 : null;
   const fallback = Boolean(fallbackReason);
+  const mailbox = fallback ? configuredVoiceMailbox(cfg as Record<string,unknown>,SHOW_RIVERZ_IMPROVEMENTS) : null;
 
   const { data: inserted, error } = await db
     .from('voice_calls')
@@ -222,7 +227,8 @@ export async function resolveInboundCall(
         : agent!.language || 'es',
       status: 'in_progress',
       context: withVoiceExecutionMeta(
-        fallback ? { fallback_reason: fallbackReason } : {},
+        fallback ? { fallback_reason: fallbackReason,
+          ...(mailbox ? {voice_mailbox:mailbox} : {}) } : {},
         { origin: 'inbound' }
       ),
       dispatch_priority: 500,
@@ -252,6 +258,7 @@ export async function resolveInboundCall(
               reason: fallbackReason ?? 'unavailable',
               transferNumber: cfg.fallback_transfer_number ?? null,
               language: cfg.fallback_language === 'en' ? 'en' : 'es',
+              mailbox: savedVoiceMailbox(call.context,SHOW_RIVERZ_IMPROVEMENTS),
             };
       }
     }
@@ -269,6 +276,7 @@ export async function resolveInboundCall(
         reason: fallbackReason!,
         transferNumber: cfg.fallback_transfer_number ?? null,
         language: cfg.fallback_language === 'en' ? 'en' : 'es',
+        mailbox: savedVoiceMailbox(call.context,SHOW_RIVERZ_IMPROVEMENTS),
       }
     : { ok: true, mode: 'ai', call };
 }
