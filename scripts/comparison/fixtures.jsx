@@ -107,6 +107,32 @@ function syntheticWhatsAppRequest(body,url,method){
  if(window.__comparisonWhatsAppMode==='terminated'){receipt.state='terminated';receipt.status='completed';receipt.cleanupState='acknowledged';receipt.providerEnded=true;}
  window.__comparisonWhatsAppReceipt=structuredClone(receipt);return reply(receipt);
 }
+let syntheticSmsSettings={configured:true,connectionId:ids.flow,revision:ids.message,phoneNumberId:'1293384261075731499',phone:'+12025550100',profileId:ids.rule,organizationId:ids.user,enabled:false,maxSegments:3,dailySegments:100,inboundQueue:{pending:0,failed:0}};
+let syntheticSmsConsent=false;
+const syntheticSmsReceipts=new Map();
+function syntheticSmsRequest(body,url,method){
+ window.__comparisonSms={synthetic:true,providerCalled:false,aiUsage:false,realSmsSent:false};
+ const policy=()=>({connectionId:ids.flow,revision:syntheticSmsSettings.revision,phone:syntheticSmsSettings.phone,enabled:syntheticSmsSettings.enabled,maxSegments:syntheticSmsSettings.maxSegments,dailySegments:syntheticSmsSettings.dailySegments,consent:syntheticSmsConsent,consentSource:syntheticSmsConsent?'human':null,consentAt:syntheticSmsConsent?now:null});
+ if(method==='GET'&&url.searchParams.get('view')==='settings')return reply(syntheticSmsSettings);
+ if(method==='GET'&&url.searchParams.get('view')==='policy')return reply(policy());
+ if(method==='POST'&&body.action==='settings'){syntheticSmsSettings={...syntheticSmsSettings,enabled:body.input.enabled,maxSegments:body.input.maxSegments,dailySegments:body.input.dailySegments};window.__comparisonSmsSettings=structuredClone(syntheticSmsSettings);return reply(syntheticSmsSettings);}
+ if(method==='POST'&&body.action==='consent'){syntheticSmsConsent=body.consented;return reply({saved:true});}
+ if(method==='POST'&&body.action==='send'){
+  if(!syntheticSmsSettings.enabled||!syntheticSmsConsent||!body.confirmed||body.connectionId!==ids.flow||body.conversationId!==ids.conversation||body.contactId!==ids.product||body.peer!=='+573001234567')return reply({code:'notAllowed'},403);
+  const old=syntheticSmsReceipts.get(body.attemptId);if(old)return reply({receipt:old,recovered:true});
+  const stamp=new Date().toISOString();const receipt={attemptId:body.attemptId,conversationId:ids.conversation,contactId:ids.product,peer:body.peer,text:body.text,segments:1,state:'accepted',providerStatus:'queued',providerParts:1,cost:null,deliveryConfirmed:false,createdAt:stamp,updatedAt:stamp};
+  syntheticSmsReceipts.set(body.attemptId,receipt);window.__comparisonSmsReceipt=structuredClone(receipt);
+  // Simulate a lost API acknowledgement after a KNOWN durable acceptance.
+  // An actual uncertain attempt with no provider ID cannot be guessed from text.
+  return reply({code:'uncertain'},503);
+ }
+ if(method==='GET'&&url.searchParams.get('view')==='receipt'){
+  const receipt=syntheticSmsReceipts.get(url.searchParams.get('attemptId'));if(!receipt)return reply({code:'attemptNotFound'},404);
+  if(window.__comparisonSmsMode==='delivered'){receipt.providerStatus='delivered';receipt.deliveryConfirmed=true;receipt.cost={amount:'0.0123',currency:'USD'};receipt.updatedAt=new Date().toISOString();}
+  window.__comparisonSmsReceipt=structuredClone(receipt);return reply(receipt);
+ }
+ return reply({code:'invalid'},400);
+}
 export async function fixtureFetch(input, init = {}) {
   const url = new URL(typeof input === 'string' ? input : input.url, location.origin);
   if (url.origin !== location.origin) return reply({ error: 'comparison_external_request_blocked' }, 403);
@@ -114,10 +140,11 @@ export async function fixtureFetch(input, init = {}) {
   window.__comparisonCalls ??= []; window.__comparisonCalls.push({ path, method: init.method ?? 'GET' });
   const body = typeof init.body === 'string' ? JSON.parse(init.body) : {};
   const method = init.method ?? 'GET';
-  const editable = path==='/api/voice/connection'&&method==='PUT' || path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || (path.endsWith('/help-portal')||path.startsWith('/api/help-portals/'))&&method==='POST' || ['/api/contacts/migrations','/api/contacts/migrations/native','/api/contacts/migrations/external','/api/contacts/migrations/history','/api/voice/handoff','/api/voice/whatsapp'].includes(path)&&method==='POST';
+  const editable = path==='/api/voice/connection'&&method==='PUT' || path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || (path.endsWith('/help-portal')||path.startsWith('/api/help-portals/'))&&method==='POST' || ['/api/contacts/migrations','/api/contacts/migrations/native','/api/contacts/migrations/external','/api/contacts/migrations/history','/api/voice/handoff','/api/voice/whatsapp','/api/integrations/sms'].includes(path)&&method==='POST';
   if (method !== 'GET' && !editable) return reply({ error: copy('Operación bloqueada en la comparación local.', 'Operation blocked in the local comparison.') }, 503);
   if(path==='/api/voice/handoff')return syntheticHumanRequest(body,url,method);
   if(path==='/api/voice/whatsapp')return syntheticWhatsAppRequest(body,url,method);
+  if(path==='/api/integrations/sms')return syntheticSmsRequest(body,url,method);
   if(path==='/api/voice/connection'){if(method==='PUT'){syntheticVoiceConfig={...syntheticVoiceConfig,...body.config};window.__comparisonVoiceConfig=structuredClone(syntheticVoiceConfig);}return reply({config:syntheticVoiceConfig,status:'connected',ok:true});}
   if(path==='/api/voice/calls/'+ids.conversation&&method==='GET')return reply({call:{id:ids.conversation,workspace_id:ids.workspace,agent_id:ids.agent,contact_id:ids.product,conversation_id:ids.conversation,direction:'outbound',call_type:'manual',phone:'EXAMPLE',language:locale,status:'in_progress',outcome:null,outcome_details:null,summary:null,context:{},external_call_id:null,room_name:null,started_at:now,answered_at:now,ended_at:null,duration_seconds:17,cost:{total_usd:0},recording_url:null,created_at:now,city:null,attempt:1,max_attempts:1,upsell_amount:0,contact:{id:ids.product,name:copy('Cliente de ejemplo','Example customer'),phone:null},agent:{id:ids.agent,name:copy('Asistente de ejemplo','Example assistant')},...(selected.get('page')==='voice-mailbox'?{agent_id:null,agent:null,direction:'inbound',call_type:'inbound',status:'completed',ended_at:now,duration_seconds:20,outcome:'no_outcome',outcome_details:{mailbox_capture:'recording_requested',capture_seconds:20},context:{fallback_reason:'no_voice_agent',voice_mailbox:{enabled:true,maxSeconds:60,version:1}}}:{} )},transcript:[]});
 

@@ -1,0 +1,21 @@
+import {beforeEach,describe,expect,it,vi} from 'vitest';
+import {NextResponse} from 'next/server';
+const connectionId='11111111-1111-4111-8111-111111111111';
+const f=vi.hoisted(()=>({enabled:true,webhook:vi.fn(),admin:vi.fn(),limit:vi.fn()}));
+vi.mock('@/lib/ui/improvements-preview',()=>({get SHOW_RIVERZ_IMPROVEMENTS(){return f.enabled;}}));
+vi.mock('@/lib/channels/admin-client',()=>({supabaseAdmin:f.admin}));
+vi.mock('@/lib/integrations/expansion/sms-service',()=>({createNativeSmsService:()=>({webhook:f.webhook})}));
+vi.mock('@/lib/rate-limit',()=>({limitByKey:f.limit,rateLimitResponse:()=>NextResponse.json({error:'limited'},{status:429})}));
+import {ExpansionProviderError} from '@/lib/integrations/expansion/provider-http';
+import {POST} from './route';
+const ctx=()=>({params:Promise.resolve({connectionId})});
+const request=(body=' {"fixture":true}\n')=>new Request(`https://riverz.co/api/integrations/sms/webhook/${connectionId}`,{method:'POST',headers:{'telnyx-signature-ed25519':'fixture-signature','telnyx-timestamp':'fixture-timestamp'},body});
+beforeEach(()=>{f.enabled=true;f.admin.mockReset().mockReturnValue({private:true});f.limit.mockReset().mockResolvedValue({success:true});f.webhook.mockReset().mockResolvedValue({persisted:true,duplicate:false});});
+describe('Native SMS webhook boundary, no provider requests',()=>{
+ it('stays hidden before reading the body, private credentials or applying rate limits',async()=>{f.enabled=false;expect((await POST(request(),ctx())).status).toBe(404);expect(f.admin).not.toHaveBeenCalled();expect(f.limit).not.toHaveBeenCalled();expect(f.webhook).not.toHaveBeenCalled();});
+ it('forwards exact bytes and signature headers, ACKing only after durable persistence',async()=>{const raw=' {"fixture":true}\n';const response=await POST(request(raw),ctx());expect(response.status).toBe(200);expect(response.headers.get('cache-control')).toBe('no-store');expect(f.webhook).toHaveBeenCalledExactlyOnceWith(connectionId,new Uint8Array(Buffer.from(raw)),'fixture-signature','fixture-timestamp');});
+ it('returns retryable status instead of acknowledging a failed database persistence',async()=>{f.webhook.mockRejectedValue(new Error('PRIVATE_DATABASE_FAILURE'));const response=await POST(request(),ctx());expect(response.status).toBe(503);expect(await response.text()).not.toContain('PRIVATE_DATABASE_FAILURE');});
+ it('rejects invalid signatures/account binding without provider details',async()=>{f.webhook.mockRejectedValue(new ExpansionProviderError('invalid'));expect((await POST(request(),ctx())).status).toBe(400);});
+ it('bounds bytes and rejects invalid route identifiers before private integration work',async()=>{expect((await POST(request('x'.repeat(128*1024+1)),ctx())).status).toBe(400);expect(f.admin).not.toHaveBeenCalled();expect((await POST(request(),{params:Promise.resolve({connectionId:'invalid'})})).status).toBe(400);expect(f.webhook).not.toHaveBeenCalled();});
+ it('enforces limits without queue/credential work',async()=>{f.limit.mockResolvedValue({success:false});expect((await POST(request(),ctx())).status).toBe(429);expect(f.admin).not.toHaveBeenCalled();});
+});

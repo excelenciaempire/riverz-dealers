@@ -4,10 +4,12 @@ import type { Channel, Conversation } from "@/types";
 import { cn } from "@/lib/utils";
 import { MessageSquare, MessageSquareReply, ToggleLeft, ToggleRight } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
+import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
 
 export type InboxTab = "messages" | "comments" | "all";
 
 export const MESSAGE_CHANNELS: Channel[] = [
+  ...(SHOW_RIVERZ_IMPROVEMENTS?['sms' as const]:[]),
   "whatsapp",
   "instagram",
   "messenger",
@@ -38,7 +40,7 @@ export function visibleChannelsForTab(
         ? COMMENT_CHANNELS
         : MESSAGE_CHANNELS;
   return channels.filter(
-    (channel) => channel !== "zoho" || connectedChannels.has("zoho"),
+    (channel) => !['zoho','sms'].includes(channel) || connectedChannels.has(channel),
   );
 }
 

@@ -2,6 +2,7 @@ import type { Namespace } from './types';
 
 /** Panel de plataforma (riverz.co/admin) — solo equipo Riverz. */
 export const admin = {
+  cronNativeSms: {es:'Ingesta de SMS verificados',en:'Ingest verified SMS'},
   billingMarkPaid: { es: 'Marcar como pagada', en: 'Mark as paid' },
   billingPendingInvoice: { es: 'Factura pendiente: {amount}', en: 'Pending invoice: {amount}' },
   billingSettlementMethod: { es: 'Cómo se salda', en: 'Settlement method' },

@@ -55,6 +55,7 @@ export type AgentSummary = Omit<AiAgent, 'api_key_encrypted'> & {
 };
 
 const CHANNEL_LABEL: Record<Channel, string> = {
+  sms: 'SMS',
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
   messenger: 'Messenger',

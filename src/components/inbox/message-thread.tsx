@@ -46,6 +46,7 @@ import {feedbackGroupEnd} from '@/lib/ai/feedback-real';
 import type { OpinionIa } from "./opinion-ia";
 import { MessageActions } from "./message-actions";
 import { MessageComposer } from "./message-composer";
+import {SmsCaseTools} from './sms-case-tools';
 import { ConversationCollaboration } from './conversation-collaboration';
 import { ConversationUnderstanding } from './conversation-understanding';
 import { checkReplyCollision } from '@/lib/inbox/collision';
@@ -1618,7 +1619,7 @@ export function MessageThread({
               pausa (un humano toma el control). Solo se muestra si hay un
               agente IA que cubra este canal — sin agente no hay nada que
               activar/pausar. */}
-          {hasAgentForChannel && (
+          {hasAgentForChannel && conversation.channel!=='sms' && (
             <Popover open={aiMenuOpen} onOpenChange={setAiMenuOpen}>
               <PopoverTrigger
                 disabled={aiToggling}
@@ -2057,6 +2058,8 @@ export function MessageThread({
           <WifiOff className="size-4 shrink-0" />
           <span>{t("inbox.channelDisconnectedAlert")}</span>
         </div>
+      ) : conversation.channel==='sms' ? (
+        <SmsCaseTools key={conversation.id} workspaceId={conversation.workspace_id} conversationId={conversation.id} contactId={conversation.contact_id} connectionId={conversation.connection_id??''} peer={contact?.external_id??''} disabled={conversation.is_spam===true}/>
       ) : (
         /* WhatsApp uses a 24 h service window. Instagram and Messenger keep
            manual support available for seven days. */

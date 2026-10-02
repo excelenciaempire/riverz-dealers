@@ -70,6 +70,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: 'drive-documents', path: '/api/cron/drive-documents', schedule: '* * * * *', whatKey: 'admin.cronDriveDocuments' },
   ...(SHOW_RIVERZ_IMPROVEMENTS?[{name:'browser-push',path:'/api/cron/browser-push',schedule:'* * * * *',whatKey:'admin.cronBrowserPush'}]:[]),
   ...(SHOW_RIVERZ_IMPROVEMENTS?[{name:'contact-migrations',path:'/api/cron/contact-migrations',schedule:'* * * * *',whatKey:'admin.cronContactMigrations'}]:[]),
+  ...(SHOW_RIVERZ_IMPROVEMENTS?[{name:'native-sms',path:'/api/cron/native-sms',schedule:'* * * * *',whatKey:'admin.cronNativeSms'}]:[]),
   {name:'billing-recovery',path:'/api/cron/billing-recovery',schedule:'* * * * *',whatKey:'admin.cronBillingRecovery',timeoutMs:240_000},
   {
     name: 'flows-resume',

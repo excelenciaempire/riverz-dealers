@@ -1,4 +1,5 @@
 'use client';
+import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -77,6 +78,7 @@ type EditableSegment = {
 // Channel display labels. Brand names stay literal; the comment channels
 // carry an i18n key resolved with t() at the render site (sidebar pattern).
 const CHANNEL_LABEL_KEYS: Record<Channel, string> = {
+  sms: 'SMS',
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
   messenger: 'Messenger',
@@ -920,7 +922,7 @@ function RuleControls({
           <MiniSelect
             value={rule.channel}
             labels={chLabels}
-            options={(Object.keys(chLabels) as Channel[]).map((c) => ({
+            options={(Object.keys(chLabels) as Channel[]).filter(c=>c!=='sms'||SHOW_RIVERZ_IMPROVEMENTS).map((c) => ({
               value: c,
               label: chLabels[c],
             }))}

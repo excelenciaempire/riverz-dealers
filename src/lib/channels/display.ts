@@ -13,6 +13,7 @@ export interface ChannelDisplay {
 }
 
 export const CHANNEL_DISPLAY: Record<Channel, ChannelDisplay> = {
+  sms: {channel:'sms',label:'SMS',shortLabel:'SMS',badge:'bg-sky-500/10 text-sky-700 dark:text-sky-300 ring-1 ring-sky-500/30',accent:'#0284C7'},
   whatsapp: {
     channel: "whatsapp",
     label: "WhatsApp",

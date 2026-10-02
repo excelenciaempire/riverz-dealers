@@ -36,6 +36,8 @@ import { MercadoLibreConnect } from '@/components/settings/mercadolibre-connect'
 import { WebhooksCard } from '@/components/settings/webhooks-card';
 import { AddressValidationCard } from '@/components/settings/address-validation-card';
 import { cn } from '@/lib/utils';
+import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
+import {SmsSettings} from './sms-settings';
 
 /**
  * One card per platform. Meta is one customer-facing connection; its Page and
@@ -799,6 +801,7 @@ export function ChannelsPanel() {
         <AddressValidationCard />
         <KlaviyoCard />
         {isAdmin && <WebhooksCard />}
+        {SHOW_RIVERZ_IMPROVEMENTS&&isAdmin&&workspace&&<SmsSettings key={workspace.id} workspaceId={workspace.id}/>}
       </ul>
     </div>
   );

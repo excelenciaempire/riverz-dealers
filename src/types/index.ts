@@ -1,7 +1,9 @@
 // ============================================================
 // Channels — unified inbox taxonomy
 // ============================================================
+import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
 export type Channel =
+  | 'sms'
   | 'whatsapp'
   | 'instagram'
   | 'messenger'
@@ -16,6 +18,7 @@ export type Channel =
   | 'webchat';
 
 export const CHANNELS: Channel[] = [
+  ...(SHOW_RIVERZ_IMPROVEMENTS?['sms' as const]:[]),
   'whatsapp',
   'instagram',
   'messenger',

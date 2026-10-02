@@ -3,6 +3,8 @@ import {VoiceFallbackSettings} from '@/components/voice/voice-fallback-settings'
 import {WhatsAppCallingSettings} from '@/components/voice/whatsapp-calling-settings';
 import {WhatsAppCallButton} from '@/components/voice/whatsapp-call-button';
 import {CallWithAiButton} from '@/components/inbox/voice-call-view';
+import {SmsSettings} from '@/components/settings/sms-settings';
+import {SmsCaseTools} from '@/components/inbox/sms-case-tools';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'sonner';
@@ -40,7 +42,7 @@ import { ids, now, selected, improved, locale, copy, report } from './fixtures';
 
 const pages = [['inbox', 'Bandeja', 'Inbox'], ['rules', 'Reglas', 'Rules'], ['documents', 'Documentos', 'Documents'],
   ['reports', 'Reportes', 'Reports'], ['flows', 'Flujos', 'Flows'], ['returns', 'Postventa', 'After-sales'], ['connections', 'Acciones HTTP', 'HTTP actions'],
-  ['orders', 'Acciones de pedidos', 'Order actions'], ['templates', 'Plantillas', 'Templates'], ['campaigns', 'Campañas', 'Campaigns'], ['automations', 'Automatizaciones', 'Automations'], ['mobile', 'Avisos móviles', 'Mobile notifications'], ['release', 'Lanzamiento', 'Launch'], ['migrations','Migraciones','Migrations'],['help','Ayuda','Help'],['voice','Llamadas','Calls'],['voice-mailbox','Buzón','Voicemail'],['voice-whatsapp','Voz por WhatsApp','WhatsApp voice']];
+  ['orders', 'Acciones de pedidos', 'Order actions'], ['templates', 'Plantillas', 'Templates'], ['campaigns', 'Campañas', 'Campaigns'], ['automations', 'Automatizaciones', 'Automations'], ['mobile', 'Avisos móviles', 'Mobile notifications'], ['release', 'Lanzamiento', 'Launch'], ['migrations','Migraciones','Migrations'],['help','Ayuda','Help'],['voice','Llamadas','Calls'],['voice-mailbox','Buzón','Voicemail'],['voice-whatsapp','Voz por WhatsApp','WhatsApp voice'],['sms','SMS','SMS']];
 const automationParams = Promise.resolve({ id: ids.flow });
 const noChange = () => {};
 function VoiceMailboxPreview() {
@@ -57,6 +59,13 @@ function WhatsAppVoicePreview(){return <div className="space-y-4"><VoiceFallback
  <CallWithAiButton workspaceId={ids.workspace} contactId={ids.product} className="w-full justify-center"/>
  {improved&&<WhatsAppCallButton workspaceId={ids.workspace} contactId={ids.product} name="Camila" phone="+12025550100"/>}</section></div>;}
 const selectedCases = [ids.conversation];
+function SmsPreview(){
+ const [open,setOpen]=React.useState(false);
+ return <div className="space-y-4 min-w-0"><p className="text-sm">Gmail · Outlook · Zoho</p><p className="text-xs text-muted-foreground">{copy('Los canales de correo actuales se conservan; esta vista muestra los controles nuevos de SMS.','Existing email channels are preserved; this view shows new SMS controls.')}</p>
+ {improved&&<><ul className="list-none"><SmsSettings workspaceId={ids.workspace}/></ul><button className="rounded-lg border px-3 py-2 text-xs" onClick={()=>setOpen(true)}>{copy('Ver conversación SMS de ejemplo','View example SMS conversation')}</button>
+ {open&&<section className="rounded-xl border bg-card min-w-0"><SmsCaseTools workspaceId={ids.workspace} conversationId={ids.conversation} contactId={ids.product} connectionId={ids.flow} peer="+573001234567"/></section>}</>}
+ </div>;
+}
 const reportRange = { start: report.range.start, end: report.range.end, previous_start: '2026-08-01T00:00:00Z', previous_end: report.range.start };
 const embedded = selected.get('embedded') === '1';
 function url(params) { return '/?' + new URLSearchParams({ stage: improved ? 'comparison' : 'current', locale, page: selected.get('page') ?? 'inbox', ...(embedded ? { embedded: '1' } : {}), ...params }); }
@@ -119,6 +128,7 @@ function App() {
             {page === 'voice' && <><p className="text-sm">{copy('Llamada de ejemplo en curso. Se conservan su ficha, grabación y transcripción.','Example call in progress. Its details, recording and transcript are preserved.')}</p><CallDetail callId={ids.conversation} onClose={noChange}/></>}
             {page === 'voice-mailbox' && <VoiceMailboxPreview/>}
             {page === 'voice-whatsapp' && <WhatsAppVoicePreview/>}
+            {page === 'sms' && <SmsPreview/>}
         </div>}
       </main>
     </div>

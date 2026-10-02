@@ -1,0 +1,20 @@
+import {beforeEach,describe,expect,it,vi} from 'vitest';
+import type {SupabaseClient} from '@supabase/supabase-js';
+const f=vi.hoisted(()=>({enabled:true,ingest:vi.fn()}));
+vi.mock('@/lib/ui/improvements-preview',()=>({get SHOW_RIVERZ_IMPROVEMENTS(){return f.enabled;}}));
+vi.mock('@/lib/channels/inbox-writer',()=>({ingestInboundEvent:f.ingest}));
+import {ingestNativeSmsQueue} from './sms-worker';
+const eventId='11111111-1111-4111-8111-111111111111',connectionId='22222222-2222-4222-8222-222222222222',messageId='33333333-3333-4333-8333-333333333333',workspaceId='44444444-4444-4444-8444-444444444444';
+const event={event_id:eventId,connection_id:connectionId,payload:{eventId,messageId,eventType:'message.received',direction:'inbound',businessPhone:'+12025550100',peer:'+573001234567',text:'Fixture SMS',occurredAt:new Date().toISOString()}};
+const connection={id:connectionId,workspace_id:workspaceId,channel:'sms',status:'connected',external_account_id:'+12025550100',config:{native_sms:true}};
+const rpc=vi.fn(),from=vi.fn(),db={rpc,from} as unknown as SupabaseClient;
+let rows:unknown[]=[event],current={...connection},persisted:unknown[]=[];
+beforeEach(()=>{f.enabled=true;rows=[event];current={...connection};persisted=[];f.ingest.mockReset().mockResolvedValue({message:{id:'fixture'}});rpc.mockReset().mockImplementation(async name=>({data:name==='claim_native_sms_events'?rows:true,error:null}));from.mockReset().mockImplementation(table=>{const query={select(){return this;},eq(){return this;},maybeSingle:async()=>({data:current,error:null}),limit:async()=>({data:table==='messages'?persisted:[],error:null})};return query;});});
+describe('Native inbound SMS queue, no provider/AI sends',()=>{
+ it('does no queue or inbox work when improvements are hidden',async()=>{f.enabled=false;expect(await ingestNativeSmsQueue(db)).toEqual({claimed:0,ingested:0,failed:0});expect(rpc).not.toHaveBeenCalled();expect(f.ingest).not.toHaveBeenCalled();});
+ it('ingests with a connection-scoped external ID and suppresses automatic replies',async()=>{expect(await ingestNativeSmsQueue(db)).toEqual({claimed:1,ingested:1,failed:0});expect(f.ingest).toHaveBeenCalledWith(db,expect.objectContaining({channel:'sms',externalMessageId:`sms:${connectionId}:${messageId}`,suppressAutoReply:true,externalContactId:event.payload.peer}));expect(rpc.mock.calls.at(-1)?.[1]).toMatchObject({p_success:true});});
+ it('does not acknowledge a null ingest unless the exact scoped message actually exists',async()=>{f.ingest.mockResolvedValue(null);expect(await ingestNativeSmsQueue(db)).toMatchObject({failed:1,ingested:0});expect(rpc.mock.calls.at(-1)?.[1]).toMatchObject({p_success:false});persisted=[{id:'existing-fixture'}];expect(await ingestNativeSmsQueue(db)).toMatchObject({failed:0,ingested:1});});
+ it('does not route another business phone into a connection',async()=>{current.external_account_id='+12025550111';expect(await ingestNativeSmsQueue(db)).toMatchObject({failed:1});expect(f.ingest).not.toHaveBeenCalled();});
+ it('honors a raced disconnect without dropping the persisted inbound event',async()=>{current.status='disconnected';expect(await ingestNativeSmsQueue(db)).toMatchObject({ingested:0,failed:1});expect(f.ingest).not.toHaveBeenCalled();expect(rpc.mock.calls.at(-1)?.[1]).toMatchObject({p_success:false});});
+ it('does not acknowledge a forged event-ID binding',async()=>{rows=[{...event,payload:{...event.payload,eventId:workspaceId}}];expect(await ingestNativeSmsQueue(db)).toMatchObject({failed:1});expect(f.ingest).not.toHaveBeenCalled();});
+});

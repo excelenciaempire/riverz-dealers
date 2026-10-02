@@ -1,0 +1,873 @@
+{
+  "observedAt": "2026-10-02T13:21:50.661Z",
+  "scope": "private_real_components_fictional_data",
+  "publicUiEnabled": false,
+  "externalActions": false,
+  "providerCalls": false,
+  "aiUsage": false,
+  "tests": {
+    "sms": {
+      "files": 13,
+      "passed": 187
+    },
+    "existingEmail": {
+      "files": 16,
+      "passed": 108,
+      "initialAttempt": {
+        "passed": 107,
+        "timedOut": 1,
+        "reason": "Zoho local PGlite test exceeded 5000ms during concurrent Next build"
+      },
+      "isolatedRetry": {
+        "passed": 1,
+        "testUnchanged": true
+      }
+    }
+  },
+  "typecheck": "passed",
+  "builds": {
+    "normal": "passed",
+    "comparison": "passed"
+  },
+  "lint": {
+    "newFiles": "no_errors_or_warnings",
+    "expandedExistingFiles": {
+      "errors": 1,
+      "warnings": 7,
+      "baselineErrorReproduced": true
+    }
+  },
+  "reviews": [
+    {
+      "afterNew": {
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          }
+        ],
+        "text": "riverz\nOperator\nDAILY\nDashboard\nInbox\nContacts\nCUSTOMER SERVICE\nAI Assistant\nFlows\nAI Comments\nCalls\nWeb chat\nOUTBOUND\nTemplates\nAutomations\nCampaigns\nAI Prospecting\nSTORE\nProducts\nOrders\nIntegrations\nSettings\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nImprovements\nMenu\nImprovements in context\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nGmail · Outlook · Zoho\n\nExisting email channels are preserved; this view shows new SMS controls.\n\nSMS · Telnyx\nView example SMS conversation\n\n+573001234567 · SMS\n\nSMS consent recorded.\nWrite SMS\nSend this text to +573001234567. Telnyx bills usage; the final amount is not yet confirmed.\nSend SMS"
+      },
+      "at": "2026-10-02T13:17:58.523Z",
+      "baseline": {
+        "requests": [],
+        "text": "riverz\nOperator\nDAILY\nDashboard\nInbox\nContacts\nCUSTOMER SERVICE\nAI Assistant\nFlows\nAI Comments\nCalls\nWeb chat\nOUTBOUND\nTemplates\nAutomations\nCampaigns\nAI Prospecting\nSTORE\nProducts\nOrders\nIntegrations\nSettings\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nCurrent\nMenu\nThe current foundation is preserved\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nGmail · Outlook · Zoho\n\nExisting email channels are preserved; this view shows new SMS controls."
+      },
+      "beforeNew": {
+        "flags": {
+          "aiUsage": false,
+          "providerCalled": false,
+          "realSmsSent": false,
+          "synthetic": true
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          }
+        ],
+        "text": "riverz\nOperator\nDAILY\nDashboard\nInbox\nContacts\nCUSTOMER SERVICE\nAI Assistant\nFlows\nAI Comments\nCalls\nWeb chat\nOUTBOUND\nTemplates\nAutomations\nCampaigns\nAI Prospecting\nSTORE\nProducts\nOrders\nIntegrations\nSettings\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nImprovements\nMenu\nImprovements in context\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nGmail · Outlook · Zoho\n\nExisting email channels are preserved; this view shows new SMS controls.\n\nSMS · Telnyx\nView example SMS conversation\n\n+573001234567 · SMS\n\nSMS consent recorded.\nWrite SMS\n\n1 segments · GSM-7\n\nCheck saved status\n\nTelnyx accepted the SMS\n\nDelivered · Delivery confirmed by Telnyx\n\n0.0123 USD\n\nPrepare another SMS"
+      },
+      "checks": {
+        "callbackDelivery": true,
+        "doubleClickOnePost": true,
+        "editInvalidatesReview": true,
+        "fontsLoaded": true,
+        "frameNoOverflow": true,
+        "lostResponseBlocksResend": true,
+        "newDraftRequiresReview": true,
+        "noImplicitConsent": true,
+        "noNewRuntimeErrors": true,
+        "noTranslationKeys": true,
+        "noVisibleControlOverflow": true,
+        "publicControlHidden": true,
+        "queuedNotDelivery": true,
+        "reviewAllowsSend": true,
+        "reviewRequired": true
+      },
+      "delivered": {
+        "receipt": {
+          "attemptId": "04efc63a-279f-42ed-989f-5523d189a5c6",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "conversationId": "10000000-0000-4000-8000-000000000003",
+          "cost": {
+            "amount": "0.0123",
+            "currency": "USD"
+          },
+          "createdAt": "2026-10-02T13:17:54.529Z",
+          "deliveryConfirmed": true,
+          "peer": "+573001234567",
+          "providerParts": 1,
+          "providerStatus": "delivered",
+          "segments": 1,
+          "state": "accepted",
+          "text": "Approved synthetic SMS",
+          "updatedAt": "2026-10-02T13:17:56.537Z"
+        },
+        "text": "riverz\nOperator\nDAILY\nDashboard\nInbox\nContacts\nCUSTOMER SERVICE\nAI Assistant\nFlows\nAI Comments\nCalls\nWeb chat\nOUTBOUND\nTemplates\nAutomations\nCampaigns\nAI Prospecting\nSTORE\nProducts\nOrders\nIntegrations\nSettings\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nImprovements\nMenu\nImprovements in context\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nGmail · Outlook · Zoho\n\nExisting email channels are preserved; this view shows new SMS controls.\n\nSMS · Telnyx\n\nSMS from your Telnyx account. The provider bills messages separately; your Riverz plan and AI balance stay unchanged.\n\n+12025550100\n\nEnable SMS\nMaximum segments per message\nDaily segment limit · UTC\nInstallation setup\nNumber · international format\nTelnyx number ID\nMessaging profile ID\nTelnyx organization ID\nTelnyx private key\nEd25519 signing public key\nWebhook path\n\nYour installer configures the webhook on your domain and the Telnyx spend limit. Enabling verifies the account; it sends no test SMS.\n\nSave SMS\n\nSMS settings saved.\n\nView example SMS conversation\n\n+573001234567 · SMS\n\nSMS consent recorded.\nWithdraw consent\nWrite SMS\n\n1 segments · GSM-7\n\nCheck saved status\n\nTelnyx accepted the SMS\n\nDelivered · Delivery confirmed by Telnyx\n\n0.0123 USD\n\nPrepare another SMS"
+      },
+      "locale": "en",
+      "queued": {
+        "receipt": {
+          "attemptId": "04efc63a-279f-42ed-989f-5523d189a5c6",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "conversationId": "10000000-0000-4000-8000-000000000003",
+          "cost": null,
+          "createdAt": "2026-10-02T13:17:54.529Z",
+          "deliveryConfirmed": false,
+          "peer": "+573001234567",
+          "providerParts": 1,
+          "providerStatus": "queued",
+          "segments": 1,
+          "state": "accepted",
+          "text": "Approved synthetic SMS",
+          "updatedAt": "2026-10-02T13:17:54.529Z"
+        },
+        "text": "riverz\nOperator\nDAILY\nDashboard\nInbox\nContacts\nCUSTOMER SERVICE\nAI Assistant\nFlows\nAI Comments\nCalls\nWeb chat\nOUTBOUND\nTemplates\nAutomations\nCampaigns\nAI Prospecting\nSTORE\nProducts\nOrders\nIntegrations\nSettings\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nImprovements\nMenu\nImprovements in context\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nGmail · Outlook · Zoho\n\nExisting email channels are preserved; this view shows new SMS controls.\n\nSMS · Telnyx\n\nSMS from your Telnyx account. The provider bills messages separately; your Riverz plan and AI balance stay unchanged.\n\n+12025550100\n\nEnable SMS\nMaximum segments per message\nDaily segment limit · UTC\nInstallation setup\nNumber · international format\nTelnyx number ID\nMessaging profile ID\nTelnyx organization ID\nTelnyx private key\nEd25519 signing public key\nWebhook path\n\nYour installer configures the webhook on your domain and the Telnyx spend limit. Enabling verifies the account; it sends no test SMS.\n\nSave SMS\n\nSMS settings saved.\n\nView example SMS conversation\n\n+573001234567 · SMS\n\nSMS consent recorded.\nWithdraw consent\nWrite SMS\n\n1 segments · GSM-7\n\nCheck saved status\n\nTelnyx accepted the SMS\n\nQueued · No delivery confirmation\n\nFinal cost awaiting confirmation\n\nPrepare another SMS"
+      },
+      "runtimeErrors": [],
+      "viewport": {
+        "height": 1000,
+        "width": 1440
+      }
+    },
+    {
+      "afterNew": {
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          }
+        ],
+        "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nMejoras\nMenú\nMejoras en su contexto\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nGmail · Outlook · Zoho\n\nLos canales de correo actuales se conservan; esta vista muestra los controles nuevos de SMS.\n\nSMS · Telnyx\nVer conversación SMS de ejemplo\n\n+573001234567 · SMS\n\nConsentimiento para SMS registrado.\nEscribir SMS\nEnviar este texto a +573001234567. Telnyx cobrará el consumo; el importe final aún no está confirmado.\nEnviar SMS"
+      },
+      "at": "2026-10-02T13:19:29.532Z",
+      "baseline": {
+        "requests": [],
+        "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nActual\nMenú\nLa base actual se conserva\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nGmail · Outlook · Zoho\n\nLos canales de correo actuales se conservan; esta vista muestra los controles nuevos de SMS."
+      },
+      "beforeNew": {
+        "flags": {
+          "aiUsage": false,
+          "providerCalled": false,
+          "realSmsSent": false,
+          "synthetic": true
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          }
+        ],
+        "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nMejoras\nMenú\nMejoras en su contexto\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nGmail · Outlook · Zoho\n\nLos canales de correo actuales se conservan; esta vista muestra los controles nuevos de SMS.\n\nSMS · Telnyx\nVer conversación SMS de ejemplo\n\n+573001234567 · SMS\n\nConsentimiento para SMS registrado.\nEscribir SMS\n\n1 segmentos · GSM-7\n\nConsultar estado guardado\n\nTelnyx aceptó el SMS\n\nEntregado · Entrega confirmada por Telnyx\n\n0.0123 USD\n\nPreparar otro SMS"
+      },
+      "checks": {
+        "callbackDelivery": true,
+        "doubleClickOnePost": true,
+        "editInvalidatesReview": true,
+        "fontsLoaded": true,
+        "frameNoOverflow": true,
+        "lostResponseBlocksResend": true,
+        "newDraftRequiresReview": true,
+        "noImplicitConsent": true,
+        "noNewRuntimeErrors": true,
+        "noTranslationKeys": true,
+        "noVisibleControlOverflow": true,
+        "publicControlHidden": true,
+        "queuedNotDelivery": true,
+        "reviewAllowsSend": true,
+        "reviewRequired": true
+      },
+      "delivered": {
+        "receipt": {
+          "attemptId": "0b232b31-ff75-4170-9d6d-24a79442336d",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "conversationId": "10000000-0000-4000-8000-000000000003",
+          "cost": {
+            "amount": "0.0123",
+            "currency": "USD"
+          },
+          "createdAt": "2026-10-02T13:19:25.525Z",
+          "deliveryConfirmed": true,
+          "peer": "+573001234567",
+          "providerParts": 1,
+          "providerStatus": "delivered",
+          "segments": 1,
+          "state": "accepted",
+          "text": "Approved synthetic SMS",
+          "updatedAt": "2026-10-02T13:19:27.530Z"
+        },
+        "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nMejoras\nMenú\nMejoras en su contexto\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nGmail · Outlook · Zoho\n\nLos canales de correo actuales se conservan; esta vista muestra los controles nuevos de SMS.\n\nSMS · Telnyx\n\nSMS de tu cuenta Telnyx. El proveedor cobra los mensajes aparte; no cambia tu plan ni tu saldo de IA en Riverz.\n\n+12025550100\n\nHabilitar SMS\nMáximo de segmentos por mensaje\nLímite diario de segmentos · UTC\nConfiguración de instalación\nNúmero · formato internacional\nID del número en Telnyx\nID del perfil de mensajería\nID de la organización Telnyx\nClave privada de Telnyx\nClave pública de firma Ed25519\nRuta del webhook\n\nTu instalador configura el webhook en tu dominio y el límite de gasto de Telnyx. Se comprueba la cuenta al habilitar; no se envía un SMS de prueba.\n\nGuardar SMS\n\nConfiguración de SMS guardada.\n\nVer conversación SMS de ejemplo\n\n+573001234567 · SMS\n\nConsentimiento para SMS registrado.\nRetirar consentimiento\nEscribir SMS\n\n1 segmentos · GSM-7\n\nConsultar estado guardado\n\nTelnyx aceptó el SMS\n\nEntregado · Entrega confirmada por Telnyx\n\n0.0123 USD\n\nPreparar otro SMS"
+      },
+      "locale": "es",
+      "queued": {
+        "receipt": {
+          "attemptId": "0b232b31-ff75-4170-9d6d-24a79442336d",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "conversationId": "10000000-0000-4000-8000-000000000003",
+          "cost": null,
+          "createdAt": "2026-10-02T13:19:25.525Z",
+          "deliveryConfirmed": false,
+          "peer": "+573001234567",
+          "providerParts": 1,
+          "providerStatus": "queued",
+          "segments": 1,
+          "state": "accepted",
+          "text": "Approved synthetic SMS",
+          "updatedAt": "2026-10-02T13:19:25.525Z"
+        },
+        "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nMejoras\nMenú\nMejoras en su contexto\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nGmail · Outlook · Zoho\n\nLos canales de correo actuales se conservan; esta vista muestra los controles nuevos de SMS.\n\nSMS · Telnyx\n\nSMS de tu cuenta Telnyx. El proveedor cobra los mensajes aparte; no cambia tu plan ni tu saldo de IA en Riverz.\n\n+12025550100\n\nHabilitar SMS\nMáximo de segmentos por mensaje\nLímite diario de segmentos · UTC\nConfiguración de instalación\nNúmero · formato internacional\nID del número en Telnyx\nID del perfil de mensajería\nID de la organización Telnyx\nClave privada de Telnyx\nClave pública de firma Ed25519\nRuta del webhook\n\nTu instalador configura el webhook en tu dominio y el límite de gasto de Telnyx. Se comprueba la cuenta al habilitar; no se envía un SMS de prueba.\n\nGuardar SMS\n\nConfiguración de SMS guardada.\n\nVer conversación SMS de ejemplo\n\n+573001234567 · SMS\n\nConsentimiento para SMS registrado.\nRetirar consentimiento\nEscribir SMS\n\n1 segmentos · GSM-7\n\nConsultar estado guardado\n\nTelnyx aceptó el SMS\n\nEn cola · Sin confirmación de entrega\n\nCoste final pendiente de confirmación\n\nPreparar otro SMS"
+      },
+      "runtimeErrors": [],
+      "viewport": {
+        "height": 844,
+        "width": 390
+      }
+    },
+    {
+      "afterNew": {
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          }
+        ],
+        "text": "riverz\nOperator\nDAILY\nDashboard\nInbox\nContacts\nCUSTOMER SERVICE\nAI Assistant\nFlows\nAI Comments\nCalls\nWeb chat\nOUTBOUND\nTemplates\nAutomations\nCampaigns\nAI Prospecting\nSTORE\nProducts\nOrders\nIntegrations\nSettings\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nImprovements\nMenu\nImprovements in context\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nGmail · Outlook · Zoho\n\nExisting email channels are preserved; this view shows new SMS controls.\n\nSMS · Telnyx\nView example SMS conversation\n\n+573001234567 · SMS\n\nSMS consent recorded.\nWrite SMS\nSend this text to +573001234567. Telnyx bills usage; the final amount is not yet confirmed.\nSend SMS"
+      },
+      "at": "2026-10-02T13:20:03.526Z",
+      "baseline": {
+        "requests": [],
+        "text": "riverz\nOperator\nDAILY\nDashboard\nInbox\nContacts\nCUSTOMER SERVICE\nAI Assistant\nFlows\nAI Comments\nCalls\nWeb chat\nOUTBOUND\nTemplates\nAutomations\nCampaigns\nAI Prospecting\nSTORE\nProducts\nOrders\nIntegrations\nSettings\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nCurrent\nMenu\nThe current foundation is preserved\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nGmail · Outlook · Zoho\n\nExisting email channels are preserved; this view shows new SMS controls."
+      },
+      "beforeNew": {
+        "flags": {
+          "aiUsage": false,
+          "providerCalled": false,
+          "realSmsSent": false,
+          "synthetic": true
+        },
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "POST",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          },
+          {
+            "method": "GET",
+            "path": "/api/integrations/sms"
+          }
+        ],
+        "text": "riverz\nOperator\nDAILY\nDashboard\nInbox\nContacts\nCUSTOMER SERVICE\nAI Assistant\nFlows\nAI Comments\nCalls\nWeb chat\nOUTBOUND\nTemplates\nAutomations\nCampaigns\nAI Prospecting\nSTORE\nProducts\nOrders\nIntegrations\nSettings\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nImprovements\nMenu\nImprovements in context\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nGmail · Outlook · Zoho\n\nExisting email channels are preserved; this view shows new SMS controls.\n\nSMS · Telnyx\nView example SMS conversation\n\n+573001234567 · SMS\n\nSMS consent recorded.\nWrite SMS\n\n1 segments · GSM-7\n\nCheck saved status\n\nTelnyx accepted the SMS\n\nDelivered · Delivery confirmed by Telnyx\n\n0.0123 USD\n\nPrepare another SMS"
+      },
+      "checks": {
+        "callbackDelivery": true,
+        "doubleClickOnePost": true,
+        "editInvalidatesReview": true,
+        "fontsLoaded": true,
+        "frameNoOverflow": true,
+        "lostResponseBlocksResend": true,
+        "newDraftRequiresReview": true,
+        "noImplicitConsent": true,
+        "noNewRuntimeErrors": true,
+        "noTranslationKeys": true,
+        "noVisibleControlOverflow": true,
+        "publicControlHidden": true,
+        "queuedNotDelivery": true,
+        "reviewAllowsSend": true,
+        "reviewRequired": true
+      },
+      "delivered": {
+        "receipt": {
+          "attemptId": "83f301ca-6de3-432c-b0eb-fad56fa8dc08",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "conversationId": "10000000-0000-4000-8000-000000000003",
+          "cost": {
+            "amount": "0.0123",
+            "currency": "USD"
+          },
+          "createdAt": "2026-10-02T13:19:59.523Z",
+          "deliveryConfirmed": true,
+          "peer": "+573001234567",
+          "providerParts": 1,
+          "providerStatus": "delivered",
+          "segments": 1,
+          "state": "accepted",
+          "text": "Approved synthetic SMS",
+          "updatedAt": "2026-10-02T13:20:01.544Z"
+        },
+        "text": "riverz\nOperator\nDAILY\nDashboard\nInbox\nContacts\nCUSTOMER SERVICE\nAI Assistant\nFlows\nAI Comments\nCalls\nWeb chat\nOUTBOUND\nTemplates\nAutomations\nCampaigns\nAI Prospecting\nSTORE\nProducts\nOrders\nIntegrations\nSettings\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nImprovements\nMenu\nImprovements in context\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nGmail · Outlook · Zoho\n\nExisting email channels are preserved; this view shows new SMS controls.\n\nSMS · Telnyx\n\nSMS from your Telnyx account. The provider bills messages separately; your Riverz plan and AI balance stay unchanged.\n\n+12025550100\n\nEnable SMS\nMaximum segments per message\nDaily segment limit · UTC\nInstallation setup\nNumber · international format\nTelnyx number ID\nMessaging profile ID\nTelnyx organization ID\nTelnyx private key\nEd25519 signing public key\nWebhook path\n\nYour installer configures the webhook on your domain and the Telnyx spend limit. Enabling verifies the account; it sends no test SMS.\n\nSave SMS\n\nSMS settings saved.\n\nView example SMS conversation\n\n+573001234567 · SMS\n\nSMS consent recorded.\nWithdraw consent\nWrite SMS\n\n1 segments · GSM-7\n\nCheck saved status\n\nTelnyx accepted the SMS\n\nDelivered · Delivery confirmed by Telnyx\n\n0.0123 USD\n\nPrepare another SMS"
+      },
+      "locale": "en",
+      "queued": {
+        "receipt": {
+          "attemptId": "83f301ca-6de3-432c-b0eb-fad56fa8dc08",
+          "contactId": "10000000-0000-4000-8000-000000000006",
+          "conversationId": "10000000-0000-4000-8000-000000000003",
+          "cost": null,
+          "createdAt": "2026-10-02T13:19:59.523Z",
+          "deliveryConfirmed": false,
+          "peer": "+573001234567",
+          "providerParts": 1,
+          "providerStatus": "queued",
+          "segments": 1,
+          "state": "accepted",
+          "text": "Approved synthetic SMS",
+          "updatedAt": "2026-10-02T13:19:59.523Z"
+        },
+        "text": "riverz\nOperator\nDAILY\nDashboard\nInbox\nContacts\nCUSTOMER SERVICE\nAI Assistant\nFlows\nAI Comments\nCalls\nWeb chat\nOUTBOUND\nTemplates\nAutomations\nCampaigns\nAI Prospecting\nSTORE\nProducts\nOrders\nIntegrations\nSettings\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nImprovements\nMenu\nImprovements in context\n\nThis view compares added controls. Existing editors, campaigns, templates and modules keep their place.\n\nGmail · Outlook · Zoho\n\nExisting email channels are preserved; this view shows new SMS controls.\n\nSMS · Telnyx\n\nSMS from your Telnyx account. The provider bills messages separately; your Riverz plan and AI balance stay unchanged.\n\n+12025550100\n\nEnable SMS\nMaximum segments per message\nDaily segment limit · UTC\nInstallation setup\nNumber · international format\nTelnyx number ID\nMessaging profile ID\nTelnyx organization ID\nTelnyx private key\nEd25519 signing public key\nWebhook path\n\nYour installer configures the webhook on your domain and the Telnyx spend limit. Enabling verifies the account; it sends no test SMS.\n\nSave SMS\n\nSMS settings saved.\n\nView example SMS conversation\n\n+573001234567 · SMS\n\nSMS consent recorded.\nWithdraw consent\nWrite SMS\n\n1 segments · GSM-7\n\nCheck saved status\n\nTelnyx accepted the SMS\n\nQueued · No delivery confirmation\n\nFinal cost awaiting confirmation\n\nPrepare another SMS"
+      },
+      "runtimeErrors": [],
+      "viewport": {
+        "height": 844,
+        "width": 390
+      }
+    }
+  ],
+  "initialDesktopSpanish": {
+    "afterNew": {
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/integrations/sms"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/sms"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/sms"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/sms"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/sms"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/sms"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/sms"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/sms"
+        }
+      ],
+      "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nMejoras\nMenú\nMejoras en su contexto\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nGmail · Outlook · Zoho\n\nLos canales de correo actuales se conservan; esta vista muestra los controles nuevos de SMS.\n\nSMS · Telnyx\nVer conversación SMS de ejemplo\n\n+573001234567 · SMS\n\nConsentimiento para SMS registrado.\nEscribir SMS\nEnviar este texto a +573001234567. Telnyx cobrará el consumo; el importe final aún no está confirmado.\nEnviar SMS"
+    },
+    "at": "2026-10-02T13:16:52.549Z",
+    "baseline": {
+      "requests": [],
+      "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nActual\nMenú\nLa base actual se conserva\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nGmail · Outlook · Zoho\n\nLos canales de correo actuales se conservan; esta vista muestra los controles nuevos de SMS."
+    },
+    "beforeNew": {
+      "flags": {
+        "aiUsage": false,
+        "providerCalled": false,
+        "realSmsSent": false,
+        "synthetic": true
+      },
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/integrations/sms"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/sms"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/sms"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/sms"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/sms"
+        },
+        {
+          "method": "POST",
+          "path": "/api/integrations/sms"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/sms"
+        },
+        {
+          "method": "GET",
+          "path": "/api/integrations/sms"
+        }
+      ],
+      "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nMejoras\nMenú\nMejoras en su contexto\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nGmail · Outlook · Zoho\n\nLos canales de correo actuales se conservan; esta vista muestra los controles nuevos de SMS.\n\nSMS · Telnyx\nVer conversación SMS de ejemplo\n\n+573001234567 · SMS\n\nConsentimiento para SMS registrado.\nEscribir SMS\n\n1 segmentos · GSM-7\n\nConsultar estado guardado\n\nTelnyx aceptó el SMS\n\nEntregado · Entrega confirmada por Telnyx\n\n0.0123 USD\n\nPreparar otro SMS"
+    },
+    "checks": {
+      "callbackDelivery": true,
+      "doubleClickOnePost": true,
+      "editInvalidatesReview": true,
+      "fontsLoaded": true,
+      "frameNoOverflow": true,
+      "lostResponseBlocksResend": true,
+      "newDraftRequiresReview": true,
+      "noImplicitConsent": true,
+      "noTranslationKeys": true,
+      "noVisibleControlOverflow": false,
+      "publicControlHidden": true,
+      "queuedNotDelivery": true,
+      "reviewAllowsSend": true,
+      "reviewRequired": true
+    },
+    "delivered": {
+      "receipt": {
+        "attemptId": "c61946de-2c4f-477a-8bed-aa6070c125f3",
+        "contactId": "10000000-0000-4000-8000-000000000006",
+        "conversationId": "10000000-0000-4000-8000-000000000003",
+        "cost": {
+          "amount": "0.0123",
+          "currency": "USD"
+        },
+        "createdAt": "2026-10-02T13:16:52.240Z",
+        "deliveryConfirmed": true,
+        "peer": "+573001234567",
+        "providerParts": 1,
+        "providerStatus": "delivered",
+        "segments": 1,
+        "state": "accepted",
+        "text": "Approved synthetic SMS",
+        "updatedAt": "2026-10-02T13:16:52.393Z"
+      },
+      "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nMejoras\nMenú\nMejoras en su contexto\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nGmail · Outlook · Zoho\n\nLos canales de correo actuales se conservan; esta vista muestra los controles nuevos de SMS.\n\nSMS · Telnyx\n\nSMS de tu cuenta Telnyx. El proveedor cobra los mensajes aparte; no cambia tu plan ni tu saldo de IA en Riverz.\n\n+12025550100\n\nHabilitar SMS\nMáximo de segmentos por mensaje\nLímite diario de segmentos · UTC\nConfiguración de instalación\nNúmero · formato internacional\nID del número en Telnyx\nID del perfil de mensajería\nID de la organización Telnyx\nClave privada de Telnyx\nClave pública de firma Ed25519\nRuta del webhook\n\nTu instalador configura el webhook en tu dominio y el límite de gasto de Telnyx. Se comprueba la cuenta al habilitar; no se envía un SMS de prueba.\n\nGuardar SMS\n\nConfiguración de SMS guardada.\n\nVer conversación SMS de ejemplo\n\n+573001234567 · SMS\n\nConsentimiento para SMS registrado.\nRetirar consentimiento\nEscribir SMS\n\n1 segmentos · GSM-7\n\nConsultar estado guardado\n\nTelnyx aceptó el SMS\n\nEntregado · Entrega confirmada por Telnyx\n\n0.0123 USD\n\nPreparar otro SMS"
+    },
+    "locale": "es",
+    "queued": {
+      "receipt": {
+        "attemptId": "c61946de-2c4f-477a-8bed-aa6070c125f3",
+        "contactId": "10000000-0000-4000-8000-000000000006",
+        "conversationId": "10000000-0000-4000-8000-000000000003",
+        "cost": null,
+        "createdAt": "2026-10-02T13:16:52.240Z",
+        "deliveryConfirmed": false,
+        "peer": "+573001234567",
+        "providerParts": 1,
+        "providerStatus": "queued",
+        "segments": 1,
+        "state": "accepted",
+        "text": "Approved synthetic SMS",
+        "updatedAt": "2026-10-02T13:16:52.240Z"
+      },
+      "text": "riverz\nOperador\nDÍA A DÍA\nPanel\nBandeja\nContactos\nSERVICIO AL CLIENTE\nAsistente IA\nFlujos\nComentarios AI\nLlamadas\nChat web\nENVÍOS\nPlantillas\nAutomatizaciones\nCampañas\nProspección IA\nTIENDA\nProductos\nPedidos\nIntegraciones\nAjustes\nC\n\nRiverz Demo\n\ndemo@example.invalid\n\nMejoras\nMenú\nMejoras en su contexto\n\nEsta vista compara los controles añadidos. Los editores, campañas, plantillas y módulos actuales conservan su lugar.\n\nGmail · Outlook · Zoho\n\nLos canales de correo actuales se conservan; esta vista muestra los controles nuevos de SMS.\n\nSMS · Telnyx\n\nSMS de tu cuenta Telnyx. El proveedor cobra los mensajes aparte; no cambia tu plan ni tu saldo de IA en Riverz.\n\n+12025550100\n\nHabilitar SMS\nMáximo de segmentos por mensaje\nLímite diario de segmentos · UTC\nConfiguración de instalación\nNúmero · formato internacional\nID del número en Telnyx\nID del perfil de mensajería\nID de la organización Telnyx\nClave privada de Telnyx\nClave pública de firma Ed25519\nRuta del webhook\n\nTu instalador configura el webhook en tu dominio y el límite de gasto de Telnyx. Se comprueba la cuenta al habilitar; no se envía un SMS de prueba.\n\nGuardar SMS\n\nConfiguración de SMS guardada.\n\nVer conversación SMS de ejemplo\n\n+573001234567 · SMS\n\nConsentimiento para SMS registrado.\nRetirar consentimiento\nEscribir SMS\n\n1 segmentos · GSM-7\n\nConsultar estado guardado\n\nTelnyx aceptó el SMS\n\nEn cola · Sin confirmación de entrega\n\nCoste final pendiente de confirmación\n\nPreparar otro SMS"
+    },
+    "viewport": {
+      "height": 1000,
+      "width": 1440
+    }
+  },
+  "initialGeometryDiagnostic": {
+    "description": "Initial full-document control scan includes the intentionally off-canvas sidebar; its three out-of-viewport controls were outside main. Subsequent controlled reviews scope the control geometry check to main. Initial evidence is retained, not rewritten.",
+    "failedControls": [
+      {
+        "main": false,
+        "left": -44.79999923706055,
+        "right": -16.799999237060547
+      },
+      {
+        "main": false,
+        "left": -244,
+        "right": -52.80000305175781
+      },
+      {
+        "main": false,
+        "left": -44.79999923706055,
+        "right": -12.799999237060547
+      }
+    ]
+  },
+  "visualReview": {
+    "status": "pending",
+    "nativeSnapshots": "PreviewAutomationExecutionError on attached client; later PreviewAutomationNoAvailableHostError",
+    "screenshotsInspected": false,
+    "finalDesktopSpanishRepeat": "interrupted by host disconnection",
+    "consoleHistory": "Native snapshot diagnostics unavailable; runtime monitoring covers the three controlled flows only. Historical WhatsApp comparison entries remain in their original evidence."
+  },
+  "screenshots": [],
+  "sources": [
+    {
+      "file": "package.json",
+      "sha256": "45fd67993735239b224184b65d300ea447097395df701a5ed2d4021ae3c18732"
+    },
+    {
+      "file": "scripts/comparison/app.jsx",
+      "sha256": "e95bc9b835252e43e29f6d10c1125cdcad9e23163c36c31c21ffd2955b06c2cd"
+    },
+    {
+      "file": "scripts/comparison/fixtures.jsx",
+      "sha256": "72bdba3978f045d2d6297de15bab717f0470459c0b14ae97093a4604eb8454c1"
+    },
+    {
+      "file": "scripts/comparison/review.js",
+      "sha256": "b7e60059e768f367656037aef7fa5a6274ab3c0471279f0d361669f0a9992754"
+    },
+    {
+      "file": "src/app/(dashboard)/asistente/page.tsx",
+      "sha256": "c1d002128c71227e9ad5139350e274344e290d971b3cfc72baa299e316d16909"
+    },
+    {
+      "file": "src/app/api/cron/pii-purge/route.ts",
+      "sha256": "547b000c19e8066676153b657393fc7f555674a4c91c6cc466ac67e91ee54878"
+    },
+    {
+      "file": "src/components/contacts/segments-panel.tsx",
+      "sha256": "ed7d0605025c90eafe40fa66b413caf2cdfbad53c42fa729ecdd0e6b45cdc316"
+    },
+    {
+      "file": "src/components/inbox/inbox-tabs.tsx",
+      "sha256": "4a60756217ea10903f1787fdb8d49eb56998f6cbb1dc255ad791dc3d4a1e3622"
+    },
+    {
+      "file": "src/components/inbox/message-thread.tsx",
+      "sha256": "f888d01bc9c942f1e1786428733e459a59d27b07007ff7ac7607f62d700597fb"
+    },
+    {
+      "file": "src/components/settings/channels-panel.tsx",
+      "sha256": "3623beb1aad567f683fb49f460989aee7f1ad97d23dc23debb6f46fc60b506c7"
+    },
+    {
+      "file": "src/lib/channels/display.ts",
+      "sha256": "42be8ebeb92bac1526ef40afe5d94947cebaff862a0ae6762ea9d27899d89c4f"
+    },
+    {
+      "file": "src/lib/channels/registry.ts",
+      "sha256": "7bd589bb9db29e297b04d48946742b3ec7c05f9922935d5fcaf7c9a9e34945ed"
+    },
+    {
+      "file": "src/lib/cron/schedule.ts",
+      "sha256": "78a959332e2aa6e0f3d5576e66a416af7c179c00eb922a769937ba546dc98d67"
+    },
+    {
+      "file": "src/lib/i18n/messages/admin.ts",
+      "sha256": "a5dfb48627a711165881bd716ced76f99c74e1d9866a3600b3f5ec1a4fbcc016"
+    },
+    {
+      "file": "src/lib/i18n/messages/settings.ts",
+      "sha256": "152cf99ba5db2d30307dea8d31d878227f594ae8a8bb984144477e54d48f5c16"
+    },
+    {
+      "file": "src/lib/voice-notes/channels.ts",
+      "sha256": "063fd75e2dc0ce722df3c9eec6a29c6b34e57a3618961b327b23795dfa78a591"
+    },
+    {
+      "file": "src/types/index.ts",
+      "sha256": "abad503e75fd023b487cccac44042de3780bd9bba1390b02c39aeb6e179991e7"
+    },
+    {
+      "file": "scripts/check-native-sms-schema.cjs",
+      "sha256": "61ebca9a8f20764d71c09e61d2ccba1bc312520887709082d92bd323385d466e"
+    },
+    {
+      "file": "src/app/api/cron/native-sms/route.ts",
+      "sha256": "7b1866f8242098937fad24f64784f6aa422d4b9a0d30bff8d263fe8c80986c14"
+    },
+    {
+      "file": "src/app/api/integrations/sms/route.test.ts",
+      "sha256": "2748d0802dc5dd5792210f5d7350916a4c66a59b375de3392376e37830bdd725"
+    },
+    {
+      "file": "src/app/api/integrations/sms/route.ts",
+      "sha256": "b34b1d5c2bde37fb132f2112448a88f463695f00b5346e0ea7203165c70b9143"
+    },
+    {
+      "file": "src/app/api/integrations/sms/webhook/[connectionId]/route.test.ts",
+      "sha256": "dda3f51fac335d138471733d6adba7400a442597b6f1c06d850fa030b4f9fba5"
+    },
+    {
+      "file": "src/app/api/integrations/sms/webhook/[connectionId]/route.ts",
+      "sha256": "508064f540e012d33ec5ad39b727454b3368e556e07791cab8100357413ab601"
+    },
+    {
+      "file": "src/components/inbox/sms-case-tools.test.tsx",
+      "sha256": "cbf46731e243cf35510d33224a4f8dae29901de4a44ffc8f81c8f4bee1266bbc"
+    },
+    {
+      "file": "src/components/inbox/sms-case-tools.tsx",
+      "sha256": "fa798f84ff8819ebe0ec271d604c7f102c16f90c2fa766c50ce65c7d78158596"
+    },
+    {
+      "file": "src/components/settings/sms-settings.tsx",
+      "sha256": "c82a88e00c2e216cb51adc15a0bc8b99264832e0cde2e778a6fc93b501b8b144"
+    },
+    {
+      "file": "src/lib/channels/sms/adapter.ts",
+      "sha256": "96cd5f665993d97d7787362390649aeb03e9c3105c50b22e698b98e56fa88956"
+    },
+    {
+      "file": "src/lib/integrations/expansion/judgeme-client.test.ts",
+      "sha256": "e19446d86ccb412d22e2988114c9a05cc3ca42be4d66ae5539a523d4b80a168f"
+    },
+    {
+      "file": "src/lib/integrations/expansion/judgeme-client.ts",
+      "sha256": "8077297cd442603df76ae2327530fc91ed6de9d390cc0c0fa59a8a9692ba5e79"
+    },
+    {
+      "file": "src/lib/integrations/expansion/provider-http.test.ts",
+      "sha256": "933f11f6a4921c467480fcb80fc46ee81925bab2a4711a27b5c5419ebe2e2820"
+    },
+    {
+      "file": "src/lib/integrations/expansion/provider-http.ts",
+      "sha256": "c7ba4405a5d9acabc1d17842cf09aaacdaf0f93b8a172a1ae8ba1a07c0fcf055"
+    },
+    {
+      "file": "src/lib/integrations/expansion/sms-contract.test.ts",
+      "sha256": "929e06d1701a9b33f74b15abeba1796c01d1442986a102e14b55f64a508ef096"
+    },
+    {
+      "file": "src/lib/integrations/expansion/sms-contract.ts",
+      "sha256": "7da585412a72b9b9ad42690dd1bef4e36e8a81d456d3ba93f39f2cbf417cb2b2"
+    },
+    {
+      "file": "src/lib/integrations/expansion/sms-schema.test.ts",
+      "sha256": "4ca4e20425dfc025ac772e2df25304f1877c2ed4f639149af41e8fcfd87bca33"
+    },
+    {
+      "file": "src/lib/integrations/expansion/sms-service.test.ts",
+      "sha256": "75dadcca504a84cd15f13ffb594c010817303dcef15dc4cd9cd90fc4a2461af3"
+    },
+    {
+      "file": "src/lib/integrations/expansion/sms-service.ts",
+      "sha256": "1eb9ce3172ad3f464b32e3cd82377a33bf186aec66349c3fb5b31bdd14473929"
+    },
+    {
+      "file": "src/lib/integrations/expansion/sms-ui-contract.ts",
+      "sha256": "f76e6fcce325d1292df0f6e3dce7ecaee2ad1b1e522ba6b204177cf29d057f3d"
+    },
+    {
+      "file": "src/lib/integrations/expansion/sms-webhook.test.ts",
+      "sha256": "ef86c35ded8d05fe951bca1ce903f6fa2d869280900d30635ff8578434ff3f54"
+    },
+    {
+      "file": "src/lib/integrations/expansion/sms-webhook.ts",
+      "sha256": "be347989a419e9ef221ec56d9bacfa296f755e779dcb804bcfda73c1b9ea74bf"
+    },
+    {
+      "file": "src/lib/integrations/expansion/sms-worker.test.ts",
+      "sha256": "0e592bd0d6f09359f261b41ed6f6bb3b42759d3f86f46142cb0a56753892d5aa"
+    },
+    {
+      "file": "src/lib/integrations/expansion/sms-worker.ts",
+      "sha256": "87639d562a94f9628c8e3b667e6090a902a4d7f92c2763accd1be5ef9e46f74e"
+    },
+    {
+      "file": "src/lib/integrations/expansion/telnyx-sms-client.test.ts",
+      "sha256": "ac5e812f0a9f75174f55a15977d637dd4a26bc5bd997dde1b96bfdcad4ada4c7"
+    },
+    {
+      "file": "src/lib/integrations/expansion/telnyx-sms-client.ts",
+      "sha256": "0ab3d5add2a8ef31cfded166a4713bae4743afbf0c438a2ff9e72c1c349a35b0"
+    },
+    {
+      "file": "supabase/migrations/372_native_sms_authority.sql",
+      "sha256": "ba3f23d69362170ec6fa0116ba97469a7abdebf96d15a6804d528865c6f6477e"
+    }
+  ],
+  "styles": [
+    {
+      "file": "0y7fmymffc1f-.css",
+      "sha256": "a9ebecb14064ea8dd75f94623210eda384a7b55a0dda3b2d684cf2a51bd9c6df"
+    },
+    {
+      "file": "0ydpypn-7ctjk.css",
+      "sha256": "932d47c5b5820b2dd6a9a39a5a25bd6a26ab6e94db2b45fe9f2ff99727087666"
+    },
+    {
+      "file": "1bliujhpm9e2n.css",
+      "sha256": "162a497f498c1d1bf1baaf2e307f93fccd9f0308ee25ad57e62e5eb98fd1906a"
+    },
+    {
+      "file": "21rtznmd83uia.css",
+      "sha256": "36494c893a9698a87a9073917ae4fdee7aada2f7f63bdb75eac0b7602d00468d"
+    },
+    {
+      "file": "24hrtzo5s_sl1.css",
+      "sha256": "918623f67958b347bcd22eb9cc2010cf26a434083cf47bd9517aad84a1ae229e"
+    },
+    {
+      "file": "2rmecej376eld.css",
+      "sha256": "69b419d05a7eb4a71904be8d7b6f9cd719fe55ef6bf0881feca4652b0dcd4c5e"
+    },
+    {
+      "file": "3s7aa-p955seo.css",
+      "sha256": "25f2e876fb87c418429be603ca585b0d52e15a51be6d59166a7856c45ee82448"
+    }
+  ],
+  "bundleSha256": "a432f6d9da014304733bec7e698db337f48025354b761337a25c13665337f4ee"
+}

@@ -15,12 +15,14 @@ import { mercadoLibreAdapter } from "./mercadolibre/adapter";
 import { tikTokCommentAdapter } from "./tiktok_comment/adapter";
 import { voiceAdapter } from "./voice/adapter";
 import { webchatAdapter } from "./webchat/adapter";
+import {smsAdapter} from './sms/adapter';
 import { assertConnectionCanSend } from "./send-guard";
 import { assertWorkspaceWritable } from "@/lib/billing/read-only";
 import { assertRecoveryStillUnanswered } from "@/lib/billing/recovery-send-guard";
 import { assertInboxCaseCanSend } from '@/lib/inbox/disposition-server';
 
 const ADAPTERS: Record<Channel, ChannelAdapter> = {
+  sms: smsAdapter,
   whatsapp: whatsappAdapter,
   instagram: instagramAdapter,
   messenger: messengerAdapter,
