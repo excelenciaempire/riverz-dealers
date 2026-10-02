@@ -1175,3 +1175,11 @@ El servidor solo escucha en loopback, no sirve secretos ni archivos privados, re
 Los materiales M1–M5 usan un catálogo bilingüe acotado, separado del registro público y sin ruta/importación en la app o portada. **13 pruebas correctas**, TypeScript completo, lint sin errores/avisos y compilaciones completas normal/comparación correctas. Son demostraciones por pasos y configuraciones ilustrativas, pricing con fecha, fichas de integración y changelog reservado; no testimonios, cifras de ahorro ni disponibilidad general inventados. [Alcance](commslayer-release-materials.md).
 
 [Matriz consolidada](commslayer-acceptance-matrix.md): distingue el trabajo central construido, los requisitos reales de proveedores/dispositivos, publicación comercial, paquetes posteriores X1–X5 y decisiones de Estados Unidos. No convierte condiciones sin evidencia en un 100 % global. La revisión privada no configura el modo de comparación en Render.
+
+Comparación y materiales publicados como código privado: revisión `2d1b62a88ccc0b1246e24a920b52ab5095a1c906` LIVE en Render a las **04:46:08 UTC** del 2 de octubre. Salud HTTP 200 a las **04:47:59 UTC**, revisión exacta y servicio, Supabase y WhatsApp `ok`. No existe ruta pública de comparación ni activación de las superficies nuevas.
+
+## Preparación de proveedores sin activar la UI
+
+Se configuró el par estable P-256 de push en Render mediante dos actualizaciones individuales; presencia y correspondencia comprobadas a las **04:48 UTC**, sin valores en Git o diagnóstico. No hay grupos de entorno vinculados y la variable de comparación sigue sin configurar. El despachador y cron permanecen deshabilitados; no se enrolaron dispositivos ni enviaron avisos. Guardado de configuración distinto de incorporación al runtime y entrega física.
+
+Drive conserva credenciales generales de Google utilizables como fallback; no se infiere consentimiento, aprobación del scope o fallo de Gmail. La CLI de Shopify leyó la configuración pública sin interacción ni cambios, pero su salida no acredita distribución o revisión de App Store. CSV ya existe y se reutiliza; la revisión inicial de APIs Kommo/Recharge no se presenta como construcción de paquetes posteriores. [Estado, fuentes y límites](commslayer-provider-readiness.md).

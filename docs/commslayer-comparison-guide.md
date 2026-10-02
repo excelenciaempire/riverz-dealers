@@ -2,6 +2,8 @@
 
 La comparación conserva el posicionamiento de un superasistente preparado para cada negocio y los módulos vigentes. Usa componentes reales del repositorio con fixtures ficticios. No inicia una sesión comercial, carga credenciales, envía mensajes, llama modelos, cambia pedidos ni cobra dinero.
 
+La [matriz de aceptación](commslayer-acceptance-matrix.md) y la [preparación de proveedores](commslayer-provider-readiness.md) distinguen construcción, publicación de código y comprobaciones externas.
+
 ## Abrir y comparar
 
 1. Completar la compilación validada en `.b2-validation-0930`. El arnés reutiliza su CSS y fuentes; no sustituye el diseño por una maqueta nueva.
