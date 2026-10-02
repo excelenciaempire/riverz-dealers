@@ -265,7 +265,8 @@ export const webchat = {
   firstResponse: { es: "Primera respuesta", en: "First response" },
   escalated: { es: "Pasadas a una persona", en: "Handed to a person" },
   ordersAttributed: { es: "Pedidos del chat", en: "Orders from chat" },
-  revenue: { es: "Vendido por el chat", en: "Sold through chat" },
+  revenue: { es: "Pedidos pagados del chat", en: "Paid orders from chat" },
+  amountsUnavailable: { es: '{n} importes no verificables', en: '{n} unverifiable amounts' },
   resultsEmpty: {
     es: "Todavía no hay conversaciones por este canal.",
     en: "No conversations on this channel yet.",

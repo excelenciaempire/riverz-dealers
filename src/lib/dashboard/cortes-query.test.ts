@@ -11,8 +11,9 @@ function fixture(fail = false, changed = false) {
       assigned_agent_id: actor, csat: 1, created_at: '2026-09-25T10:00:00Z' }],
     ai_replies: ['sent', 'skipped', 'failed', 'queued'].map(status => ({ conversation_id: id, agent_id: actor, status, skip_reason: status === 'skipped' ? 'requires_human' : null })),
     ai_agents: [{ id: actor, name: 'Synthetic assistant', is_active: true, business_hours: null }],
-    messages: [{ conversation_id: id, sender_type: 'customer', created_at: '2026-09-25T10:00:00Z', origin: null },
-      { conversation_id: id, sender_type: 'bot', created_at: '2026-09-25T10:01:00Z', origin: 'ai_agent' }],
+    messages: [{ conversation_id: id, sender_type: 'customer', created_at: '2026-09-25T10:00:00Z', origin: null, status: 'received' },
+      { conversation_id: id, sender_type: 'bot', created_at: '2026-09-25T10:00:01Z', origin: 'ai_agent', status: 'failed' },
+      { conversation_id: id, sender_type: 'bot', created_at: '2026-09-25T10:01:00Z', origin: 'ai_agent', status: 'sent' }],
   };
   const db = { rpc: async () => ({ data: changed && ++scope > 1 ? [] : [id] }), from(table: string) {
     const call = { table, ids: null as string[] | null, end: null as string | null }; calls.push(call);
@@ -29,6 +30,7 @@ describe('current authorized channel and assistant cuts', () => {
     const { db, calls } = fixture(); const result = await leerCortes(db, ws, range, 'UTC', actor);
     expect(result.agentes).toMatchObject([{ respondio: 1, seAbstuvo: 1, fallo: 1, otrosEstados: 1 }]);
     expect(result.ia).toMatchObject({ atendidas: 1, resueltas: 1 });
+    expect(result.respuesta.ia).toBe(60);
     for (const call of calls.filter(c => c.table !== 'ai_agents')) expect(call).toMatchObject({ ids: [id], end: range.hasta.toISOString() });
   });
   it('does not turn missing message data into zero response time', async () => {

@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
-import { useT } from '@/hooks/use-locale';
-import { useFormat } from '@/hooks/use-format';
+import { useLocale, useT } from '@/hooks/use-locale';
+import { webchatRevenueDisplay, type WebchatRevenue } from './webchat-revenue';
 import { cn } from '@/lib/utils';
 import { ImagenDelChat } from '@/components/settings/webchat/imagen';
 import { ListaDeChips } from '@/components/settings/webchat/lista-de-chips';
@@ -39,17 +39,12 @@ interface Agente {
   is_active: boolean;
 }
 
-interface Stats {
+interface Stats extends WebchatRevenue {
   period_days: number;
   conversations: number;
   resolved: number;
   escalated: number;
   orders: number;
-  revenue: number;
-  currency: string | null;
-  /** El total de CADA moneda, de mayor a menor volumen. Una tienda que vende
-   *  en pesos y en dólares no tiene un solo número. */
-  revenue_by_currency?: { currency: string | null; revenue: number; orders: number }[];
   /** Qué tan seguido cerró el caso solo, y contra el período anterior. */
   resolution_rate: number | null;
   resolution_rate_previous: number | null;
@@ -110,7 +105,7 @@ type Seccion = (typeof SECCIONES)[number]['id'];
 
 export function WebchatPanel() {
   const t = useT();
-  const format = useFormat();
+  const { locale } = useLocale();
   const fetchWithCsrf = useFetchWithCsrf();
 
   const [loading, setLoading] = useState(true);
@@ -776,15 +771,9 @@ export function WebchatPanel() {
             <Stat
               label={t('webchat.revenue')}
               value={
-                stats.currency
-                  ? format.currency(stats.revenue, stats.currency)
-                  : String(Math.round(stats.revenue))
+                webchatRevenueDisplay(stats, locale).value
               }
-              extra={(stats.revenue_by_currency ?? [])
-                .slice(1)
-                .map((r) =>
-                  r.currency ? format.currency(r.revenue, r.currency) : String(Math.round(r.revenue)),
-                )}
+              extra={webchatRevenueDisplay(stats, locale).extra}
             />
           </div>
         </details>

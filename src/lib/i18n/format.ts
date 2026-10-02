@@ -25,6 +25,20 @@ export function localeTag(locale: Locale): string {
   return locale === "en" ? "en-US" : "es-ES";
 }
 
+/** Canonical nonnegative decimal totals, kept exact instead of decoded as float. */
+export function formatExactCurrency(value: string, currency: string, locale: Locale): string {
+  const match = /^(\d+)(?:\.(\d{1,6}))?$/.exec(value);
+  if (!match) return '—';
+  const fraction = (match[2] ?? '').replace(/0+$/, '');
+  try {
+    return new Intl.NumberFormat(localeTag(locale), {
+      style: 'currency', currency, currencyDisplay: 'code', minimumFractionDigits: 6, maximumFractionDigits: 6,
+    }).formatToParts(BigInt(match[1])).map(part =>
+      part.type === 'fraction' ? fraction : part.type === 'decimal' && !fraction ? '' : part.value,
+    ).join('');
+  } catch { return '—'; }
+}
+
 function toDate(value: Date | string | number): Date | null {
   const d = value instanceof Date ? value : new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;

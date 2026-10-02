@@ -67,6 +67,7 @@ export function DocumentSources({ agentId }: { agentId: string }) {
     setHistory(data.history);
   }
   return <details className="rounded-lg border p-3 text-sm" onToggle={event => {
+    if (event.target !== event.currentTarget) return;
     if (event.currentTarget.open) { if (!busy) void load(); }
     else { controller.current?.abort();controller.current = null;setBusy(false);setReviewed(false);setWithdraw(false); }
   }}>

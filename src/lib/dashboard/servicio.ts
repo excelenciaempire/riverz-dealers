@@ -118,6 +118,8 @@ export interface Mensaje {
   created_at: string
   /** `ai_agent` / `ai_followup` cuando habló el asistente. */
   origin?: string | null
+  status: string | null
+  deleted_at?: string | null
 }
 
 /** Orígenes en los que el que escribe es un modelo, no una regla. */
@@ -151,18 +153,16 @@ export interface PrimeraRespuesta {
  * Devuelve MEDIANAS, no promedios: quien las muestre al lado de un promedio
  * tiene que decirlo, porque si no la tarjeta se lee como si se contradijera.
  */
-export function primeraRespuesta(mensajes: Mensaje[]): PrimeraRespuesta {
+export function firstResponseSamples(mensajes: Mensaje[]): Array<{ kind: 'ia' | 'automatico' | 'humano'; seconds: number }> {
   const porConv = new Map<string, Mensaje[]>()
   for (const m of mensajes) {
-    if (!m.conversation_id) continue
+    if (!m.conversation_id || m.deleted_at || !Number.isFinite(Date.parse(m.created_at))) continue
     const l = porConv.get(m.conversation_id) ?? []
     l.push(m)
     porConv.set(m.conversation_id, l)
   }
 
-  const ia: number[] = []
-  const automatico: number[] = []
-  const humano: number[] = []
+  const samples: Array<{ kind: 'ia' | 'automatico' | 'humano'; seconds: number }> = []
   for (const lista of porConv.values()) {
     lista.sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))
     const cliente = lista.find((m) => m.sender_type === 'customer')
@@ -171,16 +171,22 @@ export function primeraRespuesta(mensajes: Mensaje[]): PrimeraRespuesta {
     const resp = lista.find(
       (m) =>
         (m.sender_type === 'bot' || m.sender_type === 'agent') &&
+        ['sent', 'delivered', 'read'].includes(m.status ?? '') &&
         Date.parse(m.created_at) > t0,
     )
     if (!resp) continue
     const segs = Math.round((Date.parse(resp.created_at) - t0) / 1000)
     if (segs < 0) continue
-    if (resp.sender_type === 'agent') humano.push(segs)
-    else if (ORIGEN_IA.has(resp.origin ?? '')) ia.push(segs)
-    else automatico.push(segs)
+    samples.push({ kind: resp.sender_type === 'agent' ? 'humano' : ORIGEN_IA.has(resp.origin ?? '') ? 'ia' : 'automatico', seconds: segs })
   }
+  return samples
+}
 
+export function primeraRespuesta(mensajes: Mensaje[]): PrimeraRespuesta {
+  const samples = firstResponseSamples(mensajes)
+  const ia = samples.filter(s => s.kind === 'ia').map(s => s.seconds)
+  const automatico = samples.filter(s => s.kind === 'automatico').map(s => s.seconds)
+  const humano = samples.filter(s => s.kind === 'humano').map(s => s.seconds)
   return {
     ia: mediana(ia),
     automatico: mediana(automatico),

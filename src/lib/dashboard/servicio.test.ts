@@ -91,6 +91,7 @@ describe('primeraRespuesta', () => {
     sender_type: tipo,
     created_at: iso,
     origin: origin ?? null,
+    status: tipo === 'customer' ? 'received' : 'sent',
   });
 
   it('separa lo que tardo la IA de lo que tardo una persona', () => {
@@ -158,6 +159,21 @@ describe('primeraRespuesta', () => {
       msg('a', 'customer', '2026-08-25T10:00:00Z'),
     ]);
     expect(r.ia).toBe(20);
+  });
+  it('requires a successful outgoing message and ignores deleted evidence', () => {
+    const start = msg('a', 'customer', '2026-08-25T10:00:00Z');
+    const invalid = ['failed', 'queued', 'sending', 'received', null].map((status, index) => ({
+      ...msg('a', 'bot', `2026-08-25T10:00:0${index + 1}Z`, 'ai_agent'), status,
+    }));
+    const deleted = { ...msg('a', 'bot', '2026-08-25T10:00:06Z', 'ai_agent'), deleted_at: '2026-08-25T11:00:00Z' };
+    expect(primeraRespuesta([start, ...invalid, deleted]).muestrasIa).toBe(0);
+    const result = primeraRespuesta([start, ...invalid, deleted, msg('a', 'agent', '2026-08-25T10:00:20Z')]);
+    expect(result.humano).toBe(20);expect(result.muestrasIa).toBe(0);
+  });
+  it('counts one first response per conversation even when the customer writes again', () => {
+    const result = primeraRespuesta([msg('a', 'customer', '2026-08-25T10:00:00Z'), msg('a', 'bot', '2026-08-25T10:00:05Z', 'ai_agent'),
+      msg('a', 'customer', '2026-08-25T10:01:00Z'), msg('a', 'agent', '2026-08-25T10:02:00Z')]);
+    expect(result.muestrasIa + result.muestrasHumano).toBe(1);expect(result.ia).toBe(5);
   });
 });
 

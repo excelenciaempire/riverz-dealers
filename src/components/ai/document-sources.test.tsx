@@ -24,7 +24,7 @@ function nodes(node: React.ReactNode): Element[] { if (Array.isArray(node)) retu
 function render() { h.index = 0;return nodes(DocumentSources({ agentId })); }
 function element(type: string, text?: string) { const value = render().find(node => node.type === type && (!text || node.props.children === text));if (!value) throw new Error(`missing ${type} ${text}`);return value; }
 function click(key: string) { const button = element('button', translate(h.locale, key));expect(button.props.disabled).not.toBe(true);(button.props.onClick as () => void)(); }
-function toggle(open: boolean) { (element('details').props.onToggle as (event: unknown) => void)({ currentTarget: { open } }); }
+function toggle(open: boolean) { const target = { open };(element('details').props.onToggle as (event: unknown) => void)({ target, currentTarget: target }); }
 async function open() { toggle(true);await vi.waitFor(() => expect(h.bank[4]).toBe(false)); }
 function response(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status }); }
 beforeEach(() => { h.index = 0;h.bank = [];h.enabled = true;h.locale = 'es';h.fetch.mockReset().mockResolvedValue(response({ sources: [source], can_edit: true }));vi.stubGlobal('fetch', h.fetch); });
@@ -59,6 +59,13 @@ describe('document controls reserved for comparison', () => {
     h.fetch.mockResolvedValueOnce(response({ error: translate('es', 'assistant.document_changed') }, 409));click('assistant.documentsSave');await vi.waitFor(() => expect(h.bank[4]).toBe(false));
     expect(element('textarea').props.value).toBe('My draft');expect(element('p', translate('es', 'assistant.document_changed')).props.role).toBe('alert');
     h.fetch.mockResolvedValueOnce(response({ sources: [{ ...source, text: 'Other editor', revision: 2 }], can_edit: true }));click('assistant.documentsRefresh');await vi.waitFor(() => expect(h.bank[4]).toBe(false));expect(element('textarea').props.value).toBe('Other editor');
+  });
+  it('keeps the local draft when a nested document or Drive disclosure toggles', async () => {
+    await open();(element('textarea').props.onChange as (event: unknown) => void)({ target: { value: 'Unsaved review' } });
+    for (const open of [true, false]) {
+      (element('details').props.onToggle as (event: unknown) => void)({ target: { open }, currentTarget: { open: true } });
+    }
+    expect(h.fetch).toHaveBeenCalledTimes(1);expect(element('textarea').props.value).toBe('Unsaved review');
   });
   it('does not claim successful import after a file error', async () => {
     await open();h.fetch.mockResolvedValueOnce(response({ error: translate('es', 'assistant.document_no_text') }, 422));

@@ -156,7 +156,7 @@ export async function leerCortes(
   const convRes: Array<{ id: string; channel: string | null; status: string; needs_human_at: string | null;
     needs_human_reason: string | null; assigned_agent_id: string | null; csat: number | null; created_at: string }> = [];
   const iaRes: Array<{ agent_id: string | null; conversation_id: string | null; status: string; skip_reason: string | null }> = [];
-  const msgRes: Array<{ conversation_id: string | null; sender_type: string | null; created_at: string; origin: string | null }> = [];
+  const msgRes: Array<{ conversation_id: string | null; sender_type: string | null; created_at: string; origin: string | null; status: string | null }> = [];
   for (const batch of batches) {
     const [conversations, replies, messages] = await Promise.all([
     todas<{
@@ -209,13 +209,14 @@ export async function leerCortes(
       sender_type: string | null;
       created_at: string;
       origin: string | null;
+      status: string | null;
     }>((d, h) =>
       db
         .from('messages')
         // `origin` es lo que separa al asistente de una automatización: sin él,
         // `primeraRespuesta` mete a las dos en la misma bolsa.
         .select(
-          'conversation_id, sender_type, created_at, origin, conversations!inner(workspace_id)'
+          'conversation_id, sender_type, created_at, origin, status, conversations!inner(workspace_id)'
         )
         .eq('conversations.workspace_id', workspaceId)
         .in('conversation_id', batch)
