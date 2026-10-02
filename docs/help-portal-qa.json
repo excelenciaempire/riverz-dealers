@@ -1,0 +1,692 @@
+{
+  "date": "2026-10-02",
+  "scope": "X1 reviewed help portal, branded public articles and protected widget order status; X1–X5 does not imply all remaining packages complete",
+  "tests": {
+    "passed": 151,
+    "files": 17
+  },
+  "normalBuild": {
+    "exit": 0,
+    "log": "tmp/help-portal-normal-build-final-retry.log"
+  },
+  "comparisonBuild": {
+    "exit": 0,
+    "log": "tmp/help-portal-comparison-build-final.log"
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "schema": {
+    "installed": [
+      364,
+      365,
+      366
+    ],
+    "metadataPrivate": true,
+    "nullAuthorityDenied": 4,
+    "realCustomerReads": false,
+    "realArticlePublication": false,
+    "realFeedback": false,
+    "realPurgeExecution": false
+  },
+  "bundleSha256": "2a433053c45937aab172ffdaa982d1f9f81c1f5463e8797adb6dd32cf01c5cbc",
+  "stylesMatchAcrossBothBuilds": 7,
+  "sourceHashManifest": [
+    {
+      "file": "package.json",
+      "sha256": "c7b59985a565120ec7574f01b9482e5be4dd901a5f0b821526945ab0ee6ccaf5"
+    },
+    {
+      "file": "scripts/check-help-portal-schema.cjs",
+      "sha256": "bd19ef9d23d1aac8ff2cd4c7514df7342056489429594b80f5d671c34b75ec67"
+    },
+    {
+      "file": "scripts/comparison/app.jsx",
+      "sha256": "5bfaf2773646de08217ad62644172c8e49512b4dde3b376711ab7791949dd1b9"
+    },
+    {
+      "file": "scripts/comparison/fixtures.jsx",
+      "sha256": "cf09f504b1659c66cdbcc31c749ddfd2c5ce068f288bb77ac1744a355f4189fb"
+    },
+    {
+      "file": "scripts/comparison/review.js",
+      "sha256": "d7f26a8280d13bffb0aa4f9c529780fc667b4d428236a2abbeaf05bbc4de6e7d"
+    },
+    {
+      "file": "src/app/api/ai/agents/[id]/help-portal/route.test.ts",
+      "sha256": "a921964a6e1ce1f12ac8d66a99cdbac8bd70d4a6bc840921e47af2657a286cda"
+    },
+    {
+      "file": "src/app/api/ai/agents/[id]/help-portal/route.ts",
+      "sha256": "8415e90a84b243856798d100ea07469357b9ba5a405f131f899cb1243aa26fc3"
+    },
+    {
+      "file": "src/app/api/cron/pii-purge/route.ts",
+      "sha256": "ed69fdc314090121704bcfb4372d7bce639e3e19d3f54694a028d7a069e5dbe3"
+    },
+    {
+      "file": "src/app/api/help-portals/[slug]/route.test.ts",
+      "sha256": "4f478f08a5ae27d872477f4794e94638cc4ff8338c715792a6f47d3712f2fced"
+    },
+    {
+      "file": "src/app/api/help-portals/[slug]/route.ts",
+      "sha256": "2ef104fbb485fe51909c4a0523ce31b328651cd2f21d4c505b0f36b9692921e1"
+    },
+    {
+      "file": "src/app/api/widget/help-portal/route.test.ts",
+      "sha256": "0292f27a12a68270bc0bfb9ff993720366514cadce1594c83a6fe50fb027f8aa"
+    },
+    {
+      "file": "src/app/api/widget/help-portal/route.ts",
+      "sha256": "e530175233661e6101d866c8ca64b93b40bc4801c2d45d74b0fa81b442671cc8"
+    },
+    {
+      "file": "src/app/ayuda/[slug]/page.tsx",
+      "sha256": "f9cd3611a7f4f8543daa658d016712b6dd52af0511ccbe97842d79b8d4295e02"
+    },
+    {
+      "file": "src/components/ai/document-sources.tsx",
+      "sha256": "4a180967fdafa2f062dcad6d16904df5f79e86b3347e4aa3c42501adb0a2afa3"
+    },
+    {
+      "file": "src/components/ai/help-portal.test.tsx",
+      "sha256": "c8bff6fe7db009ad10ea55dfdd46cee7c898ee55156524213531cb0f4699c875"
+    },
+    {
+      "file": "src/components/ai/help-portal.tsx",
+      "sha256": "9005693f88c7a5a5d9f49c123c8d22592a60f42031afc93c54f11838509deb16"
+    },
+    {
+      "file": "src/components/help-portal/public-portal.test.tsx",
+      "sha256": "65a858742fc02f368c8c7d2d41c554f38005588aec7a0bfbaece815ba94a8eb2"
+    },
+    {
+      "file": "src/components/help-portal/public-portal.tsx",
+      "sha256": "1cb3730a6e73daf10fb2ac6754f1dce148dd6b68808269d746fb8b605c15c0bd"
+    },
+    {
+      "file": "src/components/webchat/chat-app.tsx",
+      "sha256": "bab34e9c686121156bf67d7a5617e6227b8ae200efe5245ee07085753146c2c9"
+    },
+    {
+      "file": "src/components/webchat/help-center.tsx",
+      "sha256": "d5d35f183a22c8d83b01845d3c3ff01aa8b9d23348e54a0eeac09015551e7cf4"
+    },
+    {
+      "file": "src/lib/help-portal/contract.test.ts",
+      "sha256": "76230f5742e6e06b6abf1b803a4b1ab6fecd19731e3ebce34f478ee5da47c021"
+    },
+    {
+      "file": "src/lib/help-portal/contract.ts",
+      "sha256": "3fd5b3bdd7a941df089b13802bc0794b7179e283615b147dd6fb69591e37d51e"
+    },
+    {
+      "file": "src/lib/help-portal/schema.test.ts",
+      "sha256": "89394883bb49b08682472531c171e8f05b1793159ebb7bf51bbaf83670227f03"
+    },
+    {
+      "file": "src/lib/help-portal/service.test.ts",
+      "sha256": "0735e7a33112a1027cebe58a8b9707c3e678ecb028e9efd4a16b87c59b71fc1f"
+    },
+    {
+      "file": "src/lib/help-portal/service.ts",
+      "sha256": "366007e266c1c6caa89f230c76a85eada9871b29033271f44a6e51d7664da32b"
+    },
+    {
+      "file": "src/lib/i18n/messages/assistant.ts",
+      "sha256": "e40bfe0df466b75d9dedbe6e90e293ab6a592c6a7ff293b72fe0edf7cc8c99a7"
+    },
+    {
+      "file": "src/lib/i18n/routes.ts",
+      "sha256": "d1b93b0030d0b6e06788e980f521724a91d46cd2158e586ddb93036750472df7"
+    },
+    {
+      "file": "src/lib/migrations/archive-schema.test.ts",
+      "sha256": "e9881f50d0cbf61a787980603f046b05e2e158bc0653343b9d80cc59a260bd4e"
+    },
+    {
+      "file": "supabase/migrations/364_empty_history_archive_progress.sql",
+      "sha256": "bfa405823056545ee6aab2da63164c2e65bd858532c9e90ce096d121f21dbbce"
+    },
+    {
+      "file": "supabase/migrations/365_reviewed_help_portals.sql",
+      "sha256": "aaaf1a24fc7fde74d8e9a4c5549b988878a2ea59d593b536da7d853f77014afc"
+    },
+    {
+      "file": "supabase/migrations/366_help_portal_reported_avoidance.sql",
+      "sha256": "ae3d33c0a8d2b7ac201cc883ac55d4debb0799bab08374df77b2103911324524"
+    }
+  ],
+  "nativeReviews": [
+    {
+      "kind": "manager",
+      "locale": "es",
+      "viewport": [
+        1280,
+        800
+      ],
+      "currentHidden": true,
+      "blockedBeforeReview": true,
+      "blockedAfterEditing": true,
+      "published": true,
+      "withdrawn": true,
+      "savedAsDraft": true,
+      "requiresFreshReview": true,
+      "publicLinkRemoved": true,
+      "publicLinkRestored": true,
+      "clearedOnClose": true,
+      "sourceStillActive": true,
+      "calls": [
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "GET"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        }
+      ],
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "kind": "manager",
+      "locale": "en",
+      "viewport": [
+        1280,
+        800
+      ],
+      "currentHidden": true,
+      "blockedBeforeReview": true,
+      "blockedAfterEditing": true,
+      "published": true,
+      "withdrawn": true,
+      "savedAsDraft": true,
+      "requiresFreshReview": true,
+      "publicLinkRemoved": true,
+      "publicLinkRestored": true,
+      "clearedOnClose": true,
+      "sourceStillActive": true,
+      "calls": [
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "GET"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        }
+      ],
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "kind": "manager",
+      "locale": "es",
+      "viewport": [
+        390,
+        844
+      ],
+      "currentHidden": true,
+      "blockedBeforeReview": true,
+      "blockedAfterEditing": true,
+      "published": true,
+      "withdrawn": true,
+      "savedAsDraft": true,
+      "requiresFreshReview": true,
+      "publicLinkRemoved": true,
+      "publicLinkRestored": true,
+      "clearedOnClose": true,
+      "sourceStillActive": true,
+      "calls": [
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "GET"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        }
+      ],
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "kind": "manager",
+      "locale": "en",
+      "viewport": [
+        390,
+        844
+      ],
+      "currentHidden": true,
+      "blockedBeforeReview": true,
+      "blockedAfterEditing": true,
+      "published": true,
+      "withdrawn": true,
+      "savedAsDraft": true,
+      "requiresFreshReview": true,
+      "publicLinkRemoved": true,
+      "publicLinkRestored": true,
+      "clearedOnClose": true,
+      "sourceStillActive": true,
+      "calls": [
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "GET"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        }
+      ],
+      "alerts": [],
+      "overflow": false
+    },
+    {
+      "kind": "customer",
+      "locale": "es",
+      "viewport": [
+        1280,
+        800
+      ],
+      "currentHidden": true,
+      "brandVisible": true,
+      "avoidanceNotInferred": true,
+      "avoidanceOfferedAfterResolution": true,
+      "separatelyRecorded": true,
+      "metrics": {
+        "views": 1,
+        "responded": 1,
+        "resolved": 1,
+        "needsHelp": 0,
+        "avoidanceResponded": 1,
+        "reportedAvoided": 1,
+        "windowDays": 30,
+        "observedAt": "2026-10-01T14:00:00Z"
+      },
+      "searchFilters": true,
+      "scopedOrder": true,
+      "recordedStatusLabel": true,
+      "registeredPaid": true,
+      "containsNoCustomerPii": true,
+      "clearedOnClose": true,
+      "alerts": [],
+      "overflow": false,
+      "calls": [
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "GET"
+        },
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "POST"
+        },
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "POST"
+        },
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "GET"
+        },
+        {
+          "path": "/api/widget/help-portal",
+          "method": "GET"
+        },
+        {
+          "path": "/api/widget/help-portal",
+          "method": "GET"
+        }
+      ]
+    },
+    {
+      "kind": "customer",
+      "locale": "en",
+      "viewport": [
+        1280,
+        800
+      ],
+      "currentHidden": true,
+      "brandVisible": true,
+      "avoidanceNotInferred": true,
+      "avoidanceOfferedAfterResolution": true,
+      "separatelyRecorded": true,
+      "metrics": {
+        "views": 1,
+        "responded": 1,
+        "resolved": 1,
+        "needsHelp": 0,
+        "avoidanceResponded": 1,
+        "reportedAvoided": 1,
+        "windowDays": 30,
+        "observedAt": "2026-10-01T14:00:00Z"
+      },
+      "searchFilters": true,
+      "scopedOrder": true,
+      "recordedStatusLabel": true,
+      "registeredPaid": true,
+      "containsNoCustomerPii": true,
+      "clearedOnClose": true,
+      "alerts": [],
+      "overflow": false,
+      "calls": [
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "GET"
+        },
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "POST"
+        },
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "POST"
+        },
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "GET"
+        },
+        {
+          "path": "/api/widget/help-portal",
+          "method": "GET"
+        },
+        {
+          "path": "/api/widget/help-portal",
+          "method": "GET"
+        }
+      ]
+    },
+    {
+      "kind": "customer",
+      "locale": "es",
+      "viewport": [
+        390,
+        844
+      ],
+      "currentHidden": true,
+      "brandVisible": true,
+      "avoidanceNotInferred": true,
+      "avoidanceOfferedAfterResolution": true,
+      "separatelyRecorded": true,
+      "metrics": {
+        "views": 1,
+        "responded": 1,
+        "resolved": 1,
+        "needsHelp": 0,
+        "avoidanceResponded": 1,
+        "reportedAvoided": 1,
+        "windowDays": 30,
+        "observedAt": "2026-10-01T14:00:00Z"
+      },
+      "searchFilters": true,
+      "scopedOrder": true,
+      "recordedStatusLabel": true,
+      "registeredPaid": true,
+      "containsNoCustomerPii": true,
+      "clearedOnClose": true,
+      "alerts": [],
+      "overflow": false,
+      "calls": [
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "GET"
+        },
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "POST"
+        },
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "POST"
+        },
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "GET"
+        },
+        {
+          "path": "/api/widget/help-portal",
+          "method": "GET"
+        },
+        {
+          "path": "/api/widget/help-portal",
+          "method": "GET"
+        }
+      ]
+    },
+    {
+      "kind": "customer",
+      "locale": "en",
+      "viewport": [
+        390,
+        844
+      ],
+      "currentHidden": true,
+      "brandVisible": true,
+      "avoidanceNotInferred": true,
+      "avoidanceOfferedAfterResolution": true,
+      "separatelyRecorded": true,
+      "metrics": {
+        "views": 1,
+        "responded": 1,
+        "resolved": 1,
+        "needsHelp": 0,
+        "avoidanceResponded": 1,
+        "reportedAvoided": 1,
+        "windowDays": 30,
+        "observedAt": "2026-10-01T14:00:00Z"
+      },
+      "searchFilters": true,
+      "scopedOrder": true,
+      "recordedStatusLabel": true,
+      "registeredPaid": true,
+      "containsNoCustomerPii": true,
+      "clearedOnClose": true,
+      "alerts": [],
+      "overflow": false,
+      "calls": [
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "GET"
+        },
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "POST"
+        },
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "POST"
+        },
+        {
+          "path": "/api/help-portals/fixture-store",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "GET"
+        },
+        {
+          "path": "/api/widget/help-portal",
+          "method": "GET"
+        },
+        {
+          "path": "/api/widget/help-portal",
+          "method": "GET"
+        }
+      ]
+    }
+  ],
+  "initialReview": {
+    "kind": "source selector correction",
+    "result": {
+      "locale": "es",
+      "viewport": [
+        1280,
+        800
+      ],
+      "currentHidden": true,
+      "blockedBeforeReview": true,
+      "blockedAfterEditing": true,
+      "published": true,
+      "withdrawn": true,
+      "savedAsDraft": true,
+      "requiresFreshReview": true,
+      "publicLinkRemoved": true,
+      "publicLinkRestored": true,
+      "clearedOnClose": true,
+      "sourceStillActive": false,
+      "calls": [
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "GET"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        },
+        {
+          "path": "/api/ai/agents/10000000-0000-4000-8000-000000000005/help-portal",
+          "method": "POST"
+        }
+      ],
+      "alerts": [],
+      "overflow": false
+    },
+    "explanation": "The initial sourceStillActive selector matched the portal source dropdown. A direct document-source selector verified the source remained active; four full corrected reviews followed."
+  },
+  "consoleHistory": [
+    {
+      "level": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 0",
+      "timestamp": "2026-10-02T06:25:24.234Z",
+      "source": "console"
+    },
+    {
+      "level": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 1",
+      "timestamp": "2026-10-02T06:27:51.925Z",
+      "source": "console"
+    }
+  ],
+  "noNewConsoleErrors": true,
+  "previewIsolation": {
+    "apisAndWritesBlocked": true,
+    "externalConnectionsBlockedByCsp": true,
+    "privateFilesNotServed": true,
+    "credentialsNotBundled": true
+  },
+  "limitations": [
+    "Browser writes and reads were synthetic in-memory fixtures.",
+    "Anonymous feedback is visitor-reported, not verified people, tickets avoided or causal results.",
+    "Order status is the last locally recorded status, up to 20 exact-contact orders, not physical delivery or live provider QA.",
+    "Expired visit data is excluded immediately; the daily sweep removes bounded batches."
+  ]
+}

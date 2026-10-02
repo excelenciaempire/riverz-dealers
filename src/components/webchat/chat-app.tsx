@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MessageText } from './message-text';
 import { MessageMedia, type Media } from './message-media';
 import { OrderRequests } from './order-requests';
+import { WidgetHelpCenter } from './help-center';
 import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 // La forma de la configuración se declara UNA vez, del lado del servidor que
 // la emite. Estaba copiada a mano acá y ya se habían separado: el chat leía
@@ -750,7 +751,7 @@ export function ChatApp() {
       {/* `aria-live` para que un lector de pantalla anuncie lo que llega: sin
           esto, una respuesta que aparece sola es invisible para quien no ve. */}
       <div ref={scroller} aria-live="polite" className="flex-1 overflow-y-auto px-4 py-4">
-        {SHOW_RIVERZ_IMPROVEMENTS && session && !expired ? <OrderRequests key={session} session={session} locale={settings?.locale === 'en' ? 'en' : 'es'} onSend={enviarTexto} onExpired={() => { setExpired(true); setWaiting(false); }} /> : null}
+        {SHOW_RIVERZ_IMPROVEMENTS && session && !expired ? <><WidgetHelpCenter key={`help:${session}`} session={session} locale={settings?.locale === 'en' ? 'en' : 'es'} onExpired={() => { setExpired(true); setWaiting(false); }} /><OrderRequests key={session} session={session} locale={settings?.locale === 'en' ? 'en' : 'es'} onSend={enviarTexto} onExpired={() => { setExpired(true); setWaiting(false); }} /></> : null}
         {settings?.greeting && timeline.length === 0 ? (
           <>
             <Autor nombre={settings.brand_name || T.equipo} ia T={T} />

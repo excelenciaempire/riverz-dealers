@@ -32,6 +32,7 @@ El servidor escucha únicamente en loopback. El navegador de esta tarea permanec
 | Móvil | Instalación y avisos voluntarios del dispositivo. |
 | Lanzamiento | Seis demostraciones ilustrativas, ejemplos por negocio, pricing con fecha, fichas y changelog preparado. |
 | Migraciones | Revisión local y persistente de contactos CSV, conteos existentes, confirmación explícita, comprobante y recuperación. El adaptador local simula escrituras; no extrae cuentas ni importa datos reales. |
+| Ayuda | Centro con marca y artículos revisados; vista del chat con pedidos ficticios y respuestas declaradas del visitante. Su edición se revisa dentro de Documentos. |
 
 ## Límites de la comparación
 

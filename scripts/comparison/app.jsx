@@ -9,6 +9,8 @@ import { ConversationCollaboration } from '@/components/inbox/conversation-colla
 import { TeamCapacity } from '@/components/inbox/team-capacity';
 import { RuleVersions } from '@/components/ai/rule-versions';
 import { DocumentSources } from '@/components/ai/document-sources';
+import { PublicHelpPortal } from '@/components/help-portal/public-portal';
+import { WidgetHelpCenter } from '@/components/webchat/help-center';
 import { FlowMetricDetails } from '@/components/flows/metric-details';
 import { OutcomeEvidence } from '@/components/dashboard/outcome-evidence';
 import { ProductReturnPolicyEditor } from '@/components/returns/product-policy-editor';
@@ -33,7 +35,7 @@ import { ids, now, selected, improved, locale, copy, report } from './fixtures';
 
 const pages = [['inbox', 'Bandeja', 'Inbox'], ['rules', 'Reglas', 'Rules'], ['documents', 'Documentos', 'Documents'],
   ['reports', 'Reportes', 'Reports'], ['flows', 'Flujos', 'Flows'], ['returns', 'Postventa', 'After-sales'], ['connections', 'Acciones HTTP', 'HTTP actions'],
-  ['orders', 'Acciones de pedidos', 'Order actions'], ['templates', 'Plantillas', 'Templates'], ['campaigns', 'Campañas', 'Campaigns'], ['automations', 'Automatizaciones', 'Automations'], ['mobile', 'Avisos móviles', 'Mobile notifications'], ['release', 'Lanzamiento', 'Launch'], ['migrations','Migraciones','Migrations']];
+  ['orders', 'Acciones de pedidos', 'Order actions'], ['templates', 'Plantillas', 'Templates'], ['campaigns', 'Campañas', 'Campaigns'], ['automations', 'Automatizaciones', 'Automations'], ['mobile', 'Avisos móviles', 'Mobile notifications'], ['release', 'Lanzamiento', 'Launch'], ['migrations','Migraciones','Migrations'],['help','Ayuda','Help']];
 const automationParams = Promise.resolve({ id: ids.flow });
 const noChange = () => {};
 const selectedCases = [ids.conversation];
@@ -84,6 +86,7 @@ function App() {
             'This view compares added controls. Existing editors, campaigns, templates and modules keep their place.')}</p>
           {improved && page === 'rules' && <><RuleVersions ruleId={ids.rule} onChanged={async () => {}} /><ToolContextPolicies agentId={ids.agent} /></>}
           {page === 'documents' && <DocumentSources agentId={ids.agent} />}
+          {improved&&page==='help'&&<><PublicHelpPortal slug="fixture-store" initialLocale={locale}/><WidgetHelpCenter session="synthetic-widget-session" locale={locale} onExpired={noChange}/></>}
           {page === 'reports' && <><OutcomeEvidence report={report} /><CaseReasonsCard range={reportRange} /></>}
           {page === 'flows' && <FlowMetricDetails flowId={ids.flow} />}
           {page === 'returns' && <><ProductReturnPolicyEditor productId={ids.product} /><ReturnCaseHistory caseId={ids.product} /><ReturnLogisticsEvidence caseId={ids.product} onChanged={noChange} /></>}

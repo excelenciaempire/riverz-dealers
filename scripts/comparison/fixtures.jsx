@@ -30,6 +30,12 @@ const rule = { id: ids.rule, titulo: copy('Cambio de talla', 'Size exchange'), c
 let ruleDraft = null;
 const ruleVersions = [{ rule_id: ids.rule, revision: 1, snapshot: { ...rule }, created_at: now, source: 'baseline', actor_id: ids.user }];
 const documentHistory = [{ ...source, observed_at: now }];
+let helpPortal={id:ids.flow,workspace_id:ids.workspace,agent_id:ids.agent,slug:'fixture-store',brand:{name:copy('Tienda ejemplo','Example store'),description:copy('Respuestas para tus compras','Answers for your purchases'),accent:'#2563eb'},revision:1,published:true,
+ articles:[{id:ids.rule,portal_id:ids.flow,source_id:source.id,source_revision:source.revision,title:copy('Cambios y devoluciones','Returns and exchanges'),body:source.text,locale,revision:1,status:selected.get('page')==='help'?'published':'draft',updated_at:now}]};
+const helpVisits=new Map();
+const helpAvoidance=new Map();
+function publicHelpPortal(language){return {slug:helpPortal.slug,brand:helpPortal.brand,locale:language,articles:helpPortal.articles.filter(row=>row.status==='published'&&row.locale===language&&source.status==='active'&&row.source_revision===source.revision).map(({id,title,body,revision,updated_at})=>({id,title,body,revision,updated_at}))};}
+function helpStatistics(){const responses=[...helpVisits.values()],avoidance=[...helpAvoidance.values()];return {views:responses.length,responded:responses.filter(value=>value!==null).length,resolved:responses.filter(value=>value===true).length,needsHelp:responses.filter(value=>value===false).length,avoidanceResponded:avoidance.length,reportedAvoided:avoidance.filter(value=>value===true).length,windowDays:30,observedAt:now};}
 const caseAnswer = { gap_id: ids.flow, question: copy('¿Podemos reservar la talla M para este pedido?', 'Can we reserve size M for this order?'), missing: null,
   created_at: now, answer: copy('Reserva autorizada solo para este caso durante 24 horas; confirmar existencias antes del cambio.', 'Reservation authorized only for this case for 24 hours; confirm stock before the exchange.'), revision: 1, answered_at: now, answered_by: ids.user, resolved_at: null };
 let policySnapshot = { product_id: ids.product, revision: 1, changed_at: now, policy: { mode: 'allow', window_days: 15, starts_at: 'delivery',
@@ -57,9 +63,33 @@ export async function fixtureFetch(input, init = {}) {
   window.__comparisonCalls ??= []; window.__comparisonCalls.push({ path, method: init.method ?? 'GET' });
   const body = typeof init.body === 'string' ? JSON.parse(init.body) : {};
   const method = init.method ?? 'GET';
-  const editable = path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || ['/api/contacts/migrations','/api/contacts/migrations/native','/api/contacts/migrations/history'].includes(path)&&method==='POST';
+  const editable = path.endsWith('/collaboration') || path.endsWith('/documents') && method === 'PATCH' || path.endsWith('/versions') || path.endsWith('/return-policy') || (path.endsWith('/help-portal')||path.startsWith('/api/help-portals/'))&&method==='POST' || ['/api/contacts/migrations','/api/contacts/migrations/native','/api/contacts/migrations/history'].includes(path)&&method==='POST';
   if (method !== 'GET' && !editable) return reply({ error: copy('Operación bloqueada en la comparación local.', 'Operation blocked in the local comparison.') }, 503);
   // Synthetic in-memory receipts only. These are not database/import evidence.
+  if(path==='/api/widget/help-portal')return reply({portal:publicHelpPortal(url.searchParams.get('locale')??locale),orders:[{id:ids.product,reference:'#EXAMPLE-1001',status:'paid',observed_at:now}]});
+  if(path.startsWith('/api/help-portals/')){
+    if(method==='GET')return reply(publicHelpPortal(url.searchParams.get('locale')??locale));
+    const key=`${body.articleId}:${body.revision}:${body.visitId}`;if(!helpVisits.has(key)||helpVisits.get(key)===null)helpVisits.set(key,body.resolved);
+    if(typeof body.avoidedContact==='boolean'&&helpVisits.get(key)===true&&!helpAvoidance.has(key))helpAvoidance.set(key,body.avoidedContact);return reply({recorded:true});
+  }
+  if(path.endsWith('/help-portal')){
+    if(method==='GET')return reply({portal:helpPortal,statistics:helpStatistics()});
+    const input=body.input;
+    if(body.action==='configure'){if(input.revision!==helpPortal.revision)return reply({code:'portal_changed'},409);Object.assign(helpPortal,{slug:input.slug,brand:input.brand,published:input.published,revision:helpPortal.revision+1});}
+    else{
+      const current=helpPortal.articles.find(row=>row.id===input.id);
+      if(body.action==='save'){
+        if(source.status!=='active'||input.sourceRevision!==source.revision||!source.text.includes(input.body))return reply({code:'portal_source_changed'},409);
+        if(current&&current.revision!==input.revision)return reply({code:'portal_changed'},409);
+        const row={id:input.id,portal_id:helpPortal.id,source_id:input.sourceId,source_revision:input.sourceRevision,title:input.title,body:input.body,locale:input.locale,revision:(current?.revision??0)+1,status:'draft',updated_at:now};
+        helpPortal.articles=helpPortal.articles.filter(item=>item.id!==row.id).concat(row);
+      }else{
+        if(!current||current.revision!==input.revision)return reply({code:'portal_changed'},409);
+        if(body.action==='publish'&&(input.reviewed!==true||current.source_revision!==source.revision||source.status!=='active'))return reply({code:'portal_source_changed'},409);
+        current.status=body.action==='publish'?'published':'withdrawn';current.revision++;
+      }
+    }return reply({portal:helpPortal});
+  }
   if(path==='/api/contacts/migrations/history'){
     if(method==='POST'&&body.action==='start'){
       const {id,receiptId,provider,origin,accountId}=body.input;

@@ -25,7 +25,7 @@ beforeAll(async()=>{
  ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;CREATE POLICY fixture_broad_policy ON storage.objects FOR ALL TO anon,authenticated USING(true) WITH CHECK(true);
  GRANT USAGE ON SCHEMA public,storage TO anon,authenticated,service_role;GRANT ALL ON storage.objects TO anon,authenticated,service_role;GRANT SELECT ON storage.buckets TO service_role;
  CREATE FUNCTION workspace_billing_write_allowed(ws uuid) RETURNS boolean LANGUAGE sql AS $$SELECT writable FROM public.workspaces WHERE id=ws$$;`);
- for(const path of ['360_contact_migration_receipts.sql','361_native_contact_migration_jobs.sql','362_native_contact_review_authority.sql','363_private_history_archives.sql'])await db.exec(readFileSync('supabase/migrations/'+path,'utf8'));
+ for(const path of ['360_contact_migration_receipts.sql','361_native_contact_migration_jobs.sql','362_native_contact_review_authority.sql','363_private_history_archives.sql','364_empty_history_archive_progress.sql'])await db.exec(readFileSync('supabase/migrations/'+path,'utf8'));
 },30000);
 afterAll(async()=>{await db.close();});
 beforeEach(async()=>{
@@ -36,6 +36,13 @@ beforeEach(async()=>{
  await db.query("INSERT INTO contact_migration_sources VALUES($1,'chatwoot','https://source.example.test#7',$2,'42','573001112233',$3,$4)",[ws,hash,receipt,contact]);
 });
 describe('Private archive authority and storage lifecycle',()=>{
+ it('reports every processed contact in an empty archive after erasing the private payload',async()=>{
+  await create();const [job]=await claim();
+  expect(await record(job,{...job.payload,targetIndex:1,phase:'done'})).toBe(true);
+  expect(archiveSnapshot.parse(await read())).toMatchObject({state:'empty',targets:1,contacts_collected:1,conversations:0,messages:0,files:0});
+  expect(await scalar('SELECT payload FROM native_history_archives')).toBeNull();
+  expect(await scalar('SELECT credential_ciphertext FROM native_history_archives')).toBeNull();
+ });
  it('is service-RPC only and restricts archive storage even under a broad existing policy',async()=>{
   expect(await scalar('SELECT native_history_archive_ready()')).toBe(true);
   await db.exec("INSERT INTO storage.objects VALUES('migration-archives','fixture'),('other-bucket','public-fixture')");
