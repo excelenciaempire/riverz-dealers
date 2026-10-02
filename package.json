@@ -82,7 +82,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
-    "@shopify/cli": "^4.7.1",
+    "@shopify/cli": "^4.8.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^25",
     "@types/react": "^19",
@@ -91,10 +91,10 @@
     "eslint": "^9",
     "eslint-config-next": "^16.3.6",
     "liquidjs": "^10.29.0",
-    "prettier": "^3.8.3",
-    "prettier-plugin-tailwindcss": "^0.8.0",
+    "prettier": "^3.9.9",
+    "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^6",
     "vitest": "^4.1.6"
   },
