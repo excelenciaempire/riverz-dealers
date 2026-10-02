@@ -1,0 +1,8 @@
+import { beforeEach, it, expect, vi } from 'vitest';
+const h=vi.hoisted(()=>({enabled:true,ctx:vi.fn(),read:vi.fn()}));vi.mock('@/lib/ui/improvements-preview',()=>({get SHOW_RIVERZ_IMPROVEMENTS(){return h.enabled;}}));vi.mock('@/lib/ai/guidance-server',()=>({guidanceSession:h.ctx}));vi.mock('@/lib/i18n/server',()=>({getLocale:async()=> 'es'}));vi.mock('@/lib/ai/rule-reviews',async original=>({...await original<object>(),readRuleReviewMetrics:h.read}));
+import {GET} from './route';
+const id='11111111-1111-4111-8111-111111111111',ws='22222222-2222-4222-8222-222222222222',actor='33333333-3333-4333-8333-333333333333',db={},route={params:Promise.resolve({id})};
+beforeEach(()=>{vi.clearAllMocks();h.enabled=true;h.ctx.mockResolvedValue({db,workspaceId:ws,userId:actor});h.read.mockResolvedValue({attribution:'team_assessment'});});
+it('keeps review statistics hidden outside comparison',async()=>{h.enabled=false;expect((await GET(new Request('https://riverz.co/api/reglas/'+id+'/reviews'),route)).status).toBe(404);expect(h.ctx).not.toHaveBeenCalled();});
+it('uses the session actor and never accepts alternate authority',async()=>{expect((await GET(new Request('https://riverz.co/api/reglas/'+id+'/reviews'),route)).status).toBe(200);expect(h.read).toHaveBeenCalledWith(db,ws,actor,id);h.read.mockClear();expect((await GET(new Request('https://riverz.co/api/reglas/'+id+'/reviews?actor_id='+actor),route)).status).toBe(400);expect(h.read).not.toHaveBeenCalled();});
+it('withholds statistics after the current actor changes',async()=>{h.ctx.mockResolvedValueOnce({db,workspaceId:ws,userId:actor}).mockResolvedValueOnce({db,workspaceId:ws,userId:ws});expect((await GET(new Request('https://riverz.co/api/reglas/'+id+'/reviews'),route)).status).toBe(404);});

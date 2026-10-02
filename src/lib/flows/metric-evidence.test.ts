@@ -1,0 +1,13 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { beforeEach,it,expect,vi } from 'vitest';
+import {readFlowMetricEvidence} from './metric-evidence';
+import {parseFlowMetricQuery} from './metric-contract';
+const ws='11111111-1111-4111-8111-111111111111',actor='22222222-2222-4222-8222-222222222222',flow='33333333-3333-4333-8333-333333333333';
+const h={rpc:vi.fn(),from:vi.fn(),eq:vi.fn(),is:vi.fn(),limit:vi.fn()},query=parseFlowMetricQuery(new URLSearchParams({from:'2026-09-01T00:00:00Z',through:'2026-10-01T00:00:00Z'}));
+const view={flow_id:flow,from_at:query.from,through_at:query.through,attribution:'recorded_execution',total_runs:0,node_entries:0,by_node:{},by_status:{},evidence_filter:{node_key:null,status:null},matched_runs:0,records:[],next_cursor:null};
+const db={from:h.from,rpc:h.rpc} as unknown as SupabaseClient;
+beforeEach(()=>{vi.clearAllMocks();const chain={select:()=>chain,eq:h.eq,is:h.is,limit:h.limit};h.from.mockReturnValue(chain);h.eq.mockReturnValue(chain);h.is.mockReturnValue(chain);h.limit.mockResolvedValue({data:[{id:flow}],error:null});h.rpc.mockResolvedValue({data:view,error:null});});
+it('resolves a unique flow in the session workspace and passes the real actor',async()=>{expect(await readFlowMetricEvidence(db,ws,actor,flow.slice(0,8),query)).toMatchObject(view);expect(h.eq).toHaveBeenCalledWith('workspace_id',ws);expect(h.rpc).toHaveBeenCalledWith('read_flow_metric_evidence',expect.objectContaining({p_workspace_id:ws,p_actor_id:actor,p_flow_id:flow}));});
+it('rejects ambiguous short IDs without choosing the first flow',async()=>{h.limit.mockResolvedValue({data:[{id:flow},{id:ws}],error:null});await expect(readFlowMetricEvidence(db,ws,actor,flow.slice(0,8),query)).rejects.toThrow('flow_metrics_not_found');expect(h.rpc).not.toHaveBeenCalled();});
+it('does not turn database errors into an empty cohort',async()=>{h.rpc.mockResolvedValue({data:null,error:{message:'Private details'}});await expect(readFlowMetricEvidence(db,ws,actor,flow,query)).rejects.toThrow('flow_metrics_unavailable');});
+it.each([{...view,flow_id:ws},{...view,from_at:'2026-08-01T00:00:00Z'},{...view,evidence_filter:{node_key:'unrequested',status:null}},{...view,total_runs:1}])('rejects an unbound or inconsistent report',async value=>{h.rpc.mockResolvedValue({data:value,error:null});await expect(readFlowMetricEvidence(db,ws,actor,flow,query)).rejects.toThrow('flow_metrics_unavailable');});

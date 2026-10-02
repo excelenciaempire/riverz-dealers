@@ -1,0 +1,11 @@
+import { beforeEach,describe,it,expect,vi } from 'vitest';
+const h=vi.hoisted(()=>({ctx:vi.fn(),read:vi.fn(),locale:'es' as 'es'|'en'}));vi.mock('@/lib/inbox/server-context',()=>({inboxSession:h.ctx}));vi.mock('@/lib/i18n/server',()=>({getLocale:async()=>h.locale}));vi.mock('@/lib/flows/metric-evidence',()=>({readFlowMetricEvidence:h.read}));
+import {GET} from './route';
+const id='11111111-1111-4111-8111-111111111111',ws='22222222-2222-4222-8222-222222222222',actor='33333333-3333-4333-8333-333333333333',db={},route={params:Promise.resolve({id})},url='https://riverz.co/api/flows/'+id+'/node-analytics';
+beforeEach(()=>{vi.clearAllMocks();h.locale='es';h.ctx.mockResolvedValue({db,workspaceId:ws,userId:actor});h.read.mockResolvedValue({by_node:{start:1104},total_runs:1103});});
+describe('Existing node map gets complete authorized metrics',()=>{
+ it('keeps the current days query and private cache policy',async()=>{const response=await GET(new Request(url+'?days=7'),route);expect(response.status).toBe(200);expect(response.headers.get('cache-control')).toBe('private, no-store');expect(await response.json()).toMatchObject({by_node:{start:1104},total_runs:1103});expect(h.read).toHaveBeenCalledWith(db,ws,actor,id,expect.objectContaining({days:7}));});
+ it.each(['days=NaN','days=7&days=30','workspace_id='+ws])('rejects invalid queries before data reads %s',async query=>{expect((await GET(new Request(url+'?'+query),route)).status).toBe(400);expect(h.read).not.toHaveBeenCalled();});
+ it.each(['es','en'] as const)('returns localized failures without fake zeros in %s',async locale=>{h.locale=locale;h.read.mockRejectedValue(new Error('SECRET'));const response=await GET(new Request(url),route),raw=await response.json();expect(response.status).toBe(503);expect(raw.error).not.toContain('SECRET');expect(raw.error).not.toContain('flows.');expect(raw.by_node).toBeUndefined();});
+ it('does not read without a current session or disclose after a workspace switch',async()=>{h.ctx.mockResolvedValueOnce({response:new Response('{}',{status:401})});expect((await GET(new Request(url),route)).status).toBe(401);expect(h.read).not.toHaveBeenCalled();h.ctx.mockResolvedValueOnce({db,workspaceId:ws,userId:actor}).mockResolvedValueOnce({db,workspaceId:actor,userId:actor});expect((await GET(new Request(url),route)).status).toBe(404);});
+});

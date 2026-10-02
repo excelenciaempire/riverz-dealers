@@ -100,6 +100,7 @@ import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useT, useLocale } from "@/hooks/use-locale";
 import { SHOW_RIVERZ_IMPROVEMENTS } from "@/lib/ui/improvements-preview";
 import { FlowHttpEditorContext, HttpFlowNodeForm } from "./http-node-form";
+import { FlowMetricDetails } from "./metric-details";
 import type { TFn } from "@/lib/i18n/translate";
 import {
   reachableFromEntry,
@@ -983,20 +984,22 @@ export function FlowBuilder({
   // Historial de versiones (dialog) y overlay de analítica por nodo.
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [analyticsOn, setAnalyticsOn] = useState(false);
-  const [analytics, setAnalytics] = useState<Record<string, number>>({});
+  const [analytics, setAnalytics] = useState<Record<string, number> | null>(null);
   useEffect(() => {
     if (!analyticsOn || templatePreview) return;
-    let cancelled = false;
-    fetch(`/api/flows/${initialFlow.id}/node-analytics?days=7`)
-      .then((r) => (r.ok ? r.json() : null))
+    const controller = new AbortController();
+    setAnalytics(null);
+    fetch(`/api/flows/${initialFlow.id}/node-analytics?days=7`, {cache:'no-store',signal:controller.signal})
+      .then((r) => { if (!r.ok) throw new Error('unavailable'); return r.json(); })
       .then((d: { by_node?: Record<string, number> } | null) => {
-        if (!cancelled) setAnalytics(d?.by_node ?? {});
+        if (!d?.by_node || Object.values(d.by_node).some(n => !Number.isSafeInteger(n) || n < 0)) throw new Error('unavailable');
+        if (!controller.signal.aborted) setAnalytics(d.by_node);
       })
-      .catch(() => {});
+      .catch(() => { if (!controller.signal.aborted) { setAnalytics(null); toast.error(t('flows.metricUnavailable')); } });
     return () => {
-      cancelled = true;
+      controller.abort();
     };
-  }, [analyticsOn, initialFlow.id, templatePreview]);
+  }, [analyticsOn, initialFlow.id, templatePreview, t]);
   const visibleIssues: ValidationIssue[] = showValidation ? issues : [];
 
   // ---- Save (PUT) ----
@@ -2353,6 +2356,7 @@ export function FlowBuilder({
           onRedo={handleRedo}
           templatePreview={templatePreview}
         />
+        {SHOW_RIVERZ_IMPROVEMENTS && !templatePreview && <FlowMetricDetails flowId={initialFlow.id} />}
       </div>
 
       {templatePreview && (
@@ -2410,7 +2414,7 @@ export function FlowBuilder({
             onSelectNode={toggleNodeSelection}
             onClearMultiSelect={clearNodeSelection}
             liveLinter={liveLinter}
-            analyticsOverlay={{ active: analyticsOn, byNode: analytics }}
+            analyticsOverlay={{ active: analyticsOn && analytics !== null, byNode: analytics ?? {} }}
             onAdd={addNode}
             triggerType={state.trigger_type}
             triggerConfig={state.trigger_config}

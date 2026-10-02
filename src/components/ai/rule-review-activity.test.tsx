@@ -1,0 +1,15 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+import { beforeEach,afterEach,it,expect,vi } from 'vitest';
+import { translate } from '@/lib/i18n/translate';
+const h=vi.hoisted(()=>({enabled:true,locale:'es' as 'es'|'en',index:0,bank:[] as unknown[],fetch:vi.fn()}));
+vi.mock('@/lib/ui/improvements-preview',()=>({get SHOW_RIVERZ_IMPROVEMENTS(){return h.enabled;}}));vi.mock('@/hooks/use-locale',()=>({useLocale:()=>({t:(key:string,args?:Record<string,string>)=>translate(h.locale,key,args)})}));vi.mock('@/hooks/use-format',()=>({useFormat:()=>({number:String})}));
+vi.mock('react',async()=>({...await vi.importActual<typeof import('react')>('react'),useState:(initial:unknown)=>{const i=h.index++;if(!(i in h.bank))h.bank[i]=initial;return[h.bank[i],(next:unknown)=>{h.bank[i]=typeof next==='function'?next(h.bank[i]):next;}];},useRef:(initial:unknown)=>{const i=h.index++;if(!(i in h.bank))h.bank[i]={current:initial};return h.bank[i];},useEffect:vi.fn()}));
+import {RuleReviewActivity} from './rule-review-activity';
+const metrics={attribution:'team_assessment',reviewed_turns:2,applied_turns:1,missed_turns:1,not_applicable_turns:0,unverified_turns:0,eligible_turns:2,related_transfer_turns:0,assessed_transfer_turns:0,distinct_reviewed_cases:1,application_rate:50};
+function render(){h.index=0;return RuleReviewActivity({ruleId:'11111111-1111-4111-8111-111111111111'});}
+async function open(){const node=render()!;(node.props.onToggle as(event:unknown)=>void)({currentTarget:{open:true}});await vi.waitFor(()=>expect(h.bank[3]).toBe(false));}
+beforeEach(()=>{vi.clearAllMocks();h.enabled=true;h.locale='es';h.bank=[];h.fetch.mockImplementation(async()=>new Response(JSON.stringify(metrics)));vi.stubGlobal('fetch',h.fetch);});afterEach(()=>vi.unstubAllGlobals());
+it.each(['es','en'] as const)('hides all new metrics outside comparison in %s',locale=>{h.locale=locale;h.enabled=false;expect(renderToStaticMarkup(render())).toBe('');expect(h.fetch).not.toHaveBeenCalled();});
+it.each(['es','en'] as const)('displays the audited denominator and human attribution in %s',async locale=>{h.locale=locale;render();expect(h.fetch).not.toHaveBeenCalled();await open();const html=renderToStaticMarkup(render());expect(html).toContain('50%');expect(html).toContain(translate(locale,'reglas.reviewRate',{rate:'50',n:'2'}));expect(html).not.toContain('reglas.review');});
+it('does not fabricate a zero-percent rate for an empty sample',async()=>{h.fetch.mockImplementation(async()=>new Response(JSON.stringify({...metrics,reviewed_turns:0,applied_turns:0,missed_turns:0,eligible_turns:0,distinct_reviewed_cases:0,application_rate:null})));await open();const html=renderToStaticMarkup(render());expect(html).toContain(translate('es','reglas.reviewNoRate'));expect(html).not.toContain('0%');});
+it('rejects totals inconsistent with the denominator',async()=>{h.fetch.mockImplementation(async()=>new Response(JSON.stringify({...metrics,application_rate:100})));await open();expect(renderToStaticMarkup(render())).toContain('role="alert"');expect(renderToStaticMarkup(render())).not.toContain('100%');});

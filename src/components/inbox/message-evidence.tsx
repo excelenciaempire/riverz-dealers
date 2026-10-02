@@ -1,5 +1,5 @@
 'use client'
-import { useEffect,useRef,useState } from 'react'
+import { Fragment,useEffect,useRef,useState } from 'react'
 import { Info } from 'lucide-react'
 import { useLocale } from '@/hooks/use-locale'
 import { useFormat } from '@/hooks/use-format'
@@ -8,6 +8,8 @@ import type { TurnEvidence } from '@/lib/ai/turn-evidence-contract'
 import { toolPermissionKey } from '@/lib/ai/toolbox'
 import { SUFIJO } from '@/components/ai/tool-switchboard'
 import { DocumentEvidenceSource } from './document-evidence-source'
+import { RuleReview } from './rule-review'
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview'
 type View={ receipts:{ id:string;status:string;reason:string | null;evidence:TurnEvidence;created_at:string }[];legacy:{ id:string;status:string;skip_reason:string | null;tools_used:string[] | null;model:string | null;created_at:string }[];truncated:boolean }
 type CaseSource={ id:string;question_snapshot:string;answer:string;revision:number;created_at:string;actor_id:string | null }
 export function MessageEvidence({ conversationId,messageId }: { conversationId:string;messageId:string }) {
@@ -59,7 +61,7 @@ export function MessageEvidence({ conversationId,messageId }: { conversationId:s
           <div className="mt-2 space-y-2">
             {row.reason && <p>{reason(row.reason)}</p>}
             <details><summary className="cursor-pointer">{t('inbox.evidenceRules')}</summary><p className="mt-1 text-muted-foreground">{t('inbox.evidenceRulesHint')}</p>
-              {row.evidence.rules.length ? row.evidence.rules.map(rule => <p key={rule.id} className="mt-1">{rule.title} · {rule.revision ? t('reglas.versionNumber',{ n:fmt.number(rule.revision) }) : t('inbox.evidenceVersionUnknown')}</p>) : <p>{t('inbox.evidenceNoRules')}</p>}
+              {row.evidence.rules.length ? row.evidence.rules.map(rule => <Fragment key={rule.id}><p className="mt-1">{rule.title} · {rule.revision ? t('reglas.versionNumber',{ n:fmt.number(rule.revision) }) : t('inbox.evidenceVersionUnknown')}</p>{SHOW_RIVERZ_IMPROVEMENTS && rule.revision !== null && rule.revision > 0 && <RuleReview conversationId={conversationId} turnId={row.id} ruleId={rule.id} />}</Fragment>) : <p>{t('inbox.evidenceNoRules')}</p>}
             </details>
             <details><summary className="cursor-pointer">{t('inbox.evidenceSources')}</summary><p className="mt-1 text-muted-foreground">{t('inbox.evidenceSourcesHint')}</p>
               {row.evidence.sources.map((entry,index) => <p key={`${entry.kind}:${entry.id}:${entry.kind==='document' ? entry.revision : ''}`} className="mt-1">{entry.kind==='document' ? <DocumentEvidenceSource source={entry} /> : entry.kind==='case_answer' ? <button type="button" className="text-left underline" onClick={() => void openCaseSource(entry.id)}>{t('inbox.evidenceCaseAnswer')}{entry.title ? ` · ${entry.title}` : ''}</button> : <a className="underline" href={entry.kind==='catalogue' ? `/productos/${entry.id}` : `#msg-${entry.id}`}>{entry.kind==='catalogue' ? entry.title || t('inbox.evidenceProduct') : t('inbox.evidenceMessage',{ n:fmt.number(index+1) })}</a>}</p>)}
