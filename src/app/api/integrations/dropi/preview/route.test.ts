@@ -7,6 +7,7 @@ vi.mock('@/lib/integrations/logistics-read', () => ({ readLogisticsReview: vi.fn
 import { createClient } from '@/lib/supabase/server';
 import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace';
 import { readLogisticsReview } from '@/lib/integrations/logistics-read';
+import { LogisticsAccessError } from '@/lib/logistics/access';
 import { GET } from './route';
 const request = new Request('https://example.com/api/integrations/dropi/preview?workspace_id=foreign');
 describe('logistics preview authorization', () => {
@@ -30,8 +31,12 @@ describe('logistics preview authorization', () => {
     vi.mocked(resolveWorkspaceId).mockResolvedValue('own');
     vi.mocked(readLogisticsReview).mockResolvedValue({ mode: 'draft', executable: false, orders: [] } as never);
     const response = await GET(request);
-    expect(readLogisticsReview).toHaveBeenCalledWith(expect.anything(), 'own', 'es', undefined);
+    expect(readLogisticsReview).toHaveBeenCalledWith(expect.anything(), 'own', 'user', 'es', undefined);
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(await response.json()).toMatchObject({ executable: false });
+  });
+  it('returns a private forbidden response after current Orders permission is denied', async () => {
+    session('user');vi.mocked(resolveWorkspaceId).mockResolvedValue('own');vi.mocked(readLogisticsReview).mockRejectedValueOnce(new LogisticsAccessError());
+    const response=await GET(request);expect(response.status).toBe(403);expect(response.headers.get('cache-control')).toBe('private, no-store');expect(await response.json()).toEqual({error:'No tienes permiso para acceder a esta operación.'});
   });
 });

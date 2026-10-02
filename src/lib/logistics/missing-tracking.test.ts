@@ -8,6 +8,8 @@ vi.mock('@/lib/shopify/order-tags', () => ({
     accessToken: 'test-token',
   })),
 }));
+vi.mock('./access', () => ({ logisticsAccess: vi.fn(async () => ({ inbox: true, voice: true })) }));
+vi.mock('@/lib/billing/read-only', () => ({ assertWorkspaceWritable: vi.fn(async () => {}) }));
 vi.mock('@/lib/automations/engine', () => ({ runAutomationsForTrigger: vi.fn(async () => {}) }));
 vi.mock('@/lib/webhooks/outbound', () => ({ emitWebhook: vi.fn(async () => {}) }));
 vi.mock('@/lib/shopify/offers', () => ({
@@ -21,6 +23,8 @@ vi.mock('@/lib/shopify/contact-upsert', () => ({
 }));
 
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
+import { logisticsAccess } from './access';
+import { assertWorkspaceWritable } from '@/lib/billing/read-only';
 import {
   normalizeTrackingNumber,
   recordManualTracking,
@@ -69,11 +73,23 @@ const shopifyOrder = (extra: Record<string, unknown> = {}) =>
     ),
   );
 
-const args = { workspaceId: 'ws', orderId: ORDER_ID, trackingNumber: ' 1140 1559 1855 ', carrier: 'envia' };
+const args = { workspaceId: 'ws', actorId: 'actor', orderId: ORDER_ID, trackingNumber: ' 1140 1559 1855 ', carrier: 'envia' };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); vi.mocked(logisticsAccess).mockResolvedValue({inbox:true,voice:true});vi.mocked(assertWorkspaceWritable).mockResolvedValue(); });
 
 describe('manual tracking for orders the logistics app never synced', () => {
+  it('stops before Shopify when the current actor cannot write Orders', async () => {
+    const { db, updates } = database(mirror);const fetcher=shopifyOrder();vi.mocked(logisticsAccess).mockRejectedValueOnce(new Error('logistics_access_forbidden'));
+    await expect(recordManualTracking(db,args,fetcher)).rejects.toThrow('logistics_access_forbidden');expect(fetcher).not.toHaveBeenCalled();expect(updates).toEqual([]);expect(runAutomationsForTrigger).not.toHaveBeenCalled();
+  });
+  it('rechecks current permissions after the Shopify read, before saving or notifying', async () => {
+    const { db, updates } = database(mirror);vi.mocked(logisticsAccess).mockResolvedValueOnce({inbox:true,voice:true}).mockRejectedValueOnce(new Error('logistics_access_forbidden'));
+    await expect(recordManualTracking(db,args,shopifyOrder())).rejects.toThrow('logistics_access_forbidden');expect(updates).toEqual([]);expect(runAutomationsForTrigger).not.toHaveBeenCalled();
+  });
+  it('blocks tracking writes when the current subscription becomes read-only', async () => {
+    const { db, updates } = database(mirror);vi.mocked(assertWorkspaceWritable).mockResolvedValueOnce().mockRejectedValueOnce(new Error('subscription_read_only'));
+    await expect(recordManualTracking(db,args,shopifyOrder())).rejects.toThrow('subscription_read_only');expect(updates).toEqual([]);expect(runAutomationsForTrigger).not.toHaveBeenCalled();
+  });
   it('normalizes what the merchant pastes and rejects free text', () => {
     expect(normalizeTrackingNumber(' 1140 1559 1855 ')).toBe('114015591855');
     expect(normalizeTrackingNumber('ya salió')).toBeNull();

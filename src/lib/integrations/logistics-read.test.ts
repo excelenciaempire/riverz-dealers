@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/shopify/order-tags', () => ({ resolveShopifyAdmin: vi.fn() }));
+vi.mock('@/lib/logistics/access', () => ({ logisticsAccess: vi.fn(async () => ({ inbox: true, voice: true })) }));
 import { resolveShopifyAdmin } from '@/lib/shopify/order-tags';
 import { readLogisticsReview, shopifyLogisticsSnapshot } from './logistics-read';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -34,7 +35,7 @@ describe('live logistics read boundaries', () => {
     vi.mocked(resolveShopifyAdmin).mockResolvedValue(null);
     const query={ select:vi.fn().mockReturnThis(),eq:vi.fn().mockReturnThis(),maybeSingle:vi.fn().mockResolvedValue({data:null,error:null}) };
     const fetcher=vi.fn();
-    const report=await readLogisticsReview({from:()=>query} as unknown as SupabaseClient,'ws','es',undefined,fetcher);
+    const report=await readLogisticsReview({from:()=>query} as unknown as SupabaseClient,'ws','actor','es',undefined,fetcher);
     expect(report.executable).toBe(false);
     expect(report.blockers).toContain('dropi_not_connected');
     expect(fetcher).not.toHaveBeenCalled();

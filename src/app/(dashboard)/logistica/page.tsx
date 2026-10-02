@@ -18,7 +18,7 @@ export default async function LogisticsPage({ searchParams }: { searchParams: Pr
   const workspaceId = await resolveWorkspaceId(client, user.id);
   if (!workspaceId) return <p className="p-6">{t('noOrders')}</p>;
   let report;
-  try { report = await readLogisticsReview(admin, workspaceId, locale, (await searchParams).cursor); }
+  try { report = await readLogisticsReview(admin, workspaceId, user.id, locale, (await searchParams).cursor); }
   catch { return <p className="p-6">{t('error')}</p>; }
   return <main className="mx-auto max-w-5xl space-y-6 p-6">
     <header className="flex items-center justify-between gap-4">

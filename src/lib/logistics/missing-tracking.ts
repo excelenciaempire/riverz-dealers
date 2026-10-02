@@ -11,6 +11,8 @@ import {
 } from '@/lib/shopify/contact-upsert';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
 import { emitWebhook } from '@/lib/webhooks/outbound';
+import { logisticsAccess } from './access';
+import { assertWorkspaceWritable } from '@/lib/billing/read-only';
 
 /**
  * PEDIDOS SIN GUÍA.
@@ -114,12 +116,14 @@ function isCancelled(order: Record<string, unknown>): boolean {
  */
 export async function recordManualTracking(
   db: SupabaseClient,
-  args: { workspaceId: string; orderId: string; trackingNumber: unknown; carrier: unknown },
+  args: { workspaceId: string; actorId: string; orderId: string; trackingNumber: unknown; carrier: unknown },
   fetcher: typeof fetch = fetch,
 ): Promise<RecordTrackingResult> {
   const trackingNumber = normalizeTrackingNumber(args.trackingNumber);
   const carrier = normalizeCarrier(args.carrier);
   if (!trackingNumber || !carrier) return 'invalid';
+  await logisticsAccess(db, args.workspaceId, args.actorId, true);
+  await assertWorkspaceWritable(db, args.workspaceId);
 
   const { data: row, error } = await db
     .from('orders')
@@ -149,6 +153,8 @@ export async function recordManualTracking(
   if (!order || String(order.id) !== mirror.shopify_order_id) return 'store_unavailable';
   if (isCancelled(order)) return 'cancelled';
   if (hasActiveTracking(order)) return 'already_tracked';
+  await logisticsAccess(db, args.workspaceId, args.actorId, true);
+  await assertWorkspaceWritable(db, args.workspaceId);
 
   const trackingUrl =
     resolveCarrierTrackingUrl(carrier, trackingNumber) ||
@@ -227,7 +233,10 @@ export async function dismissMissingTracking(
   db: SupabaseClient,
   workspaceId: string,
   orderId: string,
+  actorId: string,
 ): Promise<boolean> {
+  await logisticsAccess(db, workspaceId, actorId, true);
+  await assertWorkspaceWritable(db, workspaceId);
   const { data, error } = await db
     .from('orders')
     .update({ tracking_dismissed_at: new Date().toISOString() })

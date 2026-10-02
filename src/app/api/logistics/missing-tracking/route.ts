@@ -5,6 +5,8 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import { logisticsAccess, LogisticsAccessError } from '@/lib/logistics/access';
+import { assertWorkspaceWritable, BillingReadOnlyError } from '@/lib/billing/read-only';
 import {
   dismissMissingTracking,
   listOrdersMissingTracking,
@@ -26,19 +28,25 @@ async function workspaceOf() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
-  return resolveWorkspaceIdForUser(supabase, user.id);
+  const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id);
+  return workspaceId ? { workspaceId, actorId: user.id } : null;
 }
 
 export async function GET() {
   const locale = await getLocale();
-  const workspaceId = await workspaceOf();
-  if (!workspaceId) {
+  const context = await workspaceOf();
+  if (!context) {
     return NextResponse.json({ error: translate(locale, 'logistics.unauthorized') }, { status: 401 });
   }
+  const { workspaceId, actorId } = context;
   try {
-    const orders = await listOrdersMissingTracking(supabaseAdmin(), workspaceId);
-    return NextResponse.json({ orders });
+    const db = supabaseAdmin();
+    await logisticsAccess(db, workspaceId, actorId);
+    const orders = await listOrdersMissingTracking(db, workspaceId);
+    await logisticsAccess(db, workspaceId, actorId);
+    return NextResponse.json({ orders }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (err) {
+    if (err instanceof LogisticsAccessError) return NextResponse.json({ error: translate(locale, 'logistics.forbidden') }, { status: 403, headers: { 'Cache-Control': 'private, no-store' } });
     console.error('[logistics] missing tracking list failed:', err);
     return NextResponse.json({ error: translate(locale, 'logistics.missingLoadError') }, { status: 500 });
   }
@@ -59,9 +67,19 @@ export async function POST(request: Request) {
   const block = await csrfGuard(request);
   if (block) return block;
   const locale = await getLocale();
-  const workspaceId = await workspaceOf();
-  if (!workspaceId) {
+  const context = await workspaceOf();
+  if (!context) {
     return NextResponse.json({ error: translate(locale, 'logistics.unauthorized') }, { status: 401 });
+  }
+  const { workspaceId, actorId } = context;
+
+  const db = supabaseAdmin();
+  try {
+    await logisticsAccess(db, workspaceId, actorId, true);
+    await assertWorkspaceWritable(db, workspaceId);
+  } catch (err) {
+    const key = err instanceof BillingReadOnlyError ? 'readOnly' : err instanceof LogisticsAccessError ? 'forbidden' : 'missingError';
+    return NextResponse.json({ error: translate(locale, `logistics.${key}`) }, { status: err instanceof BillingReadOnlyError ? 402 : err instanceof LogisticsAccessError ? 403 : 503 });
   }
 
   const body = (await request.json().catch(() => null)) as {
@@ -75,10 +93,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: translate(locale, 'logistics.missingNotFound') }, { status: 404 });
   }
 
-  const db = supabaseAdmin();
   try {
     if (body?.dismiss === true) {
-      const ok = await dismissMissingTracking(db, workspaceId, orderId);
+      const ok = await dismissMissingTracking(db, workspaceId, orderId, actorId);
       return ok
         ? NextResponse.json({ ok: true, message: translate(locale, 'logistics.missingDismissed') })
         : NextResponse.json({ error: translate(locale, 'logistics.missingNotFound') }, { status: 404 });
@@ -86,6 +103,7 @@ export async function POST(request: Request) {
 
     const result = await recordManualTracking(db, {
       workspaceId,
+      actorId,
       orderId,
       trackingNumber: body?.trackingNumber,
       carrier: body?.carrier,
@@ -96,6 +114,7 @@ export async function POST(request: Request) {
       ? NextResponse.json({ ok: true, result, message })
       : NextResponse.json({ error: message, result }, { status });
   } catch (err) {
+    if (err instanceof LogisticsAccessError || err instanceof BillingReadOnlyError) return NextResponse.json({ error: translate(locale, `logistics.${err instanceof BillingReadOnlyError ? 'readOnly' : 'forbidden'}`) }, { status: err instanceof BillingReadOnlyError ? 402 : 403 });
     console.error('[logistics] manual tracking failed:', err);
     return NextResponse.json({ error: translate(locale, 'logistics.missingError') }, { status: 500 });
   }

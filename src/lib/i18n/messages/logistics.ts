@@ -17,6 +17,8 @@ export const logistics = {
   shopify_read_unavailable: { es: 'No se pudo obtener acceso de lectura a Shopify.', en: 'Shopify read access is unavailable.' },
   error: { es: 'No se pudo cargar la revisión logística. Intenta de nuevo.', en: 'Could not load the logistics review. Please try again.' },
   unauthorized: { es: 'Inicia sesión para continuar.', en: 'Sign in to continue.' },
+  forbidden: { es: 'No tienes permiso para acceder a esta operación.', en: 'You do not have permission to access this operation.' },
+  readOnly: { es: 'La suscripción permite consultar, pero no modificar pedidos.', en: 'The subscription allows viewing, but not changing orders.' },
   review: { es: 'Requiere revisión', en: 'Review required' },
   pending_confirmation: { es: 'Por confirmar', en: 'Awaiting confirmation' },
   confirmed: { es: 'Confirmado', en: 'Confirmed' },

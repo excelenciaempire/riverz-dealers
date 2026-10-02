@@ -7,6 +7,7 @@ import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking';
 import { confirmationDisplayVars } from '@/lib/automations/confirmation-copy';
 import { planLogisticsDraft, type LogisticsSnapshot } from '@/lib/automations/logistics-draft';
 import type { Locale } from '@/lib/i18n/config';
+import { logisticsAccess, visibleLogisticsConversations, visibleLogisticsCalls } from '@/lib/logistics/access';
 
 interface ShopifyOrder {
   id: number; name: string; created_at: string; updated_at: string;
@@ -43,8 +44,9 @@ export function shopifyLogisticsSnapshot(order: ShopifyOrder, workspaceId: strin
  * Shopify tracking notes cannot become official Dropi incidents. New page reads
  * do not prove a state transition or extend the lifecycle of an existing case.
  */
-export async function readLogisticsReview(db: SupabaseClient, workspaceId: string, locale: Locale,
+export async function readLogisticsReview(db: SupabaseClient, workspaceId: string, actorId: string, locale: Locale,
   cursor?: string, fetcher: typeof fetch = fetch) {
+  const access = await logisticsAccess(db, workspaceId, actorId);
   const now = Date.now();
   const connection = await db.from('dropi_connections').select('status,api_key_encrypted')
     .eq('workspace_id', workspaceId).maybeSingle();
@@ -74,23 +76,26 @@ export async function readLogisticsReview(db: SupabaseClient, workspaceId: strin
     const contactQuery = phones.length ? await db.from('contacts').select('id').eq('workspace_id', workspaceId).in('phone', phones).limit(2) : null;
     if (contactQuery?.error) throw new Error('logistics_contact_read_failed');
     const contactId = contactQuery?.data?.length === 1 ? contactQuery.data[0].id : null;
-    const callsQuery = await db.from('voice_calls').select('id,status,outcome,summary,ended_at,created_at,context')
-      .eq('workspace_id', workspaceId).contains('context', { order_id: String(order.id) })
-      .order('created_at', { ascending: false }).limit(10);
-    if (callsQuery.error) throw new Error('logistics_calls_read_failed');
-    const calls = (callsQuery.data ?? []).map(c => ({ id: c.id, status: c.status, outcome: c.outcome,
-      summary: c.summary, endedAt: c.ended_at, dataOnly: c.context?.cod_writeback === false }));
+    const callIds = access.voice ? [...await visibleLogisticsCalls(db, workspaceId, actorId, String(order.id))] : [];
+    const callsQuery = callIds.length ? await db.from('voice_calls').select('id,status,outcome,summary,ended_at,created_at,cod_writeback:context->cod_writeback')
+      .eq('workspace_id', workspaceId).in('id', callIds).contains('context', { order_id: String(order.id) })
+      .order('created_at', { ascending: false }).limit(10) : null;
+    if (callsQuery?.error) throw new Error('logistics_calls_read_failed');
+    const currentCalls = callIds.length ? await visibleLogisticsCalls(db, workspaceId, actorId, String(order.id), callIds) : new Set<string>();
+    const calls = (callsQuery?.data ?? []).filter(c => currentCalls.has(c.id)).map(c => ({ id: c.id, status: c.status, outcome: c.outcome,
+      summary: c.summary, endedAt: c.ended_at, dataOnly: c.cod_writeback === false }));
     snapshot.callPending = calls.some(c => ['queued', 'dialing', 'in_progress'].includes(c.status));
     let messages: Array<{ id: string; sender: string; text: string; status: string; at: string }> = [];
-    if (contactId) {
+    if (contactId && access.inbox) {
       const conversations = await db.from('conversations').select('id').eq('workspace_id', workspaceId).eq('contact_id', contactId).limit(10);
       if (conversations.error) throw new Error('logistics_conversation_read_failed');
-      const ids = (conversations.data ?? []).map(c => c.id);
+      const ids = [...await visibleLogisticsConversations(db, workspaceId, actorId, (conversations.data ?? []).map(c => c.id), contactId)];
       if (ids.length) {
-        const rows = await db.from('messages').select('id,sender_type,content_text,status,created_at')
+        const rows = await db.from('messages').select('id,conversation_id,sender_type,content_text,status,created_at')
           .in('conversation_id', ids).gte('created_at', order.created_at).order('created_at', { ascending: false }).limit(20);
         if (rows.error) throw new Error('logistics_message_read_failed');
-        messages = (rows.data ?? []).map(m => ({ id: m.id, sender: m.sender_type,
+        const current = await visibleLogisticsConversations(db, workspaceId, actorId, ids, contactId);
+        messages = (rows.data ?? []).filter(m => current.has(m.conversation_id)).map(m => ({ id: m.id, sender: m.sender_type,
           text: String(m.content_text ?? '').slice(0, 1500), status: m.status, at: m.created_at }));
       }
     }
@@ -107,5 +112,8 @@ export async function readLogisticsReview(db: SupabaseClient, workspaceId: strin
       proposal: planLogisticsDraft(snapshot, now),
     });
   }
+  const currentAccess = await logisticsAccess(db, workspaceId, actorId);
+  if (!currentAccess.inbox) for (const order of orders) order.messages = [];
+  if (!currentAccess.voice) for (const order of orders) order.calls = [];
   return { ...base, orders, nextCursor: nextPageInfo(response.headers.get('link')) };
 }
