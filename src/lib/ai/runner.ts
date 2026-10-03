@@ -1,6 +1,7 @@
 import { isDealerDeployment } from '@/lib/dealers/config';
 import { verifiedDealerPrices, type DealerQuoteEvidence } from '@/lib/dealers/quote-evidence';
 import { dealerQuoteText } from '@/lib/dealers/quote-text';
+import { DEALER_SYSTEM } from '@/lib/dealers/agent-tools';
 import { withLatitudeTrace } from '@/lib/observability/latitude';
 import { loadHttpAssistantTools } from './http-actions';
 import { CASE_REASON_TOOL } from './case-reason-tool';
@@ -4090,6 +4091,30 @@ export function armarSystemPrompt(
   perfilOperativo: PerfilOperativo | null = null,
   channel: Channel | null = null
 ): SystemPorCapas {
+  if (isDealerDeployment()) {
+    const stable = [
+      DEALER_SYSTEM,
+      agent.persona ? limpiarPersona(agent.persona) : '',
+      TONE_INSTRUCTIONS[agent.tone],
+      estiloHumano(agent.language),
+      `Responde en ${agent.language || 'es'}. Mantente bajo ${agent.max_response_chars} caracteres.`,
+      `Moneda habitual: ${businessCurrency}. Cada unidad conserva su moneda publicada; no conviertas precios.`,
+      agent.knowledge ? untrustedContext('dealer_knowledge', agent.knowledge) : '',
+      reglas ?? '',
+    ].filter(Boolean);
+    appendBusinessScopeGuardrails(stable, agent.name);
+    return {
+      estable: stable.join('\n\n'),
+      producto: '',
+      cliente: [
+        untrustedContext('buyer', JSON.stringify({ name: primaryContact.name ?? contact.name, phone: contact.phone, email: contact.email })),
+        ...recentNotes.map(note => untrustedContext('seller_note', note)),
+        context.rollingSummary ? untrustedContext('conversation_summary', context.rollingSummary) : '',
+        context.idleResetHint ?? '',
+        igContext ? untrustedContext('buyer_context', igContext) : '',
+      ].filter(Boolean).join('\n\n'),
+    };
+  }
   const estable: string[] = [];
   const producto: string[] = [];
   const cliente: string[] = [];

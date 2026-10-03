@@ -1,11 +1,13 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { templateDraftContext } from './draft-context'
+import { isDealerDeployment } from '@/lib/dealers/config'
 
 export async function loadTemplateDraftContext(db: SupabaseClient, workspaceId: string, input: { product_id?: string; agent_id?: string; use_business_context?: boolean }) {
   let product: Record<string, unknown> | null = null
   let agent: Record<string, unknown> | null = null
   if (input.product_id) {
+    if (isDealerDeployment()) throw new Error('template_draft_context_invalid');
     const found = await db.from('shopify_products').select('*').eq('workspace_id', workspaceId).eq('id', input.product_id).maybeSingle()
     if (found.error) throw new Error('template_draft_context_unavailable')
     if (!found.data) throw new Error('template_draft_context_invalid')

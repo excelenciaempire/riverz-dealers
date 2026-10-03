@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, Send, CheckCheck, Eye, MousePointerClick, ShoppingCart, Target } from 'lucide-react';
+import { Loader2, Send, CheckCheck, Eye, MousePointerClick } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 
@@ -134,64 +134,7 @@ export function TemplateMetrics({ templateId }: { templateId: string }) {
           </div>
 
           {/* Conversión de carrito abandonado */}
-          {data.cart && (
-            <div className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
-              <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                <ShoppingCart className="h-3.5 w-3.5" />
-                {t('templates.metricCartTitle')}
-              </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <Tile
-                  label={t('templates.metricCartRecovered')}
-                  value={fmt.number(data.cart.recovered)}
-                />
-                <Tile
-                  label={t('templates.metricCartRevenue')}
-                  value={`$${fmt.number(Math.round(data.cart.revenue))}`}
-                />
-                {/* Tasa de conversión por persona: de cuántos recibieron el
-                    mensaje, cuántos compraron. */}
-                <Tile
-                  icon={Target}
-                  label={t('templates.metricCartRate')}
-                  value={pct(data.cart.converted, data.cart.reached)}
-                  sub={t('templates.metricCartRateSub', {
-                    converted: fmt.number(data.cart.converted),
-                    reached: fmt.number(data.cart.reached),
-                  })}
-                />
-              </div>
 
-              {/* Quiénes compraron después de recibir el mensaje */}
-              {data.cart.buyers.length > 0 && (
-                <div className="mt-3">
-                  <p className="text-xs text-muted-foreground">
-                    {t('templates.metricCartBuyers')}
-                  </p>
-                  <ul className="mt-1.5 space-y-1">
-                    {data.cart.buyers.map((b, i) => (
-                      <li
-                        key={`${b.name}-${i}`}
-                        className="flex items-center justify-between gap-3 rounded-md border border-border bg-background/40 px-2.5 py-1.5 text-xs"
-                      >
-                        <span className="truncate text-foreground">
-                          {b.name || t('templates.metricCartBuyerUnknown')}
-                        </span>
-                        <span className="shrink-0 tabular-nums text-muted-foreground">
-                          ${fmt.number(Math.round(b.amount))}
-                          {b.at && (
-                            <span className="ml-2">
-                              {fmt.date(b.at, { day: '2-digit', month: 'short' })}
-                            </span>
-                          )}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
         </>
       )}
     </section>

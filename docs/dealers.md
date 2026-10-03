@@ -142,13 +142,9 @@ de Riverz ecommerce al publicar Dealers. La conexión de canales requiere su
 configuración correspondiente. La telemetría Latitude está desactivada hasta
 configurar un proyecto propio.
 
-La app conserva otras superficies del proyecto base (operador de cuenta, voz,
-integraciones, landing antiguas y documentación legal). La adaptación del
-asistente descrita aquí corresponde al bucle conversacional compartido; el
-operador de cuenta y el motor de voz no tienen herramientas de Dealers propias.
-El menú principal ya prioriza Dealers y no muestra productos ni pedidos.
+La app conserva voz, canales de comunicación y documentación legal. El operador de cuenta usa el catálogo de capacidades de Dealers; las condiciones de crédito y el cierre siguen a cargo del vendedor.
 La creación de asistentes usa todo el inventario de vehículos: no exige un
-producto de ecommerce. Su editor muestra las capacidades de Dealers y oculta
+producto de ecommerce. Su editor muestra las capacidades de Dealers y elimina
 las opciones de checkout y cobro.
 
 ## Validación
@@ -164,3 +160,9 @@ predeterminado de la aplicación y se prueba explícitamente.
 La prueba de contrato respeta las recetas ocultas por despliegue y comprueba
 que la receta `novedad-entrega` no pueda previsualizarse si su flag está apagado.
 La suite completa se ejecuta con dos workers para limitar la memoria.
+
+## Alcance exclusivo de Dealers
+
+Flows, productos, pedidos, devoluciones, logística, tiendas y checkout se retiraron de las pantallas y APIs de este despliegue. Las URLs antiguas, incluidas sus variantes en inglés, responden 404. El motor rechaza disparadores de ecommerce y el cron excluye los trabajos retirados. Las integraciones visibles corresponden a comunicación con compradores. Las tablas históricas y migraciones aplicadas se conservan para no borrar datos; no habilitan esas funciones.
+
+La investigación de los cinco PDFs y las fuentes de la industria está en [dealer-industry-research.md](dealer-industry-research.md). DMS, crédito y recalls se describen allí como futuras integraciones, sin presentarlas como conexiones activas.

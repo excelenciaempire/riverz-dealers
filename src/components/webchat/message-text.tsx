@@ -1,5 +1,6 @@
 'use client';
 
+import { isDealerDeployment } from '@/lib/dealers/config';
 import { ProductCard } from './product-card';
 import { BotonDePago, esEnlaceDePago } from './boton-de-pago';
 import type { TextosChat } from './chat-app';
@@ -123,6 +124,7 @@ export function MessageText({
   /** Que Meta se entere de que arrancó el pago. */
   onIrAPagar?: () => void;
 }) {
+  if (isDealerDeployment()) return <TextoRico text={text} />;
   return (
     <TextoRico
       text={text}

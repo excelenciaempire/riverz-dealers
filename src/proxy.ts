@@ -13,6 +13,7 @@ import { translate } from '@/lib/i18n/translate'
 import { COMMERCE_AUTH_COOKIE, COMMERCE_CONTEXT_COOKIE, COMMERCE_SELECTION_COOKIE } from '@/lib/auth/commerce-cookies'
 import { canUseCommerceContext, verifyCommerceContext } from '@/lib/auth/commerce-policy'
 import { leerToken, UNLOCK_COOKIE } from '@/lib/admin/unlock'
+import { isRetiredDealerRoute } from '@/lib/dealers/product-scope'
 
 // Per-request CSP nonce. Next.js 16 reads the `'nonce-…'` value out of
 // the response's Content-Security-Policy header and stamps it onto the
@@ -88,6 +89,9 @@ function applyCsp(response: NextResponse, csp: string): NextResponse {
 }
 
 export async function proxy(request: NextRequest) {
+  if (isRetiredDealerRoute(request.nextUrl.pathname)) {
+    return new NextResponse(null, { status: 404 });
+  }
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
   // The Shopify embedded page must be frameable by the merchant's admin;
   // pin frame-ancestors to their shop when the query names one.
@@ -188,24 +192,7 @@ export async function proxy(request: NextRequest) {
   // catch our own post-auth redirects — `/crear?shop=…`,
   // `/integraciones?shop=…` — and bounce them back to OAuth, an infinite
   // redirect loop (the callback lands on `/crear?shopify=pending&shop=…`).
-  const shopParam = request.nextUrl.searchParams.get('shop')
-  if (
-    request.nextUrl.pathname === '/' &&
-    shopParam &&
-    /^[\w-]+\.myshopify\.com$/i.test(shopParam)
-  ) {
-    const url = request.nextUrl.clone()
-    const isEmbeddedLoad = request.nextUrl.searchParams.get('embedded') === '1'
-    url.pathname = isEmbeddedLoad ? '/shopify/embedded' : '/api/shopify/oauth/start'
-    // Forward the query VERBATIM: Shopify's hmac signs every param, so
-    // dropping any of them would break downstream signature checks.
-    // Chrome enforces frame-ancestors on redirect responses inside
-    // iframes, so the embedded hop must already be frameable.
-    const redirectCsp = isEmbeddedLoad
-      ? buildCsp(nonce, { shopifyEmbedded: { shop: shopParam.toLowerCase() } })
-      : csp
-    return applyCsp(NextResponse.redirect(url), redirectCsp)
-  }
+
 
   // Redirector público de short links (`/r/:token`). Es un endpoint sin sesión
   // que abre el cliente desde WhatsApp; saltamos la carga de sesión de Supabase

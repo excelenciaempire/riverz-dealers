@@ -17,14 +17,6 @@ import { downloadCsv } from '@/lib/export/csv';
 
 type FmtLike = { date: (v: string | number | Date, o?: Intl.DateTimeFormatOptions) => string };
 
-function sdOf(c: Contact): Record<string, unknown> | null {
-  return (c as unknown as { shopify_customer_data?: Record<string, unknown> | null })
-    .shopify_customer_data ?? null;
-}
-function addrOf(c: Contact): Record<string, unknown> | null {
-  const s = sdOf(c);
-  return (s?.default_address ?? s?.address ?? null) as Record<string, unknown> | null;
-}
 
 export interface ExportColumn {
   key: string;
@@ -37,23 +29,13 @@ export type ResolvedColumn = { header: string; get: ExportColumn['get'] };
 
 /** Todas las columnas exportables. El usuario elige cuáles antes de exportar. */
 export const EXPORT_COLUMNS: ExportColumn[] = [
-  { key: 'name', labelKey: 'contacts.colName', get: (c) => c.name ?? '' },
-  { key: 'phone', labelKey: 'contacts.colPhone', get: (c) => c.phone ?? '' },
-  { key: 'email', labelKey: 'contacts.colEmail', get: (c) => c.email ?? '' },
-  { key: 'company', labelKey: 'contacts.colCompany', get: (c) => c.company ?? '' },
-  { key: 'tags', labelKey: 'contacts.colTags', get: (_c, tags) => tags.join('; ') },
-  { key: 'shopify', labelKey: 'contacts.shopifyCustomer', get: (c) => (c.is_shopify_customer ? 'Sí' : 'No') },
-  { key: 'total_spent', labelKey: 'contacts.shopTotalSpent', get: (c) => String(sdOf(c)?.total_spent ?? sdOf(c)?.totalSpent ?? '') },
-  { key: 'currency', labelKey: 'contacts.shopCurrency', get: (c) => String(sdOf(c)?.currency ?? '') },
-  { key: 'orders', labelKey: 'contacts.shopOrders', get: (c) => String(sdOf(c)?.orders_count ?? sdOf(c)?.ordersCount ?? '') },
-  { key: 'last_purchase', labelKey: 'contacts.buyLast', get: (c, _tags, fmt) => { const d = sdOf(c)?.last_order_date; return d ? fmt.date(String(d), { year: 'numeric', month: '2-digit', day: '2-digit' }) : ''; } },
-  { key: 'address', labelKey: 'contacts.shopAddress', get: (c) => { const a = addrOf(c); return a ? [a.address1, a.address2].filter(Boolean).join(' ') : ''; } },
-  { key: 'city', labelKey: 'contacts.shopCity', get: (c) => String(addrOf(c)?.city ?? '') },
-  { key: 'province', labelKey: 'contacts.shopProvince', get: (c) => String(addrOf(c)?.province ?? '') },
-  { key: 'country', labelKey: 'contacts.shopCountry', get: (c) => String(addrOf(c)?.country ?? '') },
-  { key: 'zip', labelKey: 'contacts.shopZip', get: (c) => String(addrOf(c)?.zip ?? '') },
-  { key: 'channel', labelKey: 'contacts.colChannel', get: (c) => String((c as unknown as { channel?: string }).channel ?? '') },
-  { key: 'created', labelKey: 'contacts.colCreated', get: (c, _tags, fmt) => (c.created_at ? fmt.date(c.created_at, { year: 'numeric', month: '2-digit', day: '2-digit' }) : '') },
+{ key: 'name', labelKey: 'contacts.colName', get: (c) => c.name ?? '' },
+{ key: 'phone', labelKey: 'contacts.colPhone', get: (c) => c.phone ?? '' },
+{ key: 'email', labelKey: 'contacts.colEmail', get: (c) => c.email ?? '' },
+{ key: 'company', labelKey: 'contacts.colCompany', get: (c) => c.company ?? '' },
+{ key: 'tags', labelKey: 'contacts.colTags', get: (_c, tags) => tags.join('; ') },
+{ key: 'channel', labelKey: 'contacts.colChannel', get: (c) => String((c as unknown as { channel?: string }).channel ?? '') },
+{ key: 'created', labelKey: 'contacts.colCreated', get: (c, _tags, fmt) => (c.created_at ? fmt.date(c.created_at, { year: 'numeric', month: '2-digit', day: '2-digit' }) : '') }
 ];
 
 /**

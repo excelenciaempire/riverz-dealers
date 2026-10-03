@@ -1,3 +1,4 @@
+import {isDealerDeployment} from '@/lib/dealers/config';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {z} from 'zod';
 import {portalCommand,portalSnapshot,portalPublicRead,publicPortal,portalFeedback,portalStatistics,widgetPortal,type PortalSnapshot,type PublicPortal} from './contract';
@@ -50,6 +51,6 @@ export async function loadWidgetPortal(db:SupabaseClient,workspaceId:string,agen
  if(!z.string().uuid().safeParse(workspaceId).success||!z.string().uuid().safeParse(agentId).success||!z.string().min(1).max(200).safeParse(visitorId).success)throw new PortalError('portal_invalid');
  const content=await db.rpc('widget_help_portal',{p_workspace_id:workspaceId,p_agent_id:agentId,p_locale:locale});failure(content.error);
  if(content.data===null)throw new PortalError('portal_not_found');
- const orders=await db.rpc('widget_help_orders',{p_workspace_id:workspaceId,p_visitor_id:visitorId});failure(orders.error);
+ const orders=isDealerDeployment()?{data:[],error:null}:await db.rpc('widget_help_orders',{p_workspace_id:workspaceId,p_visitor_id:visitorId});failure(orders.error);
  const result=widgetPortal.safeParse({portal:content.data,orders:orders.data});if(!result.success||result.data.portal.locale!==locale)throw new PortalError('portal_unavailable');return result.data;
 }

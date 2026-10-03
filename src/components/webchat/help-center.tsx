@@ -7,7 +7,7 @@ import {assistant} from '@/lib/i18n/messages/assistant';
 import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
 import {widgetPortal} from '@/lib/help-portal/contract';
 import {PortalArticles} from '@/components/help-portal/public-portal';
-import {formatDateTime} from '@/lib/i18n/format';
+
 export function WidgetHelpCenter({session,locale,onExpired}:{session:string;locale:Locale;onExpired:()=>void}){
  const [data,setData]=useState<z.infer<typeof widgetPortal>|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(false),[search,setSearch]=useState('');
  const controller=useRef<AbortController|null>(null),version=useRef(0);
@@ -33,9 +33,7 @@ export function WidgetHelpCenter({session,locale,onExpired}:{session:string;loca
     <label className="block"><span className="sr-only">{t('portalSearch')}</span><input className="w-full rounded border bg-background p-2" value={search} maxLength={200} placeholder={t('portalSearch')} onChange={event=>setSearch(event.target.value)}/></label>
     {!articles.length&&<p>{t(data.portal.articles.length?'portalNoResults':'portalEmpty')}</p>}
     <PortalArticles key={`${data.portal.slug}:${locale}`} portal={{...data.portal,articles}}/>
-    {data.orders.length>0&&<section aria-label={t('portalOrders')} className="space-y-2"><h3 className="font-medium">{t('portalOrders')}</h3>{data.orders.map(order=><article key={order.id} className="rounded border p-3">
-     <p className="font-medium">{order.reference}</p><p>{t('portalOrderStatus')}: {t(`portalOrder_${order.status}`)}</p><p className="text-xs text-muted-foreground">{formatDateTime(order.observed_at,locale)}</p>
-    </article>)}</section>}
+
    </>}
   </div>
  </details>;

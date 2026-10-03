@@ -1,30 +1,9 @@
 'use client';
-import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
+import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import {
-  CalendarClock,
-  CircleSlash,
-  Download,
-  Gift,
-  History,
-  DollarSign,
-  Layers,
-  Loader2,
-  MapPin,
-  MessageCircle,
-  Package,
-  Pencil,
-  Plus,
-  ShoppingBag,
-  ShoppingCart,
-  Tag as TagIcon,
-  Trash2,
-  Type as TypeIcon,
-  Users,
-  X,
-} from 'lucide-react';
+import { CalendarClock, CircleSlash, Download, History, Layers, Loader2, MessageCircle, Pencil, Plus, Tag as TagIcon, Trash2, Type as TypeIcon, Users, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
@@ -33,37 +12,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  ExportColumnsDialog,
-  downloadContactsCsv,
-  tagNamesByContact,
-  type ResolvedColumn,
-} from '@/components/contacts/contacts-export';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ExportColumnsDialog, downloadContactsCsv, tagNamesByContact, type ResolvedColumn } from '@/components/contacts/contacts-export';
 import { useFormat } from '@/hooks/use-format';
 import { resolveSegment } from '@/lib/segments/resolve';
-import type {
-  ContactSegment,
-  SegmentMatchMode,
-  SegmentRule,
-} from '@/lib/segments/types';
+import type { ContactSegment, SegmentMatchMode, SegmentRule } from '@/lib/segments/types';
 import type { Channel, Contact, Tag } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -134,18 +89,12 @@ const RULE_TYPES: {
   descriptionKey?: string;
   Icon: typeof TagIcon;
 }[] = [
-  { type: 'tag', labelKey: 'contacts.ruleTagLabel', Icon: TagIcon },
-  { type: 'channel', labelKey: 'contacts.ruleChannelLabel', Icon: MessageCircle },
-  { type: 'created', labelKey: 'contacts.ruleCreatedLabel', Icon: CalendarClock },
-  { type: 'text', labelKey: 'contacts.ruleTextLabel', descriptionKey: 'contacts.ruleTextDesc', Icon: TypeIcon },
-  { type: 'has_field', labelKey: 'contacts.ruleHasFieldLabel', Icon: CircleSlash },
-  { type: 'shopify', labelKey: 'contacts.ruleShopifyLabel', Icon: ShoppingBag },
-  { type: 'offer', labelKey: 'contacts.ruleOfferLabel', descriptionKey: 'contacts.ruleOfferDesc', Icon: Gift },
-  { type: 'units', labelKey: 'contacts.ruleUnitsLabel', descriptionKey: 'contacts.ruleUnitsDesc', Icon: Package },
-  { type: 'spend', labelKey: 'contacts.ruleSpendLabel', descriptionKey: 'contacts.ruleSpendDesc', Icon: DollarSign },
-  { type: 'orders', labelKey: 'contacts.ruleOrdersLabel', descriptionKey: 'contacts.ruleOrdersDesc', Icon: ShoppingCart },
-  { type: 'location', labelKey: 'contacts.ruleLocationLabel', descriptionKey: 'contacts.ruleLocationDesc', Icon: MapPin },
-  { type: 'activity_date', labelKey: 'contacts.ruleActivityDateLabel', descriptionKey: 'contacts.ruleActivityDateDesc', Icon: History },
+{ type: 'tag', labelKey: 'contacts.ruleTagLabel', Icon: TagIcon },
+{ type: 'channel', labelKey: 'contacts.ruleChannelLabel', Icon: MessageCircle },
+{ type: 'created', labelKey: 'contacts.ruleCreatedLabel', Icon: CalendarClock },
+{ type: 'text', labelKey: 'contacts.ruleTextLabel', descriptionKey: 'contacts.ruleTextDesc', Icon: TypeIcon },
+{ type: 'has_field', labelKey: 'contacts.ruleHasFieldLabel', Icon: CircleSlash },
+{ type: 'activity_date', labelKey: 'contacts.ruleActivityDateLabel', descriptionKey: 'contacts.ruleActivityDateDesc', Icon: History }
 ];
 
 // Operator label i18n keys used by SelectValue.labels — shown human-readable
@@ -1066,7 +1015,6 @@ function RuleControls({
     case 'activity_date': {
       const opCreated = resolveOpLabels(OP_LABEL_KEYS.created, t);
       const actLabels: Record<string, string> = {
-        last_purchase: t('contacts.actFieldLastPurchase'),
         last_activity: t('contacts.actFieldLastActivity'),
         last_ai: t('contacts.actFieldLastAi'),
       };
@@ -1314,7 +1262,7 @@ function stubRuleFor(
     case 'location':
       return { type: 'location', field: 'country', op: 'is', value: '' };
     case 'activity_date':
-      return { type: 'activity_date', field: 'last_purchase', op: 'last_n_days', value: '30' };
+      return { type: 'activity_date', field: 'last_activity', op: 'last_n_days', value: '30' };
     default:
       return null;
   }

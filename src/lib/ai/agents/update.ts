@@ -16,6 +16,7 @@ import { encrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent } from '../types';
 import { mediosDeclarados } from '@/lib/ai/medios-pago';
 import { sanitizeTools } from '../toolbox';
+import { isDealerDeployment } from '@/lib/dealers/config';
 
 /**
  * Los campos que se pueden guardar desde afuera.
@@ -137,6 +138,14 @@ export function pickAgentPatch(
   for (const k of AGENT_PATCH_FIELDS) {
     if (k in body) patch[k] = body[k];
   }
+  if (isDealerDeployment()) {
+    Object.assign(patch, {
+      puede_crear_pedidos: false,
+      product_scope: 'all',
+      cobro_modo: null,
+      medios_pago: null,
+    });
+  }
   if (typeof body.api_key === 'string') {
     patch.api_key_encrypted = body.api_key.trim()
       ? encrypt(body.api_key.trim())
@@ -234,7 +243,9 @@ export async function updateAgent(
 
   const { data: cur } = await admin
     .from('ai_agents')
-    .select('is_active, scope, role, voice_agent_id, ai_agent_channels(channel)')
+    .select(
+      'is_active, scope, role, voice_agent_id, ai_agent_channels(channel)'
+    )
     .eq('id', agentId)
     .eq('workspace_id', workspaceId)
     .maybeSingle();

@@ -196,7 +196,7 @@ export default function ContactsPage() {
   // Filtros visibles. Cada uno admite varias opciones a la vez; lista vacía =
   // no filtra. Para segmentaciones más ricas (gasto, pedidos, país…) está la
   // pestaña Segmentos.
-  const [shopifyFilter, setShopifyFilter] = useState<string[]>([]);
+
   const [channelFilter, setChannelFilter] = useState<string[]>([]);
 
   /**
@@ -246,9 +246,7 @@ export default function ContactsPage() {
 
       // Filtro por cliente Shopify. Marcar las dos opciones es lo mismo que no
       // marcar ninguna: entran todos.
-      if (shopifyFilter.length === 1) {
-        query = query.eq('is_shopify_customer', shopifyFilter[0] === 'customers');
-      }
+
 
       // Filtro por canal de origen: cualquiera de los canales marcados.
       if (channelFilter.length > 0) query = query.in('channel', channelFilter);
@@ -260,7 +258,7 @@ export default function ContactsPage() {
 
       return { query };
     },
-    [workspaceId, selectedTagIds, search, datePreset, dateCustom, tz, shopifyFilter, channelFilter],
+    [workspaceId, selectedTagIds, search, datePreset, dateCustom, tz, channelFilter],
   );
 
   /**
@@ -367,7 +365,7 @@ export default function ContactsPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedIds(new Set());
-  }, [selectedTagIds, datePreset, dateCustom, shopifyFilter, channelFilter, search]);
+  }, [selectedTagIds, datePreset, dateCustom, channelFilter, search]);
 
   function openAddForm() {
     setEditContact(null);
@@ -421,13 +419,11 @@ export default function ContactsPage() {
   const filtersActive =
     selectedTagIds.length > 0 ||
     datePreset !== 'all' ||
-    shopifyFilter.length > 0 ||
     channelFilter.length > 0;
   function clearFilters() {
     setSelectedTagIds([]);
     setDatePreset('all');
     setDateCustom(null);
-    setShopifyFilter([]);
     setChannelFilter([]);
     setPage(0);
   }
@@ -620,19 +616,7 @@ export default function ContactsPage() {
             setPage(0);
           }}
         />
-        <FilterMultiSelect
-          label={t('contacts.filterShopifyLabel')}
-          allLabel={t('contacts.filterAnyShopify')}
-          values={shopifyFilter}
-          onChange={(v) => {
-            setShopifyFilter(v);
-            setPage(0);
-          }}
-          options={[
-            { value: 'customers', label: t('contacts.shopFilterCustomers') },
-            { value: 'non', label: t('contacts.shopFilterNon') },
-          ]}
-        />
+
         <FilterMultiSelect
           label={t('contacts.filterChannelLabel')}
           allLabel={t('contacts.filterAnyChannel')}

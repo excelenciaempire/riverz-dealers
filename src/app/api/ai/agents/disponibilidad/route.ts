@@ -34,53 +34,8 @@ export async function GET(request: Request) {
   if (!miembro) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   const admin = supabaseAdmin();
-  // Las cuatro plataformas de comercio viven en la misma tabla, distinguidas
-  // por `platform`: la de Shopify se pregunta aparte porque hay herramientas
-  // que sólo existen ahí (editar un pedido, cancelarlo, reembolsarlo).
-  const [tiendas, mp, tope, voz] = await Promise.all([
-    admin
-      .from('shopify_connections')
-      .select('platform')
-      .eq('workspace_id', workspaceId)
-      .eq('status', 'active'),
-    admin
-      .from('workspace_integrations')
-      .select('id')
-      .eq('workspace_id', workspaceId)
-      .eq('provider', 'mercadopago')
-      .eq('is_active', true)
-      .limit(1)
-      .maybeSingle(),
-    admin
-      .from('workspace_checkout_config')
-      .select('max_discount_percent')
-      .eq('workspace_id', workspaceId)
-      .maybeSingle(),
-    admin
-      .from('channel_connections')
-      .select('id')
-      .eq('workspace_id', workspaceId)
-      .eq('channel', 'voice')
-      .eq('status', 'connected')
-      .limit(1)
-      .maybeSingle(),
-  ]);
-
-  const plataformas = ((tiendas.data ?? []) as Array<{ platform: string | null }>).map(
-    (r) => r.platform ?? 'shopify',
-  );
-  const maxDto = Number(
-    (tope.data as { max_discount_percent?: number } | null)?.max_discount_percent ?? 0,
-  );
-
-  return NextResponse.json({
-    shopify: plataformas.includes('shopify'),
-    tienda: plataformas.length > 0,
-    cobro: Boolean(mp.data),
-    // Las dos condiciones: el comercio autorizó descontar Y hay Shopify, que es
-    // quien emite el cupón. Con una sola, el interruptor quedaba prendido y la
-    // herramienta fallaba al ejecutarse.
-    descuento: Number.isFinite(maxDto) && maxDto > 0 && plataformas.includes('shopify'),
-    voz: Boolean(voz.data),
-  });
+  const voice = await admin.from('channel_connections').select('id')
+    .eq('workspace_id', workspaceId).eq('channel', 'voice').eq('status', 'connected')
+    .limit(1).maybeSingle();
+  return NextResponse.json({ tienda: false, shopify: false, cobro: false, descuento: false, voz: Boolean(voice.data) });
 }

@@ -42,7 +42,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { EscalacionesPanel } from '@/components/ai/escalaciones-panel';
-import { SupportModeSwitcher } from '@/components/support/mode-switcher';
+
 import { EmailPolicyPanel } from '@/components/ai/email-policy-panel';
 import type { AiAgent } from '@/lib/ai/types';
 import type { Channel } from '@/types';
@@ -216,7 +216,7 @@ export default function AiAgentsPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
-      <SupportModeSwitcher current="ai" />
+
       <EmailPolicyPanel />
 
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

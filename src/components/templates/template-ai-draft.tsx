@@ -8,7 +8,7 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export function TemplateAiDraft({ language, category, onApply }: {
@@ -22,12 +22,12 @@ export function TemplateAiDraft({ language, category, onApply }: {
   const [brief, setBrief] = useState('');
   const [draft, setDraft] = useState('');
   const [generating, setGenerating] = useState(false);
-  const [products, setProducts] = useState<{ id: string; label: string }[]>([]);
+
   const [agents, setAgents] = useState<{ id: string; label: string }[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<{ id: string; label: string } | null>(null);
+
   const [agentId, setAgentId] = useState('');
-  const [search, setSearch] = useState('');
-  const [hasMore, setHasMore] = useState(false);
+
+
   const [loadingContext, setLoadingContext] = useState(false);
   const [sources, setSources] = useState<string[]>([]);
   const profileInitialised = useRef(false);
@@ -43,11 +43,11 @@ export function TemplateAiDraft({ language, category, onApply }: {
     setLoadingContext(true);
     const timer = setTimeout(async () => {
       try {
-        const response = await fetchWithCsrf(`/api/whatsapp/templates/draft-context?q=${encodeURIComponent(search.trim())}`, { signal: request.signal });
+        const response = await fetchWithCsrf('/api/whatsapp/templates/draft-context', { signal: request.signal });
         const result = await response.json();
         if (!response.ok || !Array.isArray(result.products) || !Array.isArray(result.agents)) throw new Error(t('templates.aiContextUnavailable'));
         if (!request.signal.aborted) {
-          setProducts(result.products); setAgents(result.agents); setHasMore(result.has_more === true);
+          setAgents(result.agents);
           if (!profileInitialised.current) { setAgentId(result.agents.length === 1 ? result.agents[0].id : ''); profileInitialised.current = true; }
         }
       } catch {
@@ -57,7 +57,7 @@ export function TemplateAiDraft({ language, category, onApply }: {
       }
     }, 250);
     return () => { clearTimeout(timer); request.abort(); };
-  }, [open, search, fetchWithCsrf, t]);
+  }, [open, fetchWithCsrf, t]);
 
   function changeOpen(next: boolean) {
     if (!next) {
@@ -77,7 +77,7 @@ export function TemplateAiDraft({ language, category, onApply }: {
       const response = await fetchWithCsrf('/api/whatsapp/templates/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brief: brief.trim(), language, category, product_id: selectedProduct?.id, agent_id: agentId || undefined, use_business_context: Boolean(agentId) }),
+        body: JSON.stringify({ brief: brief.trim(), language, category, agent_id: agentId || undefined, use_business_context: Boolean(agentId) }),
         signal: request.signal,
       });
       const result = await response.json();
@@ -109,19 +109,7 @@ export function TemplateAiDraft({ language, category, onApply }: {
           <DialogTitle>{t('templates.aiWrite')}</DialogTitle>
           <DialogDescription>{t('templates.aiDraftHelp')}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor="template-ai-product">{t('templates.aiProduct')}</Label>
-          <Input value={search} maxLength={100} disabled={generating} aria-label={t('templates.aiSearchProduct')} placeholder={t('templates.aiSearchProduct')}
-            onChange={event => setSearch(event.target.value)} />
-          <select id="template-ai-product" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            value={selectedProduct?.id ?? ''} disabled={generating || loadingContext}
-            onChange={event => { setSelectedProduct(products.find(product => product.id === event.target.value) ?? null); setDraft(''); setSources([]); }}>
-            <option value="">{t('templates.aiNoProduct')}</option>
-            {selectedProduct && !products.some(product => product.id === selectedProduct.id) && <option value={selectedProduct.id}>{selectedProduct.label}</option>}
-            {products.map(product => <option key={product.id} value={product.id}>{product.label}</option>)}
-          </select>
-          {hasMore && <p className="text-xs text-muted-foreground">{t('templates.aiMoreProducts')}</p>}
-        </div>
+
         {agents.length > 0 && <div className="space-y-2">
           <Label htmlFor="template-ai-profile">{t('templates.aiProfile')}</Label>
           <select id="template-ai-profile" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={agentId} disabled={generating}

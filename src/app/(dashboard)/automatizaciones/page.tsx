@@ -22,7 +22,6 @@ import {
   Star,
   Truck,
   ArrowRight,
-  LayoutGrid,
   Loader2,
 } from "lucide-react"
 
@@ -86,41 +85,7 @@ export default function AutomationsPage() {
   const allTemplates = useMemo(() => listTemplates(locale), [locale])
   // Contexto de pasarelas: decide qué recetas tienen sentido para este
   // comercio. Ver /api/automations/template-context.
-  const [gatewayCtx, setGatewayCtx] = useState<{ mercadopago: boolean } | null>(null)
-  useEffect(() => {
-    setGatewayCtx(null)
-    if (!workspace?.id) return
-    let alive = true
-    const refresh = () => fetch("/api/automations/template-context", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (alive && j) {
-          setGatewayCtx({ mercadopago: !!j.payments?.mercadopago })
-        }
-      })
-      .catch(() => {
-        /* sin contexto se cae al caso conservador de abajo */
-      })
-    void refresh()
-    window.addEventListener('focus', refresh)
-    return () => {
-      alive = false
-      window.removeEventListener('focus', refresh)
-    }
-  }, [workspace?.id])
-  const templates = useMemo(() => {
-    // Mientras carga se ocultan las recetas con pasarela: aparecer y
-    // desaparecer es peor que tardar un instante en aparecer.
-    return allTemplates.filter((tpl) => {
-      if (!tpl.requiresGateway) return true
-      // Sólo con la pasarela conectada. El descubrimiento ya no depende de
-      // esta tarjeta: Mercado Pago es un conector visible en Integraciones,
-      // junto a las tiendas, así que el camino es conectar y ahí aparece la
-      // receta — y no al revés. La heurística por región dejó de hacer
-      // falta con eso.
-      return Boolean(gatewayCtx?.mercadopago)
-    })
-  }, [allTemplates, gatewayCtx])
+  const templates = allTemplates;
   // The automation engine sends exclusively via WhatsApp (meta-send.ts →
   // whatsapp_config). The module layout only requires *some* channel, so a
   // workspace with e.g. only email connected still needs this WA-specific gate.
@@ -226,10 +191,7 @@ export default function AutomationsPage() {
         <div className="flex shrink-0 items-center gap-2">
           {/* Todo lo que recibe un cliente, por situación: para revisarlo con
               el dueño de la marca y editar los textos ahí mismo. */}
-          <Button variant="outline" onClick={() => router.push("/automatizaciones/tablero")}>
-            <LayoutGrid className="h-4 w-4" />
-            {t("automations.tablero")}
-          </Button>
+
           <Button variant="outline" onClick={() => router.push("/automatizaciones/nueva")}>
             <Plus className="h-4 w-4" />
             {t("automations.createFromScratch")}

@@ -33,6 +33,7 @@
  */
 
 import { supabaseAdmin } from "./admin-client";
+import { isDealerDeployment } from '@/lib/dealers/config';
 import {
   engineSendCtaUrl,
   engineSendDocument,
@@ -1351,6 +1352,7 @@ async function advanceCurrentNodeKey(
 export async function dispatchInboundToFlows(
   input: DispatchInboundInput & { isFirstInboundMessage: boolean },
 ): Promise<DispatchInboundResult> {
+  if (isDealerDeployment()) return { consumed: false };
   const db = supabaseAdmin();
   try {
     const activeRun = await loadActiveRunForContact(

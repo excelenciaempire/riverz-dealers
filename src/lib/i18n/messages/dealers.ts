@@ -1,5 +1,6 @@
 import type { Namespace } from './types';
 export const dealers = {
+  dealerOnlyAutomation: { es: 'Esta automatización debe usar eventos y datos de compradores o citas.', en: 'This automation must use buyer or appointment events and data.' },
   navSales: { es: 'Ventas', en: 'Sales' },
   navFollowup: { es: 'IA y seguimiento', en: 'AI and follow-up' },
   pipeline: { es: 'Pipeline', en: 'Pipeline' },

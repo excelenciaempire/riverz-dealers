@@ -15,7 +15,7 @@ import { widgetKey } from '@/lib/channels/webchat/token';
 import {
   WEBCHAT_DEFAULTS,
 } from '@/lib/channels/webchat/config';
-import { detectStoreDomains } from '@/lib/channels/webchat/domains';
+
 import { publicBaseUrl } from '@/lib/base-url';
 
 /**
@@ -60,7 +60,7 @@ export async function GET() {
   // Los dominios de su tienda, deducidos. La pantalla los ofrece con un clic
   // en vez de pedirle que los escriba — es el único paso manual que quedaba y
   // era el que dejaba el chat instalado pero invisible.
-  const suggested = await detectStoreDomains(admin, resolved.workspaceId).catch(() => []);
+  const suggested: string[] = [];
 
   // Los agentes de la cuenta, para poder elegir cuál atiende sin salir de acá.
   // Antes `agent_id` se podía guardar por API y no había forma de tocarlo: la
@@ -109,7 +109,7 @@ export async function PUT(request: Request) {
     return serverError(error);
   }
   const key = widgetKey(resolved.workspaceId);
-  const suggested = await detectStoreDomains(admin, resolved.workspaceId).catch(() => []);
+  const suggested: string[] = [];
 
   return NextResponse.json({
     config: { ...WEBCHAT_DEFAULTS, ...webchatConfig(connection) },

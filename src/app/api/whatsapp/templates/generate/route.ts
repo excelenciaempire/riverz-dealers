@@ -8,6 +8,8 @@ import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit'
 import { OFICIO_PLANTILLA } from '@/lib/templates/oficio'
+import { isDealerDeployment } from '@/lib/dealers/config'
+import { DEALER_TEMPLATE_WRITING } from '@/lib/dealers/template-prompt'
 import { TEMPLATE_DRAFT_CONTEXT_POLICY, validateTemplateDraft, templateDraftPriceMismatch } from '@/lib/templates/draft-context'
 import { loadTemplateDraftContext } from '@/lib/templates/draft-context-server'
 import { redactModelSecrets } from '@/lib/security/model-secrets'
@@ -57,7 +59,7 @@ export async function POST(request: Request) {
     })
     const response = await client.messages.create({
       model: 'claude-sonnet-5-5', max_tokens: 1024, ...esfuerzo('claude-sonnet-5-5'),
-      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: isDealerDeployment() ? DEALER_TEMPLATE_WRITING : SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: JSON.stringify({
         language: input.language, category: input.category, requested_tone: redactModelSecrets(input.tone ?? ''),
         brief: redactModelSecrets(input.brief), business_context: context.text,

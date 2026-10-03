@@ -1,3 +1,5 @@
+import { isDealerDeployment } from '@/lib/dealers/config';
+import { isDealerAutomationTrigger } from '@/lib/dealers/product-scope';
 /**
  * Cómo describe el Operador una automatización que quiere crear.
  *
@@ -60,12 +62,16 @@ export type AiStepType = (typeof AI_STEP_TYPES)[number]
  * Etiquetas y horarios usan la cola persistente drenada por el cron del motor.
  * El Operador conserva el mismo formato y validación que el editor manual.
  */
-export const AI_TRIGGERS: {
+const AI_TRIGGER_CATALOG: {
   value: AutomationTriggerType
   que: string
   /** Qué hay que completar para poder prenderla. */
   pide?: string
 }[] = [
+  { value: 'dealer_follow_up_due', que: 'llega el seguimiento acordado con el comprador' },
+  { value: 'dealer_appointment_reminder', que: 'se acerca una cita confirmada' },
+  { value: 'dealer_no_show', que: 'el vendedor registra que el comprador no asistió' },
+  { value: 'dealer_post_visit', que: 'se registra el resultado de la visita y corresponde dar seguimiento' },
   { value: 'tag_added', que: 'se añade una etiqueta al contacto', pide: 'etiqueta: nombre de una etiqueta existente' },
   { value: 'time_based', que: 'llega un horario programado', pide: 'horario: HH:mm o cron de 5 campos; zona_horaria opcional (IANA), por defecto la del negocio' },
   { value: 'shopify_abandoned_checkout', que: 'alguien dejó un carrito sin comprar' },
@@ -99,6 +105,8 @@ export const AI_TRIGGERS: {
     pide: 'palabras y coincidencia (exact o contains)',
   },
 ]
+
+export const AI_TRIGGERS = AI_TRIGGER_CATALOG.filter(t => isDealerDeployment() ? isDealerAutomationTrigger(t.value) : !t.value.startsWith('dealer_'));
 
 const TRIGGERS = new Set<string>(AI_TRIGGERS.map((t) => t.value))
 
@@ -153,7 +161,7 @@ const PROPS_PASO = {
   texto: {
     type: 'string',
     description:
-      'Para send_message. Las variables son {{vars.customer_name}}, {{vars.first_item}}, {{vars.order_name}}… Cualquier otra cosa entre llaves sale VACÍA.',
+      isDealerDeployment() ? 'Para send_message. Usa {{vars.customer_name}}, {{vars.vehicle}}, {{vars.appointment_at}} o {{vars.appointment_location}}, sólo cuando el evento tenga ese dato. No prometas crédito, cuotas, descuentos ni disponibilidad sin verificar.' : 'Para send_message. Las variables son {{vars.customer_name}}, {{vars.first_item}}, {{vars.order_name}}… Cualquier otra cosa entre llaves sale VACÍA.',
   },
   plantilla: {
     type: 'string',

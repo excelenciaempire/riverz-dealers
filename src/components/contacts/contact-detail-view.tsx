@@ -4,13 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, ContactNote } from '@/types';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,19 +14,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ContactTags } from '@/components/contacts/contact-tags';
 import { ContactChatLinks } from '@/components/contacts/contact-chat-links';
 import { ContactActivityTimeline } from '@/components/contacts/contact-activity-timeline';
-import { ContactPurchasesPanel } from '@/components/contacts/contact-purchases-panel';
+
 import { useT } from '@/hooks/use-locale';
 import { UnionDeContactos } from './union-de-contactos';
 import { useFormat } from '@/hooks/use-format';
-import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { ContactSale } from '@/components/dealers/contact-sale';
 import type { TFn } from '@/lib/i18n/translate';
-import {
-  Loader2,
-  Plus,
-  Trash2,
-  Save,
-  Tag,
-} from 'lucide-react';
+import { Loader2, Plus, Trash2, Save } from 'lucide-react';
 
 interface ContactDetailViewProps {
   open: boolean;
@@ -50,11 +38,10 @@ export function ContactDetailView({
   const supabase = createClient();
   const t = useT();
   const fmt = useFormat();
-  const fetchWithCsrf = useFetchWithCsrf();
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(false);
-  const [enriching, setEnriching] = useState(false);
+
 
   // Details tab
   const [editName, setEditName] = useState('');
@@ -108,30 +95,14 @@ export function ContactDetailView({
    * si Shopify no contesta o la persona no es cliente, la ficha se ve igual con
    * el resto de los datos.
    */
-  const enrichFromShopify = useCallback(async () => {
-    if (!contactId) return;
-    setEnriching(true);
-    try {
-      const res = await fetchWithCsrf(`/api/contacts/${contactId}/enrich`, {
-        method: 'POST',
-      });
-      const payload = (await res.json().catch(() => null)) as { data?: unknown } | null;
-      // Sólo relee si Shopify devolvió algo nuevo que mostrar.
-      if (res.ok && payload?.data) fetchContact();
-    } catch {
-      /* la ficha ya está mostrando todo lo demás */
-    } finally {
-      setEnriching(false);
-    }
-  }, [contactId, fetchContact, fetchWithCsrf]);
+
 
   useEffect(() => {
     if (open && contactId) {
-      fetchContact();
-      fetchNotes();
-      void enrichFromShopify();
+      const timer = setTimeout(() => { void Promise.all([fetchContact(), fetchNotes()]); }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [open, contactId, fetchContact, fetchNotes, enrichFromShopify]);
+  }, [open, contactId, fetchContact, fetchNotes ]);
 
   async function saveDetails() {
     if (!contactId || !editPhone.trim()) {
@@ -258,12 +229,7 @@ export function ContactDetailView({
                 >
                   {t('contacts.detailDetails')}
                 </TabsTrigger>
-                <TabsTrigger
-                  value="purchases"
-                  className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
-                >
-                  {t('contacts.tabPurchases')}
-                </TabsTrigger>
+
                 <TabsTrigger
                   value="activity"
                   className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
@@ -290,43 +256,10 @@ export function ContactDetailView({
                   {/* Con quien esta unido. Arriba de todo: cambia como hay que
                       leer TODO lo de abajo -- las compras y las notas que se
                       ven son las del cliente unificado, no las de esta ficha. */}
+                  <ContactSale contactId={contact.id} />
                   <UnionDeContactos contactId={contact.id} />
-                  {(contact.last_offer_chosen || contact.last_offer_units) && (
-                    <div className="space-y-1 rounded-lg border border-primary/30 bg-primary/5 p-3">
-                      <div className="flex items-center gap-1.5 text-xs font-medium text-accent-ink">
-                        <Tag className="size-3.5" />
-                        {t('contacts.lastOfferTitle')}
-                      </div>
-                      <p className="text-sm font-medium text-foreground">
-                        {[
-                          contact.last_offer_chosen || t('contacts.lastOfferNoLabel'),
-                          contact.last_offer_units
-                            ? t('contacts.lastOfferUnits', {
-                                n: contact.last_offer_units,
-                              })
-                            : null,
-                        ]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </p>
-                      {contact.last_offer_at && (
-                        <p className="text-xs text-muted-foreground">
-                          {fmt.date(contact.last_offer_at, {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  {renderShopifyData(contact, t, fmt) ??
-                    (enriching ? (
-                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Loader2 className="size-3 animate-spin" />
-                        {t('contacts.shopLoading')}
-                      </p>
-                    ) : null)}
+
+
                   {renderContactInfo(contact, t, fmt)}
                   <div className="space-y-1.5">
                     <Label className="text-muted-foreground text-xs">{t('contacts.fieldName')}</Label>
@@ -371,9 +304,7 @@ export function ContactDetailView({
               </TabsContent>
 
               {/* Purchases Tab */}
-              <TabsContent value="purchases" className="flex-1 overflow-y-auto px-4 py-3">
-                {contact && <ContactPurchasesPanel contact={contact} />}
-              </TabsContent>
+
 
               {/* Activity Tab */}
               <TabsContent
@@ -469,50 +400,7 @@ export function ContactDetailView({
  * `contacts.shopify_customer_data` (jsonb snapshot). No repite email/teléfono
  * (ya están en el formulario). Devuelve null si no hay data de Shopify.
  */
-function renderShopifyData(
-  contact: Contact,
-  t: TFn,
-  fmt: { currency: (v: number, currency?: string) => string },
-) {
-  const sd = (contact as unknown as { shopify_customer_data?: Record<string, unknown> | null })
-    .shopify_customer_data;
-  if (!sd) return null;
-  const addr = (sd.default_address ?? sd.address) as Record<string, unknown> | null;
-  const rows: Array<[string, string]> = [];
-  const push = (label: string, v: unknown) => {
-    if (v != null && String(v).trim() !== '') rows.push([label, String(v)]);
-  };
-  // Lo gastado es plata: se muestra como plata. Salía "39990" pelado.
-  const spent = Number(sd.total_spent ?? sd.totalSpent);
-  if (Number.isFinite(spent) && spent > 0) {
-    push(
-      t('contacts.shopTotalSpent'),
-      fmt.currency(spent, typeof sd.currency === 'string' ? sd.currency : undefined),
-    );
-  }
-  push(t('contacts.shopOrders'), sd.orders_count ?? sd.ordersCount);
-  if (addr) {
-    push(t('contacts.shopAddress'), [addr.address1, addr.address2].filter(Boolean).join(' '));
-    push(t('contacts.shopCity'), addr.city);
-    push(t('contacts.shopProvince'), addr.province);
-    push(t('contacts.shopCountry'), addr.country);
-    push(t('contacts.shopZip'), addr.zip);
-  }
-  if (rows.length === 0) return null;
-  return (
-    <div className="space-y-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
-      <div className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Shopify</div>
-      <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-        {rows.map(([label, val]) => (
-          <div key={label}>
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="text-foreground break-words">{val}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
-}
+
 
 /**
  * Datos de solo lectura del contacto (canal de origen, alta, última actividad)

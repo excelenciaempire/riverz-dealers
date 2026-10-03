@@ -28,19 +28,12 @@ import {
   isMetaAccessWarning,
   isMetaAssetAccessWarning,
 } from '@/lib/channels/meta-auth';
-import { ShopifyCard } from '@/components/settings/shopify-card';
-import { StoreCard } from '@/components/settings/store-card';
-import { MercadoPagoCard } from '@/components/settings/mercadopago-card';
-import { KlaviyoCard } from '@/components/settings/klaviyo-card';
-import { MetaPixelCard } from '@/components/settings/meta-pixel-card';
-import { MercadoLibreConnect } from '@/components/settings/mercadolibre-connect';
-import { WebhooksCard } from '@/components/settings/webhooks-card';
-import { AddressValidationCard } from '@/components/settings/address-validation-card';
+
+
 import { cn } from '@/lib/utils';
 import {SHOW_RIVERZ_IMPROVEMENTS} from '@/lib/ui/improvements-preview';
 import {SmsSettings} from './sms-settings';
-import {ReviewSettings} from './review-settings';
-import {SubscriptionSettings} from './subscription-settings';
+
 
 /**
  * One card per platform. Meta is one customer-facing connection; its Page and
@@ -102,17 +95,6 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
     logoChannel: 'zoho',
     members: ['zoho'],
     connectChannel: 'zoho',
-  },
-  {
-    key: 'mercadolibre',
-    label: 'Mercado Libre',
-    descriptionKey: 'settings.mercadolibreCardDescription',
-    logoChannel: 'mercadolibre',
-    // El isotipo oficial es amarillo con anillo azul: va en caja blanca
-    // para que el azul contraste con la tarjeta oscura.
-    logoSrc: '/channels/mercadolibre.svg',
-    members: ['mercadolibre'],
-    connectChannel: 'mercadolibre',
   },
   {
     key: 'tiktok',
@@ -698,15 +680,6 @@ export function ChannelsPanel() {
                       logoSrc={g.logoSrc}
                       onConnected={() => void fetchConnections()}
                     />
-                  ) : g.connectChannel === 'mercadolibre' ? (
-                    // ML es por país: el vendedor elige su país (una sola app
-                    // autoriza a todos) y se loguea en el dominio correcto.
-                    <MercadoLibreConnect
-                      workspaceId={workspace.id}
-                      ready={ready}
-                      anyConnected={anyConnected}
-                      busy={busy}
-                    />
                   ) : (
                     <>
                       <button
@@ -794,17 +767,11 @@ export function ChannelsPanel() {
             </li>
           );
         })}
-        <ShopifyCard />
-        <StoreCard platform="tiendanube" />
-        <StoreCard platform="woocommerce" />
-        <MercadoPagoCard />
-        <MetaPixelCard />
-        <AddressValidationCard />
-        <KlaviyoCard />
-        {isAdmin && <WebhooksCard />}
+
+
         {SHOW_RIVERZ_IMPROVEMENTS&&isAdmin&&workspace&&<SmsSettings key={workspace.id} workspaceId={workspace.id}/>}
-        {SHOW_RIVERZ_IMPROVEMENTS&&isAdmin&&workspace&&<ReviewSettings key={`reviews-${workspace.id}`} workspaceId={workspace.id}/>}
-        {SHOW_RIVERZ_IMPROVEMENTS&&isAdmin&&workspace&&<SubscriptionSettings key={`subscriptions-${workspace.id}`} workspaceId={workspace.id}/>}
+
+
       </ul>
     </div>
   );

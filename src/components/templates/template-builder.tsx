@@ -783,26 +783,7 @@ function ButtonRow({
       </div>
       {button.type === 'URL' && (
         <div className="mt-2 space-y-2">
-          <Select
-            value={button.url_variable ?? 'custom'}
-            onValueChange={(v) =>
-              v === 'custom'
-                ? onChange({ url_variable: undefined })
-                : onChange({ url_variable: v as ButtonUrlVariable, url: '' })
-            }
-          >
-            <SelectTrigger className="w-full bg-background">
-              <SelectValue labels={urlModeLabels} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="custom">{t('templates.buttonUrlModeCustom')}</SelectItem>
-              {BUTTON_URL_VARIABLES.map((v) => (
-                <SelectItem key={v} value={v}>
-                  {t(URL_VARIABLE_KEYS[v])}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
           {button.url_variable ? (
             <p className="text-xs text-muted-foreground">
               {t('templates.buttonUrlVariableHint')}

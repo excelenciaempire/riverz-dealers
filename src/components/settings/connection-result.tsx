@@ -27,8 +27,7 @@ export function ConnectionResult() {
   useEffect(() => {
     if (shown.current) return;
     const oauth = params.get('oauth');
-    const mp = params.get('mercadopago');
-    if (!oauth && !mp) return;
+    if (!oauth) return;
     shown.current = true;
 
     if (oauth === 'ok') {
@@ -40,20 +39,9 @@ export function ConnectionResult() {
       });
     }
 
-    if (mp === 'conectado') {
-      toast.success(t('settings.mpConnected'));
-    } else if (mp === 'cancelado') {
-      toast.info(t('settings.connectResultCancelled'));
-    } else if (mp === 'reintentar') {
-      toast.error(t('settings.connectResultRetry'));
-    } else if (mp) {
-      toast.error(t('settings.connectResultError'), {
-        description: params.get('detalle') ?? undefined,
-      });
-    }
 
     const url = new URL(window.location.href);
-    for (const k of ['oauth', 'detail', 'mercadopago', 'detalle']) {
+    for (const k of ['oauth', 'detail']) {
       url.searchParams.delete(k);
     }
     window.history.replaceState({}, '', url.pathname + url.search);
@@ -73,6 +61,5 @@ function connectionErrorDetail(
   if (detail === 'zoho_authorization_expired') return t('settings.zohoAuthorizationExpired');
   if (detail === 'zoho_token_exchange_failed') return t('settings.zohoTokenExchangeFailed');
   if (detail === 'mailbox_address_unavailable') return t('settings.mailboxAddressUnavailable');
-  if (detail === 'mercadolibre_refresh_token_missing') return t('settings.mercadolibreRefreshTokenMissing');
   return t('settings.connectResultErrorDetail');
 }

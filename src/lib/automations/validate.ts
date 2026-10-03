@@ -3,6 +3,8 @@ import { abTestValidationError } from './template-ab-test'
 import { validVoiceConfig } from '@/lib/voice-notes/types'
 import { eventEntries } from './event-entries'
 import { validAutomationSchedule, validAutomationTimezone } from './schedule'
+import { isDealerDeployment } from '@/lib/dealers/config'
+import { isDealerAutomationTrigger, isRetiredDealerAutomationStep } from '@/lib/dealers/product-scope'
 
 // ------------------------------------------------------------
 // Pre-flight config validation for automations about to be activated.
@@ -73,6 +75,10 @@ function walk(steps: StepLike[], prefix: string, issues: ValidationIssue[]): voi
 
 function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): void {
   const c = step.step_config ?? {}
+  if (isDealerDeployment() && isRetiredDealerAutomationStep(step)) {
+    issues.push({ path, message: 'Retired commerce step', key: 'dealers.dealerOnlyAutomation' });
+    return;
+  }
   switch (step.step_type) {
     case 'send_message':
       if (c.voice_note && !validVoiceConfig(c.voice_note)) {
@@ -239,6 +245,9 @@ export function validateTriggerForActivation(
   triggerConfig: unknown,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = []
+  if (isDealerDeployment() && !isDealerAutomationTrigger(triggerType)) {
+    return [{ path: 'trigger', message: 'Retired commerce trigger', key: 'dealers.dealerOnlyAutomation' }];
+  }
   const cfg = (triggerConfig ?? {}) as Record<string, unknown>
   if (cfg.delivery_incident_context !== undefined &&
     (typeof cfg.delivery_incident_context !== 'boolean' || (cfg.delivery_incident_context === true && !['shopify_order_incident_opened','shopify_order_incident_resolved'].includes(triggerType)))) {

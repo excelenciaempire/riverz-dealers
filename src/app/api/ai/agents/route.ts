@@ -191,7 +191,7 @@ export async function POST(request: Request) {
     // casilla escondida que casi nadie encontraba. Igual no puede crear nada
     // sin una tienda conectada con permiso de escritura — ahí está el freno
     // real —, y el que prefiera que no cierre pedidos lo apaga en Avanzado.
-    puede_crear_pedidos: body.puede_crear_pedidos ?? true,
+    puede_crear_pedidos: false,
     // Migración 164. Sin rol es 'general', que es como se comportan todos los
     // agentes anteriores.
     role: isAgentRole(body.role) ? body.role : 'general',
@@ -199,7 +199,7 @@ export async function POST(request: Request) {
     provider: body.provider ?? 'anthropic',
     model: body.model ?? 'claude-sonnet-5-5',
     scope: body.scope ?? 'workspace',
-    product_scope: body.product_scope ?? 'all',
+    product_scope: 'all',
     priority: body.priority ?? 0,
     created_by: user.id,
   };
@@ -266,30 +266,7 @@ export async function POST(request: Request) {
       }))
     );
   }
-  if (
-    body.product_scope === 'specific' &&
-    Array.isArray(body.product_ids) &&
-    body.product_ids.length
-  ) {
-    // Validar que cada product_id pertenece al workspace del agente: el admin
-    // client bypassa RLS, así que sin esto un miembro podría asociar productos
-    // de otro tenant a su agente. Solo insertamos los que pertenecen.
-    const { data: owned } = await admin
-      .from('shopify_products')
-      .select('id')
-      .eq('workspace_id', (created as AiAgent).workspace_id)
-      .in('id', body.product_ids);
-    const validIds = new Set((owned ?? []).map((p) => p.id as string));
-    const rows = body.product_ids
-      .filter((product_id) => validIds.has(product_id))
-      .map((product_id) => ({
-        agent_id: (created as AiAgent).id,
-        product_id,
-      }));
-    if (rows.length) {
-      await admin.from('ai_agent_products').insert(rows);
-    }
-  }
+
 
   // El piso de reglas. Un asistente nacía con CERO, y las reglas son justo lo
   // que impide que invente: en una semana de producción, sin ellas, prometió

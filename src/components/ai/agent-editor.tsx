@@ -1,79 +1,40 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocalizedRouter } from '@/hooks/use-localized-router';
+import { useEffect, useState } from 'react';
+
 import Image from 'next/image';
 import Link from '@/components/i18n/locale-link';
 import { toast } from 'sonner';
-import {
-  Loader2,
-  Sparkles,
-  X,
-  Search,
-  Package,
-  Plus,
-  Briefcase,
-  Radio,
-  SlidersHorizontal,
-  Settings as SettingsIcon,
-  ChevronDown,
-  ChevronRight,
-  Check,
-} from 'lucide-react';
+import { Loader2, Sparkles, X, Plus, Briefcase, Radio, SlidersHorizontal, Settings as SettingsIcon, ChevronDown, ChevronRight } from 'lucide-react';
 import { AgentStats } from '@/components/ai/agent-stats';
 import { MODELO_POR_DEFECTO } from '@/lib/ai/esfuerzo';
-import { isDealerDeployment } from '@/lib/dealers/config';
+
 import { ReglasPanel } from '@/components/ai/reglas-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import {
-  MEDIOS_PAGO,
-  mediosDeclarados,
-  type MedioDePago,
-} from '@/lib/ai/medios-pago';
+
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT, useLocale } from '@/hooks/use-locale';
-import { localizePath } from '@/lib/i18n/routes';
+
 import { ToolSwitchboard, type Disponibilidad } from './tool-switchboard';
 import { ToolContextPolicies } from './tool-context-policies';
 import { SHOW_RIVERZ_IMPROVEMENTS } from '@/lib/ui/improvements-preview';
 import { DocumentSources } from './document-sources';
-import {
-  REGLAS_POR_DEFECTO,
-  type ReglasDeCobro,
-} from '@/lib/payments/reglas-de-cobro';
+
 import { limpiarPersona } from '@/lib/ai/persona-limpia';
 import type { AgentTools } from '@/lib/ai/toolbox';
-import type { TFn } from '@/lib/i18n/translate';
-import type {
-  AiAgent,
-  AiProductScope,
-  AiResponseMode,
-  AiScope,
-  AiTone,
-  BusinessHours,
-  ShopifyProductSummary,
-} from '@/lib/ai/types';
+
+import type { AiAgent, AiResponseMode, AiScope, AiTone, BusinessHours } from '@/lib/ai/types';
 import { MIN_DEBOUNCE_SECONDS } from '@/lib/ai/types';
-import { idsDelGrupo } from '@/lib/products/agrupar';
-import {
-  AGENT_ROLES,
-  type AgentPermissions,
-  type AgentRole,
-} from '@/lib/ai/roles';
-import { roleTemplate } from '@/lib/ai/role-templates';
+
+import { type AgentPermissions, type AgentRole } from '@/lib/ai/roles';
+
 import type { AgentSummary } from '@/app/(dashboard)/asistente/page';
 import type { Channel } from '@/types';
 import { AvisoEscalada } from '@/components/ai/aviso-escalada';
@@ -81,12 +42,7 @@ import { AvisoEscalada } from '@/components/ai/aviso-escalada';
 /** "shopify" → "Shopify". Los nombres propios se escriben como se escriben.
  *  Mismo mapa que la pantalla de Productos: un canal nombrado distinto en cada
  *  pantalla deja de parecer el mismo producto. */
-const CANAL: Record<string, string> = {
-  shopify: 'Shopify',
-  mercadolibre: 'Mercado Libre',
-  tiendanube: 'Tiendanube',
-  woocommerce: 'WooCommerce',
-};
+
 
 // label/hint son claves i18n resueltas con t() en el render.
 const TONES: { value: AiTone; label: string; hint: string }[] = [
@@ -123,19 +79,12 @@ const DEFAULT_MODEL = MODELO_POR_DEFECTO;
 // variantes para reconocer "el persona sigue siendo el default" sin importar
 // el idioma con que se sembró (ver isDefaultPersona).
 const DEFAULT_PERSONAS: Record<'es' | 'en', string> = {
-  es: 'Eres un asistente de atención al cliente. Respondes con calidez y vas directo al grano.',
-  en: 'You are a customer-support assistant. You reply warmly and get straight to the point.',
+  es: 'Eres el asistente de un vendedor de carros. Ayudas a elegir una unidad disponible, coordinar visitas y dar seguimiento. Respondes con calidez y vas directo al grano.',
+  en: 'You assist a car salesperson. Help buyers choose available vehicles, arrange visits and follow up. Reply warmly and get straight to the point.',
 };
 
 function defaultPersona(locale: string): string {
   return DEFAULT_PERSONAS[locale === 'en' ? 'en' : 'es'];
-}
-
-/** True if the persona is still an untouched default (any locale) or empty —
- *  i.e. safe to overwrite when the merchant picks a product. */
-function isDefaultPersona(persona: string): boolean {
-  const s = persona.trim();
-  return s === '' || s === DEFAULT_PERSONAS.es || s === DEFAULT_PERSONAS.en;
 }
 
 // `icon` es la ruta del logo de la marca; los canales sin logo propio
@@ -150,11 +99,6 @@ const CHANNELS: { value: Channel; label: string; icon: string | null }[] = [
     label: 'Outlook',
     icon: '/channels/microsoftoutlook.svg',
   },
-  {
-    value: 'mercadolibre',
-    label: 'Mercado Libre',
-    icon: '/channels/mercadolibre.svg',
-  },
   { value: 'webchat', label: 'nav.webchat', icon: '/channels/webchat.svg' },
 ];
 
@@ -165,16 +109,6 @@ const LANGUAGES: { code: string; label: string }[] = [
   { code: 'pt', label: 'assistant.languagePortuguese' },
   { code: 'fr', label: 'assistant.languageFrench' },
 ];
-
-// label/hint son claves i18n resueltas con t() en el render.
-/** Sufijo de la clave i18n de cada rol y permiso, para no repetir el mapa. */
-const ROLE_KEY: Record<AgentRole, string> = {
-  general: 'General',
-  ventas: 'Sales',
-  postventa: 'Aftersale',
-  recuperacion: 'Recovery',
-  retencion: 'Retention',
-};
 
 /**
  * Cuanta correa tiene el asistente.
@@ -339,7 +273,6 @@ export function AgentEditor({
   const t = useT();
   const { locale } = useLocale();
   const fetchWithCsrf = useFetchWithCsrf();
-  const router = useLocalizedRouter();
   // Persistimos el id del agente "en edición" en estado local porque
   // la generación con IA crea el row a medio camino. Inicialmente es
   // el agente que entró por props (null cuando es "Nuevo"), pero al
@@ -352,7 +285,6 @@ export function AgentEditor({
   // `isNew` = el editor se abrió en modo "crear" (sin agente previo). Se
   // mantiene aunque la generación con IA persista el row a medio camino
   // —por eso NO usamos currentAgentId—, para seguir exigiendo producto.
-  const isNew = !agent;
 
   const [name, setName] = useState(agent?.name ?? '');
   const [isActive, setIsActive] = useState(agent?.is_active ?? false);
@@ -421,28 +353,20 @@ export function AgentEditor({
   // Cierre de ventas: si está ON, el asistente arma y crea el pedido real
   // en Shopify. Migration 080. Requiere Shopify conectado con permiso de
   // pedidos (write_orders).
-  const [puedeCrearPedidos, setPuedeCrearPedidos] = useState<boolean>(
-    agent?.puede_crear_pedidos ?? false
-  );
+
   // Cómo cierra la venta (migración 219). Elige entre lo que la pizarra ya
   // permite: con una sola de las dos herramientas prendida no hay nada que
   // elegir y el control no se muestra.
-  const [cobroModo, setCobroModo] = useState<
-    'checkout' | 'chat' | 'segun_pago'
-  >(agent?.cobro_modo ?? 'segun_pago');
+
   // `null` no es la lista vacía: es "todavía no lo declaró". Con null el
   // agente no nombra ningún medio y no confirma contra entrega — pasa a una
   // persona. Es donde arranca todo asistente nuevo, y es el lado seguro.
-  const [medios, setMedios] = useState<MedioDePago[] | null>(
-    mediosDeclarados(agent?.medios_pago)
-  );
+
   // Rol y permisos por acción (migración 164). `permissions` en null significa
   // "usá las columnas viejas": los agentes anteriores siguen igual hasta que
   // alguien toque uno de estos interruptores.
-  const [role, setRole] = useState<AgentRole>(agent?.role ?? 'general');
-  const [permissions, setPermissions] = useState<AgentPermissions | null>(
-    agent?.permissions ?? null
-  );
+  const role: AgentRole = agent?.role ?? 'general';
+  const permissions: AgentPermissions | null = agent?.permissions ?? null;
   // La correa por herramienta (migración 180). En null cada una hereda del
   // permiso viejo: aplicar esto no le cambió el agente a nadie.
   const [tools, setTools] = useState<AgentTools | null>(
@@ -460,10 +384,9 @@ export function AgentEditor({
     voz: false,
   });
   /** Cuánto puede descontar el agente. Vive en la cuenta, no en el agente. */
-  const [topeDescuento, setTopeDescuento] = useState(0);
+
   /** Con qué pruebas da un pedido por cobrado. También de la cuenta. */
-  const [reglasCobro, setReglasCobro] =
-    useState<ReglasDeCobro>(REGLAS_POR_DEFECTO);
+
 
   /**
    * Cambiar de rol trae su preset de permisos.
@@ -472,33 +395,18 @@ export function AgentEditor({
    * como etiqueta y no como decisión. Quien quiera otra cosa mueve los
    * interruptores después: el preset es un punto de partida, no un candado.
    */
-  const aplicarRol = (r: AgentRole) => {
-    setRole(r);
-    const preset = roleTemplate(r);
-    if (preset) {
-      setPermissions(preset.permissions);
-      setPuedeCrearPedidos(preset.permissions.crear_pedidos === true);
-      // La pizarra vuelve a heredar del preset. Dejarla como estaba haría que
-      // elegir "Postventa" moviera los permisos por debajo y la pantalla
-      // siguiera mostrando lo de antes.
-      setTools(null);
-    }
-  };
+
   // Estado de la conexión Shopify para gatear "Cierre de ventas". null =
   // cargando. El cierre solo se puede activar con Shopify conectado; si no,
   // mostramos un botón "Vincular" que abre un popup sin salir del editor.
-  const [shopifyConnected, setShopifyConnected] = useState<boolean | null>(
-    null
-  );
+
   // Sin la app pública aprobada no hay OAuth: se vincula desde la tarjeta
   // de Integraciones, con las credenciales de la app de la tienda.
-  const [shopifyOauth, setShopifyOauth] = useState(false);
-  const [linkShop, setLinkShop] = useState('');
-  const [showLinkInput, setShowLinkInput] = useState(false);
-  const [linking, setLinking] = useState(false);
+
+
   // Id del poll de conexión Shopify, para limpiarlo al desmontar (evita
   // un setInterval huérfano si se cierra el editor a mitad de la vinculación).
-  const linkTimerRef = useRef<number | null>(null);
+
   const initialBh = readBusinessHours(agent?.business_hours);
   const [hoursEnabled, setHoursEnabled] = useState<boolean>(initialBh.enabled);
   const [hoursStart, setHoursStart] = useState<string>(initialBh.start);
@@ -516,22 +424,11 @@ export function AgentEditor({
   // Un asistente nuevo SIEMPRE arranca en "specific": se entrena a partir
   // del producto que elijas, así que la selección es obligatoria. Los
   // existentes conservan su scope guardado (incl. "all", por compatibilidad).
-  const [productScope, setProductScope] = useState<AiProductScope>(
-    isDealerDeployment()
-      ? 'all'
-      : agent
-        ? (agent.product_scope ?? 'all')
-        : 'specific'
-  );
-  const [selectedProducts, setSelectedProducts] = useState<string[]>(
-    (agent?.ai_agent_products ?? []).map((p) => p.product_id)
-  );
-  const [catalog, setCatalog] = useState<ShopifyProductSummary[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(false);
-  const [productSearch, setProductSearch] = useState('');
+
+
   // Al elegir el primer producto de un asistente nuevo, preparamos una
   // plantilla (persona + conocimiento) desde su info e investigación.
-  const [applyingProduct, setApplyingProduct] = useState(false);
+
 
   const [saving, setSaving] = useState(false);
   const [apiKey, setApiKey] = useState('');
@@ -574,14 +471,7 @@ export function AgentEditor({
   );
   /** El texto de cada modo de cobro, para que el selector no muestre el nombre
    *  interno de la columna. */
-  const COBRO_LABELS = {
-    segun_pago: t('operation.cobroSegunPago'),
-    chat: t('operation.cobroChat'),
-    checkout: t('operation.cobroCheckout'),
-  };
-  const ROLE_LABELS = Object.fromEntries(
-    AGENT_ROLES.map((r) => [r, t(`operation.role${ROLE_KEY[r]}Name`)])
-  );
+
 
   function toggleEscalate(kw: string) {
     setEscalateKeywords((prev) => prev.filter((k) => k !== kw));
@@ -609,105 +499,8 @@ export function AgentEditor({
     );
   }
 
-  /**
-   * Asignar un producto es asignarlo entero.
-   *
-   * Un producto vendido en varios lados tiene una fila por plataforma. Guardar
-   * sólo la principal dejaba al agente autorizado a hablar de la de Shopify y
-   * no de la de Mercado Libre: el mismo producto, partido según por dónde le
-   * escribieran — justo lo que unificar vino a arreglar. Se guardan todas.
-   */
-  function toggleProduct(p: ShopifyProductSummary) {
-    const ids = idsDelGrupo(p);
-    setSelectedProducts((prev) => {
-      if (ids.some((id) => prev.includes(id)))
-        return prev.filter((x) => !ids.includes(x));
-      const next = Array.from(new Set([...prev, ...ids]));
-      // Primer producto de un asistente nuevo → preparar la plantilla y
-      // disparar la investigación del producto (lo que antes era manual). Se
-      // usa la principal: es la que tiene el conocimiento.
-      if (prev.length === 0) void prefillFromProduct(p.id);
-      return next;
-    });
-  }
-
-  /**
-   * Plantilla de identidad del asistente a partir de un producto. Sólo pisa
-   * lo que el usuario no tocó (nombre vacío, persona por defecto, "Información
-   * del negocio" vacía). En cada conversación el runner igual inyecta el
-   * producto completo (training_material + research); acá precargamos un
-   * resumen breve en "Información del negocio" SOLO si está vacía, para que el
-   * merchant vea el agente pre-armado sin duplicar la investigación completa.
-   */
-  function applyProductTemplate(p: ProductDetail) {
-    setName(
-      (cur) =>
-        cur.trim() ||
-        t('assistant.defaultAgentName', { title: p.title }).slice(0, 60)
-    );
-    // System prompt: lo arma el código a partir del producto (título +
-    // cliente ideal + beneficios + objeciones si hay investigación). Solo
-    // pisa el persona por defecto / vacío, nunca lo que el usuario escribió.
-    setPersona((cur) =>
-      isDefaultPersona(cur) ? buildPersonaFromProduct(p, locale) : cur
-    );
-    // "Información del negocio": SIEMPRE queda rellena al elegir el producto
-    // (si está vacía) — con el resumen del producto cuando hay investigación,
-    // o un andamiaje base (envíos/políticas/pagos) que el merchant edita. Así
-    // las dos cajas quedan pre-armadas, nunca una llena y la otra en blanco.
-    setKnowledge((cur) =>
-      cur.trim()
-        ? cur
-        : buildBusinessInfoFromProduct(p, t) ||
-          t('assistant.businessInfoPlaceholder')
-    );
-  }
-
-  async function prefillFromProduct(productId: string) {
-    setApplyingProduct(true);
-    try {
-      const p = await fetchProductDetail(productId);
-      if (!p) return;
-      applyProductTemplate(p);
-      // La investigación NO se dispara desde aquí: vive en el apartado de
-      // Producto ("Generar investigación", que además lee las URLs y rellena
-      // todo). El agente solo elige un producto ya enriquecido. Si todavía no
-      // tiene investigación, lo sugerimos sin bloquear.
-      if (p.ai_research_status === 'done') {
-        toast.success(t('assistant.assistantReady'));
-      } else {
-        toast.message(t('assistant.productAssigned'), {
-          description: t('assistant.productAssignedHint'),
-        });
-      }
-    } catch {
-      /* prefill best-effort: si falla, el usuario igual puede editar a mano */
-    } finally {
-      setApplyingProduct(false);
-    }
-  }
-
   // Load the synced Shopify catalog the first time the user expands
   // "Productos asignados" so we don't pull it for every editor open.
-  useEffect(() => {
-    if (productScope !== 'specific' || catalog.length > 0) return;
-    let cancelled = false;
-    (async () => {
-      setCatalogLoading(true);
-      try {
-        const res = await fetch('/api/shopify/products');
-        const json = await res.json();
-        if (!cancelled && res.ok) {
-          setCatalog((json.products ?? []) as ShopifyProductSummary[]);
-        }
-      } finally {
-        if (!cancelled) setCatalogLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [productScope, catalog.length]);
 
   // Con qué cuenta HOY esta cuenta, para que la pizarra pueda decir por qué una
   // herramienta prendida todavía no va a hacer nada.
@@ -736,180 +529,21 @@ export function AgentEditor({
   // gobierna todos los canales— así que se guarda apenas se toca, sin esperar
   // al Guardar del agente: mezclarlo con el resto haría que "cancelar" en el
   // editor revirtiera algo que no es del agente.
-  useEffect(() => {
-    if (!workspaceId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(
-          `/api/ai/tope-descuento?workspace_id=${encodeURIComponent(workspaceId)}`
-        );
-        if (!res.ok) return;
-        const json = (await res.json()) as { tope?: number };
-        if (!cancelled) setTopeDescuento(Number(json.tope ?? 0));
-      } catch {
-        /* sin esto el campo arranca en 0, que es el valor real por defecto */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceId]);
 
-  const guardarTope = useCallback(
-    (n: number) => {
-      setTopeDescuento(n);
-      if (!workspaceId) return;
-      void (async () => {
-        try {
-          const res = await fetchWithCsrf('/api/ai/tope-descuento', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ workspace_id: workspaceId, tope: n }),
-          });
-          if (!res.ok) throw new Error();
-          // Cambiar el tope cambia si la herramienta se le ofrece o no al
-          // agente, así que la disponibilidad se vuelve a mirar.
-          setDisponible((d) => ({ ...d, descuento: n > 0 }));
-        } catch {
-          toast.error(t('assistant.updateError'));
-        }
-      })();
-    },
-    [workspaceId, fetchWithCsrf, t]
-  );
 
   // Con qué pruebas se da un pedido por cobrado. También de la CUENTA, y por
   // el mismo motivo que el tope: es la política de cobro del negocio, no la
   // personalidad de un agente.
-  useEffect(() => {
-    if (!workspaceId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(
-          `/api/ai/cobro-comprobante?workspace_id=${encodeURIComponent(workspaceId)}`
-        );
-        if (!res.ok) return;
-        const json = (await res.json()) as { reglas?: ReglasDeCobro };
-        if (!cancelled && json.reglas) setReglasCobro(json.reglas);
-      } catch {
-        /* quedan las de siempre, que es lo que hace el servidor igual */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceId]);
 
-  const guardarReglasCobro = useCallback(
-    (r: ReglasDeCobro) => {
-      setReglasCobro(r);
-      if (!workspaceId) return;
-      void (async () => {
-        try {
-          const res = await fetchWithCsrf('/api/ai/cobro-comprobante', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              workspace_id: workspaceId,
-              exige_comprobante: r.exigeComprobante,
-              un_solo_pendiente: r.unSoloPendiente,
-              exige_referencia: r.exigeReferencia,
-              tolerancia_pct: r.toleranciaPct,
-            }),
-          });
-          if (!res.ok) throw new Error();
-        } catch {
-          toast.error(t('assistant.updateError'));
-        }
-      })();
-    },
-    [workspaceId, fetchWithCsrf, t]
-  );
 
   // Estado de la conexión Shopify (gatea "Cierre de ventas").
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/shopify/status', { cache: 'no-store' });
-        const d = await res.json();
-        if (!cancelled) {
-          setShopifyConnected(d?.connection?.status === 'active');
-          setShopifyOauth(Boolean(d?.oauth));
-        }
-      } catch {
-        if (!cancelled) setShopifyConnected(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Vincula Shopify desde un popup, sin que el usuario salga del editor. Al
   // detectar la conexión activa, habilita el cierre de ventas en el acto.
-  function linkShopify() {
-    if (!shopifyOauth) {
-      // Puede tener que crear la app en Shopify antes: más margen que el OAuth.
-      abrirVinculo(
-        `${localizePath('/integraciones', locale)}#canal-shopify`,
-        900_000
-      );
-      return;
-    }
-    const shop = linkShop.trim();
-    if (!shop) {
-      toast.error(t('assistant.shopDomainRequired'));
-      return;
-    }
-    abrirVinculo(
-      `/api/shopify/install?shop=${encodeURIComponent(shop)}`,
-      180_000
-    );
-  }
 
-  function abrirVinculo(url: string, limiteMs: number) {
-    setLinking(true);
-    if (linkTimerRef.current) window.clearInterval(linkTimerRef.current);
-    const popup = window.open(url, 'shopify-connect', 'width=620,height=760');
-    const started = Date.now();
-    const timer = window.setInterval(async () => {
-      try {
-        const res = await fetch('/api/shopify/status', { cache: 'no-store' });
-        const d = await res.json();
-        if (d?.connection?.status === 'active') {
-          window.clearInterval(timer);
-          setShopifyConnected(true);
-          setLinking(false);
-          setShowLinkInput(false);
-          try {
-            popup?.close();
-          } catch {
-            /* ignore */
-          }
-          toast.success(t('assistant.shopifyConnectedToast'));
-          return;
-        }
-      } catch {
-        /* sigue intentando */
-      }
-      if ((popup && popup.closed) || Date.now() - started > limiteMs) {
-        window.clearInterval(timer);
-        setLinking(false);
-      }
-    }, 2000);
-    linkTimerRef.current = timer;
-  }
 
   // Limpia el poll de conexión Shopify si el editor se desmonta a media
   // vinculación (evita un setInterval huérfano golpeando /status).
-  useEffect(() => {
-    return () => {
-      if (linkTimerRef.current) window.clearInterval(linkTimerRef.current);
-    };
-  }, []);
 
   /**
    * Cuántos PRODUCTOS, no cuántas filas.
@@ -919,28 +553,10 @@ export function AgentEditor({
    * cuenta contra el catálogo agrupado; lo que no esté en él (el catálogo
    * todavía no cargó, o el producto se borró) se cuenta como uno.
    */
-  const productosAsignados = useMemo(() => {
-    if (catalog.length === 0) return selectedProducts.length;
-    const vistos = new Set<string>();
-    let n = 0;
-    for (const p of catalog) {
-      const ids = idsDelGrupo(p);
-      ids.forEach((id) => vistos.add(id));
-      if (ids.some((id) => selectedProducts.includes(id))) n += 1;
-    }
-    return n + selectedProducts.filter((id) => !vistos.has(id)).length;
-  }, [catalog, selectedProducts]);
 
-  const filteredCatalog = useMemo(() => {
-    const q = productSearch.trim().toLowerCase();
-    if (!q) return catalog;
-    return catalog.filter((p) => p.title.toLowerCase().includes(q));
-  }, [catalog, productSearch]);
 
   /** Redirige (misma pestaña) a crear un producto en la sección Productos. */
-  function goToCreateProduct() {
-    router.push('/productos?new=1');
-  }
+
 
   async function save() {
     if (!name.trim()) {
@@ -950,12 +566,7 @@ export function AgentEditor({
     // Al crear (incl. cuando se generó con IA desde la web), exigimos al
     // menos un producto: el asistente se entrena con su información. En
     // edición respetamos el scope ya guardado.
-    if (!isDealerDeployment() && isNew && selectedProducts.length === 0) {
-      setTab('business');
-      setProductScope('specific');
-      toast.error(t('assistant.productRequired'));
-      return;
-    }
+
     // "Solo algunos" sin ningún canal marcado guardaba un agente que no
     // responde en ninguna parte, y sin aviso: el detector de conflictos
     // también lo ignora (no ocupa ningún canal) y en Instagram deja el
@@ -1033,9 +644,9 @@ export function AgentEditor({
       followup_enabled: followupEnabled,
       followup_delay_hours: followupDelayHours,
       followup_max_count: followupMaxCount,
-      puede_crear_pedidos: isDealerDeployment() ? false : puedeCrearPedidos,
-      cobro_modo: cobroModo,
-      medios_pago: medios,
+      puede_crear_pedidos: (false),
+      cobro_modo: null,
+      medios_pago: null,
       role,
       permissions,
       tools,
@@ -1055,11 +666,8 @@ export function AgentEditor({
       // ya exige `voice_enabled`: un canal guardado de más no hace nada, uno
       // borrado sí.
       channels: scope === 'channels' ? channels : [],
-      product_scope: isDealerDeployment() ? 'all' : productScope,
-      product_ids:
-        !isDealerDeployment() && productScope === 'specific'
-          ? selectedProducts
-          : [],
+      product_scope: ('all'),
+      product_ids: [],
     };
 
     const url = currentAgentId
@@ -1171,7 +779,7 @@ export function AgentEditor({
                 {/* Producto PRIMERO: elegirlo dispara la investigación y
                     puebla identidad, persona y conocimiento. Es el paso 1 del
                     flujo product-first. */}
-                {isDealerDeployment() ? (
+                {((
                   <SectionCard
                     title={t('dealers.vehicles')}
                     hint={t('dealers.assistantInventoryHint')}
@@ -1183,206 +791,7 @@ export function AgentEditor({
                       {t('dealers.vehicles')}
                     </Link>
                   </SectionCard>
-                ) : (
-                  <Field
-                    label={
-                      isNew
-                        ? t('assistant.productFieldNew')
-                        : t('assistant.productFieldEdit')
-                    }
-                  >
-                    {isNew ? (
-                      applyingProduct ? (
-                        <p className="text-accent-ink flex items-center gap-2 text-[11px]">
-                          <Loader2 className="size-3.5 animate-spin" />
-                          {t('assistant.preparingWithProduct')}
-                        </p>
-                      ) : (
-                        <p className="text-muted-foreground text-[11px]">
-                          {t('assistant.productNewHint')}
-                        </p>
-                      )
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        <ScopeCard
-                          active={productScope === 'all'}
-                          onClick={() => setProductScope('all')}
-                          title={t('assistant.wholeCatalog')}
-                        />
-                        <ScopeCard
-                          active={productScope === 'specific'}
-                          onClick={() => setProductScope('specific')}
-                          title={t('assistant.someProducts')}
-                        />
-                      </div>
-                    )}
-                    {(isNew || productScope === 'specific') && (
-                      <div className="mt-2 space-y-2">
-                        <div className="relative">
-                          <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
-                          <Input
-                            value={productSearch}
-                            onChange={(e) => setProductSearch(e.target.value)}
-                            placeholder={t('assistant.searchProduct')}
-                            className="bg-background pl-8 text-sm"
-                          />
-                        </div>
-                        <div className="border-border bg-background max-h-[280px] overflow-y-auto rounded-lg border">
-                          {catalogLoading ? (
-                            <div className="flex justify-center py-6">
-                              <Loader2 className="text-muted-foreground size-4 animate-spin" />
-                            </div>
-                          ) : filteredCatalog.length === 0 ? (
-                            <div className="text-muted-foreground space-y-3 px-3 py-6 text-center text-xs">
-                              {catalog.length === 0 ? (
-                                <>
-                                  <p>{t('assistant.noProductsYet')}</p>
-                                  <Button
-                                    type="button"
-                                    onClick={goToCreateProduct}
-                                    className="bg-primary text-primary-foreground hover:bg-primary/90"
-                                  >
-                                    <Package className="size-4" />
-                                    {t('assistant.createNewProduct')}
-                                  </Button>
-                                </>
-                              ) : (
-                                t('assistant.noResults')
-                              )}
-                            </div>
-                          ) : (
-                            <ul className="divide-border divide-y">
-                              {filteredCatalog.map((p) => {
-                                // Cuenta como asignado si lo está CUALQUIERA de
-                                // sus publicaciones: quien asignó el producto
-                                // antes de unificarlo tiene apuntada una sola
-                                // fila, y el agente ya lo trata como el producto
-                                // entero. Mostrarlo sin asignar sería mentirle.
-                                const on = idsDelGrupo(p).some((id) =>
-                                  selectedProducts.includes(id)
-                                );
-                                return (
-                                  <li
-                                    key={p.id}
-                                    className={cn(
-                                      'flex items-center gap-3 px-3 py-2',
-                                      on && 'bg-primary/10'
-                                    )}
-                                  >
-                                    {p.image_url ? (
-                                      /* eslint-disable-next-line @next/next/no-img-element */
-                                      <img
-                                        src={p.image_url}
-                                        alt=""
-                                        className="size-8 shrink-0 rounded object-cover"
-                                      />
-                                    ) : (
-                                      <div className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded">
-                                        <Package className="size-3.5" />
-                                      </div>
-                                    )}
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-foreground truncate text-sm">
-                                        {p.title}
-                                      </p>
-                                      <p className="text-muted-foreground truncate text-[11px]">
-                                        {[
-                                          p.product_type,
-                                          p.vendor,
-                                          p.price_min != null
-                                            ? p.price_min === p.price_max
-                                              ? `$${p.price_min}`
-                                              : `$${p.price_min}-${p.price_max}`
-                                            : null,
-                                        ]
-                                          .filter(Boolean)
-                                          .join(' · ')}
-                                      </p>
-                                      {/* En qué canales está y a cuánto en cada
-                                        uno, igual que la tarjeta de Productos.
-                                        Sólo cuando está unificado: para uno de
-                                        un solo canal repetiría el precio. */}
-                                      {(p.listings?.length ?? 0) > 1 ? (
-                                        <div className="mt-1 flex flex-wrap gap-1">
-                                          {p.listings!.map((l) => (
-                                            <span
-                                              key={l.id}
-                                              title={l.title ?? undefined}
-                                              className="border-border text-muted-foreground inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]"
-                                            >
-                                              <span className="text-foreground font-medium">
-                                                {CANAL[l.platform] ??
-                                                  l.platform}
-                                              </span>
-                                              {l.price_min != null
-                                                ? `$${l.price_min}`
-                                                : ''}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      ) : null}
-                                    </div>
-                                    {/* Botón explícito de asignación: la fila ya no
-                                      togglea entera, así la selección es precisa. */}
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant={on ? 'default' : 'outline'}
-                                      onClick={() => toggleProduct(p)}
-                                      className={cn(
-                                        'h-7 shrink-0 gap-1 px-2.5 text-xs',
-                                        on
-                                          ? 'bg-emerald-600 text-white hover:bg-emerald-600/90'
-                                          : 'border-border text-foreground hover:bg-muted bg-transparent'
-                                      )}
-                                    >
-                                      {on ? (
-                                        <>
-                                          <Check className="size-3.5" />
-                                          {t('assistant.assigned')}
-                                        </>
-                                      ) : (
-                                        t('assistant.assign')
-                                      )}
-                                    </Button>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          )}
-                        </div>
-                        {/* Elegir "sólo algunos" y no elegir ninguno deja al
-                          agente sin catálogo: no puede nombrar, cotizar ni
-                          buscar un producto. Es coherente con lo que dice la
-                          opción, pero pasa callado — y el agente contesta que
-                          no tiene nada a la venta. */}
-                        {!isNew && selectedProducts.length === 0 && (
-                          <p className="text-foreground rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px]">
-                            {t('assistant.scopeSpecificEmpty')}
-                          </p>
-                        )}
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-muted-foreground text-[11px]">
-                            {productosAsignados === 1
-                              ? t('assistant.productsAssignedOne', {
-                                  count: productosAsignados,
-                                })
-                              : t('assistant.productsAssignedOther', {
-                                  count: productosAsignados,
-                                })}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={goToCreateProduct}
-                            className="text-accent-ink text-[11px] underline hover:opacity-80"
-                          >
-                            {t('assistant.notListedCreate')}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </Field>
-                )}
+                ))}
 
                 {/* Identidad: nombre + tono + idioma. El modelo lo
                     elegimos nosotros (Haiku) para no abrumar al usuario
@@ -1667,15 +1076,13 @@ export function AgentEditor({
                   <ToolSwitchboard
                     agent={{
                       permissions,
-                      puede_crear_pedidos: puedeCrearPedidos,
+                      puede_crear_pedidos: false,
                     }}
                     tools={tools}
                     onChange={setTools}
                     disponible={disponible}
-                    tope={topeDescuento}
-                    onTope={guardarTope}
-                    reglas={reglasCobro}
-                    onReglas={guardarReglasCobro}
+
+
                   />
                   {SHOW_RIVERZ_IMPROVEMENTS && currentAgentId && (
                     <ToolContextPolicies
@@ -1698,39 +1105,7 @@ export function AgentEditor({
                     ella: sólo hay algo que elegir cuando el agente puede
                     tanto mandar a la caja como tomar el pedido. Con una sola
                     de las dos, la decisión ya está tomada. */}
-                {!isDealerDeployment() &&
-                (tools?.crear_checkout ?? 'auto') !== 'off' &&
-                puedeCrearPedidos ? (
-                  <SectionCard
-                    title={t('operation.cobroTitle')}
-                    hint={t('operation.cobroHint')}
-                  >
-                    <Select
-                      value={cobroModo}
-                      onValueChange={(v) =>
-                        setCobroModo((v as typeof cobroModo) ?? 'segun_pago')
-                      }
-                    >
-                      <SelectTrigger className="bg-background w-full">
-                        {/* Con `labels`: sin ellas el disparador pinta el valor
-                            crudo de la columna ("segun_pago"), que es el nombre
-                            interno y no le dice nada a nadie. */}
-                        <SelectValue labels={COBRO_LABELS} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="segun_pago">
-                          {t('operation.cobroSegunPago')}
-                        </SelectItem>
-                        <SelectItem value="chat">
-                          {t('operation.cobroChat')}
-                        </SelectItem>
-                        <SelectItem value="checkout">
-                          {t('operation.cobroCheckout')}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </SectionCard>
-                ) : null}
+
 
                 {/* Con qué se puede pagar. Va acá y no adentro del bloque de
                     arriba porque no depende de la caja: hay comercios que
@@ -1742,75 +1117,11 @@ export function AgentEditor({
                     peor — el que apura marca cualquier cosa, y prometer un
                     medio de pago que no existe es exactamente el error que
                     esto vino a arreglar. */}
-                {!isDealerDeployment() && puedeCrearPedidos ? (
-                  <SectionCard
-                    title={t('operation.mediosTitle')}
-                    hint={t('operation.mediosHint')}
-                  >
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {MEDIOS_PAGO.map((m) => {
-                        const puesto = medios?.includes(m) ?? false;
-                        return (
-                          <label
-                            key={m}
-                            className="border-border/60 bg-background flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm"
-                          >
-                            <Switch
-                              checked={puesto}
-                              onCheckedChange={(v) =>
-                                setMedios((prev) => {
-                                  const base = prev ?? [];
-                                  return v
-                                    ? MEDIOS_PAGO.filter(
-                                        (k) => k === m || base.includes(k)
-                                      )
-                                    : base.filter((k) => k !== m);
-                                })
-                              }
-                            />
-                            <span>
-                              {t(
-                                `operation.medio${m.charAt(0).toUpperCase()}${m.slice(1)}`
-                              )}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </SectionCard>
-                ) : null}
+
 
                 {/* El rol va acá al lado: no habilita nada, decide a quién le
                     toca el mensaje cuando hay varios agentes en un canal. */}
-                <SectionCard
-                  title={t('operation.roleLabel')}
-                  hint={t('operation.roleHint')}
-                >
-                  <Select
-                    value={role}
-                    onValueChange={(v) =>
-                      aplicarRol((v as AgentRole) ?? 'general')
-                    }
-                  >
-                    <SelectTrigger className="bg-background w-full">
-                      <SelectValue labels={ROLE_LABELS} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {AGENT_ROLES.map((r) => (
-                        <SelectItem key={r} value={r}>
-                          <div className="flex flex-col">
-                            <span className="text-foreground text-sm">
-                              {t(`operation.role${ROLE_KEY[r]}Name`)}
-                            </span>
-                            <span className="text-muted-foreground text-[11px]">
-                              {t(`operation.role${ROLE_KEY[r]}What`)}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </SectionCard>
+
               </>
             )}
 
@@ -2071,96 +1382,7 @@ export function AgentEditor({
                   )}
                 </SectionCard>
 
-                <SectionCard
-                  title={t('assistant.salesCloseTitle')}
-                  hint={t('assistant.salesCloseHint')}
-                  right={
-                    <Switch
-                      checked={puedeCrearPedidos}
-                      // Solo se puede ACTIVAR con Shopify conectado. Si ya
-                      // está activo, se puede desactivar siempre.
-                      disabled={!shopifyConnected && !puedeCrearPedidos}
-                      onCheckedChange={(v) => {
-                        if (v && !shopifyConnected) {
-                          toast.error(t('assistant.connectShopifyFirst'));
-                          return;
-                        }
-                        setPuedeCrearPedidos(v);
-                      }}
-                    />
-                  }
-                >
-                  {shopifyConnected === false && !puedeCrearPedidos ? (
-                    <div className="space-y-2">
-                      <p className="text-muted-foreground text-[11px]">
-                        {t('assistant.salesCloseConnectPrompt')}
-                      </p>
-                      {showLinkInput ? (
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <Input
-                            value={linkShop}
-                            onChange={(e) => setLinkShop(e.target.value)}
-                            onKeyDown={(e) =>
-                              e.key === 'Enter' && linkShopify()
-                            }
-                            placeholder={t('assistant.shopDomainPlaceholder')}
-                            className="bg-background"
-                            disabled={linking}
-                          />
-                          <div className="flex gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={linkShopify}
-                              disabled={linking}
-                            >
-                              {linking ? (
-                                <Loader2 className="size-4 animate-spin" />
-                              ) : (
-                                t('assistant.connect')
-                              )}
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setShowLinkInput(false)}
-                              disabled={linking}
-                              className="border-border"
-                            >
-                              {t('assistant.cancel')}
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          onClick={() =>
-                            shopifyOauth
-                              ? setShowLinkInput(true)
-                              : linkShopify()
-                          }
-                          disabled={linking}
-                        >
-                          <Image
-                            src="/channels/shopify.svg"
-                            alt=""
-                            width={16}
-                            height={16}
-                          />
-                          {t('assistant.linkShopify')}
-                        </Button>
-                      )}
-                      {linking && (
-                        <p className="text-muted-foreground text-[11px]">
-                          {t('assistant.linkingHint')}
-                        </p>
-                      )}
-                    </div>
-                  ) : null}
-                </SectionCard>
+
               </>
             )}
           </div>
@@ -2186,157 +1408,6 @@ export function AgentEditor({
       </DialogContent>
     </Dialog>
   );
-}
-
-/** Subconjunto del producto que usamos para armar la plantilla del agente. */
-interface ProductDetail {
-  id: string;
-  title: string;
-  ai_research_status?: string | null;
-  description?: string | null;
-  structured_research?: Record<string, unknown> | null;
-}
-
-/**
- * Resumen corto del producto para precargar "Información del negocio" al
- * elegirlo en el editor del agente. Prioriza la investigación estructurada
- * (cliente ideal + beneficios); si no hay, cae a la descripción recortada.
- * Se mantiene breve a propósito: el runner ya inyecta el producto completo
- * en cada conversación, esto es solo para que el merchant lo vea pre-armado.
- */
-/**
- * Un ítem de la investigación del producto, como texto.
- *
- * La investigación NO siempre devuelve strings: las objeciones vienen como
- * `{objection, rebuttal}` y otras listas traen `{title, detail}`. Un `String(x)`
- * sobre eso escribe "[object Object]" — y ese texto termina DENTRO de la persona
- * del agente, o sea dentro del prompt. Pasó de verdad: el asesor de Serum Pilar
- * quedó con "Maneja con tacto estas objeciones comunes: [object Object];
- * [object Object]" y se quedó sin ninguna objeción que manejar.
- */
-function researchText(x: unknown): string {
-  if (typeof x === 'string') return x.trim();
-  if (x && typeof x === 'object') {
-    const o = x as Record<string, unknown>;
-    // Se arma "objeción → respuesta" cuando vienen las dos mitades.
-    const pick = (...keys: string[]) =>
-      keys.map((k) => o[k]).find((v) => typeof v === 'string' && v.trim()) as
-        | string
-        | undefined;
-    const head = pick(
-      'objection',
-      'objeción',
-      'title',
-      'titulo',
-      'name',
-      'text',
-      'texto'
-    );
-    const tail = pick(
-      'rebuttal',
-      'response',
-      'respuesta',
-      'answer',
-      'detail',
-      'detalle'
-    );
-    if (head && tail) return `${head.trim()} → ${tail.trim()}`;
-    if (head) return head.trim();
-    if (tail) return tail.trim();
-    const any = Object.values(o).find((v) => typeof v === 'string' && v.trim());
-    return typeof any === 'string' ? any.trim() : '';
-  }
-  return x == null ? '' : String(x).trim();
-}
-
-function buildBusinessInfoFromProduct(p: ProductDetail, t: TFn): string {
-  const arr = (v: unknown): string[] =>
-    Array.isArray(v) ? v.map(researchText).filter(Boolean) : [];
-  const sr =
-    p.structured_research && typeof p.structured_research === 'object'
-      ? (p.structured_research as Record<string, unknown>)
-      : null;
-  const lines: string[] = [];
-  if (sr) {
-    const audience = typeof sr.audience === 'string' ? sr.audience.trim() : '';
-    if (audience) lines.push(t('assistant.idealCustomer', { value: audience }));
-    const benefits = arr(sr.benefits ?? sr.desires).slice(0, 4);
-    if (benefits.length) {
-      lines.push(t('assistant.keyBenefits', { value: benefits.join('; ') }));
-    }
-  }
-  if (lines.length === 0 && p.description) {
-    const d = p.description.replace(/\s+/g, ' ').trim().slice(0, 400);
-    if (d) lines.push(d);
-  }
-  return lines.join('\n');
-}
-
-/**
- * System prompt (persona) armado a partir del producto. Base = asesor de
- * ventas del producto; si el producto ya tiene investigación, inyecta el
- * cliente ideal, los beneficios y las objeciones para que el prompt salga
- * afinado desde el primer momento. Sigue el idioma del merchant (locale): un
- * merchant de habla inglesa obtiene la persona en inglés. Los valores de
- * investigación (audience/benefits/objections) ya se generan en ese idioma.
- */
-function buildPersonaFromProduct(p: ProductDetail, locale: string): string {
-  const arr = (v: unknown): string[] =>
-    Array.isArray(v) ? v.map(researchText).filter(Boolean) : [];
-  const sr =
-    p.structured_research && typeof p.structured_research === 'object'
-      ? (p.structured_research as Record<string, unknown>)
-      : null;
-  const en = locale === 'en';
-  const lines: string[] = [
-    en
-      ? `You are an expert sales advisor for ${p.title}. You help customers warmly over ` +
-        `WhatsApp: answer questions with the product info, handle objections honestly, and ` +
-        `guide them to purchase (or repurchase) without pushing. One question per turn, ` +
-        `short messages. Never admit to being an AI.`
-      : `Eres un asesor de ventas experto en ${p.title}. Atiendes por WhatsApp ` +
-        `con calidez: resuelves dudas con la información del producto, manejas ` +
-        `objeciones con honestidad y guías a la compra (o recompra) sin presionar. ` +
-        `Una pregunta por turno, mensajes cortos. Nunca admites ser una IA.`,
-  ];
-  if (sr) {
-    const audience = typeof sr.audience === 'string' ? sr.audience.trim() : '';
-    if (audience) {
-      lines.push(
-        en
-          ? `Your typical customer: ${audience}.`
-          : `Tu cliente típico: ${audience}.`
-      );
-    }
-    const benefits = arr(sr.benefits ?? sr.desires).slice(0, 4);
-    if (benefits.length) {
-      lines.push(
-        en
-          ? `Lean on these benefits to convince: ${benefits.join('; ')}.`
-          : `Apóyate en estos beneficios para convencer: ${benefits.join('; ')}.`
-      );
-    }
-    const objections = arr(sr.objections).slice(0, 4);
-    if (objections.length) {
-      lines.push(
-        en
-          ? `Handle these common objections tactfully: ${objections.join('; ')}.`
-          : `Maneja con tacto estas objeciones comunes: ${objections.join('; ')}.`
-      );
-    }
-  }
-  return lines.join(' ');
-}
-
-async function fetchProductDetail(id: string): Promise<ProductDetail | null> {
-  try {
-    const res = await fetch(`/api/products/${id}`);
-    if (!res.ok) return null;
-    const json = await res.json();
-    return (json.product ?? null) as ProductDetail | null;
-  } catch {
-    return null;
-  }
 }
 
 function Field({

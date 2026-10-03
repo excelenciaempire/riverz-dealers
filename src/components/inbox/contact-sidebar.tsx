@@ -24,16 +24,16 @@ import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ContactTags } from "@/components/contacts/contact-tags";
-import { ShopifyContactPanel } from "@/components/inbox/shopify-contact-panel";
+
 import { IgProfilePanel } from "@/components/inbox/ig-profile-panel";
 import { CallWithAiButton } from "@/components/inbox/voice-call-view";
 import {WhatsAppCallButton} from '@/components/voice/whatsapp-call-button';
-import { CommerceLinkButton } from "@/components/inbox/commerce-link-button";
+
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useT } from "@/hooks/use-locale";
 import { useWorkspace } from "@/hooks/use-workspace";
-import { OperationLinks } from './operation-links';
+
 import { ContactSale } from '@/components/dealers/contact-sale';
 
 type ContactSegment = NonNullable<Contact["ai_segment"]>;
@@ -277,10 +277,10 @@ export function ContactSidebar({ contact, onClose, conversationId }: ContactSide
           {/* El pedido de esta persona, en la tienda de donde vino la venta.
               Sin venta que mostrar no renderiza nada. */}
           <div className="mt-3">
-            <CommerceLinkButton contactId={contact.id} />
+
           </div>
           <ContactSale contactId={contact.id} />
-          {SHOW_RIVERZ_IMPROVEMENTS && <OperationLinks contactId={contact.id} />}
+
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
@@ -289,11 +289,7 @@ export function ContactSidebar({ contact, onClose, conversationId }: ContactSide
               de Shopify (por email o teléfono), aquí aparece su LTV,
               últimos pedidos y acciones rápidas. Si no hay match,
               el componente no renderiza nada. */}
-          <ShopifyContactPanel
-            contactEmail={contact.email ?? null}
-            contactPhone={contact.phone ?? null}
-            conversationId={conversationId}
-          />
+
 
           {/* Lo que la IA investigó de su perfil de Instagram antes de
               escribirle. Sin datos no renderiza nada. */}

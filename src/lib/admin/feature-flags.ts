@@ -1,3 +1,5 @@
+import { isDealerDeployment } from '@/lib/dealers/config';
+import { isRetiredDealerRoute } from '@/lib/dealers/product-scope';
 /**
  * Feature flags — plataforma-wide, controlados desde el panel de admin.
  *
@@ -119,7 +121,7 @@ const CORE_EXPERIENCES: FeatureDef[] = [
 ];
 
 /** Operador ya es una experiencia general, no requiere inscripción al piloto. */
-export const FEATURES: FeatureDef[] = [...SECTION_FEATURES, ...CORE_EXPERIENCES];
+export const FEATURES: FeatureDef[] = [...SECTION_FEATURES, ...CORE_EXPERIENCES].filter(feature => !isDealerDeployment() || !feature.sections.some(isRetiredDealerRoute));
 export const OPT_IN_FEATURES: FeatureDef[] = [];
 
 /** Catálogo completo, para validar una clave que llega de afuera. */
@@ -129,6 +131,7 @@ export type FeatureFlags = Record<string, boolean>;
 
 /** ¿La funcionalidad `key` está habilitada? Ausente = habilitada. */
 export function isFeatureEnabled(flags: FeatureFlags, key: string): boolean {
+  if (isDealerDeployment() && ['flows', 'orders'].includes(key)) return false;
   return flags[key] !== false;
 }
 

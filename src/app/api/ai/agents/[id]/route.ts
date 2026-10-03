@@ -74,7 +74,7 @@ export async function PATCH(
     workspaceId: target.workspace_id,
     patch: pickAgentPatch(body),
     channels: Array.isArray(body.channels) ? body.channels : undefined,
-    productIds: Array.isArray(body.product_ids) ? body.product_ids : undefined,
+    productIds: undefined,
   });
 
   if (!outcome.ok) {

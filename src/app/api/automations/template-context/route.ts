@@ -1,3 +1,4 @@
+import { isDealerDeployment } from '@/lib/dealers/config';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
@@ -34,6 +35,7 @@ export async function GET() {
     return NextResponse.json({ payments: { mercadopago: false } });
   }
 
+  if (isDealerDeployment()) return NextResponse.json({ payments: { mercadopago: false } });
   const admin = supabaseAdmin();
   const { data } = await admin
     .from('workspace_integrations')

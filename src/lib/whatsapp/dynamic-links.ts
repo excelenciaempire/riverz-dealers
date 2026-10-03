@@ -20,7 +20,9 @@ export type ButtonUrlVariable =
   | 'payment'
   | 'product';
 
-export const BUTTON_URL_VARIABLES: ButtonUrlVariable[] = [
+import { isDealerDeployment } from '@/lib/dealers/config';
+
+export const BUTTON_URL_VARIABLES: ButtonUrlVariable[] = isDealerDeployment() ? [] : [
   'abandoned_checkout',
   'order_status',
   'tracking',

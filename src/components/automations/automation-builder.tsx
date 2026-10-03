@@ -1574,11 +1574,8 @@ export function AutomationBuilder({
         // config. Both RLS-scoped to the workspace. Powers the
         // `offer_chosen` condition dropdown. `title` alimenta el dropdown
         // de la condición `last_product`.
-        supabase.from('shopify_products').select('title, allowed_offers'),
-        supabase
-          .from('workspace_checkout_config')
-          .select('offers')
-          .maybeSingle(),
+        Promise.resolve({ data: [] }),
+        Promise.resolve({ data: null }),
       ]);
       setTemplates((tpl as MessageTemplate[]) ?? []);
       setSegments((seg as ContactSegment[]) ?? []);

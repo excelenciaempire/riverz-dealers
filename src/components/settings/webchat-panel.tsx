@@ -1,15 +1,17 @@
 'use client';
 
+import Link from '@/components/i18n/locale-link';
+
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle, Check, ChevronDown, Copy, Loader2, Target } from 'lucide-react';
-import Link from '@/components/i18n/locale-link';
+import { AlertTriangle, Check, ChevronDown, Copy, Loader2 } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
-import { useLocale, useT } from '@/hooks/use-locale';
-import { webchatRevenueDisplay, type WebchatRevenue } from './webchat-revenue';
+import { useT } from '@/hooks/use-locale';
+
 import { cn } from '@/lib/utils';
 import { ImagenDelChat } from '@/components/settings/webchat/imagen';
 import { ListaDeChips } from '@/components/settings/webchat/lista-de-chips';
@@ -39,12 +41,11 @@ interface Agente {
   is_active: boolean;
 }
 
-interface Stats extends WebchatRevenue {
+interface Stats {
   period_days: number;
   conversations: number;
   resolved: number;
   escalated: number;
-  orders: number;
   /** Qué tan seguido cerró el caso solo, y contra el período anterior. */
   resolution_rate: number | null;
   resolution_rate_previous: number | null;
@@ -53,21 +54,6 @@ interface Stats extends WebchatRevenue {
   satisfaction_rate: number | null;
   /** Mediana de segundos hasta la primera respuesta. */
   first_response_seconds: number | null;
-}
-
-/** Con qué contesta: cuántos productos tienen ficha cargada. */
-interface Conocimiento {
-  total: number;
-  con_ficha: number;
-  sin_ficha: number;
-  ejemplos: string[];
-}
-
-/** Lo que el chat le está contando a Meta. */
-interface Pixel {
-  connected: boolean;
-  contadas: number;
-  contactos: number;
 }
 
 /** "18 s", "4 min", "2 h". Un número en segundos no se lee. */
@@ -105,7 +91,6 @@ type Seccion = (typeof SECCIONES)[number]['id'];
 
 export function WebchatPanel() {
   const t = useT();
-  const { locale } = useLocale();
   const fetchWithCsrf = useFetchWithCsrf();
 
   const [loading, setLoading] = useState(true);
@@ -114,24 +99,16 @@ export function WebchatPanel() {
   const [cfg, setCfg] = useState<WebchatConfig>({});
   const [snippet, setSnippet] = useState('');
   const [agents, setAgents] = useState<Agente[]>([]);
-  const [shopifyDisponible, setShopifyDisponible] = useState<boolean | null>(null);
-  const [activationUrl, setActivationUrl] = useState<string | null>(null);
-  const [motivoInstalar, setMotivoInstalar] = useState<string | null>(null);
-  const [instalando, setInstalando] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [pixel, setPixel] = useState<Pixel | null>(null);
   const [suggested, setSuggested] = useState<string[]>([]);
   const [seccion, setSeccion] = useState<Seccion>('instalacion');
-  const [saber, setSaber] = useState<Conocimiento | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const [cfgRes, statsRes, pixelRes, saberRes] = await Promise.all([
+        const [cfgRes, statsRes] = await Promise.all([
           fetch('/api/webchat/config', { cache: 'no-store' }),
           fetch('/api/webchat/stats', { cache: 'no-store' }),
-          fetch('/api/integrations/meta-pixel', { cache: 'no-store' }),
-          fetch('/api/webchat/knowledge', { cache: 'no-store' }),
         ]);
         if (cfgRes.ok) {
           const json = await cfgRes.json();
@@ -141,35 +118,11 @@ export function WebchatPanel() {
           setAgents(json.agents ?? []);
         }
         if (statsRes.ok) setStats(await statsRes.json());
-        if (saberRes.ok) setSaber(await saberRes.json());
-        if (pixelRes.ok) {
-          const j = await pixelRes.json();
-          setPixel({
-            connected: !!j.connected,
-            contadas: Number(j.contadas ?? 0),
-            contactos: Number(j.contactos ?? 0),
-          });
-        }
+
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
-
-  useEffect(() => {
-    let cancelado = false;
-    fetch('/api/webchat/install')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (cancelado || !j) return;
-        setShopifyDisponible(Boolean(j.available));
-        setActivationUrl(j.activation_url ?? null);
-        setMotivoInstalar(j.reason ?? null);
-      })
-      .catch(() => {});
-    return () => {
-      cancelado = true;
-    };
   }, []);
 
   const save = useCallback(
@@ -195,44 +148,8 @@ export function WebchatPanel() {
     [fetchWithCsrf, t],
   );
 
-  const instalar = async () => {
-    setInstalando(true);
-    const editor = window.open('', '_blank');
-    try {
-      const res = await fetchWithCsrf('/api/webchat/install', {
-        method: 'POST',
-      });
-      const json = await res.json().catch(() => null);
-      if (res.ok) {
-        const url = json?.activation_url || activationUrl;
-        setShopifyDisponible(true);
-        setActivationUrl(url ?? null);
-        setMotivoInstalar(null);
-        toast.success(t('webchat.embedPrepared'));
-        if (editor && url) editor.location.href = url;
-        else if (url) window.location.assign(url);
-      } else {
-        editor?.close();
-        toast.error(
-          t(
-            json?.error === 'requiere_reconexion'
-              ? 'webchat.installNeedsReconnect'
-              : json?.error === 'sin_tienda'
-                ? 'webchat.installNeedsShopify'
-                : 'webchat.installFailed',
-          ),
-        );
-      }
-    } catch {
-      editor?.close();
-      toast.error(t('webchat.installFailed'));
-    } finally {
-      setInstalando(false);
-    }
-  };
-
   // ¿Se puede instalar con un botón? Sólo con una tienda Shopify conectada.
-  const hayBoton = shopifyDisponible !== null;
+  const hayBoton = false;
   const domains = cfg.allowed_domains ?? [];
   const enabled = Boolean(cfg.enabled);
 
@@ -356,46 +273,12 @@ export function WebchatPanel() {
               <Card>
               {/* El camino bueno primero. Con la tienda conectada es un botón;
                   el código a mano queda plegado para quien no usa Shopify. */}
-              {hayBoton ? (
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">
-                      {t('webchat.installAuto')}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {motivoInstalar === 'requiere_reconexion'
-                        ? t('webchat.installNeedsReconnect')
-                        : t('webchat.installAutoHint')}
-                    </p>
-                  </div>
-                  {motivoInstalar === 'requiere_reconexion' ? (
-                    <Button
-                      render={<Link href="/integraciones#canal-shopify" />}
-                      nativeButton={false}
-                      variant="outline"
-                    >
-                      {t('webchat.reconnectShopify')}
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      disabled={instalando}
-                      onClick={instalar}
-                    >
-                      {instalando ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        t('webchat.openThemeEditor')
-                      )}
-                    </Button>
-                  )}
-                </div>
-              ) : null}
+
 
               {/* El código a mano se pliega SÓLO cuando hay un botón que hace
                   el trabajo. Sin tienda conectada es el único camino, y
                   esconder el único camino deja la pantalla diciendo nada. */}
-              <details className={hayBoton ? 'mt-3' : ''} open={!hayBoton}>
+              <details open>
                 <summary
                   className={
                     hayBoton
@@ -403,7 +286,7 @@ export function WebchatPanel() {
                       : 'list-none text-sm font-medium text-foreground'
                   }
                 >
-                  {hayBoton ? <ChevronDown className="h-3 w-3" /> : null}
+
                   {t(hayBoton ? 'webchat.installManual' : 'webchat.install')}
                 </summary>
                 <div className="mt-2 flex items-start gap-2">
@@ -536,47 +419,7 @@ export function WebchatPanel() {
                   ficha que el comercio cargó producto por producto. Ese hueco no
                   se veía en ninguna pantalla — el comercio miraba el chat andar y
                   se enteraba por una respuesta pobre a un cliente real. */}
-              {saber ? (
-                <div className="mb-4 border-b border-border pb-4">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    {t('webchat.knowledge')}
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <p className="text-sm text-foreground">
-                      {saber.total === 0
-                        ? t('webchat.knowledgeEmpty')
-                        : t('webchat.knowledgeReady', {
-                            done: String(saber.con_ficha),
-                            total: String(saber.total),
-                          })}
-                    </p>
-                    {saber.sin_ficha > 0 ? (
-                      <Button
-                        render={<Link href="/productos" />}
-                        nativeButton={false}
-                        size="sm"
-                        variant="outline"
-                        className="ml-auto"
-                      >
-                        {t('webchat.knowledgeFill')}
-                      </Button>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {saber.total === 0
-                      ? null
-                      : saber.sin_ficha > 0
-                        ? t('webchat.knowledgeGap', { n: String(saber.sin_ficha) })
-                        : t('webchat.knowledgeAll')}
-                    {saber.sin_ficha > 0 && saber.ejemplos.length > 0
-                      ? ` ${saber.ejemplos.join(', ')}…`
-                      : ''}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {t('webchat.knowledgePage')}
-                  </p>
-                </div>
-              ) : null}
+
 
               <Field label={t('webchat.agent')}>
                 <select
@@ -767,44 +610,12 @@ export function WebchatPanel() {
               }
             />
             <Stat label={t('webchat.firstResponse')} value={espera(stats.first_response_seconds)} />
-            <Stat label={t('webchat.ordersAttributed')} value={String(stats.orders)} />
-            <Stat
-              label={t('webchat.revenue')}
-              value={
-                webchatRevenueDisplay(stats, locale).value
-              }
-              extra={webchatRevenueDisplay(stats, locale).extra}
-            />
+
           </div>
         </details>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
-        <Target className="size-3.5 shrink-0 text-[#0866FF]" aria-hidden />
-        <span className="text-xs font-medium text-foreground">{t('webchat.pixel')}</span>
-        {pixel?.connected ? (
-          <span className="text-xs text-muted-foreground">
-            {t('webchat.pixelReported', {
-              contacts: String(pixel.contactos),
-              sales: String(pixel.contadas),
-            })}
-          </span>
-        ) : (
-          <>
-            <span className="min-w-0 flex-1 text-xs text-muted-foreground">
-              {t('webchat.pixelOff')}
-            </span>
-            <Button
-              render={<Link href="/integraciones" />}
-              nativeButton={false}
-              size="sm"
-              variant="outline"
-            >
-              {t('webchat.pixelConnect')}
-            </Button>
-          </>
-        )}
-      </div>
+
     </div>
   );
 }

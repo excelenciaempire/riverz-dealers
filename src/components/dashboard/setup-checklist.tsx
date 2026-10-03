@@ -77,11 +77,11 @@ export function SetupChecklist() {
       cta: t('dashboard.stepConnectChannelCta'),
     },
     {
-      label: t('dashboard.stepCreateProduct'),
-      description: t('dashboard.stepCreateProductDesc'),
+      label: t('dealers.vehicles'),
+      description: t('dealers.assistantInventoryHint'),
       done: status.has_product,
-      href: '/productos?new=1',
-      cta: t('dashboard.stepCreateProductCta'),
+      href: '/concesionario?view=vehicles',
+      cta: t('dealers.newVehicle'),
     },
     {
       label: t('dashboard.stepActivateAssistant'),

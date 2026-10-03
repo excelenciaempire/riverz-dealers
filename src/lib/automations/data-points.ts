@@ -1,4 +1,5 @@
 import type { AutomationTriggerType } from '@/types'
+import { isDealerDeployment } from '@/lib/dealers/config'
 
 /**
  * Canonical registry of the data points an automation can read — ONE source of
@@ -72,7 +73,7 @@ const FULFILLED: AutomationTriggerType[] = [
   'shopify_order_incident_resolved',
 ]
 
-export const DATA_POINTS: DataPoint[] = [
+const DATA_POINT_CATALOG: DataPoint[] = [
   ...['vehicle','appointment_at','appointment_location'].map((key):DataPoint => ({
     id:`dealer_${key}`, labelKey:`dealers.${key}`, group:'contact', valueKind:'text',
     triggers:['dealer_appointment_reminder','dealer_no_show','dealer_post_visit'], usableInConditions:true,
@@ -707,11 +708,13 @@ function exposed(
 }
 
 /** Data points selectable in a CONDITION for this trigger. */
+export const DATA_POINTS: DataPoint[] = DATA_POINT_CATALOG.filter(dealerDataPoint);
+
 export function conditionDataPoints(
   trigger: AutomationTriggerType,
   scope?: DataPointScope,
 ): DataPoint[] {
-  return DATA_POINTS.filter((dp) => dp.usableInConditions && exposed(dp, trigger, scope))
+  return DATA_POINTS.filter((dp) => dealerDataPoint(dp) && dp.usableInConditions && exposed(dp, trigger, scope))
 }
 
 /** Data points injectable into a TEMPLATE variable for this trigger. */
@@ -719,7 +722,7 @@ export function templateDataPoints(
   trigger: AutomationTriggerType,
   scope?: DataPointScope,
 ): DataPoint[] {
-  return DATA_POINTS.filter((dp) => dp.templateVarKey && exposed(dp, trigger, scope))
+  return DATA_POINTS.filter((dp) => dealerDataPoint(dp) && dp.templateVarKey && exposed(dp, trigger, scope))
 }
 
 /**
@@ -729,7 +732,16 @@ export function templateDataPoints(
  * automatización que la use lo mapea solo.
  */
 export function allTemplateDataPoints(): DataPoint[] {
-  return DATA_POINTS.filter((dp) => dp.templateVarKey)
+  return DATA_POINTS.filter((dp) => dealerDataPoint(dp) && dp.templateVarKey)
+}
+
+function dealerDataPoint(dp: DataPoint): boolean {
+  return !isDealerDeployment() || new Set([
+    'dealer_vehicle', 'dealer_appointment_at', 'dealer_appointment_location', 'customer_name',
+    'customer_first_name', 'customer_last_name', 'customer_email', 'customer_phone',
+    'contact_name', 'contact_email', 'contact_company', 'messaged', 'has_tag',
+    'in_segment', 'message_text', 'call_status', 'call_outcome', 'call_duration', 'call_summary',
+  ]).has(dp.id);
 }
 
 /** Valor de ejemplo realista por campo (para el `example` que Meta exige). */

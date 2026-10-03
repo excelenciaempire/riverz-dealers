@@ -34,16 +34,13 @@ function SignupForm() {
   // Set by the Shopify OAuth callback when the merchant installed the app
   // from Shopify admin without having a Riverz account yet — the store is
   // parked and auto-connects right after this signup (dashboard claim).
-  const pendingShop =
-    searchParams.get('shopify') === 'pending' ? searchParams.get('shop') : null;
+
   // Quien llega instalando desde una tienda de aplicaciones, o invitado al
   // equipo de un comercio, ya trae su invitación: no se le pide código. El
   // servidor comprueba las dos cosas por su cuenta — esto sólo decide si el
   // campo se dibuja.
-  const llegaInstalando =
-    searchParams.get('shopify') === 'pending' ||
-    searchParams.get('tiendanube') === 'pending';
-  const pideCodigo = !llegaInstalando && !inviteToken && !referralCode;
+
+  const pideCodigo = !inviteToken && !referralCode;
 
   const [inviteCode, setInviteCode] = useState(
     searchParams.get('codigo') ?? searchParams.get('code') ?? ''
@@ -157,11 +154,7 @@ function SignupForm() {
     <MarcoAuth arte={ARTE.nace}>
       <TituloAuth
         titulo={t('auth.signupTitle')}
-        bajada={
-          pendingShop
-            ? t('auth.shopifyPendingNotice', { shop: pendingShop })
-            : undefined
-        }
+
       />
       <form onSubmit={handleSignup} className="flex flex-col gap-4">
         {error && (

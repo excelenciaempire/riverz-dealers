@@ -1,3 +1,5 @@
+import { isRetiredDealerRoute } from '@/lib/dealers/product-scope';
+import { isDealerDeployment } from '@/lib/dealers/config';
 /**
  * Inventario de trabajos periódicos, en el repo y no en el dashboard.
  *
@@ -55,7 +57,7 @@ export type ScheduledJob = {
 /** Suficiente para el más lento de los normales (contacts-sync, ~30 s). */
 export const DEFAULT_TIMEOUT_MS = 180_000;
 
-export const SCHEDULED_JOBS: ScheduledJob[] = [
+const JOB_CATALOG: ScheduledJob[] = [
   { name: 'post-purchase-guides', path: '/api/cron/post-purchase-guides', schedule: '*/5 * * * *', whatKey: 'admin.cronPostPurchaseGuides' },
   { name: 'wallet-financial-costs', path: '/api/cron/wallet-financial-costs', schedule: '*/15 * * * *', whatKey: 'admin.cronWalletReconciliation', retryOnFailure: true },
   {name:'automation-templates',path:'/api/cron/automation-templates',schedule:'*/5 * * * *',whatKey:'admin.cronAutomationTemplates',retryOnFailure:true},
@@ -548,6 +550,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     parent: 'voice-calls',
   },
 ];
+export const SCHEDULED_JOBS: ScheduledJob[] = JOB_CATALOG.filter(job => !isDealerDeployment() || !isRetiredDealerRoute(job.path));
 
 /**
  * Evalúa un campo cron contra un valor. Soporta comodín, número exacto,

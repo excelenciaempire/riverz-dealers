@@ -19,37 +19,36 @@ export interface GateableSection {
 }
 
 export const GATEABLE_SECTIONS: GateableSection[] = [
-  { key: "/concesionario", labelKey: "dealers.brand" },
-  { key: "/chat", labelKey: "nav.chat" },
-  { key: "/panel", labelKey: "nav.home" },
-  { key: "/bandeja", labelKey: "nav.inbox" },
-  { key: "/contactos", labelKey: "nav.contacts" },
-  { key: "/asistente", labelKey: "nav.assistant" },
-  { key: "/comentarios", labelKey: "nav.comments" },
-  { key: "/menus", labelKey: "nav.flows" },
-  { key: "/voz", labelKey: "nav.voice" },
-  { key: "/chat-web", labelKey: "nav.webchat" },
-  { key: "/campanas", labelKey: "nav.campaigns" },
-  { key: "/automatizaciones", labelKey: "nav.automations" },
-  { key: "/plantillas", labelKey: "nav.templates" },
-  { key: "/agente-instagram", labelKey: "nav.instagramAgent" },
-  { key: "/productos", labelKey: "nav.products" },
-  { key: "/pedidos", labelKey: "nav.orders" },
-  { key: "/devoluciones", labelKey: "nav.returns" },
-  { key: "/aprobaciones", labelKey: "nav.approvals" },
-  { key: "/integraciones", labelKey: "nav.integrations" },
+  { key: '/concesionario', labelKey: 'dealers.brand' },
+  { key: '/panel', labelKey: 'nav.home' },
+  { key: '/bandeja', labelKey: 'nav.inbox' },
+  { key: '/contactos', labelKey: 'nav.contacts' },
+  { key: '/asistente', labelKey: 'nav.assistant' },
+  { key: '/comentarios', labelKey: 'nav.comments' },
+  { key: '/voz', labelKey: 'nav.voice' },
+  { key: '/chat-web', labelKey: 'nav.webchat' },
+  { key: '/campanas', labelKey: 'nav.campaigns' },
+  { key: '/automatizaciones', labelKey: 'nav.automations' },
+  { key: '/plantillas', labelKey: 'nav.templates' },
+  { key: '/agente-instagram', labelKey: 'nav.instagramAgent' },
+  { key: '/aprobaciones', labelKey: 'nav.approvals' },
+  { key: '/integraciones', labelKey: 'nav.integrations' },
 ];
 
 export const GATEABLE_KEYS: string[] = GATEABLE_SECTIONS.map((s) => s.key);
 
 /** Always reachable regardless of grants — own profile / settings. */
-const ALWAYS_ALLOWED = ["/ajustes"];
+const ALWAYS_ALLOWED = ['/ajustes'];
 
 /** Keep only real, de-duplicated gateable keys from arbitrary input. */
 export function sanitizeSections(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
   const valid = new Set(GATEABLE_KEYS);
-  return [...new Set(input.filter((s): s is string => typeof s === "string" && valid.has(s)))];
+  return [
+    ...new Set(
+      input.filter((s): s is string => typeof s === 'string' && valid.has(s))
+    ),
+  ];
 }
 
 /**
@@ -59,20 +58,25 @@ export function sanitizeSections(input: unknown): string[] {
  */
 export function canAccessSection(
   allowed: string[] | null | undefined,
-  path: string,
+  path: string
 ): boolean {
-  if (path === '/logistica' || path.startsWith('/logistica?') || path.startsWith('/logistica/')) path = '/pedidos';
+  if (
+    path === '/logistica' ||
+    path.startsWith('/logistica?') ||
+    path.startsWith('/logistica/')
+  )
+    path = '/pedidos';
   if (allowed == null) return true;
   if (
     ALWAYS_ALLOWED.some(
-      (a) => path === a || path.startsWith(a + "/") || path.startsWith(a + "?"),
+      (a) => path === a || path.startsWith(a + '/') || path.startsWith(a + '?')
     )
   ) {
     return true;
   }
   // Most-specific gateable prefix wins (none of ours nest, but future-proof).
   const match = GATEABLE_KEYS.filter(
-    (k) => path === k || path.startsWith(k + "/") || path.startsWith(k + "?"),
+    (k) => path === k || path.startsWith(k + '/') || path.startsWith(k + '?')
   ).sort((a, b) => b.length - a.length)[0];
   if (!match) return true; // ungated route (internal/misc) — never block
   return allowed.includes(match);

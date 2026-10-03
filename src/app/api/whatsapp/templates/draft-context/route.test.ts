@@ -13,18 +13,17 @@ const ctx = { db, userId: 'user', workspaceId: 'workspace' }
 const request = (q = '') => new Request('https://riverz.co/api/whatsapp/templates/draft-context?q=' + encodeURIComponent(q))
 beforeEach(() => { vi.clearAllMocks(); m.session.mockResolvedValue(ctx); m.filters = []; m.products = [{ id: 'p', title: 'Serum', training_material: 'private-training' }]; m.agents = [{ id: 'a', name: 'Business', knowledge: 'private-profile' }]; m.error = null })
 describe('draft context choices', () => {
-  it('returns only names and IDs from the current business, with escaped search', async () => {
+  it('returns scoped profile names without reading retired commerce catalogs', async () => {
     const response = await GET(request('50%_'))
     expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('private, no-store')
-    expect(await response.json()).toEqual({ products: [{ id: 'p', label: 'Serum' }], agents: [{ id: 'a', label: 'Business' }], has_more: false })
-    expect(m.filters).toContainEqual(['shopify_products', 'workspace_id', 'workspace'])
+    expect(await response.json()).toEqual({ products: [], agents: [{ id: 'a', label: 'Business' }], has_more: false })
+    expect(m.filters.some(f => f[0] === 'shopify_products')).toBe(false)
     expect(m.filters).toContainEqual(['ai_agents', 'workspace_id', 'workspace'])
     expect(m.filters).toContainEqual(['ai_agents', 'is_active', true])
-    expect(m.filters).toContainEqual(['shopify_products', 'ilike', 'title', String.raw`%50\%\_%`])
   })
-  it('declares partial product results so search can reach the rest', async () => {
+  it('does not revive commerce search even when the old catalog contains products', async () => {
     m.products = Array.from({ length: 51 }, (_, i) => ({ id: String(i), title: String(i) }))
-    const data = await (await GET(request())).json(); expect(data.products).toHaveLength(50); expect(data.has_more).toBe(true)
+    const data = await (await GET(request())).json(); expect(data.products).toEqual([]); expect(data.has_more).toBe(false); expect(m.filters.some(f => f[0] === 'shopify_products')).toBe(false)
   })
   it('does not expose names after membership or business changes during loading', async () => {
     m.session.mockResolvedValueOnce(ctx).mockResolvedValueOnce({ ...ctx, workspaceId: 'other' }); expect((await GET(request())).status).toBe(409)

@@ -16,6 +16,8 @@ import type {
   SetContextStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
+import { isDealerDeployment } from '@/lib/dealers/config'
+import { isDealerAutomationTrigger, isRetiredDealerAutomationStep } from '@/lib/dealers/product-scope'
 import { assignInboxConversation } from '@/lib/inbox/assignment-rules'
 import { isPendingReminder, assertPaymentStillPending, claimPendingSequence, assertNoPendingReplacement, pendingPaymentCondition } from './pending-payment'
 import { confirmationDisplayVars } from './confirmation-copy'
@@ -116,6 +118,7 @@ export interface DispatchInput {
  * recorded into automation_logs with status='failed'.
  */
 export async function runAutomationsForTrigger(input: DispatchInput): Promise<void> {
+  if (isDealerDeployment() && !isDealerAutomationTrigger(input.triggerType)) return;
   try {
     const db = supabaseAdmin()
 
@@ -378,6 +381,9 @@ export async function runAutomationById(input: {
     if (error) throw new Error(error.message)
     if (!data) return { executed: false, reason: 'not_found' }
     const automation = data as Automation
+    if (isDealerDeployment() && !isDealerAutomationTrigger(automation.trigger_type)) {
+      return { executed: false, reason: 'retired_trigger' };
+    }
     if (input.workspaceId && input.workspaceId !== automation.workspace_id) return { executed: false, reason: 'workspace_mismatch' }
     if (input.eventType && (input.eventType !== automation.trigger_type ||
       !matchesEventConfig(input.eventType, (automation.trigger_config ?? {}) as Record<string, unknown>, input.context))) return { executed: false, reason: 'event_mismatch' }
@@ -453,6 +459,11 @@ export async function resumePendingExecution(pending: {
     console.error('[automations] resume: missing automation', pending.automation_id, error)
     await markPending(pending.id, 'failed')
     return
+  }
+
+  if (isDealerDeployment() && !isDealerAutomationTrigger(automation.trigger_type)) {
+    await markPending(pending.id, 'failed');
+    return;
   }
 
   try {
@@ -768,6 +779,11 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
       await finalizeLog(args.logId, 'success', null)
     }
     return
+  }
+
+  if (isDealerDeployment() && (steps as AutomationStep[]).some(isRetiredDealerAutomationStep)) {
+    await finalizeLog(args.logId, 'failed', 'Retired commerce step');
+    return;
   }
 
   const results: AutomationLogStepResult[] = []
