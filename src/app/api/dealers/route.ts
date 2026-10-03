@@ -11,6 +11,7 @@ import {
   uuid,
   vehicleInput,
   opportunityInput,
+  opportunityStageInput,
   appointmentInput,
   appointmentUpdate,
   activityInput,
@@ -61,6 +62,21 @@ export async function POST(req: Request) {
       const result = await q.select('id').single();
       checkDb(result.error);
       savedId = result.data?.id ?? null;
+    } else if (b.entity === 'opportunity_stage') {
+      if (!id) throw new DealerError('invalid');
+      const data = opportunityStageInput(b.data);
+      // Compare-and-set prevents a stale board from overwriting another seller's move.
+      const result = await ctx.db
+        .from('dealer_opportunities')
+        .update({ stage: data.stage })
+        .eq('workspace_id', ctx.workspaceId)
+        .eq('id', id)
+        .eq('stage', data.expected_stage)
+        .select('id')
+        .maybeSingle();
+      checkDb(result.error);
+      if (!result.data) throw new DealerError('stage_conflict', 409);
+      savedId = result.data.id;
     } else if (b.entity === 'opportunity') {
       const data = opportunityInput(b.data);
       const result = await ctx.db.rpc('dealer_save_opportunity', {

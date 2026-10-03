@@ -7,6 +7,57 @@ import {
 } from './validation';
 import { demoData, mutateDemo } from './demo';
 describe('dealer inputs and working demo', () => {
+  it('distinguishes an unpublished vehicle price from a zero-price offer', () => {
+    const v = demoData().vehicles[0];
+    expect(vehicleInput({ ...v, price: null }).price).toBeNull();
+    expect(vehicleInput({ ...v, price: 0 }).price).toBe(0);
+    expect(() => vehicleInput({ ...v, price: '' })).toThrow('invalid');
+  });
+  it('moves a demo buyer without overwriting preferences, interests or creation date', () => {
+    const d = demoData(),
+      o = d.opportunities[0];
+    const next = mutateDemo(
+      d,
+      'opportunity_stage',
+      { stage: 'negotiation', expected_stage: o.stage },
+      o.id
+    );
+    expect(next.opportunities[0]).toEqual({ ...o, stage: 'negotiation' });
+    expect(next.interests).toEqual(d.interests);
+    expect(d.opportunities[0].stage).toBe(o.stage);
+    expect(() =>
+      mutateDemo(
+        next,
+        'opportunity_stage',
+        { stage: 'won', expected_stage: o.stage },
+        o.id
+      )
+    ).toThrow('stage_conflict');
+  });
+  it('closing a card cancels its pending appointment and reopening preserves the follow-up pause', () => {
+    const d = demoData(),
+      o = d.opportunities[1];
+    const closed = mutateDemo(
+      d,
+      'opportunity_stage',
+      { stage: 'won', expected_stage: o.stage },
+      o.id
+    );
+    expect(closed.appointments[0].status).toBe('cancelled');
+    expect(closed.opportunities[1]).toMatchObject({
+      stage: 'won',
+      follow_up_paused: true,
+      next_follow_up_at: null,
+    });
+    const reopened = mutateDemo(
+      closed,
+      'opportunity_stage',
+      { stage: 'qualified', expected_stage: 'won' },
+      o.id
+    );
+    expect(reopened.opportunities[1].follow_up_paused).toBe(true);
+    expect(reopened.appointments[0].status).toBe('cancelled');
+  });
   it('validates real VINs, bounded prices and HTTPS photos', () => {
     const v = demoData().vehicles[0];
     expect(vehicleInput(v).year).toBe(2023);

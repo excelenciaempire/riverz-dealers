@@ -12,29 +12,24 @@ import { ThemeToggleButton } from "@/components/settings/toggles";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { canAccessSection } from "@/lib/rbac/sections";
 import { featureForPath, isFeatureEnabled } from "@/lib/admin/feature-flags";
-import { useFeatureFlags, useRiverz2 } from "@/hooks/use-feature-flags";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import {
-  Wand2,
+  Columns3,
+  CalendarDays,
   CarFront,
   Home,
   Inbox,
   Users,
-  Megaphone,
   LayoutTemplate,
   Zap,
   Sparkles,
   Blocks,
   Settings,
-  Workflow,
   LogOut,
   User,
   X,
   PanelLeftClose,
   PanelLeftOpen,
-  PhoneCall,
-  MessageSquareReply,
-  MessagesSquare,
-  Radar,
   Store,
   ChevronsUpDown,
 } from "lucide-react";
@@ -63,8 +58,6 @@ interface NavItem {
   icon: ComponentType<{ className?: string }>;
   beta?: boolean;
   alsoActiveOn?: string[];
-  /** Sólo para los comercios con la experiencia Riverz 2.0 prendida. */
-  riverz2?: boolean;
 }
 
 interface NavGroup {
@@ -73,50 +66,36 @@ interface NavGroup {
   items: NavItem[];
 }
 
-// IA-first sidebar: "Día a día" arriba (operación), "IA y constructor"
-// (las dos herramientas que crean experiencias), "Envíos" (los tres
-// surfaces de outbound consolidados), "Tienda" (catálogo) y abajo
-// configuración. Antes "Atención" mezclaba IA con outbound asíncrono,
-// que es lo opuesto. Antes "Menús" no estaba en el rail; ahora es
-// "Flujos" y es item raíz.
 const navGroups: NavGroup[] = [
   {
-    // Sin título a propósito: el Operador no es una categoría de trabajo, es la
-    // puerta. Un encabezado arriba lo metería en la misma bolsa que la bandeja
-    // y los contactos, y no es lo mismo — desde acá se pide, en el resto se
-    // hace a mano.
-    title: "",
-    items: [{ href: "/chat", label: "nav.chat", icon: Wand2, riverz2: true }],
-  },
-  {
-    title: "nav.groupDaily",
+    title: "dealers.navSales",
     items: [
       { href: "/panel", label: "dealers.today", icon: Home },
-      { href: "/concesionario?view=vehicles", label: "dealers.vehicles", icon: CarFront },
-      { href: "/concesionario?view=opportunities", label: "dealers.opportunities", icon: Users },
-      { href: "/concesionario?view=appointments", label: "dealers.appointments", icon: LayoutTemplate },
-      { href: "/concesionario?view=bdc", label: "dealers.bdc", icon: PhoneCall },
+      {
+        href: "/concesionario?view=opportunities",
+        label: "dealers.pipeline",
+        icon: Columns3,
+      },
       { href: "/bandeja", label: "nav.inbox", icon: Inbox },
+      {
+        href: "/concesionario?view=appointments",
+        label: "dealers.appointments",
+        icon: CalendarDays,
+      },
+      {
+        href: "/concesionario?view=vehicles",
+        label: "dealers.vehicles",
+        icon: CarFront,
+      },
       { href: "/contactos", label: "nav.contacts", icon: Users },
     ],
   },
   {
-    title: "nav.groupCustomerService",
+    title: "dealers.navFollowup",
     items: [
       { href: "/asistente", label: "nav.assistant", icon: Sparkles },
-      { href: "/menus", label: "nav.flows", icon: Workflow },
-      { href: "/comentarios", label: "nav.comments", icon: MessageSquareReply },
-      { href: "/voz", label: "nav.voice", icon: PhoneCall },
-      { href: "/chat-web", label: "nav.webchat", icon: MessagesSquare },
-    ],
-  },
-  {
-    title: "nav.groupOutbound",
-    items: [
-      { href: "/plantillas", label: "nav.templates", icon: LayoutTemplate },
       { href: "/automatizaciones", label: "nav.automations", icon: Zap },
-      { href: "/campanas", label: "nav.campaigns", icon: Megaphone },
-      { href: "/agente-instagram", label: "nav.instagramAgent", icon: Radar },
+      { href: "/plantillas", label: "nav.templates", icon: LayoutTemplate },
     ],
   },
 ];
@@ -170,16 +149,11 @@ export function Sidebar({
     const feat = featureForPath(href);
     return !feat || isFeatureEnabled(flags, feat);
   };
-  // La experiencia nueva se lee al revés que el resto: sin fila está APAGADA.
-  // Y acá tampoco se le abre al equipo de plataforma, porque lo que hay que ver
-  // es qué ve el comercio.
-  const riverz2 = useRiverz2();
   const visibleGroups = navGroups
     .map((group) => ({
       ...group,
       items: group.items.filter(
         (item) =>
-          (!item.riverz2 || riverz2) &&
           canAccessSection(allowedSections, item.href) &&
           navFeatureEnabled(item.href),
       ),
@@ -203,7 +177,7 @@ export function Sidebar({
   useEffect(() => {
     onClose?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [fullPath]);
 
   // Lock body scroll and allow Escape to close while the drawer is open on
   // mobile. No-ops on desktop because the sidebar isn't positioned there.
@@ -504,7 +478,9 @@ function NavLink({
   let isActive = false;
   if (itemHasTab) {
     // Qualified: match exacto contra fullPath.
-    isActive = fullPath === item.href;
+    const current = new URLSearchParams(fullPath.split("?")[1]);
+    const wanted = new URLSearchParams(item.href.split("?")[1]);
+    isActive = pathname === itemPath && [...wanted].every(([key, value]) => current.get(key) === value);
   } else if (item.href === "/panel") {
     isActive = pathname === "/panel";
   } else {

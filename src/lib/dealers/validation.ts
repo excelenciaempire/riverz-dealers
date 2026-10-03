@@ -99,11 +99,18 @@ export function vehicleInput(value: unknown) {
     year,
     mileage: number(b.mileage, 5000000, true),
     mileage_unit: choice(b.mileage_unit, ['mi', 'km']),
-    price: number(b.price, 100000000),
+    price: b.price === null ? null : number(b.price, 100000000),
     currency: currency(b.currency),
     status: choice(b.status, VEHICLE_STATUSES),
     photos,
     notes: text(b.notes ?? ''),
+  };
+}
+export function opportunityStageInput(value: unknown) {
+  const b = object(value);
+  return {
+    stage: choice(b.stage, STAGES),
+    expected_stage: choice(b.expected_stage, STAGES),
   };
 }
 export function opportunityInput(value: unknown) {

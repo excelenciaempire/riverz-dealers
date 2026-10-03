@@ -3,6 +3,7 @@ import {
   DealerError,
   vehicleInput,
   opportunityInput,
+  opportunityStageInput,
   appointmentInput,
   appointmentUpdate,
   activityInput,
@@ -184,6 +185,33 @@ export function mutateDemo(
           o.follow_up_paused = true;
           o.next_follow_up_at = null;
         }
+      });
+    }
+  } else if (entity === 'opportunity_stage') {
+    const input = opportunityStageInput(raw);
+    const o = d.opportunities.find((o) => o.id === editId);
+    if (!o || o.stage !== input.expected_stage)
+      throw new DealerError('stage_conflict', 409);
+    if (
+      !['won', 'lost'].includes(input.stage) &&
+      d.opportunities.some(
+        (other) =>
+          other.id !== o.id &&
+          other.contact_id === o.contact_id &&
+          !['won', 'lost'].includes(other.stage)
+      )
+    )
+      throw new DealerError('duplicate', 409);
+    o.stage = input.stage;
+    if (['won', 'lost'].includes(o.stage)) {
+      o.follow_up_paused = true;
+      o.next_follow_up_at = null;
+      d.appointments.forEach((a) => {
+        if (
+          a.opportunity_id === o.id &&
+          ['requested', 'confirmed'].includes(a.status)
+        )
+          a.status = 'cancelled';
       });
     }
   } else if (entity === 'opportunity') {

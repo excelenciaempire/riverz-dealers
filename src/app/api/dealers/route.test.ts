@@ -30,7 +30,12 @@ import { GET, POST } from './route';
 beforeEach(() => {
   vi.resetAllMocks();
   h.csrf.mockResolvedValue(null);
-  const q = { eq: h.eq, select: vi.fn(() => q), single: h.single };
+  const q = {
+    eq: h.eq,
+    select: vi.fn(() => q),
+    single: h.single,
+    maybeSingle: h.single,
+  };
   h.eq.mockReturnValue(q);
   h.insert.mockReturnValue(q);
   h.update.mockReturnValue(q);
@@ -45,6 +50,68 @@ beforeEach(() => {
   h.read.mockResolvedValue(demoData());
 });
 describe('dealer API authorization', () => {
+  it('moves only the stage with tenant scoping and a compare-and-set, preserving buyer fields', async () => {
+    const o = demoData().opportunities[0];
+    const res = await POST(
+      new Request('http://app/api/dealers', {
+        method: 'POST',
+        body: JSON.stringify({
+          entity: 'opportunity_stage',
+          id: o.id,
+          workspace_id: 'attacker',
+          data: {
+            stage: 'qualified',
+            expected_stage: o.stage,
+            budget: 0,
+            contact_id: 'attacker',
+          },
+        }),
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(h.from).toHaveBeenCalledWith('dealer_opportunities');
+    expect(h.update).toHaveBeenCalledWith({ stage: 'qualified' });
+    expect(h.eq.mock.calls).toEqual([
+      ['workspace_id', 'fixed-workspace'],
+      ['id', o.id],
+      ['stage', o.stage],
+    ]);
+  });
+  it('reports a stale or inaccessible stage move as conflict without exposing another tenant', async () => {
+    h.single.mockResolvedValue({ data: null, error: null });
+    const res = await POST(
+      new Request('http://app/api/dealers', {
+        method: 'POST',
+        body: JSON.stringify({
+          entity: 'opportunity_stage',
+          id: demoData().opportunities[0].id,
+          data: { stage: 'won', expected_stage: 'inquiry' },
+        }),
+      })
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'stage_conflict' });
+  });
+  it.each([
+    { data: { stage: 'won', expected_stage: 'inquiry' } },
+    {
+      id: demoData().opportunities[0].id,
+      data: { stage: 'invented', expected_stage: 'inquiry' },
+    },
+    { id: demoData().opportunities[0].id, data: { stage: 'won' } },
+  ])(
+    'rejects incomplete or invalid stage moves before writing: %j',
+    async (body) => {
+      const res = await POST(
+        new Request('http://app/api/dealers', {
+          method: 'POST',
+          body: JSON.stringify({ entity: 'opportunity_stage', ...body }),
+        })
+      );
+      expect(res.status).toBe(400);
+      expect(h.update).not.toHaveBeenCalled();
+    }
+  );
   it('logs an immutable seller activity in the session workspace, stripping forged author fields', async () => {
     const o = demoData().opportunities[0];
     const res = await POST(

@@ -4,6 +4,26 @@ import { dealerQuoteEvidence, verifiedDealerPrices } from './quote-evidence';
 const id = '10000000-0000-4000-8000-000000000001';
 const evidence = [{ id, price: 20000, currency: 'USD' }];
 describe('dealer price evidence', () => {
+  it('retains model-year facts for an unpriced car but never authorizes null as zero', async () => {
+    const car = { id, price: null, currency: 'USD', year: 2027 };
+    expect(
+      dealerQuoteEvidence(
+        'dealer_search_vehicles',
+        JSON.stringify({ ok: true, vehicles: [car] })
+      )
+    ).toEqual([car]);
+    const q = { select: vi.fn(), eq: vi.fn(), in: vi.fn() };
+    q.select.mockReturnValue(q);
+    q.eq.mockReturnValue(q);
+    q.in.mockResolvedValue({ data: [car], error: null });
+    const db = { from: vi.fn(() => q) } as unknown as SupabaseClient;
+    expect(await verifiedDealerPrices(db, 'fixed', [car])).toEqual([]);
+    expect(
+      await verifiedDealerPrices(db, 'fixed', [{ ...car, price: 0 }])
+    ).toEqual([]);
+    q.in.mockResolvedValue({ data: [{ ...car, price: 0 }], error: null });
+    expect(await verifiedDealerPrices(db, 'fixed', [car])).toEqual([]);
+  });
   it('accepts only successful server inventory results', () => {
     const result = JSON.stringify({ ok: true, vehicles: evidence });
     expect(dealerQuoteEvidence('dealer_search_vehicles', result)).toEqual(

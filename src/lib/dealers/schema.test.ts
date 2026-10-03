@@ -53,12 +53,29 @@ beforeAll(async () => {
   await db.exec(
     readFileSync('supabase/migrations/377_dealer_sales_execution.sql', 'utf8')
   );
+  await db.exec(
+    readFileSync(
+      'supabase/migrations/378_dealer_unpublished_prices.sql',
+      'utf8'
+    )
+  );
 }, 30000);
 afterAll(async () => {
   await db?.close();
 });
 
 describe.sequential('dealer SQL invariants', () => {
+  it('stores a missing published price as NULL while still rejecting negative prices', async () => {
+    const v = await vehicle('UNPRICED');
+    await db.query('UPDATE dealer_vehicles SET price=NULL WHERE id=$1', [v]);
+    expect(
+      (await db.query<{ price: number | null }>('SELECT price FROM dealer_vehicles WHERE id=$1', [v]))
+        .rows[0].price
+    ).toBeNull();
+    await expect(
+      db.query('UPDATE dealer_vehicles SET price=-1 WHERE id=$1', [v])
+    ).rejects.toThrow();
+  });
   it('rejects a cross-workspace contact even as service owner', async () => {
     await expect(opportunity(foreign)).rejects.toThrow('dealer_reference');
   });
@@ -387,7 +404,12 @@ describe.sequential('seller activity and appointment execution', () => {
   let o: string, a: string;
   it('keeps buyer context and activity timestamps inside an atomic tenant save', async () => {
     await db.query('INSERT INTO contacts VALUES($1,$2,false)', [buyer, ws]);
-    o = (await db.query<{id:string}>('SELECT id FROM dealer_opportunities WHERE contact_id=$1',[buyer])).rows[0].id;
+    o = (
+      await db.query<{ id: string }>(
+        'SELECT id FROM dealer_opportunities WHERE contact_id=$1',
+        [buyer]
+      )
+    ).rows[0].id;
     await db.exec(`SET ROLE authenticated; SET app.uid='${user}';`);
     await db.query('SELECT dealer_log_activity($1,$2,$3,$4,$5,$6)', [
       ws,
@@ -500,11 +522,19 @@ describe.sequential('seller activity and appointment execution', () => {
         [ws, buyer, 'dealer_no_show', JSON.stringify(jobs[0].context.vars)]
       );
     expect((await allowed()).rows[0].ok).toBe(true);
-    const cv='50000000-0000-4000-8000-000000000003',msg='60000000-0000-4000-8000-000000000003';
-    await db.query('INSERT INTO conversations VALUES($1,$2,$3)',[cv,ws,buyer]);
-    await db.query("INSERT INTO messages(id,conversation_id,sender_type) VALUES($1,$2,'customer')",[msg,cv]);
+    const cv = '50000000-0000-4000-8000-000000000003',
+      msg = '60000000-0000-4000-8000-000000000003';
+    await db.query('INSERT INTO conversations VALUES($1,$2,$3)', [
+      cv,
+      ws,
+      buyer,
+    ]);
+    await db.query(
+      "INSERT INTO messages(id,conversation_id,sender_type) VALUES($1,$2,'customer')",
+      [msg, cv]
+    );
     expect((await allowed()).rows[0].ok).toBe(false);
-    await db.query('DELETE FROM messages WHERE id=$1',[msg]);
+    await db.query('DELETE FROM messages WHERE id=$1', [msg]);
     await db.query('SELECT enqueue_dealer_automation_events()');
     expect(
       (

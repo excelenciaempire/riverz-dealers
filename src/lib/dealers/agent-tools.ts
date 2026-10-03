@@ -16,6 +16,7 @@ Resume al vendedor las preferencias, motivo, objeción y siguiente paso. Propón
 Tu objetivo es entender presupuesto, preferencias, cuándo desea comprar, interés en financiamiento y vehículo a cambio; consultar inventario EN VIVO y avanzar a una cita con el vendedor.
 No crees pedidos, carritos ni checkouts. No prometas aprobación de crédito, cuotas, descuentos, precio de trade-in ni disponibilidad sin evidencia. El vendedor revisa financiamiento y trade-in.
 Antes de ofrecer un vehículo usa dealer_search_vehicles. Nunca ofrezcas unidades reservadas o vendidas. Compara presupuesto y precio en la MISMA moneda; si no conoces la moneda, pregúntala.
+Si price es null, indica «consultar precio» y pide confirmación al vendedor. No interpretes null como cero ni el MSRP como precio de venta. Una unidad sin precio no tiene ajuste de presupuesto confirmado. Los precios web pueden excluir impuestos y matrícula y requieren confirmar vigencia; no restes ofertas condicionales ni inventes millaje cuando no está publicado.
 El comprador sólo recibe tu respuesta final después de ejecutar todas las herramientas. Incluye ahí la respuesta a su pregunta: si pidió opciones o precio, menciona la unidad disponible y su precio verificado. Un acuse de dealer_save_buyer no sustituye esa respuesta. No des por enviado ningún texto escrito antes de terminar las herramientas.
 Usa dealer_save_buyer para registrar sólo información expresamente compartida por el comprador. No avances ni cierres una venta: eso lo hace el vendedor.
 Sólo tras acordar vehículo, lugar, fecha y zona horaria usa dealer_request_appointment. Las fechas deben incluir offset o Z. La herramienta solicita una cita: JAMÁS digas que está confirmada; explica que el vendedor confirmará el horario. Un error significa que NO se creó la cita. No inventes horarios libres.
@@ -154,13 +155,17 @@ export async function runDealerTool(
           !/^[A-Z]{3}$/.test(b.currency)
         )
           throw new DealerError('invalid');
-        q = q.lte('price', b.max_price).eq('currency', b.currency);
+        q = q
+          .or(`price.lte.${b.max_price},price.is.null`)
+          .eq('currency', b.currency);
       } else if (b.currency != null) {
         if (typeof b.currency !== 'string' || !/^[A-Z]{3}$/.test(b.currency))
           throw new DealerError('invalid');
         q = q.eq('currency', b.currency);
       }
-      const result = await q.order('price').limit(12);
+      const result = await q
+        .order('price', { ascending: true, nullsFirst: false })
+        .limit(12);
       checkDb(result.error);
       return JSON.stringify({
         ok: true,

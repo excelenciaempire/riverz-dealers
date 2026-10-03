@@ -1,5 +1,23 @@
 import type { Namespace } from './types';
 export const dealers = {
+  navSales: { es: 'Ventas', en: 'Sales' },
+  navFollowup: { es: 'IA y seguimiento', en: 'AI and follow-up' },
+  pipeline: { es: 'Pipeline', en: 'Pipeline' },
+  pipelineHint: {
+    es: 'Arrastra compradores entre etapas.',
+    en: 'Drag buyers between stages.',
+  },
+  moveBuyer: { es: 'Mover a {name} de etapa', en: 'Move {name} to a stage' },
+  emptyStage: { es: 'Sin compradores', en: 'No buyers' },
+  stageMoved: { es: '{name} → {stage}', en: '{name} → {stage}' },
+  err_stage_conflict: {
+    es: 'La oportunidad cambió. El tablero se actualizó; vuelve a intentarlo.',
+    en: 'The opportunity changed. The board has refreshed; please try again.',
+  },
+  consultPrice: { es: 'Consultar precio', en: 'Call for price' },
+  dealerListing: { es: 'Ver ficha del dealer', en: 'View dealer listing' },
+  checkedInventory: { es: 'Consultado: {date}', en: 'Checked: {date}' },
+  conditionNew: { es: 'Nuevo', en: 'New' },
   bdc: { es: 'BDC · Seguimiento', en: 'BDC · Follow-up' },
   action_record_outcome: {
     es: 'La cita terminó: registra si hubo visita, ausencia o cancelación.',

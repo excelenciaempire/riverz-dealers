@@ -175,7 +175,17 @@ describe('dealer conversation tools', () => {
       method: 'eq',
       args: ['status', 'available'],
     });
-    expect(f.ops.filter((o) => o.method === 'or')).toHaveLength(2);
+    expect(f.ops.filter((o) => o.method === 'or')).toHaveLength(3);
+    expect(f.ops).toContainEqual({
+      table: 'dealer_vehicles',
+      method: 'or',
+      args: ['price.lte.25000,price.is.null'],
+    });
+    expect(f.ops).toContainEqual({
+      table: 'dealer_vehicles',
+      method: 'order',
+      args: ['price', { ascending: true, nullsFirst: false }],
+    });
   });
   it('anchors buyer writes to the actual contact and preserves seller stage and follow-up', async () => {
     const f = database();

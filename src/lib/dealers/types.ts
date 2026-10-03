@@ -25,7 +25,7 @@ export interface Vehicle {
   year: number;
   mileage: number;
   mileage_unit: 'mi' | 'km';
-  price: number;
+  price: number | null;
   currency: string;
   status: (typeof VEHICLE_STATUSES)[number];
   photos: string[];

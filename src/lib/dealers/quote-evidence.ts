@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 export interface DealerQuoteEvidence {
   id: string;
-  price: number;
+  price: number | null;
   currency: string;
   year?: number;
 }
@@ -20,9 +20,10 @@ export function dealerQuoteEvidence(
         (v: DealerQuoteEvidence) =>
           typeof v.id === 'string' &&
           /^[0-9a-f-]{36}$/i.test(v.id) &&
-          typeof v.price === 'number' &&
-          Number.isFinite(v.price) &&
-          v.price >= 0 &&
+          (v.price === null ||
+            (typeof v.price === 'number' &&
+              Number.isFinite(v.price) &&
+              v.price >= 0)) &&
           typeof v.currency === 'string' &&
           /^[A-Z]{3}$/.test(v.currency)
       )
@@ -57,6 +58,8 @@ export async function verifiedDealerPrices(
     .filter((v) =>
       quotes.some(
         (q) =>
+          q.price !== null &&
+          v.price !== null &&
           q.id === v.id &&
           q.price === Number(v.price) &&
           q.currency === v.currency

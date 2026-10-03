@@ -17,6 +17,33 @@ las vistas de vehículos, oportunidades, citas y BDC. La guía de fuentes y deci
 consultar la oportunidad y abrir su ficha; desde una oportunidad se abre la
 conversación más reciente del comprador.
 
+El menú de ventas reúne Hoy, Pipeline, Bandeja, Citas, Vehículos y Contactos.
+Asistente, Automatizaciones y Plantillas están agrupados como IA y seguimiento;
+Integraciones y Ajustes permanecen al pie. BDC se abre desde Hoy, sin duplicar
+el menú con las superficies heredadas del producto base.
+
+El pipeline (`/concesionario?view=opportunities`) agrupa compradores en siete
+etapas. Permite arrastrar tarjetas o cambiar su etapa con un selector accesible
+desde teclado y teléfono. El cambio sólo escribe la etapa, dentro del workspace
+de la sesión, y compara la etapa anterior para evitar sobrescribir un movimiento
+simultáneo. Recarga las citas y seguimientos después de guardar. Cerrar y reabrir
+una tarjeta conserva las reglas de pausa; no reactiva envíos automáticamente.
+
+La cuenta demo usa una captura del inventario público de Toyota of North Miami:
+sólo unidades en stock, con VIN, fotos y enlace a la ficha original. Las unidades
+en tránsito o en fabricación se excluyen. Los compradores, actividades y citas
+siguen siendo ejemplos; el inventario del propietario permanece independiente.
+La captura no constituye una sincronización continua: cada ficha indica cuándo
+se consultó y la disponibilidad debe confirmarse antes de vender.
+
+Una unidad sin Cyber Price publicado guarda `price = NULL` y muestra Consultar
+precio / Call for price. Nunca se sustituye por cero, MSRP ni un precio con
+ofertas condicionales. La herramienta de inventario puede devolver estas unidades
+al buscar por presupuesto, pero su ajuste al presupuesto requiere confirmación.
+La verificación de precios de IA conserva los hechos del vehículo y excluye los
+precios nulos de las cotizaciones autorizadas. El millaje no publicado de una
+unidad nueva se muestra como Nuevo, sin afirmar un odómetro verificado.
+
 ## Asistente conversacional
 
 El bucle compartido `runWithTools` añade el contexto de Dealers y reemplaza el
@@ -87,7 +114,7 @@ automáticamente un envío cuyo resultado quedó incierto.
 
 Usar un proyecto Supabase independiente de Riverz ecommerce. Aplicar las
 migraciones de la base siguiendo la configuración de Supabase del proyecto y
-después las migraciones `375`–`377`. Configurar las credenciales de ese proyecto y una URL
+después las migraciones `375`–`378`. Configurar las credenciales de ese proyecto y una URL
 propia en las variables de entorno; nunca apuntar este fork a la DB de ecommerce.
 
 `render.yaml` define `riverz-dealers` y un worker de voz independiente. Las URLs,
@@ -97,7 +124,8 @@ están las tablas y la función de control de automatizaciones.
 
 La configuración de producción usa `https://riverz-dealers.onrender.com` y el
 proyecto Supabase independiente `evsgprtgbmmtqfaamtze` (`riverz-dealers`, Frankfurt).
-La base inicial contiene 399 migraciones; la ejecución comercial añade la 377. La reconstrucción desde
+La base inicial contiene 399 migraciones; la ejecución comercial y los precios
+no publicados añaden las migraciones 377 y 378. La reconstrucción desde
 cero conserva el seed de Pilar sólo cuando ese workspace existe (077) y crea
 `voice_system_prompt` antes de otorgarle permisos (129).
 Los secretos de cifrado y cron son propios de Dealers. Las claves de proveedores

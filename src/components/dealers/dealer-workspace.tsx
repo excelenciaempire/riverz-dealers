@@ -1,5 +1,11 @@
 'use client';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import {
@@ -38,6 +44,8 @@ import {
 import { demoData, mutateDemo } from '@/lib/dealers/demo';
 import { DealerError } from '@/lib/dealers/validation';
 import { SalesExecution } from './sales-execution';
+import { OpportunityPipeline } from './opportunity-pipeline';
+import { inventorySource } from '@/lib/dealers/inventory-source';
 const tabs = [
   'today',
   'vehicles',
@@ -72,6 +80,7 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
     [filter, setFilter] = useState('all');
   const [editor, setEditor] = useState<Editor | null>(null),
     [busy, setBusy] = useState(false);
+  const moving = useRef(false);
   useEffect(() => {
     const v = params.get('view');
     setView(tabs.includes(v as Tab) ? (v as Tab) : 'today');
@@ -179,6 +188,48 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
       );
       if (entity === 'activity') throw e;
     } finally {
+      setBusy(false);
+    }
+  }
+  async function moveOpportunity(o: Opportunity, stage: Opportunity['stage']) {
+    if (moving.current || busy || stage === o.stage) return;
+    moving.current = true;
+    setBusy(true);
+    try {
+      const payload = { stage, expected_stage: o.stage };
+      if (demo && data)
+        setData(mutateDemo(data, 'opportunity_stage', payload, o.id));
+      else {
+        const res = await request('/api/dealers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entity: 'opportunity_stage',
+            id: o.id,
+            data: payload,
+          }),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || t('dealers.err_failed'));
+        await load();
+      }
+      toast.success(
+        t('dealers.stageMoved', {
+          name: buyer(o),
+          stage: t(`dealers.${stage}`),
+        })
+      );
+    } catch (e) {
+      if (!demo) await load();
+      toast.error(
+        e instanceof DealerError
+          ? t(`dealers.err_${e.code}`)
+          : e instanceof Error
+            ? e.message
+            : t('dealers.err_failed')
+      );
+    } finally {
+      moving.current = false;
       setBusy(false);
     }
   }
@@ -349,20 +400,38 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
             : 'opportunity',
     });
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-7 p-4 md:p-8">
+    <div className="mx-auto w-full max-w-7xl min-w-0 space-y-7 p-4 md:p-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-muted-foreground mb-2 text-xs font-medium tracking-widest uppercase">
             {t('dealers.brand')}
           </p>
           <h1 className="text-3xl font-medium tracking-tight">
-            {t('dealers.title')}
+            {t(
+              view === 'today'
+                ? 'dealers.title'
+                : view === 'opportunities'
+                  ? 'dealers.pipeline'
+                  : `dealers.${view}`
+            )}
           </h1>
-          <p className="text-muted-foreground mt-2 text-sm">
-            {t('dealers.subtitle')}
-          </p>
+          {view === 'today' && (
+            <p className="text-muted-foreground mt-2 text-sm">
+              {t('dealers.subtitle')}
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
+          {view === 'today' && (
+            <Button variant="outline" onClick={() => switchView('bdc')}>
+              {t('dealers.bdc')}
+            </Button>
+          )}
+          {view === 'bdc' && (
+            <Button variant="outline" onClick={() => switchView('today')}>
+              {t('dealers.today')}
+            </Button>
+          )}
           {demo && (
             <>
               <Button
@@ -384,24 +453,28 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
           <span className="text-muted-foreground">{t('dealers.demoNote')}</span>
         </div>
       )}
-      <nav
-        className="flex gap-1 overflow-x-auto border-b"
-        aria-label={t('dealers.brand')}
-      >
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            className={`shrink-0 border-b-2 px-4 py-3 text-sm ${view === tab ? 'border-foreground font-medium' : 'text-muted-foreground border-transparent'}`}
-            onClick={() => {
-              switchView(tab);
-              setFilter('all');
-              setSearch('');
-            }}
-          >
-            {t(`dealers.${tab}`)}
-          </button>
-        ))}
-      </nav>
+      {demo && (
+        <nav
+          className="flex gap-1 overflow-x-auto border-b"
+          aria-label={t('dealers.brand')}
+        >
+          {tabs.map((tab) => (
+            <button
+              key={tab}
+              className={`shrink-0 border-b-2 px-4 py-3 text-sm ${view === tab ? 'border-foreground font-medium' : 'text-muted-foreground border-transparent'}`}
+              onClick={() => {
+                switchView(tab);
+                setFilter('all');
+                setSearch('');
+              }}
+            >
+              {t(
+                tab === 'opportunities' ? 'dealers.pipeline' : `dealers.${tab}`
+              )}
+            </button>
+          ))}
+        </nav>
+      )}
       {error ? (
         <div role="alert" className="rounded-xl border p-6">
           <p>{error}</p>
@@ -539,7 +612,7 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
                     onChange={(e) => setSearch(e.target.value)}
                   />
                 </label>
-                {view !== 'appointments' && (
+                {view === 'vehicles' && (
                   <select
                     className={`${inputClass} w-auto`}
                     aria-label={t('dealers.status')}
@@ -588,52 +661,81 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
                       .toLowerCase()
                       .includes(search.toLowerCase())
                 )
-                .map((v) => (
-                  <article
-                    key={v.id}
-                    className="bg-card overflow-hidden rounded-xl border"
-                  >
-                    <div className="bg-muted/50 relative flex aspect-[16/9] items-center justify-center">
-                      {v.photos[0] ? (
-                        <Image
-                          src={v.photos[0]}
-                          alt={vehicleTitle(v)}
-                          className="h-full w-full object-cover"
-                          fill
-                          unoptimized
-                          sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <CarFront className="text-muted-foreground/30 h-16 w-16" />
-                      )}
-                      <div className="absolute top-3 right-3">
-                        <Status value={v.status} />
+                .map((v) => {
+                  const source = inventorySource(v.notes);
+                  return (
+                    <article
+                      key={v.id}
+                      className="bg-card overflow-hidden rounded-xl border"
+                    >
+                      <div className="bg-muted/50 relative flex aspect-[16/9] items-center justify-center">
+                        {v.photos[0] ? (
+                          <Image
+                            src={v.photos[0]}
+                            alt={vehicleTitle(v)}
+                            className="h-full w-full object-cover"
+                            fill
+                            unoptimized
+                            sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <CarFront className="text-muted-foreground/30 h-16 w-16" />
+                        )}
+                        <div className="absolute top-3 right-3">
+                          <Status value={v.status} />
+                        </div>
                       </div>
-                    </div>
-                    <div className="p-4">
-                      <p className="text-muted-foreground text-xs">
-                        {v.stock_number}
-                      </p>
-                      <h3 className="mt-1 font-medium">{vehicleTitle(v)}</h3>
-                      <div className="mt-3 flex items-end justify-between">
-                        <p className="text-xl font-medium tracking-tight">
-                          {fmt.currency(Number(v.price), v.currency)}
+                      <div className="p-4">
+                        <p className="text-muted-foreground text-xs">
+                          {v.stock_number}
                         </p>
-                        <span className="text-muted-foreground text-xs">
-                          {fmt.number(v.mileage)} {v.mileage_unit}
-                        </span>
+                        <h3 className="mt-1 font-medium">{vehicleTitle(v)}</h3>
+                        <div className="mt-3 flex items-end justify-between">
+                          <p className="text-xl font-medium tracking-tight">
+                            {v.price === null
+                              ? t('dealers.consultPrice')
+                              : fmt.currency(v.price, v.currency)}
+                          </p>
+                          <span className="text-muted-foreground text-xs">
+                            {source?.isNew
+                              ? t('dealers.conditionNew')
+                              : `${fmt.number(v.mileage)} ${v.mileage_unit}`}
+                          </span>
+                        </div>
+                        {source && (
+                          <div className="mt-3 space-y-1 text-xs">
+                            <a
+                              href={source.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 hover:underline"
+                            >
+                              {t('dealers.dealerListing')}
+                              <ArrowUpRight className="h-3 w-3" />
+                            </a>
+                            {source.checkedAt && (
+                              <p className="text-muted-foreground">
+                                {t('dealers.checkedInventory', {
+                                  date: fmt.dateTime(source.checkedAt),
+                                })}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        <Button
+                          variant="outline"
+                          className="mt-4 w-full"
+                          onClick={() =>
+                            setEditor({ entity: 'vehicle', row: v })
+                          }
+                        >
+                          {t('dealers.edit')}
+                        </Button>
                       </div>
-                      <Button
-                        variant="outline"
-                        className="mt-4 w-full"
-                        onClick={() => setEditor({ entity: 'vehicle', row: v })}
-                      >
-                        {t('dealers.edit')}
-                      </Button>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               {!data.vehicles.length && <Empty text="emptyVehicles" />}
               {data.vehicles.length > 0 &&
                 !data.vehicles.some(
@@ -646,20 +748,14 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
             </div>
           )}
           {view === 'opportunities' && (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {visibleOpps
-                .filter((o) => filter === 'all' || o.stage === filter)
-                .map(opportunityCard)}
-              {!visibleOpps.length && (
-                <Empty
-                  text={
-                    data.opportunities.length
-                      ? 'noResults'
-                      : 'emptyOpportunities'
-                  }
-                />
-              )}
-            </div>
+            <OpportunityPipeline
+              data={data}
+              opportunities={visibleOpps}
+              busy={busy}
+              onMove={moveOpportunity}
+              onEdit={(o) => setEditor({ entity: 'opportunity', row: o })}
+              onInbox={demo ? undefined : (id) => void openInbox(id)}
+            />
           )}
           {view === 'appointments' && (
             <>
@@ -746,6 +842,7 @@ function DealerEditor({
           type={type}
           defaultValue={defaultValue ?? ''}
           required={required}
+          placeholder={key === 'price' ? t('dealers.consultPrice') : undefined}
           className={inputClass}
           min={type === 'number' ? 0 : undefined}
           step={
@@ -815,7 +912,7 @@ function DealerEditor({
             year: Number(get('year')),
             mileage: Number(get('mileage')),
             mileage_unit: get('mileage_unit'),
-            price: Number(get('price')),
+            price: get('price') ? Number(get('price')) : null,
             currency: get('currency'),
             status: get('status'),
             photos: get('photos')
@@ -912,7 +1009,7 @@ function DealerEditor({
                   { value: 'mi', label: 'mi' },
                   { value: 'km', label: 'km' },
                 ])}
-                {field('price', v?.price, 'number', true)}
+                {field('price', v?.price, 'number')}
                 {field('currency', v?.currency || 'USD', 'text', true)}
                 {select(
                   'status',
