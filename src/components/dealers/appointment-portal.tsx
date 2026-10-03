@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 interface Visit {
@@ -20,6 +21,7 @@ interface Visit {
 }
 export function AppointmentPortal() {
   const t = useT(),
+    fmt = useFormat(),
     [visit, setVisit] = useState<Visit | null>(null),
     [error, setError] = useState(''),
     [token, setToken] = useState(''),
@@ -27,11 +29,11 @@ export function AppointmentPortal() {
     [slot, setSlot] = useState(''),
     [done, setDone] = useState('');
   const time = (value: string) =>
-    new Intl.DateTimeFormat(undefined, {
+    fmt.dateTime(value, {
       timeZone: visit?.timezone,
       dateStyle: 'medium',
       timeStyle: 'short',
-    }).format(new Date(value));
+    });
   async function call(token: string, action: string, starts_at?: string) {
     const r = await fetch('/api/dealers/appointment-public', {
       method: 'POST',
