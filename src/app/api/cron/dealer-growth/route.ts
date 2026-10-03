@@ -6,7 +6,7 @@ import { syncDealerInventory } from '@/lib/dealers/inventory-sync';
 import { dealerSettings } from '@/lib/dealers/settings';
 export async function GET(req: Request) {
   try {
-    assertCronAuthAny(req, ['CRON_SECRET', 'AUTOMATIONS_CRON_SECRET']);
+    assertCronAuthAny(req, ['CRON_SECRET', 'AUTOMATION_CRON_SECRET']);
   } catch (r) {
     return r as Response;
   }

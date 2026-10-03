@@ -94,7 +94,7 @@ export async function POST(req: Request) {
     const key = await resolveAnthropicKey(c.db, { workspaceId: c.workspaceId });
     if (!key) throw new DealerError('ai_unavailable', 503);
     const response = await getAnthropic(key.key, {
-      db: c.db,
+      db: supabaseAdmin(),
       workspaceId: c.workspaceId,
       concepto: 'ia_asistencia',
       detalle: { superficie: 'panel', para: 'dealer_coach' },
