@@ -18,7 +18,8 @@ function database({
   const d = demoData();
   const ops: { table: string; method: string; args: unknown[] }[] = [];
   const from = vi.fn((table: string) => {
-    let write = false;
+    let write = false,
+      list = false;
     const q: Record<string, unknown> = {};
     const result = () => ({
       data:
@@ -31,7 +32,9 @@ function database({
               ? d.opportunities[0]
               : null
             : table === 'dealer_vehicles'
-              ? d.vehicles[0]
+              ? list
+                ? [d.vehicles[0]]
+                : d.vehicles[0]
               : table === 'dealer_interests'
                 ? []
                 : table === 'workspaces'
@@ -52,6 +55,7 @@ function database({
       'lte',
     ])
       q[method] = (...args: unknown[]) => {
+        if (method === 'limit') list = true;
         ops.push({ table, method, args });
         return q;
       };

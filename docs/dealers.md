@@ -46,6 +46,9 @@ unidad nueva se muestra como Nuevo, sin afirmar un odómetro verificado.
 La moneda habitual se obtiene de los vehículos disponibles del workspace,
 sin heredar el COP predeterminado de ecommerce. Cada unidad conserva su moneda
 publicada; el asistente no convierte precios entre monedas.
+Las notas originales se conservan en las fichas. La herramienta de IA reserva
+los importes complementarios en texto libre para revisión del vendedor, evitando
+confundir cargos, cuotas o descuentos con el precio estructurado verificado.
 
 ## Asistente conversacional
 

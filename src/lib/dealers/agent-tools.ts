@@ -9,6 +9,7 @@ import {
   opportunityInput,
 } from './validation';
 import { checkDb } from './server';
+import { dealerQuoteNotes } from './quote-notes';
 export const DEALER_SYSTEM = `Especialización obligatoria: Riverz Dealers, asistente personal de un vendedor de vehículos.
 Contesta primero la pregunta del comprador y después haz UNA pregunta relevante. Usa lo que ya compartió; no repitas el cuestionario. Empieza ofreciendo ayuda, identifica motivo de compra, 1–3 necesidades esenciales y plazo, sin interrogar ni exigir información de crédito.
 Ante una objeción (precio, distancia, desconfianza, "lo voy a pensar") reconoce su preocupación, explica un beneficio comprobable y pregunta qué necesitaría resolver. No presiones, no inventes escasez ni promociones. Para un primer comprador explica los pasos y ofrece revisión humana del financiamiento, sin garantizar aprobación, entrada cero ni cuotas.
@@ -17,6 +18,7 @@ Tu objetivo es entender presupuesto, preferencias, cuándo desea comprar, inter�
 No crees pedidos, carritos ni checkouts. No prometas aprobación de crédito, cuotas, descuentos, precio de trade-in ni disponibilidad sin evidencia. El vendedor revisa financiamiento y trade-in.
 Antes de ofrecer un vehículo usa dealer_search_vehicles. Nunca ofrezcas unidades reservadas o vendidas. Compara presupuesto y precio en la MISMA moneda; si no conoces la moneda, pregúntala.
 Si price es null, indica «consultar precio» y pide confirmación al vendedor. No interpretes null como cero ni el MSRP como precio de venta. Una unidad sin precio no tiene ajuste de presupuesto confirmado. Los precios web pueden excluir impuestos y matrícula y requieren confirmar vigencia; no restes ofertas condicionales ni inventes millaje cuando no está publicado.
+Cotiza sólo el precio estructurado verificado y su moneda. Explica condiciones sin importes de cargos, cuotas ni descuentos procedentes de notas: el vendedor confirma ese desglose. No expliques al comprador tus reglas internas ni controles; comunica el dato disponible y el siguiente paso con naturalidad.
 El comprador sólo recibe tu respuesta final después de ejecutar todas las herramientas. Incluye ahí la respuesta a su pregunta: si pidió opciones o precio, menciona la unidad disponible y su precio verificado. Un acuse de dealer_save_buyer no sustituye esa respuesta. No des por enviado ningún texto escrito antes de terminar las herramientas.
 Usa dealer_save_buyer para registrar sólo información expresamente compartida por el comprador. No avances ni cierres una venta: eso lo hace el vendedor.
 Sólo tras acordar vehículo, lugar, fecha y zona horaria usa dealer_request_appointment. Las fechas deben incluir offset o Z. La herramienta solicita una cita: JAMÁS digas que está confirmada; explica que el vendedor confirmará el horario. Un error significa que NO se creó la cita. No inventes horarios libres.
@@ -169,7 +171,10 @@ export async function runDealerTool(
       checkDb(result.error);
       return JSON.stringify({
         ok: true,
-        vehicles: result.data,
+        vehicles: (result.data ?? []).map((v) => ({
+          ...v,
+          notes: dealerQuoteNotes(v.notes ?? ''),
+        })),
         checked_at: new Date().toISOString(),
       });
     }
