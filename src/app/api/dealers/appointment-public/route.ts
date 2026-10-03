@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { publicBaseUrl } from '@/lib/base-url';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { dealerFailure, checkDb } from '@/lib/dealers/server';
 import {
@@ -12,7 +13,14 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 export async function POST(req: Request) {
   try {
     const origin = req.headers.get('origin');
-    if (origin && origin !== new URL(req.url).origin)
+    if (
+      origin &&
+      origin !== new URL(publicBaseUrl()).origin &&
+      !(
+        process.env.NODE_ENV !== 'production' &&
+        origin === new URL(req.url).origin
+      )
+    )
       throw new DealerError('unauthorized', 403);
     const raw = await req.text();
     if (raw.length > 3000) throw new DealerError('invalid');
