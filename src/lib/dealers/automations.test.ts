@@ -3,11 +3,18 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   assertDealerAutomationAllowed,
   enqueueDealerAutomations,
+  nextDealerSendAt,
 } from './automations';
+import { dealerSettings } from './settings';
 import { getTemplate, listTemplates } from '@/lib/automations/templates';
 import { validateStepsForActivation } from '@/lib/automations/validate';
 afterEach(() => vi.unstubAllEnvs());
 describe('dealer automation integration', () => {
+  it('defers to the configured business day and timezone instead of sending at night',()=>{
+    const settings=dealerSettings({business:{timezone:'America/New_York'},follow_up:{weekdays:[1,2,3,4,5],start_hour:9,end_hour:18}});
+    expect(nextDealerSendAt(settings,Date.parse('2026-10-02T23:00:00Z'))).toBe('2026-10-05T13:00:00.000Z');
+    expect(nextDealerSendAt(settings,Date.parse('2026-10-05T14:00:00Z'))).toBeNull();
+  });
   it('offers localized dealer recipes with an approved template required before activation', () => {
     vi.stubEnv('NEXT_PUBLIC_RIVERZ_VERTICAL', 'dealers');
     expect(listTemplates().map((t) => t.slug)).toEqual([

@@ -135,6 +135,8 @@ export function opportunityInput(value: unknown) {
     ...(Object.hasOwn(b, 'lead_source')
       ? { lead_source: text(b.lead_source, 200) }
       : {}),
+    ...(Object.hasOwn(b, 'lost_reason') ? { lost_reason: text(b.lost_reason,120) } : {}),
+    ...(Object.hasOwn(b, 'assigned_seller_id') ? { assigned_seller_id: b.assigned_seller_id===null ? null : uuid(b.assigned_seller_id) } : {}),
     ...(Object.hasOwn(b, 'buyer_type')
       ? {
           buyer_type: choice(b.buyer_type, [

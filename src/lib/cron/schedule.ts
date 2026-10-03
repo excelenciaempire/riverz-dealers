@@ -58,6 +58,7 @@ export type ScheduledJob = {
 export const DEFAULT_TIMEOUT_MS = 180_000;
 
 const JOB_CATALOG: ScheduledJob[] = [
+  { name: 'dealer-growth', path: '/api/cron/dealer-growth', schedule: '*/5 * * * *', whatKey: 'admin.cronDealerGrowth', retryOnFailure: true },
   { name: 'post-purchase-guides', path: '/api/cron/post-purchase-guides', schedule: '*/5 * * * *', whatKey: 'admin.cronPostPurchaseGuides' },
   { name: 'wallet-financial-costs', path: '/api/cron/wallet-financial-costs', schedule: '*/15 * * * *', whatKey: 'admin.cronWalletReconciliation', retryOnFailure: true },
   {name:'automation-templates',path:'/api/cron/automation-templates',schedule:'*/5 * * * *',whatKey:'admin.cronAutomationTemplates',retryOnFailure:true},

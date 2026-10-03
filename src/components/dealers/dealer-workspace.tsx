@@ -47,12 +47,18 @@ import { SalesExecution } from './sales-execution';
 import { OpportunityPipeline } from './opportunity-pipeline';
 import { inventorySource } from '@/lib/dealers/inventory-source';
 import { cn } from '@/lib/utils';
+import { DealerGrowthSettings } from './growth-settings';
+import { DealerGrowthMetrics } from './growth-metrics';
+import { DealerCoach } from './coach';
+import { dealerInventoryMatches } from '@/lib/dealers/growth';
 const tabs = [
   'today',
   'vehicles',
   'opportunities',
   'appointments',
   'bdc',
+  'settings',
+  'metrics',
 ] as const;
 type Tab = (typeof tabs)[number];
 type Editor =
@@ -153,6 +159,13 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
   const available =
     data?.vehicles.filter((v) => v.status === 'available') || [];
   const displayTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  async function shareAppointment(id: string) {
+    try {
+      const res=await request('/api/dealers/appointment-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({appointment_id:id})});
+      const body=await res.json();if(!res.ok)throw new Error(body.error);
+      await navigator.clipboard.writeText(body.url);toast.success(t('dealers.linkCopied'));
+    } catch(e) {toast.error(e instanceof Error?e.message:t('dealers.err_failed'));}
+  }
   async function openInbox(contactId: string) {
     try {
       const res = await fetch(`/api/dealers/conversation?contact=${contactId}`);
@@ -318,6 +331,7 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {!demo && activeAppointment(a) && data?.settings?.appointments.self_service !== false && <Button variant="outline" size="sm" onClick={()=>void shareAppointment(a.id)}>{t('dealers.shareVisit')}</Button>}
           {activeAppointment(a) && (
             <details className="text-xs">
               <summary className="cursor-pointer">
@@ -387,7 +401,7 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
       <span
         className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${['available', 'won', 'confirmed'].includes(value) ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}
       >
-        {t(`dealers.${value}`)}
+        {data?.settings?.pipeline.labels[value]?.[locale]??t(`dealers.${value}`)}
       </span>
     );
   }
@@ -413,7 +427,7 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
                 ? 'dealers.title'
                 : view === 'opportunities'
                   ? 'dealers.pipeline'
-                  : `dealers.${view}`
+                  : view === 'settings' ? 'dealers.growthSettings' : view === 'metrics' ? 'dealers.growthMetrics' : `dealers.${view}`
             )}
           </h1>
           {view === 'today' && (
@@ -423,6 +437,9 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
           )}
         </div>
         <div className="flex gap-2">
+          {!demo && <Button variant="outline" onClick={()=>switchView(view==='settings'?'today':'settings')}>{t(view==='settings'?'dealers.today':'dealers.growthSettings')}</Button>}
+          {!demo && <Button variant="outline" onClick={()=>switchView(view==='metrics'?'today':'metrics')}>{t(view==='metrics'?'dealers.today':'dealers.growthMetrics')}</Button>}
+          {!demo && data?.settings?.coach.enabled !== false && <DealerCoach/>}
           {view === 'today' && (
             <Button variant="outline" onClick={() => switchView('bdc')}>
               {t('dealers.bdc')}
@@ -459,7 +476,7 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
           className="flex gap-1 overflow-x-auto border-b"
           aria-label={t('dealers.brand')}
         >
-          {tabs.map((tab) => (
+          {tabs.filter(tab=>tab!=='settings').map((tab) => (
             <button
               key={tab}
               className={`shrink-0 border-b-2 px-4 py-3 text-sm ${view === tab ? 'border-foreground font-medium' : 'text-muted-foreground border-transparent'}`}
@@ -470,7 +487,7 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
               }}
             >
               {t(
-                tab === 'opportunities' ? 'dealers.pipeline' : `dealers.${tab}`
+                tab === 'opportunities' ? 'dealers.pipeline' : tab === 'metrics' ? 'dealers.growthMetrics' : `dealers.${tab}`
               )}
             </button>
           ))}
@@ -491,6 +508,8 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
         <p role="status">{t('dealers.loading')}</p>
       ) : (
         <>
+          {view === 'settings' && <DealerGrowthSettings onSaved={()=>void load()}/>}
+          {view === 'metrics' && <DealerGrowthMetrics data={data}/>}
           {view === 'today' && (
             <>
               <SalesExecution
@@ -502,6 +521,7 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
                 }
                 onAppointments={() => switchView('appointments')}
               />
+              {dealerInventoryMatches(data,data.settings).length>0 && <section className="space-y-3"><h2 className="font-medium">{t('dealers.inventoryMatches')}</h2>{dealerInventoryMatches(data,data.settings).slice(0,5).map(match=><article key={match.opportunity.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"><div><p className="text-sm font-medium">{buyer(match.opportunity)}</p><p className="text-muted-foreground mt-1 text-xs">{match.vehicles.map(vehicleTitle).join(' · ')}</p></div><Button variant="outline" size="sm" onClick={()=>setEditor({entity:'opportunity',row:match.opportunity})}>{t('dealers.review')}</Button></article>)}</section>}
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {[
                   {
@@ -940,6 +960,7 @@ function DealerEditor({
             objection: get('objection'),
             buyer_type: get('buyer_type'),
             lead_source: get('lead_source'),
+            lost_reason: get('lost_reason'),
             next_follow_up_at: date('next_follow_up_at'),
             follow_up_note: get('follow_up_note'),
             follow_up_paused: f.has('follow_up_paused'),
@@ -969,7 +990,7 @@ function DealerEditor({
     o = editor.entity === 'opportunity' ? editor.row : undefined,
     a = editor.entity === 'appointment' ? editor.row : undefined;
   const defaultStart = new Date(Date.now() + 86400000).toISOString(),
-    defaultEnd = new Date(Date.now() + 88200000).toISOString();
+    defaultEnd = new Date(Date.now() + 86400000 + (data.settings?.appointments.duration_minutes??30)*60000).toISOString();
   return (
     <Dialog
       open
@@ -1068,6 +1089,7 @@ function DealerEditor({
                 {field('lead_source', o?.lead_source)}
               </div>
               {field('objection', o?.objection)}
+              {select('lost_reason',o?.lost_reason||'',[{value:'',label:t('dealers.select')},...(data.settings?.metrics.lost_reasons||['price','inventory','timing','financing','competitor','no_response','other']).map(reason=>({value:reason,label:['price','inventory','timing','financing','competitor','no_response','other'].includes(reason)?t(`dealers.loss_${reason}`):reason}))])}
               {check('financing', o?.financing || false)}
               {field('trade_in', o?.trade_in)}
               <fieldset className="rounded-lg border p-3">
@@ -1155,7 +1177,7 @@ function DealerEditor({
                   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                 })}
               </p>
-              {field('location', a?.location || '', 'text', true)}
+              {field('location', a?.location || data.settings?.business.location || '', 'text', true)}
               <div className="grid grid-cols-2 gap-3">
                 {select(
                   'kind',

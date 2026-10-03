@@ -1,3 +1,4 @@
+import type { DealerSettings } from './settings';
 export const VEHICLE_STATUSES = ['available', 'reserved', 'sold'] as const;
 export const STAGES = [
   'inquiry',
@@ -30,6 +31,8 @@ export interface Vehicle {
   status: (typeof VEHICLE_STATUSES)[number];
   photos: string[];
   notes: string;
+  source_checked_at?: string | null;
+  source_changed_at?: string | null;
   created_at: string;
 }
 export interface Opportunity {
@@ -48,6 +51,9 @@ export interface Opportunity {
   buyer_type?: 'unknown' | 'first_time' | 'replacement' | 'additional';
   lead_source?: string;
   first_contact_at?: string | null;
+  first_response_at?: string | null;
+  assigned_seller_id?: string | null;
+  lost_reason?: string;
   last_contact_at?: string | null;
   next_follow_up_at: string | null;
   follow_up_note: string;
@@ -77,6 +83,8 @@ export interface DealerContact {
   opted_out: boolean;
 }
 export interface DealerData {
+  settings?: DealerSettings;
+  stage_history?: { opportunity_id: string; to_stage: string; changed_at: string }[];
   activities?: DealerActivity[];
   vehicles: Vehicle[];
   opportunities: Opportunity[];

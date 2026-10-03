@@ -1,6 +1,7 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
+import { dealerSettings } from './settings';
 const ws = '10000000-0000-4000-8000-000000000001',
   other = '10000000-0000-4000-8000-000000000002',
   user = '30000000-0000-4000-8000-000000000001';
@@ -35,10 +36,10 @@ beforeAll(async () => {
     CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY);
     CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('app.uid',true),'')::uuid $$;
     CREATE TABLE workspaces(id uuid PRIMARY KEY,owner_id uuid REFERENCES auth.users(id),timezone text DEFAULT 'America/New_York');
-    CREATE TABLE workspace_members(workspace_id uuid REFERENCES workspaces(id),user_id uuid REFERENCES auth.users(id));
-    CREATE TABLE contacts(id uuid PRIMARY KEY,workspace_id uuid REFERENCES workspaces(id),opted_out boolean DEFAULT false);
+    CREATE TABLE workspace_members(workspace_id uuid REFERENCES workspaces(id),user_id uuid REFERENCES auth.users(id),role text DEFAULT 'admin');
+    CREATE TABLE contacts(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),workspace_id uuid REFERENCES workspaces(id),opted_out boolean DEFAULT false,user_id uuid,name text,email text,phone text DEFAULT '',created_at timestamptz DEFAULT now());
     CREATE TABLE conversations(id uuid PRIMARY KEY,workspace_id uuid,contact_id uuid);
-    CREATE TABLE messages(id uuid PRIMARY KEY,conversation_id uuid,sender_type text,created_at timestamptz DEFAULT now());
+    CREATE TABLE messages(id uuid PRIMARY KEY,conversation_id uuid,sender_type text,created_at timestamptz DEFAULT now(),status text DEFAULT 'delivered');
     CREATE FUNCTION is_workspace_member(p_workspace uuid) RETURNS boolean LANGUAGE sql SECURITY DEFINER AS $$ SELECT EXISTS(SELECT 1 FROM workspace_members WHERE workspace_id=p_workspace AND user_id=auth.uid()) $$;
     INSERT INTO auth.users VALUES('${user}'); INSERT INTO workspaces(id,owner_id) VALUES('${ws}','${user}'),('${other}','${user}');
     INSERT INTO workspace_members VALUES('${ws}','${user}'); INSERT INTO contacts VALUES('${contact}','${ws}',false),('${foreign}','${other}',false);
@@ -59,6 +60,8 @@ beforeAll(async () => {
       'utf8'
     )
   );
+  await db.exec(readFileSync('supabase/migrations/379_dealer_growth.sql','utf8'));
+  await db.exec(readFileSync('supabase/migrations/380_dealer_followup_settings.sql','utf8'));
 }, 30000);
 afterAll(async () => {
   await db?.close();
@@ -553,4 +556,75 @@ describe.sequential('seller activity and appointment execution', () => {
       o,
     ]);
   });
+});
+
+describe.sequential('dealer growth SQL boundaries',()=>{
+ it('confirms and reschedules links atomically, checks conflicts and invalidates stale links',async()=>{
+  const config=dealerSettings({appointments:{start_hour:0,end_hour:24,weekdays:[0,1,2,3,4,5,6],notice_hours:0}});
+  await db.query('INSERT INTO dealer_settings(workspace_id,settings) VALUES($1,$2::jsonb)',[ws,JSON.stringify(config)]);
+  const buyer=(await db.query<{id:string}>('INSERT INTO contacts(workspace_id) VALUES($1) RETURNING id',[ws])).rows[0].id;
+  const opportunityId=(await db.query<{id:string}>('SELECT id FROM dealer_opportunities WHERE contact_id=$1',[buyer])).rows[0].id;
+  const v=await vehicle('LINK-TEST'),id=(await appointment(opportunityId,v,100)).rows[0].id;
+  const ap=(await db.query<{starts_at:Date}>('SELECT starts_at FROM dealer_appointments WHERE id=$1',[id])).rows[0];
+  await db.query("INSERT INTO dealer_appointment_links(token_hash,workspace_id,appointment_id,expires_at,schedule_revision) VALUES('test-link',$1,$2,now()+interval '7 days',$3)",[ws,id,ap.starts_at]);
+  await db.query("SELECT dealer_appointment_action('test-link','confirm')");expect((await db.query<{customer_confirmed:boolean}>('SELECT customer_confirmed FROM dealer_appointments WHERE id=$1',[id])).rows[0].customer_confirmed).toBe(true);
+  await appointment(opportunityId,await vehicle('LINK-CONFLICT'),101);
+  await expect(db.query("SELECT dealer_appointment_action('test-link','reschedule',now()+interval '101 hours',now()+interval '101 hours 30 minutes')")).rejects.toThrow('dealer_conflict');
+  expect((await db.query<{starts_at:Date}>('SELECT starts_at FROM dealer_appointments WHERE id=$1',[id])).rows[0].starts_at).toEqual(ap.starts_at);
+  await db.query("SELECT dealer_appointment_action('test-link','reschedule',now()+interval '102 hours',now()+interval '102 hours 30 minutes')");
+  expect((await db.query<{status:string;customer_confirmed:boolean}>('SELECT status,customer_confirmed FROM dealer_appointments WHERE id=$1',[id])).rows[0]).toEqual({status:'requested',customer_confirmed:false});
+  await db.query("UPDATE dealer_appointments SET starts_at=starts_at+interval '1 hour',ends_at=ends_at+interval '1 hour' WHERE id=$1",[id]);
+  await expect(db.query("SELECT dealer_appointment_action('test-link','confirm')")).rejects.toThrow('dealer_closed');
+  await db.query('DELETE FROM dealer_settings WHERE workspace_id=$1',[ws]);
+ });
+ it('records response only after an actual send and connection only after a customer reply',async()=>{
+  const buyer=(await db.query<{id:string}>('INSERT INTO contacts(workspace_id) VALUES($1) RETURNING id',[ws])).rows[0].id;
+  const id=(await db.query<{id:string}>('SELECT id FROM dealer_opportunities WHERE contact_id=$1',[buyer])).rows[0].id;
+  const conv=(await db.query<{id:string}>('INSERT INTO conversations(id,workspace_id,contact_id) VALUES(gen_random_uuid(),$1,$2) RETURNING id',[ws,buyer])).rows[0].id;
+  const msg=(await db.query<{id:string}>("INSERT INTO messages(id,conversation_id,sender_type,status) VALUES(gen_random_uuid(),$1,'agent','pending') RETURNING id",[conv])).rows[0].id;
+  expect((await db.query<{first_response_at:Date|null}>('SELECT first_response_at FROM dealer_opportunities WHERE id=$1',[id])).rows[0].first_response_at).toBeNull();
+  await db.query("UPDATE messages SET status='sent' WHERE id=$1",[msg]);
+  const sent=(await db.query<{first_response_at:Date|null;first_contact_at:Date|null}>('SELECT first_response_at,first_contact_at FROM dealer_opportunities WHERE id=$1',[id])).rows[0];expect(sent.first_response_at).not.toBeNull();expect(sent.first_contact_at).toBeNull();
+  await db.query("INSERT INTO messages(id,conversation_id,sender_type) VALUES(gen_random_uuid(),$1,'customer')",[conv]);
+  expect((await db.query<{first_contact_at:Date|null}>('SELECT first_contact_at FROM dealer_opportunities WHERE id=$1',[id])).rows[0].first_contact_at).not.toBeNull();
+  await db.query("UPDATE dealer_opportunities SET stage='qualified' WHERE id=$1",[id]);
+  expect((await db.query<{to_stage:string}>('SELECT to_stage FROM dealer_stage_history WHERE opportunity_id=$1 ORDER BY changed_at',[id])).rows.map(r=>r.to_stage)).toEqual(['inquiry','qualified']);
+  await db.query('DELETE FROM contacts WHERE id=$1',[buyer]);
+ });
+ it('allows manager settings with a version check and rejects a foreign seller',async()=>{
+  await db.query("SELECT set_config('app.uid',$1,false)",[user]);
+  const settings=dealerSettings({follow_up:{start_hour:0,end_hour:24,weekdays:[0,1,2,3,4,5,6]}});
+  const saved=await db.query<{v:number}>('SELECT dealer_save_settings($1,0,$2::jsonb) AS v',[ws,JSON.stringify(settings)]);expect(saved.rows[0].v).toBe(1);
+  await expect(db.query('SELECT dealer_save_settings($1,0,$2::jsonb)',[ws,JSON.stringify(settings)])).rejects.toThrow('dealer_conflict');
+  settings.leads.default_seller_id='30000000-0000-4000-8000-000000000099';
+  await expect(db.query('SELECT dealer_save_settings($1,1,$2::jsonb)',[ws,JSON.stringify(settings)])).rejects.toThrow('dealer_reference');
+ });
+ it('ingests idempotently, assigns a seller and never reverses opt-out',async()=>{
+  await db.query("UPDATE dealer_settings SET settings=jsonb_set(settings,'{leads,webhook_enabled}','true') WHERE workspace_id=$1",[ws]);
+  const lead={external_id:'meta-1',source:'meta',phone:'+13055550199',name:'Demo buyer',email:'',preferences:'Toyota Camry',consent:true,consent_at:new Date().toISOString()};
+  const first=(await db.query<{v:{contact_id:string;opportunity_id:string;duplicate:boolean}}>('SELECT dealer_ingest_lead($1,$2::jsonb) AS v',[ws,JSON.stringify(lead)])).rows[0].v;
+  const repeat=(await db.query<{v:{duplicate:boolean}}>('SELECT dealer_ingest_lead($1,$2::jsonb) AS v',[ws,JSON.stringify(lead)])).rows[0].v;expect(repeat.duplicate).toBe(true);
+  expect((await db.query<{assigned_seller_id:string}>('SELECT assigned_seller_id FROM dealer_opportunities WHERE id=$1',[first.opportunity_id])).rows[0].assigned_seller_id).toBe(user);
+  await db.query('UPDATE contacts SET opted_out=true WHERE id=$1',[first.contact_id]);
+  await db.query('SELECT dealer_ingest_lead($1,$2::jsonb)',[ws,JSON.stringify({...lead,external_id:'meta-2'})]);
+  expect((await db.query<{opted_out:boolean}>('SELECT opted_out FROM contacts WHERE id=$1',[first.contact_id])).rows[0].opted_out).toBe(true);
+  await db.query("DELETE FROM dealer_settings WHERE workspace_id=$1",[ws]);
+ });
+ it('keeps credentials private and prevents authenticated intake, import and link actions',async()=>{
+  await db.exec('SET ROLE authenticated');
+  try {
+   await expect(db.query('SELECT * FROM dealer_credentials')).rejects.toThrow('permission denied');
+   await expect(db.query("SELECT dealer_ingest_lead($1,'{}'::jsonb)",[ws])).rejects.toThrow('permission denied');
+   await expect(db.query("SELECT dealer_appointment_action('x','confirm')")).rejects.toThrow('permission denied');
+  }finally{await db.exec('RESET ROLE');}
+ });
+ it('imports atomically and never reopens a seller-reserved unit by default',async()=>{
+  const id=await vehicle('GROWTH-IMPORT');await db.query("UPDATE dealer_vehicles SET status='reserved' WHERE id=$1",[id]);
+  const row={stock_number:'GROWTH-IMPORT',vin:null,make:'Toyota',model:'Camry',year:2026,mileage:0,mileage_unit:'mi',price:25000,currency:'USD',status:'available',photos:[],notes:''};
+  const run=(await db.query<{id:string}>("INSERT INTO dealer_sync_runs(workspace_id,source,status) VALUES($1,'test','running') RETURNING id",[ws])).rows[0].id;
+  await expect(db.query('SELECT dealer_import_inventory($1,$2,$3::jsonb,$4,false,false,1)',[ws,run,JSON.stringify([row,{...row,stock_number:'GROWTH-BAD',vin:'invalid'}]),'test'])).rejects.toThrow();
+  expect((await db.query<{price:number}>('SELECT price FROM dealer_vehicles WHERE id=$1',[id])).rows[0].price).toBe('23000.00');
+  await db.query('SELECT dealer_import_inventory($1,$2,$3::jsonb,$4,false,false,1)',[ws,run,JSON.stringify([row]),'test']);
+  expect((await db.query<{status:string}>('SELECT status FROM dealer_vehicles WHERE id=$1',[id])).rows[0].status).toBe('reserved');
+ });
 });

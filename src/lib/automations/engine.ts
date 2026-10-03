@@ -67,7 +67,7 @@ import type { ContactSegment } from '@/lib/segments/types'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import { assignedTemplateVariant, recordExperimentExposure } from './template-ab-attribution'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { assertDealerAutomationAllowed, DealerAutomationStopped } from '@/lib/dealers/automations'
+import { assertDealerAutomationAllowed, assertDealerSendWindow, DealerAutomationStopped, DealerAutomationDeferred } from '@/lib/dealers/automations'
 import { requireRiverzoficialTemplateItems } from './riverzoficial-template-context'
 import { riverzFlowSkipReason } from './riverzoficial-context-gate'
 import { supersededCancellationReason } from './order-event-guard'
@@ -789,6 +789,18 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
   const results: AutomationLogStepResult[] = []
   let status: 'success' | 'partial' | 'failed' = 'success'
   let errorMessage: string | null = null
+  async function deferDealerStep(step: AutomationStep, runAt: string) {
+    const queued = await db.from('automation_pending_executions').insert({
+      automation_id: args.automation.id,
+      user_id: args.ownerUserId ?? (args.automation as { user_id?: string | null }).user_id ?? null,
+      workspace_id: args.automation.workspace_id, contact_id: args.contactId, log_id: args.logId,
+      parent_step_id: args.parentStepId, branch: args.branch, next_step_position: step.position,
+      context: args.context, run_at: runAt, status: 'pending',
+    })
+    if (queued.error) { await appendResults(args.logId, results, 'failed', queued.error.message); return }
+    results.push({ step_id: step.id, step_type: step.step_type, status: 'skipped', detail: 'deferred to dealer sending hours' })
+    await appendResults(args.logId, results, 'partial', null)
+  }
 
   for (const step of steps as AutomationStep[]) {
     // `wait` is the suspension point: enqueue and stop processing this
@@ -854,8 +866,15 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
     if (step.step_type === 'voice_call' && waitsForVoiceResult(step)) {
       let enqueued: { callId: string | null; detail: string }
       try {
+        await assertDealerAutomationAllowed(db, args.automation.workspace_id, args.contactId, args.automation.trigger_type, args.context.vars)
+        await assertDealerSendWindow(db, args.automation.workspace_id, args.automation.trigger_type)
         enqueued = await enqueueVoiceCallStep(step, args)
       } catch (err) {
+        if (err instanceof DealerAutomationDeferred) { await deferDealerStep(step, err.runAt); return }
+        if (err instanceof DealerAutomationStopped) {
+          results.push({ step_id: step.id, step_type: step.step_type, status: 'skipped', detail: err.message })
+          await appendResults(args.logId, results, 'success', null); return
+        }
         const msg = err instanceof Error ? err.message : String(err)
         results.push({
           step_id: step.id,
@@ -972,6 +991,7 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
       })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
+      if (err instanceof DealerAutomationDeferred) { await deferDealerStep(step, err.runAt); return }
       if (err instanceof StopSessionSequence) {
         results.push({step_id:step.id,step_type:step.step_type,status:'skipped',detail:msg})
         await appendResults(args.logId,results,'success',null)
@@ -1039,6 +1059,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
   try {
     await assertDealerAutomationAllowed(db, args.automation.workspace_id, args.contactId,
       args.automation.trigger_type, args.context.vars)
+    if (['send_message', 'send_template', 'ai_response', 'voice_call'].includes(step.step_type)) await assertDealerSendWindow(db, args.automation.workspace_id, args.automation.trigger_type)
   } catch (error) {
     if (error instanceof DealerAutomationStopped) throw new StopSessionSequence(error.message)
     throw error

@@ -52,7 +52,7 @@ export function salesActions(
       if (
         latest?.status === 'confirmed' &&
         Date.parse(latest.starts_at) > now &&
-        Date.parse(latest.starts_at) <= now + 86400000 &&
+        Date.parse(latest.starts_at) <= now + (data.settings?.appointments.reminder_hours??24)*3600000 &&
         (!latest.customer_confirmed ||
           !latest.vehicle_prepared ||
           !latest.directions_sent)
@@ -81,7 +81,7 @@ export function salesActions(
 export function salesMetrics(data: DealerData, now = Date.now()) {
   const cohort = data.opportunities.filter(
     (o) =>
-      Date.parse(o.created_at) >= now - 30 * 86400000 &&
+      Date.parse(o.created_at) >= now - (data.settings?.metrics.days??30) * 86400000 &&
       Date.parse(o.created_at) <= now
   );
   const ids = new Set(cohort.map((o) => o.id));
@@ -100,7 +100,7 @@ export function salesMetrics(data: DealerData, now = Date.now()) {
   const onTime = contacted.filter(
     (o) =>
       Date.parse(o.first_contact_at!) >= Date.parse(o.created_at) &&
-      Date.parse(o.first_contact_at!) - Date.parse(o.created_at) <= 300000
+      Date.parse(o.first_contact_at!) - Date.parse(o.created_at) <= (data.settings?.leads.response_minutes??5)*60000
   );
   return {
     leads: cohort.length,

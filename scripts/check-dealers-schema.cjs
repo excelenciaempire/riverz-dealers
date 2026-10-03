@@ -15,6 +15,13 @@
     'dealer_interests',
     'dealer_appointments',
     'dealer_activities',
+    'dealer_settings',
+    'dealer_sync_runs',
+    'dealer_appointment_links',
+    'dealer_credentials',
+    'dealer_coaching',
+    'dealer_stage_history',
+    'dealer_lead_receipts',
   ]) {
     const res = await fetch(`${url}/rest/v1/${table}?select=*&limit=0`, {
       headers,
@@ -22,7 +29,7 @@
     });
     if (!res.ok)
       throw new Error(
-        `Apply dealer migration 375 before deploying (${table}, HTTP ${res.status}).`
+        `Apply dealer migrations through 380 before deploying (${table}, HTTP ${res.status}).`
       );
   }
   const guard = await fetch(`${url}/rest/v1/rpc/dealer_automation_allowed`, {

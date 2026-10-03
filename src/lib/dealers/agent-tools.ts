@@ -10,6 +10,9 @@ import {
 } from './validation';
 import { checkDb } from './server';
 import { dealerQuoteNotes } from './quote-notes';
+import { readDealerSettings } from './settings-server';
+import { assertDealerSlot } from './settings';
+import { inventorySource } from './inventory-source';
 export const DEALER_SYSTEM = `Especialización obligatoria: Riverz Dealers, asistente personal de un vendedor de vehículos.
 Contesta primero la pregunta del comprador y después haz UNA pregunta relevante. Usa lo que ya compartió; no repitas el cuestionario. Empieza ofreciendo ayuda, identifica motivo de compra, 1–3 necesidades esenciales y plazo, sin interrogar ni exigir información de crédito.
 Ante una objeción (precio, distancia, desconfianza, "lo voy a pensar") reconoce su preocupación, explica un beneficio comprobable y pregunta qué necesitaría resolver. No presiones, no inventes escasez ni promociones. Para un primer comprador explica los pasos y ofrece revisión humana del financiamiento, sin garantizar aprobación, entrada cero ni cuotas.
@@ -132,7 +135,7 @@ export async function runDealerTool(
       let q = db
         .from('dealer_vehicles')
         .select(
-          'id,stock_number,make,model,year,mileage,mileage_unit,price,currency,status,photos,notes'
+          'id,stock_number,make,model,year,mileage,mileage_unit,price,currency,status,photos,notes,source_id,source_checked_at'
         )
         .eq('workspace_id', workspaceId)
         .eq('status', 'available');
@@ -169,9 +172,13 @@ export async function runDealerTool(
         .order('price', { ascending: true, nullsFirst: false })
         .limit(12);
       checkDb(result.error);
+      const {settings}=await readDealerSettings(db,workspaceId);
       return JSON.stringify({
         ok: true,
-        vehicles: (result.data ?? []).map((v) => ({
+        vehicles: (result.data ?? []).filter(v=>{
+          const checked=v.source_checked_at??inventorySource(v.notes??'')?.checkedAt;
+          return checked?Date.parse(checked)>=Date.now()-settings.inventory.freshness_hours*3600000:!v.source_id;
+        }).map((v) => ({
           ...v,
           notes: dealerQuoteNotes(v.notes ?? ''),
         })),
@@ -283,6 +290,8 @@ export async function runDealerTool(
       opportunity_id: prior.data.id,
       status: 'requested',
     });
+    const {settings}=await readDealerSettings(db,workspaceId);
+    assertDealerSlot(settings,input.starts_at,input.ends_at);
     const vehicle = await db
       .from('dealer_vehicles')
       .select('id,status')

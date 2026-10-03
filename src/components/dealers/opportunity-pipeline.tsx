@@ -2,7 +2,7 @@
 
 import { useState, type DragEvent } from 'react';
 import { Clock3, GripVertical, ArrowUpRight } from 'lucide-react';
-import { useT } from '@/hooks/use-locale';
+import { useT, useLocale } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import {
   STAGES,
@@ -41,6 +41,8 @@ export function OpportunityPipeline({
 }) {
   const t = useT(),
     fmt = useFormat();
+  const {locale}=useLocale();
+  const stageLabel=(stage:string)=>data.settings?.pipeline.labels[stage]?.[locale]??t(`dealers.${stage}`);
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<Stage | null>(null);
   function drop(e: DragEvent, stage: Stage) {
@@ -69,7 +71,7 @@ export function OpportunityPipeline({
               <section
                 key={stage}
                 data-stage={stage}
-                aria-label={t(`dealers.${stage}`)}
+                aria-label={stageLabel(stage)}
                 className={cn(
                   'bg-muted/35 min-h-96 w-64 shrink-0 rounded-xl border p-3 transition-colors',
                   over === stage && 'border-primary bg-primary/5'
@@ -90,7 +92,7 @@ export function OpportunityPipeline({
                 <header className="mb-3 flex items-center justify-between gap-2 px-1">
                   <h2 className="flex items-center gap-2 text-sm font-medium">
                     <span className={cn('h-2 w-2 rounded-full', dots[stage])} />
-                    {t(`dealers.${stage}`)}
+                    {stageLabel(stage)}
                   </h2>
                   <span className="text-muted-foreground bg-background rounded-md px-2 py-0.5 text-xs tabular-nums">
                     {fmt.number(rows.length)}
@@ -207,7 +209,7 @@ export function OpportunityPipeline({
                           >
                             {STAGES.map((s) => (
                               <option key={s} value={s}>
-                                {t(`dealers.${s}`)}
+                                {stageLabel(s)}
                               </option>
                             ))}
                           </select>

@@ -75,7 +75,7 @@ export function SalesExecution({
       <div className="flex items-center justify-between">
         <h2 className="font-medium">{t('dealers.actionQueue')}</h2>
         <span className="text-muted-foreground text-xs">
-          {t('dealers.fiveMinuteGoal')}
+          {t('dealers.responseGoal',{minutes:data.settings?.leads.response_minutes??5})}
         </span>
       </div>
       <div className="space-y-3">
@@ -155,7 +155,7 @@ export function SalesExecution({
             </select>
           </label>
           <div>
-            <h2 className="mb-3 font-medium">{t('dealers.funnel30')}</h2>
+            <h2 className="mb-3 font-medium">{t('dealers.funnelDays',{days:data.settings?.metrics.days??30})}</h2>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
               {(
                 ['leads', 'connected', 'booked', 'attended', 'won'] as const
@@ -171,7 +171,8 @@ export function SalesExecution({
               ))}
             </div>
             <p className="text-muted-foreground mt-3 text-xs">
-              {t('dealers.slaEvidence', {
+              {t('dealers.slaConfigured', {
+                minutes:data.settings?.leads.response_minutes??5,
                 onTime: String(metrics.withinFiveMinutes),
                 total: String(metrics.connected),
               })}{' '}

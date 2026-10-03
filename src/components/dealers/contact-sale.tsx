@@ -5,6 +5,7 @@ import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import type { DealerData } from '@/lib/dealers/types';
 import { vehicleTitle } from '@/lib/dealers/types';
+import { DealerCoach } from './coach';
 export function ContactSale({ contactId }: { contactId: string }) {
   const t = useT(),
     fmt = useFormat();
@@ -36,6 +37,7 @@ export function ContactSale({ contactId }: { contactId: string }) {
   return (
     <section className="rounded-lg border p-3">
       <h3 className="text-xs font-medium">{t('dealers.contactContext')}</h3>
+      {o && data?.settings?.coach.enabled !== false && <div className="mt-3"><DealerCoach opportunityId={o.id} /></div>}
       {o && (
         <>
           <p className="mt-2 text-sm">

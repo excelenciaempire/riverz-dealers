@@ -6,6 +6,8 @@ import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { DealerError } from './validation';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { readDealerSettings } from './settings-server';
+import type { DealerData } from './types';
 export async function dealerContext() {
   const db = await createClient();
   const {
@@ -46,7 +48,7 @@ export async function readDealerData(
   workspaceId: string,
   sellerId: string,
   contactId?: string
-) {
+): Promise<DealerData> {
   async function rows(table: string, columns = '*') {
     const result: Record<string, unknown>[] = [];
     for (let offset = 0; ; offset += 1000) {
@@ -73,6 +75,8 @@ export async function readDealerData(
     contacts,
     workspace,
     activities,
+    config,
+    stageHistory,
   ] = await Promise.all([
     rows('dealer_vehicles'),
     rows('dealer_opportunities'),
@@ -81,6 +85,8 @@ export async function readDealerData(
     rows('contacts', 'id,name,phone,opted_out'),
     db.from('workspaces').select('timezone').eq('id', workspaceId).single(),
     rows('dealer_activities'),
+    readDealerSettings(db, workspaceId),
+    rows('dealer_stage_history'),
   ]);
   checkDb(workspace.error);
   return {
@@ -90,7 +96,9 @@ export async function readDealerData(
     interests,
     contacts,
     activities,
+    settings: config.settings,
+    stage_history: stageHistory,
     timezone: workspace.data?.timezone || 'UTC',
     seller_id: sellerId,
-  };
+  } as unknown as DealerData;
 }

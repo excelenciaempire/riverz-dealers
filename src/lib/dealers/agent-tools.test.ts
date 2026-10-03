@@ -23,7 +23,7 @@ function database({
     const q: Record<string, unknown> = {};
     const result = () => ({
       data:
-        table === 'contacts'
+        table === 'dealer_settings' ? {settings:{appointments:{weekdays:[0,1,2,3,4,5,6],start_hour:0,end_hour:24,notice_hours:0}},version:1} : table === 'contacts'
           ? missingContact
             ? null
             : { id: d.contacts[0].id, opted_out: optedOut }

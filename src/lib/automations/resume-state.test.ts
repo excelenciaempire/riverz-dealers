@@ -2,7 +2,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/billing/read-only', () => ({ workspaceReadOnly: async () => false }))
 
-const state = vi.hoisted(() => ({ tables: {} as Record<string, any[]>, reads: [] as string[] }))
+const state = vi.hoisted(() => ({ tables: {} as Record<string, any[]>, reads: [] as string[], deferred: null as string | null }))
+vi.mock('@/lib/dealers/automations', async (original) => {
+  const actual = await original<typeof import('@/lib/dealers/automations')>()
+  return { ...actual, assertDealerAutomationAllowed: vi.fn(async () => {}),
+    assertDealerSendWindow: vi.fn(async () => { if (state.deferred) throw new actual.DealerAutomationDeferred(state.deferred) }) }
+})
 vi.mock('./admin-client', () => ({ supabaseAdmin: () => ({ from: (table: string) => {
   const filters: Array<(row: any) => boolean> = []
   let operation = 'select', payload: any, count = false, single = false
@@ -38,6 +43,7 @@ const pending = { id: 'pending', automation_id: 'a', workspace_id: 'w', contact_
   parent_step_id: null, branch: null, next_step_position: 0, context: { vars: { selected: 'yes' } } }
 
 beforeEach(() => {
+  state.deferred = null
   state.reads = []
   state.tables = {
     automations: [{ id: 'a', workspace_id: 'w', is_active: true, activation_state: 'active', trigger_config: {} }],
@@ -48,6 +54,17 @@ beforeEach(() => {
 })
 
 describe('real engine continuation', () => {
+  it.each(['send_message', 'voice_call'])('defers a dealer %s without sending or losing its cursor', async stepType => {
+    state.deferred = '2026-10-05T13:00:00Z'
+    Object.assign(state.tables.automations[0], { trigger_type: 'dealer_follow_up_due' })
+    state.tables.automation_steps = [{ id: 'outbound', automation_id: 'a', parent_step_id: null, position: 0,
+      step_type: stepType, step_config: { text: 'Must not send', wait_for_result: true } }]
+    await resumePendingExecution(pending)
+    expect(state.tables.automation_pending_executions).toHaveLength(2)
+    expect(state.tables.automation_pending_executions[1]).toMatchObject({ status: 'pending', next_step_position: 0, run_at: state.deferred, context: pending.context })
+    expect(state.tables.automation_logs[0].status).toBe('partial')
+    expect(state.reads).not.toContain('conversations')
+  })
   it('hands a delivery reply to the current assistant with its order context, preserving human assignment', async () => {
     const automationId='11111111-1111-4111-8111-111111111111';
     Object.assign(state.tables.automations[0], { id:automationId,trigger_type:'shopify_order_incident_opened',trigger_config:{stop_on_inbound:true,delivery_incident_context:true} });
