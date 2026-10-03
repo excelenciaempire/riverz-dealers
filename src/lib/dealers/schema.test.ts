@@ -62,6 +62,7 @@ beforeAll(async () => {
   );
   await db.exec(readFileSync('supabase/migrations/379_dealer_growth.sql','utf8'));
   await db.exec(readFileSync('supabase/migrations/380_dealer_followup_settings.sql','utf8'));
+  await db.exec(readFileSync('supabase/migrations/381_dealer_intake_consent.sql','utf8'));
 }, 30000);
 afterAll(async () => {
   await db?.close();
@@ -602,6 +603,8 @@ describe.sequential('dealer growth SQL boundaries',()=>{
  it('ingests idempotently, assigns a seller and never reverses opt-out',async()=>{
   await db.query("UPDATE dealer_settings SET settings=jsonb_set(settings,'{leads,webhook_enabled}','true') WHERE workspace_id=$1",[ws]);
   const lead={external_id:'meta-1',source:'meta',phone:'+13055550199',name:'Demo buyer',email:'',preferences:'Toyota Camry',consent:true,consent_at:new Date().toISOString()};
+  const unconsented=(await db.query<{v:{opportunity_id:string}}>('SELECT dealer_ingest_lead($1,$2::jsonb) AS v',[ws,JSON.stringify({...lead,external_id:'without-consent',phone:'+13055550198',consent:false,consent_at:null})])).rows[0].v;
+  expect((await db.query<{follow_up_paused:boolean;next_follow_up_at:Date|null}>('SELECT follow_up_paused,next_follow_up_at FROM dealer_opportunities WHERE id=$1',[unconsented.opportunity_id])).rows[0]).toEqual({follow_up_paused:true,next_follow_up_at:null});
   const first=(await db.query<{v:{contact_id:string;opportunity_id:string;duplicate:boolean}}>('SELECT dealer_ingest_lead($1,$2::jsonb) AS v',[ws,JSON.stringify(lead)])).rows[0].v;
   const repeat=(await db.query<{v:{duplicate:boolean}}>('SELECT dealer_ingest_lead($1,$2::jsonb) AS v',[ws,JSON.stringify(lead)])).rows[0].v;expect(repeat.duplicate).toBe(true);
   expect((await db.query<{assigned_seller_id:string}>('SELECT assigned_seller_id FROM dealer_opportunities WHERE id=$1',[first.opportunity_id])).rows[0].assigned_seller_id).toBe(user);

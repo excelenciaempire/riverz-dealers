@@ -29,7 +29,7 @@
     });
     if (!res.ok)
       throw new Error(
-        `Apply dealer migrations through 380 before deploying (${table}, HTTP ${res.status}).`
+        `Apply dealer migrations through 381 before deploying (${table}, HTTP ${res.status}).`
       );
   }
   const guard = await fetch(`${url}/rest/v1/rpc/dealer_automation_allowed`, {

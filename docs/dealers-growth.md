@@ -36,7 +36,7 @@ Content-Type: application/json
 }
 ```
 
-All fields shown are required; email and preferences may be empty. `consent_at` is required when consent is true. Phone uses E.164. External ID is idempotent within the workspace. A receipt records consent evidence; existing opt-out is never reversed. Intake creates a contact/opportunity and assigns the configured seller; it does not send a customer message. Rotate the key to revoke previous access. Native Meta Lead Ads OAuth is not included; use the signed connector with your integration provider.
+All fields shown are required; email and preferences may be empty. `consent_at` is required when consent is true. Phone uses E.164. External ID is idempotent within the workspace. A receipt records consent evidence; existing opt-out is never reversed. New external leads without consent remain paused until the seller authorizes follow-up. Intake creates a contact/opportunity and assigns the configured seller; it does not send a customer message. Rotate the key to revoke previous access. Native Meta Lead Ads OAuth is not included; use the signed connector with your integration provider.
 
 ## Inventory contract
 
@@ -59,4 +59,4 @@ The `dealer-growth` cron runs every five minutes and services due inventory feed
 
 ## Database
 
-Apply migrations `379_dealer_growth.sql` and `380_dealer_followup_settings.sql` to the isolated Dealers project before deploying this revision. Credentials and appointment tokens are service-only; member views use workspace RLS. Sync runs, intake receipts, stage transitions and coaching results retain an audit trail.
+Apply migrations `379_dealer_growth.sql`, `380_dealer_followup_settings.sql` and `381_dealer_intake_consent.sql` to the isolated Dealers project before deploying this revision. Credentials and appointment tokens are service-only; member views use workspace RLS. Sync runs, intake receipts, stage transitions and coaching results retain an audit trail.
