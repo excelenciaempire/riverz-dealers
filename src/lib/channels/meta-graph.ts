@@ -785,7 +785,18 @@ export function whatsappSubscriptionSnapshot(
 /** Origen público de esta instancia — a dónde Meta debería entregar.
  *  Reexportado desde `lib/base-url` porque el mismo desvío afecta a Shopify,
  *  Tiendanube y WooCommerce, y la respuesta tiene que ser una sola. */
-export const appWebhookBaseUrl = publicBaseUrl;
+export function appWebhookBaseUrl(): string {
+  // One Meta app has one global destination, even when several products share it.
+  const canonical = process.env.META_WEBHOOK_BASE_URL;
+  if (canonical) {
+    const url = new URL(canonical);
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/') {
+      throw new Error('invalid_meta_webhook_base_url');
+    }
+    return url.origin;
+  }
+  return publicBaseUrl();
+}
 
 /**
  * Diff the live app-level subscriptions against what we require. Returns the
