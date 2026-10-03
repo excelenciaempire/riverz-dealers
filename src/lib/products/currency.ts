@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { isDealerDeployment } from '@/lib/dealers/config'
+import { dealerInventoryCurrency } from '@/lib/dealers/currency'
 
 /**
  * Divisa del negocio: detección + resolución compartida entre la feature de
@@ -46,6 +48,7 @@ export async function resolveWorkspaceCurrency(
   db: SupabaseClient,
   workspaceId: string,
 ): Promise<string> {
+  if (isDealerDeployment()) return (await dealerInventoryCurrency(db, workspaceId)) ?? 'USD'
   try {
     // 1) Override explícito de la config de checkout.
     const { data: cfg } = await db
@@ -114,6 +117,7 @@ export async function resolveWorkspaceCurrencyOrNull(
   db: SupabaseClient,
   workspaceId: string,
 ): Promise<string | null> {
+  if (isDealerDeployment()) return dealerInventoryCurrency(db, workspaceId)
   const c = await resolveWorkspaceCurrency(db, workspaceId)
   if (c !== DEFAULT_CURRENCY) return c
   // Coincide con el default: puede ser de verdad COP o puede ser que no haya

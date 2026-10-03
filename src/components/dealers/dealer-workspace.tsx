@@ -46,6 +46,7 @@ import { DealerError } from '@/lib/dealers/validation';
 import { SalesExecution } from './sales-execution';
 import { OpportunityPipeline } from './opportunity-pipeline';
 import { inventorySource } from '@/lib/dealers/inventory-source';
+import { cn } from '@/lib/utils';
 const tabs = [
   'today',
   'vehicles',
@@ -614,7 +615,7 @@ export function DealerWorkspace({ demo = false }: { demo?: boolean }) {
                 </label>
                 {view === 'vehicles' && (
                   <select
-                    className={`${inputClass} w-auto`}
+                    className={cn(inputClass, 'w-40')}
                     aria-label={t('dealers.status')}
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
@@ -1026,7 +1027,16 @@ function DealerEditor({
                   className={`${inputClass} h-auto py-2`}
                 />
               </label>
-              {field('notes', v?.notes)}
+              <label className="grid gap-1.5 text-xs font-medium">
+                {t('dealers.notes')}
+                <textarea
+                  name="notes"
+                  defaultValue={v?.notes}
+                  rows={4}
+                  maxLength={2000}
+                  className={`${inputClass} h-auto py-2`}
+                />
+              </label>
             </>
           )}
           {editor.entity === 'opportunity' && (

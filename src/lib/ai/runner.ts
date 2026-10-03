@@ -4160,7 +4160,9 @@ export function armarSystemPrompt(
   // Divisa del negocio — todos los agentes deben cotizar en la misma moneda.
   // Detectada de la tienda Shopify / config / catálogo (resolveWorkspaceCurrency).
   estable.push(
-    `Moneda del negocio: ${businessCurrency}. Cuando menciones precios, exprésalos siempre en ${businessCurrency}; nunca cambies de moneda ni inventes conversiones.`
+    isDealerDeployment()
+      ? `Moneda habitual del inventario: ${businessCurrency}. Cotiza cada vehículo exclusivamente en la moneda publicada por dealer_search_vehicles; consulta la moneda solicitada por el comprador. No conviertas precios ni sustituyas la moneda de una unidad por la del negocio. Si no hay precio publicado, indica que el vendedor debe confirmarlo.`
+      : `Moneda del negocio: ${businessCurrency}. Cuando menciones precios, exprésalos siempre en ${businessCurrency}; nunca cambies de moneda ni inventes conversiones.`
   );
   if (agent.knowledge && agent.knowledge.trim()) {
     estable.push('Contexto adicional sobre el negocio:');

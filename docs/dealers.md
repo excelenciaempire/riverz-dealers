@@ -43,6 +43,9 @@ al buscar por presupuesto, pero su ajuste al presupuesto requiere confirmación.
 La verificación de precios de IA conserva los hechos del vehículo y excluye los
 precios nulos de las cotizaciones autorizadas. El millaje no publicado de una
 unidad nueva se muestra como Nuevo, sin afirmar un odómetro verificado.
+La moneda habitual se obtiene de los vehículos disponibles del workspace,
+sin heredar el COP predeterminado de ecommerce. Cada unidad conserva su moneda
+publicada; el asistente no convierte precios entre monedas.
 
 ## Asistente conversacional
 
